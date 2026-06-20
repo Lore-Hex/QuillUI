@@ -27,11 +27,15 @@ public struct Color: Equatable, Sendable {
     }
 
     /// Create a color from integer RGB components (0–255).
-    public init(red: Int, green: Int, blue: Int, alpha: Int = 255) {
-        self.red = Double(Self.clamp255(red)) / 255.0
-        self.green = Double(Self.clamp255(green)) / 255.0
-        self.blue = Double(Self.clamp255(blue)) / 255.0
-        self.alpha = Double(Self.clamp255(alpha)) / 255.0
+    ///
+    /// SwiftUI's `Color(red:green:blue:)` is fractional. Keeping 8-bit
+    /// components on distinct labels avoids hijacking real SwiftUI source
+    /// such as `Color(red: 187 / 255, green: 59 / 255, blue: 226 / 255)`.
+    public init(red8: Int, green8: Int, blue8: Int, alpha8: Int = 255) {
+        self.red = Double(Self.clamp255(red8)) / 255.0
+        self.green = Double(Self.clamp255(green8)) / 255.0
+        self.blue = Double(Self.clamp255(blue8)) / 255.0
+        self.alpha = Double(Self.clamp255(alpha8)) / 255.0
     }
 
     /// Create a color from a hex string (e.g., "#FF0000" or "#FF000080").

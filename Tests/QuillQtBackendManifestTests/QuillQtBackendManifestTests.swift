@@ -109,6 +109,8 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("dependencies: [\"QuillEnchantedData\", \"QuillFoundation\"]"))
         #expect(manifest.contains("path: \"Sources/QuillEnchantedShared\""))
         #expect(manifest.contains("quillEnchantedDataTarget,"))
+        #expect(manifest.contains(".target(name: \"UniformTypeIdentifiers\", dependencies: [], path: \"Sources/UniformTypeIdentifiersShim\"),\n        .target(name: \"CoreTransferable\", dependencies: [\"UniformTypeIdentifiers\"], path: \"Sources/CoreTransferable\"),\n        .target(\n            name: \"QuillUIKit\""))
+        #expect(manifest.contains("dependencies: [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"CoreTransferable\", \"UniformTypeIdentifiers\"]"))
         #expect(manifest.contains("dependencies: [.target(name: \"QuillEnchantedShared\"), \"CQuillQt6WidgetsShim\", \"QuillQtNativeRuntimeSupport\"]"))
         #expect(!manifest.contains("if quillUILinuxBuildBackend == .qt {\n        return []"))
     }

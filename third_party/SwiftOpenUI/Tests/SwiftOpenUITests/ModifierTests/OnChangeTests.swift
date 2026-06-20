@@ -47,6 +47,38 @@ final class OnChangeTests: XCTestCase {
         XCTAssertEqual(received, 2)
     }
 
+    func testFirstRenderInDifferentNamespaceDoesNotFire() {
+        var defaultFired = false
+        var pushedFired = false
+
+        onChangeCheckAndFire(namespace: "root", value: "home") { _ in
+            defaultFired = true
+        }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(namespace: "navigation-detail", value: "trending") { _ in
+            pushedFired = true
+        }
+
+        XCTAssertFalse(defaultFired)
+        XCTAssertFalse(pushedFired)
+    }
+
+    func testNamespacesTrackPreviousValuesIndependently() {
+        var rootReceived: String?
+        var detailReceived: String?
+
+        onChangeCheckAndFire(namespace: "root", value: "home") { rootReceived = $0 }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(namespace: "detail", value: "trending") { detailReceived = $0 }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(namespace: "root", value: "local") { rootReceived = $0 }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(namespace: "detail", value: "links") { detailReceived = $0 }
+
+        XCTAssertEqual(rootReceived, "local")
+        XCTAssertEqual(detailReceived, "links")
+    }
+
     func testMultipleOnChangeTrackIndependently() {
         var firedA = false
         var firedB = false

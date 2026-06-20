@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -8,6 +8,12 @@ import Observation
 public protocol AnyViewHost: AnyObject {
     /// Schedule a coalesced rebuild of the hosted view subtree.
     func scheduleRebuild()
+
+    /// Schedule a rebuild after an `ObservableObject.objectWillChange`
+    /// publication has completed. Combine/OpenCombine publish from `willSet`,
+    /// so backends with run-loop driven rendering may need a small deferral
+    /// before reading the changed value.
+    func scheduleRebuildAfterObservableObjectMutation()
 
     /// Suppress the next automatic focus restoration during rebuild.
     func suppressNextFocusRestore()
@@ -22,6 +28,10 @@ public protocol AnyViewHost: AnyObject {
 }
 
 extension AnyViewHost {
+    public func scheduleRebuildAfterObservableObjectMutation() {
+        scheduleRebuild()
+    }
+
     public func beginInteractiveUpdate() {}
     public func endInteractiveUpdate() {}
 }
@@ -33,6 +43,9 @@ public func installState<V>(_ view: V, host: AnyViewHost) {
     for child in mirror.children {
         if let provider = child.value as? AnyStateStorageProvider {
             provider.anyStorage.host = host
+        }
+        if let environment = child.value as? AnyObjectInjectionEnvironment {
+            environment.wireInjectedObject(to: host)
         }
     }
 }
@@ -49,7 +62,7 @@ public func hasReactiveProperties<V>(_ view: V) -> Bool {
     let mirror = Mirror(reflecting: view)
     return mirror.children.contains { child in
         if child.value is AnyStateStorageProvider { return true }
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             if child.value is Observable { return true }
         }

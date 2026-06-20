@@ -12,9 +12,12 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QByteArray>
+#include <QCalendarWidget>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QDate>
+#include <QDoubleSpinBox>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
@@ -30,6 +33,7 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QRect>
+#include <QResizeEvent>
 #include <QSize>
 #include <QScrollArea>
 #include <QString>
@@ -39,6 +43,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -150,6 +155,105 @@ public:
 private:
     Qt::Orientation orientation_ = Qt::Horizontal;
 };
+
+class QuillQtLabel final : public QLabel {
+public:
+    explicit QuillQtLabel(const QString &text, QWidget *parent = nullptr)
+        : QLabel(parent), fullText(text)
+    {
+        QLabel::setText(text);
+    }
+
+    Qt::TextElideMode quillElideMode() const {
+        return elideMode;
+    }
+
+    void setQuillElideMode(Qt::TextElideMode mode) {
+        if (elideMode == mode) {
+            return;
+        }
+        elideMode = mode;
+        updateDisplayedText();
+    }
+
+protected:
+    void resizeEvent(QResizeEvent *event) override {
+        QLabel::resizeEvent(event);
+        updateDisplayedText();
+    }
+
+private:
+    QString fullText;
+    Qt::TextElideMode elideMode = Qt::ElideNone;
+
+    void updateDisplayedText() {
+        QString displayed = fullText;
+        if (elideMode != Qt::ElideNone && !wordWrap() && width() > 0) {
+            displayed = fontMetrics().elidedText(fullText, elideMode, width());
+        }
+        if (text() != displayed) {
+            QLabel::setText(displayed);
+        }
+    }
+};
+
+void collectLabels(QWidget *widget, QList<QLabel *> &labels) {
+    if (widget == nullptr) {
+        return;
+    }
+    if (QLabel *label = qobject_cast<QLabel *>(widget)) {
+        labels.append(label);
+        return;
+    }
+    const auto children = widget->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly);
+    for (QWidget *child : children) {
+        collectLabels(child, labels);
+    }
+}
+
+QList<QLabel *> labelsInSubtree(QWidget *widget) {
+    QList<QLabel *> labels;
+    collectLabels(widget, labels);
+    return labels;
+}
+
+Qt::TextElideMode currentElideMode(QLabel *label) {
+    if (label == nullptr) {
+        return Qt::ElideNone;
+    }
+    if (QuillQtLabel *quillLabel = dynamic_cast<QuillQtLabel *>(label)) {
+        return quillLabel->quillElideMode();
+    }
+    return static_cast<Qt::TextElideMode>(
+        label->property("quillElideMode").toInt()
+    );
+}
+
+void setElideMode(QLabel *label, Qt::TextElideMode mode) {
+    if (label == nullptr) {
+        return;
+    }
+    label->setProperty("quillElideMode", static_cast<int>(mode));
+    if (QuillQtLabel *quillLabel = dynamic_cast<QuillQtLabel *>(label)) {
+        quillLabel->setQuillElideMode(mode);
+    }
+}
+
+int decimalsForStep(double step) {
+    if (!std::isfinite(step) || step <= 0.0) {
+        return 2;
+    }
+    if (std::fabs(step - std::round(step)) < 0.0000001) {
+        return 0;
+    }
+    if (std::fabs((step * 10.0) - std::round(step * 10.0)) < 0.0000001) {
+        return 1;
+    }
+    if (std::fabs((step * 100.0) - std::round(step * 100.0)) < 0.0000001) {
+        return 2;
+    }
+    return 3;
+}
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
 // addresses (a dangling QApplication argc reference) produced a bare
@@ -443,11 +547,55 @@ void quill_qt_bridge_widget_set_fixed_size(
 // --- Leaf widgets ----------------------------------------------------------
 
 QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text) {
-    QLabel *label = new QLabel(utf8(text));
+    QLabel *label = new QuillQtLabel(utf8(text));
     // SwiftUI Text reports its intrinsic single-line size to the layout
     // engine; leave word-wrap off so sizeHint() is the natural text size.
     label->setWordWrap(false);
     return reinterpret_cast<QuillQtWidgetHandle>(label);
+}
+
+void quill_qt_bridge_widget_apply_line_limit_to_labels(
+    QuillQtWidgetHandle widget,
+    int line_limit
+) {
+    for (QLabel *label : labelsInSubtree(asWidget(widget))) {
+        if (line_limit < 0) {
+            label->setWordWrap(true);
+            label->setMaximumHeight(QWIDGETSIZE_MAX);
+            setElideMode(label, Qt::ElideNone);
+            continue;
+        }
+
+        const int effectiveLimit = std::max(1, line_limit);
+        label->setWordWrap(effectiveLimit != 1);
+        const int lineHeight = std::max(1, label->fontMetrics().lineSpacing());
+        label->setMaximumHeight(lineHeight * effectiveLimit);
+        if (currentElideMode(label) == Qt::ElideNone) {
+            setElideMode(label, Qt::ElideRight);
+        }
+    }
+}
+
+void quill_qt_bridge_widget_apply_truncation_mode_to_labels(
+    QuillQtWidgetHandle widget,
+    int mode
+) {
+    Qt::TextElideMode qtMode = Qt::ElideRight;
+    switch (mode) {
+    case 0:
+        qtMode = Qt::ElideLeft;
+        break;
+    case 2:
+        qtMode = Qt::ElideMiddle;
+        break;
+    default:
+        qtMode = Qt::ElideRight;
+        break;
+    }
+
+    for (QLabel *label : labelsInSubtree(asWidget(widget))) {
+        setElideMode(label, qtMode);
+    }
 }
 
 void quill_qt_bridge_material_symbols_register_font(const char *font_path) {
@@ -726,6 +874,119 @@ void quill_qt_combo_box_connect_current_index_changed(
 
     if (destroy != nullptr) {
         QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_double_spin_box(
+    double lower_bound,
+    double upper_bound,
+    double step
+) {
+    QDoubleSpinBox *spinBox = new QDoubleSpinBox();
+    spinBox->setRange(lower_bound, upper_bound);
+    spinBox->setSingleStep(step > 0.0 ? step : 1.0);
+    spinBox->setDecimals(decimalsForStep(step));
+    spinBox->setKeyboardTracking(false);
+    return reinterpret_cast<QuillQtWidgetHandle>(spinBox);
+}
+
+void quill_qt_double_spin_box_set_value(
+    QuillQtWidgetHandle spin_box,
+    double value
+) {
+    QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(asWidget(spin_box));
+    if (spinBox == nullptr) {
+        return;
+    }
+    if (std::fabs(spinBox->value() - value) > 0.0000001) {
+        spinBox->setValue(value);
+    }
+}
+
+void quill_qt_double_spin_box_connect_value_changed(
+    QuillQtWidgetHandle spin_box,
+    quill_qt_bridge_double_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(asWidget(spin_box));
+    if (spinBox == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            spinBox,
+            &QDoubleSpinBox::valueChanged,
+            spinBox,
+            [callback, user_data](double value) {
+                callback(value, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(spinBox, &QObject::destroyed, spinBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+QuillQtWidgetHandle quill_qt_make_calendar_widget(void) {
+    QCalendarWidget *calendar = new QCalendarWidget();
+    calendar->setGridVisible(false);
+    return reinterpret_cast<QuillQtWidgetHandle>(calendar);
+}
+
+void quill_qt_calendar_select_ymd(
+    QuillQtWidgetHandle calendar,
+    int year,
+    int month,
+    int day
+) {
+    QCalendarWidget *calendarWidget = qobject_cast<QCalendarWidget *>(asWidget(calendar));
+    if (calendarWidget == nullptr) {
+        return;
+    }
+    const QDate date(year, month, day);
+    if (date.isValid() && calendarWidget->selectedDate() != date) {
+        calendarWidget->setSelectedDate(date);
+    }
+}
+
+void quill_qt_calendar_connect_selection_changed(
+    QuillQtWidgetHandle calendar,
+    quill_qt_bridge_date_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QCalendarWidget *calendarWidget = qobject_cast<QCalendarWidget *>(asWidget(calendar));
+    if (calendarWidget == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            calendarWidget,
+            &QCalendarWidget::selectionChanged,
+            calendarWidget,
+            [calendarWidget, callback, user_data]() {
+                const QDate date = calendarWidget->selectedDate();
+                callback(date.year(), date.month(), date.day(), user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(calendarWidget, &QObject::destroyed, calendarWidget, [destroy, user_data]() {
             destroy(user_data);
         });
     }

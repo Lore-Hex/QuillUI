@@ -474,6 +474,15 @@ extension ForegroundColorView: AndroidRenderable {
     }
 }
 
+extension OptionalForegroundColorView: AndroidRenderable {
+    public func androidCreateNode() -> RenderNode {
+        guard let color else {
+            return androidRenderView(content)
+        }
+        return androidRenderView(content.foregroundColor(color))
+    }
+}
+
 extension BackgroundView: AndroidRenderable {
     public func androidCreateNode() -> RenderNode {
         if let color = background as? Color {

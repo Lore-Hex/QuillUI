@@ -411,6 +411,9 @@ if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
 }
 
+products.append(.executable(name: "quill-imageio-smoke", targets: ["QuillImageIOSmoke"]))
+products.append(.executable(name: "quill-photos-smoke", targets: ["QuillPhotosSmoke"]))
+
 if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
     // signal-ui-render: the UIKit→GTK4 renderer host. Renders real QuillUIKit
     // (and, wired up, SignalUI) UIViewController view trees to an on-screen
@@ -440,6 +443,7 @@ products += [
     .library(name: "QuickLook", targets: ["QuickLook"]),
     .library(name: "FoundationModels", targets: ["FoundationModels"]),
     .library(name: "Speech", targets: ["Speech"]),
+    .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
     .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
     .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
     .library(name: "Alamofire", targets: ["Alamofire"]),
@@ -479,6 +483,7 @@ products += [
     .library(name: "CoreVideo", targets: ["CoreVideo"]),
     .library(name: "CoreMedia", targets: ["CoreMedia"]),
     .library(name: "Vision", targets: ["Vision"]),
+    .library(name: "CloudKit", targets: ["CloudKit"]),
     .library(name: "VideoToolbox", targets: ["VideoToolbox"]),
     .library(name: "IOSurface", targets: ["IOSurface"]),
     .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
@@ -513,6 +518,7 @@ let quillFoundationDependencies: [Target.Dependency] = ["QuillKit", "CGdkPixbuf"
 let quillFoundationSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(gdkPixbufSwiftImporterFlags)
 ]
+let quillFoundationLinkerSettings: [LinkerSetting] = [.unsafeFlags(gdkPixbufLinkerFlags)]
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage", "CoreServices",
@@ -539,6 +545,7 @@ let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
 #else
 let quillFoundationDependencies: [Target.Dependency] = ["QuillKit"]
 let quillFoundationSwiftSettings: [SwiftSetting] = []
+let quillFoundationLinkerSettings: [LinkerSetting] = []
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
@@ -576,15 +583,26 @@ let quillUIDependencies: [Target.Dependency] = [
 #endif
 
 #if os(Linux)
-let wrappingHStackDependencies: [Target.Dependency] = [
-    "SwiftUI",
-    "Observation",
-    .product(name: "BackendGTK4", package: "SwiftOpenUI"),
-    .product(name: "CGTK", package: "SwiftOpenUI"),
-    .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-]
+let wrappingHStackDependencies: [Target.Dependency] =
+    quillUILinuxBuildBackend == .gtk
+    ? [
+        "SwiftUI",
+        "Observation",
+        .product(name: "BackendGTK4", package: "SwiftOpenUI"),
+        .product(name: "CGTK", package: "SwiftOpenUI"),
+        .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+    ]
+    : ["SwiftUI", "Observation"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKSwiftImporterSettings
+    : []
+let wrappingHStackLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk
+    ? quillUIGTKLinkerSettings
+    : []
 #else
-let wrappingHStackDependencies: [Target.Dependency] = []
+let wrappingHStackDependencies: [Target.Dependency] = ["SwiftUI"]
+let wrappingHStackSwiftSettings: [SwiftSetting] = []
+let wrappingHStackLinkerSettings: [LinkerSetting] = []
 #endif
 
 #if os(Linux)
@@ -633,6 +651,20 @@ let appSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
+
+#if compiler(>=6.2)
+let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
+]
+#else
+let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal"])
+]
+#endif
+
+let quillLegacyMainActorSwiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v5)
+] + quillLegacyMainActorConcurrencySettings
 
 #if os(Linux)
 let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSettings + [
@@ -737,7 +769,8 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
     "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
-    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
+    "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "ImageIO", "Vision", "CloudKit", "KeychainSwift",
+    "AuthenticationServices"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
     // "SwiftUI" comes from quillLinuxShimTestDependencies; keep it in that
@@ -888,8 +921,10 @@ let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 // `import SwiftUI` is the real SDK and there is no target to depend on.
 #if os(Linux)
 let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
+let observationShadowTestDependencies: [Target.Dependency] = ["Observation"]
 #else
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
+let observationShadowTestDependencies: [Target.Dependency] = []
 #endif
 
 // The representable GTK mount rides only in the gtk graph; the Qt mount rides
@@ -914,8 +949,8 @@ let swiftUIShadowMountSwiftSettings: [SwiftSetting] = {
 // the qt-generic path keeps QuillUI out of the shadow's closure.
 let swiftUIShadowCoreDependencies: [Target.Dependency] =
     quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled
-        ? ["QuillSwiftUICompatibility", "AppKit", "Combine"]
-        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine"]
+        ? ["QuillSwiftUICompatibility", "AppKit", "Combine", "AuthenticationServices"]
+        : ["QuillUI", "QuillSwiftUICompatibility", "AppKit", "Combine", "AuthenticationServices"]
 #endif
 
 let quillDataMacroTarget: Target = .macro(
@@ -1120,7 +1155,8 @@ var targets: [Target] = [
         name: "QuillFoundation",
         dependencies: quillFoundationDependencies,
         path: "Sources/QuillFoundation",
-        swiftSettings: quillFoundationSwiftSettings
+        swiftSettings: quillFoundationSwiftSettings,
+        linkerSettings: quillFoundationLinkerSettings
     ),
     .target(
         name: "QuillWebKit",
@@ -2294,7 +2330,7 @@ let signalAppleFrameworkShims = [
     "ContactsUI", "Intents", "PassKit", "Accelerate",
     "LinkPresentation", "Metal", "MetalKit", "MetalPerformanceShaders",
     "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
-    "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
+    "UserNotifications", "SystemConfiguration", "CloudKit", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
@@ -2322,37 +2358,73 @@ for shimName in signalAppleFrameworkShims {
     // QuillFoundation depends only on QuillKit, so this introduces no cycle; the
     // edge is inert for shims that do not import QuillFoundation.
     let dependencies: [Target.Dependency]
+    let swiftSettings: [SwiftSetting]
+    let linkerSettings: [LinkerSetting]
     switch shimName {
-    case "AudioToolbox", "UserNotifications":
+    case "AudioToolbox", "UserNotifications", "CloudKit":
         dependencies = ["QuillFoundation", "QuillKit"]
+        swiftSettings = []
+        linkerSettings = []
+    case "AuthenticationServices":
+        dependencies = ["QuillKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreMedia":
         dependencies = ["QuillFoundation", "CoreVideo", "AudioToolbox"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreImage":
         // CIImage(cvPixelBuffer:) — the camera frame pipeline (#516).
         dependencies = ["QuillFoundation", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "CoreVideo", "MetalPerformanceShaders":
         dependencies = ["QuillFoundation", "Metal"]
+        swiftSettings = []
+        linkerSettings = []
     case "MetalKit":
         dependencies = ["QuillFoundation", "Metal", "QuartzCore", "QuillUIKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "SDWebImage":
         dependencies = ["QuillFoundation", "QuillUIKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "VideoToolbox":
         dependencies = ["QuillFoundation", "CoreMedia", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "QuartzCore":
         dependencies = ["QuillFoundation", "Metal"]
+        swiftSettings = []
+        linkerSettings = []
     case "Quartz":
         dependencies = ["QuillFoundation", "QuartzCore"]
+        swiftSettings = []
+        linkerSettings = []
     case "OSLog":
         dependencies = ["os"]
+        swiftSettings = []
+        linkerSettings = []
     case "IOSurface":
         dependencies = ["QuillFoundation", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "AppIntents":
         dependencies = ["QuillFoundation", "UniformTypeIdentifiers"]
+        swiftSettings = []
+        linkerSettings = []
+    case "ImageIO":
+        dependencies = ["QuillFoundation", "CGdkPixbuf"]
+        swiftSettings = [.unsafeFlags(gdkPixbufSwiftImporterFlags)]
+        linkerSettings = [.unsafeFlags(gdkPixbufLinkerFlags)]
     case "Vision":
         // VNImageRequestHandler's init overloads take ImageIO's
         // CGImagePropertyOrientation and CoreVideo's CVPixelBuffer (face
         // detection / QR scanning). No cycle: neither shim imports Vision.
         dependencies = ["QuillFoundation", "ImageIO", "CoreVideo"]
+        swiftSettings = []
+        linkerSettings = []
     case "SceneKit":
         // SceneKit vends SwiftUI's `SceneView`; the scene-graph types use
         // QuillFoundation's CGFloat and Foundation's CGPoint. Rung 2c also
@@ -2360,12 +2432,24 @@ for shimName in signalAppleFrameworkShims {
         // and ShapeScript's SceneKit interop files compile without source edits.
         // SwiftUI does not import SceneKit, so the SwiftUI edge remains acyclic.
         dependencies = ["QuillFoundation", "SwiftUI", "UIKit", "AppKit", "CoreGraphics"]
+        swiftSettings = []
+        linkerSettings = []
     case "RealityKit":
         dependencies = ["QuillFoundation", "UIKit", "Combine"]
+        swiftSettings = []
+        linkerSettings = []
     default:
         dependencies = ["QuillFoundation"]
+        swiftSettings = []
+        linkerSettings = []
     }
-    targets.append(.target(name: shimName, dependencies: dependencies, path: "Sources/AppleFrameworkShims/\(shimName)"))
+    targets.append(.target(
+        name: shimName,
+        dependencies: dependencies,
+        path: "Sources/AppleFrameworkShims/\(shimName)",
+        swiftSettings: swiftSettings,
+        linkerSettings: linkerSettings
+    ))
 }
 #endif
 
@@ -2625,6 +2709,18 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 // no linkerSettings needed (ioctl/mmap live in libc).
 #if os(Linux)
 targets += [
+    .executableTarget(
+        name: "QuillImageIOSmoke",
+        dependencies: ["ImageIO", "QuillFoundation", "UIKit"],
+        path: "Sources/QuillImageIOSmoke",
+        swiftSettings: appSwiftSettings
+    ),
+    .executableTarget(
+        name: "QuillPhotosSmoke",
+        dependencies: ["Photos", "QuillKit", "UIKit"],
+        path: "Sources/QuillPhotosSmoke",
+        swiftSettings: appSwiftSettings
+    ),
     .systemLibrary(name: "CV4L2", path: "Sources/CV4L2"),
 ]
 #endif
@@ -2923,8 +3019,9 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
-        path: "Sources/QuillSwiftUICompatibility"
+        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "CoreTransferable", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        path: "Sources/QuillSwiftUICompatibility",
+        swiftSettings: quillFoundationSwiftSettings
     ),
     .target(
         name: "SwiftUI",
@@ -2934,7 +3031,8 @@ targets.append(contentsOf: [
         // only — the qt graph keeps the shadow GTK-free (compile-only
         // representables there until the Qt mount exists).
         dependencies: [
-            "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+            "QuillKit", "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+            "AuthenticationServices",
         ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
         // v5 + minimal concurrency matches the house settings (the GTK mount
@@ -2944,7 +3042,7 @@ targets.append(contentsOf: [
             .unsafeFlags(["-strict-concurrency=minimal"]),
         ] + swiftUIShadowMountSwiftSettings
     ),
-    .target(name: "Observation", dependencies: ["QuillDataMacros"], path: "Sources/Observation"),
+    .target(name: "Observation", dependencies: ["QuillDataMacros", "Combine"], path: "Sources/Observation"),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
@@ -3073,7 +3171,7 @@ targets.append(contentsOf: [
     // `import AVFoundation` alone); AVCaptureExtras.swift mirrors that with an
     // @_exported import. CoreImage depends only on QuillFoundation — no cycle.
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
-    .target(name: "Photos", dependencies: ["QuillFoundation"], path: "Sources/PhotosShim"),
+    .target(name: "Photos", dependencies: ["QuillFoundation", "QuillKit"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
     .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
     // CV4L2 (Linux): named non-variadic ioctl wrappers + V4L2 constants the
@@ -3094,8 +3192,8 @@ targets.append(contentsOf: [
         name: "WrappingHStack",
         dependencies: wrappingHStackDependencies,
         path: "Sources/WrappingHStack",
-        swiftSettings: quillUIGTKSwiftImporterSettings,
-        linkerSettings: quillUIGTKLinkerSettings
+        swiftSettings: wrappingHStackSwiftSettings,
+        linkerSettings: wrappingHStackLinkerSettings
     ),
     .target(name: "Vortex", dependencies: ["SwiftUI"], path: "Sources/Vortex"),
     .target(name: "KeyboardShortcuts", dependencies: ["QuillKit", "SwiftUI"], path: "Sources/KeyboardShortcuts"),
@@ -3254,7 +3352,8 @@ if quillUILinuxBuildBackend == .qt {
             name: "QuillFoundation",
             dependencies: quillFoundationDependencies,
             path: "Sources/QuillFoundation",
-            swiftSettings: quillFoundationSwiftSettings
+            swiftSettings: quillFoundationSwiftSettings,
+            linkerSettings: quillFoundationLinkerSettings
         ),
         .target(
             name: "UniformTypeIdentifiers",
@@ -3316,10 +3415,17 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
         .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
         .target(name: "CoreVideo", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/CoreVideo"),
-        .target(name: "ImageIO", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/ImageIO"),
+        .target(
+            name: "ImageIO",
+            dependencies: ["QuillFoundation", "CGdkPixbuf"],
+            path: "Sources/AppleFrameworkShims/ImageIO",
+            swiftSettings: [.unsafeFlags(gdkPixbufSwiftImporterFlags)],
+            linkerSettings: [.unsafeFlags(gdkPixbufLinkerFlags)]
+        ),
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(name: "CoreServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreServices"),
+        .target(name: "CloudKit", dependencies: ["QuillFoundation", "QuillKit"], path: "Sources/AppleFrameworkShims/CloudKit"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
@@ -3456,6 +3562,13 @@ if quillUILinuxBuildBackend == .qt {
     // SwiftUI tree through QtBackend().run(QtSmokeApp.self). The 9 production
     // apps keep their existing per-app C++ shims and are not touched.
     if quillUIQtGenericEnabled {
+        // The `#if os(Linux)` shadow block above already declared GTK-flavored
+        // Combine/QuillSwiftUICompatibility/SwiftUI targets. The Qt-generic graph
+        // needs its OWN (OpenCombine-backed Combine, GTK-free SwiftUI shim with
+        // -strict-concurrency=minimal); drop the shadow versions first so the
+        // Qt-specific ones below win instead of colliding ("duplicate target").
+        let qtReplacedShadowNames: Set<String> = ["Combine", "QuillSwiftUICompatibility", "SwiftUI"]
+        targets.removeAll { qtReplacedShadowNames.contains($0.name) }
         targets += [
             .target(
                 name: "Combine",
@@ -3470,7 +3583,9 @@ if quillUILinuxBuildBackend == .qt {
                 name: "QuillSwiftUICompatibility",
                 dependencies: [
                     "QuillFoundation",
+                    "QuillKit",
                     "QuillDataMacros",
+                    "CoreTransferable",
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
                 ],
                 path: "Sources/QuillSwiftUICompatibility"
@@ -3840,7 +3955,7 @@ let packageTestTargets: [Target] = {
             // previously reached via the shared-build-dir leak; must be declared
             // now that the shadow carries CGtk4/QuillAppKitGTK (representable
             // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies + observationShadowTestDependencies,
             swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]
@@ -3895,6 +4010,7 @@ let packageTestTargets: [Target] = {
 #if os(Linux)
 if iceCubesLinuxGraphEnabled {
     products.append(.executable(name: "icecubes-linux-app", targets: ["IceCubesLinuxApp"]))
+    products.append(.executable(name: "icecubes-seed-account", targets: ["IceCubesSeedAccount"]))
 
     targets += [
         .target(
@@ -3930,6 +4046,7 @@ if iceCubesLinuxGraphEnabled {
                 "SwiftUI",
                 "IceCubesShims",
                 "Combine",
+                "QuillKit",
                 "os",
             ],
             path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
@@ -4053,6 +4170,18 @@ if iceCubesLinuxGraphEnabled {
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]
         ),
+        .executableTarget(
+            name: "IceCubesSeedAccount",
+            dependencies: [
+                "AppAccount",
+                "Models",
+            ],
+            path: "Sources/IceCubesSeedAccount",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
         // Real Dimillian/IceCubesApp application source as a Linux SwiftPM
         // executable target. The Xcode project uses target membership; SwiftPM
         // models the same shape by including the app and shared intents folders
@@ -4083,6 +4212,7 @@ if iceCubesLinuxGraphEnabled {
                 "Nuke",
                 "NukeUI",
                 "Observation",
+                "QuillFoundation",
                 "RevenueCat",
                 "SafariServices",
                 "SFSafeSymbols",
@@ -4101,15 +4231,10 @@ if iceCubesLinuxGraphEnabled {
                 "IceCubesApp/App/IceCubesApp-release.entitlements",
                 "IceCubesApp/App/IceCubesApp.entitlements",
                 "IceCubesAppIntents/ListEntity.swift",
-                // Siri/AppIntents image-downsample intent uses ImageIO's CF
-                // toll-free bridging (CFString/CFURL/CFDictionary), which
-                // corelibs Foundation does not provide; and AppShortcuts is
-                // its only referrer (an OS-discovered AppShortcutsProvider, not
-                // referenced in code). Both are Siri-only and Linux-irrelevant —
-                // excluded like ListEntity.swift above. The rest of the app +
-                // AppIntents compile. Re-include once the ImageIO CF surface
-                // lands in the CoreGraphics/ImageIO shadow.
-                "IceCubesAppIntents/InlinePostImageIntent.swift",
+                // AppShortcuts is an OS-discovered AppShortcutsProvider, not
+                // referenced by the Linux app path. The individual intents,
+                // including InlinePostImageIntent's ImageIO downsample path,
+                // stay in source coverage.
                 "IceCubesAppIntents/AppShortcuts.swift",
             ],
             sources: [
@@ -4120,7 +4245,10 @@ if iceCubesLinuxGraphEnabled {
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"]),
                 .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
-                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+                .unsafeFlags([
+                    "-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims",
+                    "-Xfrontend", "-import-module", "-Xfrontend", "QuillFoundation"
+                ])
             ]
         ),
         // Real Dimillian/IceCubesApp StatusKit. This is the first high-traffic

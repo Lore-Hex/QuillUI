@@ -47,8 +47,10 @@ public struct PlainButtonStyle: ButtonStyle {
 
 public struct AnyButtonStyle {
     private let makeBodyClosure: @MainActor (ButtonStyleConfiguration) -> AnyView
+    public let invalidationToken: String
 
     public init<S: ButtonStyle>(_ style: S) {
+        self.invalidationToken = String(reflecting: style)
         self.makeBodyClosure = { configuration in
             AnyView(style.makeBody(configuration: configuration))
         }

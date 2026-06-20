@@ -154,8 +154,7 @@ open class CADisplayLink: NSObject {
         // The source is always resumed immediately after creation, so it is
         // never deallocated in a suspended state (which Dispatch forbids).
         lock.lock()
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
         invalidated = true
         lock.unlock()
     }
@@ -207,8 +206,7 @@ open class CADisplayLink: NSObject {
     public func remove(from runloop: RunLoop, forMode mode: RunLoop.Mode) {
         lock.lock()
         defer { lock.unlock() }
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
     }
 
     /// Permanently stops the link, releases the retained target, and makes
@@ -218,8 +216,7 @@ open class CADisplayLink: NSObject {
     public func invalidate() {
         lock.lock()
         defer { lock.unlock() }
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
         invalidated = true
         target = nil
     }
@@ -263,6 +260,17 @@ open class CADisplayLink: NSObject {
             repeating: interval,
             leeway: .milliseconds(2)
         )
+    }
+
+    /// Cancels and drops the live dispatch timer while also replacing the
+    /// event handler. `DispatchSource.cancel()` can keep the old handler
+    /// alive until cancellation is processed; clearing it first breaks the
+    /// intentional self -> timer -> handler -> self keep-alive immediately.
+    private func cancelTimerLocked() {
+        guard let timer else { return }
+        timer.setEventHandler {}
+        timer.cancel()
+        self.timer = nil
     }
 
     /// The current tick interval: 1/fps. `preferredFrameRateRange`

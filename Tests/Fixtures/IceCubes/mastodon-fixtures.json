@@ -1,0 +1,2442 @@
+{
+  "fixtures": [
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/verify_credentials",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-account",
+        "username": "quill",
+        "display_name": "Quill UI",
+        "avatar": "https://mastodon.social/avatars/quill-account.png",
+        "header": "https://mastodon.social/headers/quill-account.png",
+        "acct": "quill",
+        "note": "<p>Fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 1200,
+        "following_count": 80,
+        "statuses_count": 340,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/preferences",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "posting:default:visibility": "public",
+        "posting:default:sensitive": false,
+        "posting:default:language": "en",
+        "reading:expand:media": "default",
+        "reading:expand:spoilers": true
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v2/instance",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "title": "Mastodon Social",
+        "domain": "mastodon.social",
+        "description": "Fixture instance for QuillUI IceCubes parity.",
+        "short_description": "Fixture instance for QuillUI parity.",
+        "version": "4.3.0",
+        "api_versions": {
+          "mastodon": 7
+        },
+        "usage": {
+          "users": {
+            "active_month": 1460000
+          }
+        },
+        "languages": [
+          "en"
+        ],
+        "registrations": {
+          "enabled": true
+        },
+        "thumbnail": {
+          "url": "https://mastodon.social/headers/quill-instance.png"
+        },
+        "configuration": {
+          "statuses": {
+            "max_characters": 500,
+            "max_media_attachments": 4
+          },
+          "polls": {
+            "max_options": 4,
+            "max_characters_per_option": 50,
+            "min_expiration": 300,
+            "max_expiration": 2629746
+          }
+        },
+        "rules": [
+          {
+            "id": "1",
+            "text": "Be excellent to one another."
+          }
+        ],
+        "urls": {
+          "streaming_api": "wss://mastodon.social"
+        },
+        "contact": {
+          "email": "admin@mastodon.social",
+          "account": null
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/instance/peers",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        "mastodon.social"
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/lists",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "list-quill-core",
+          "title": "Quill Core",
+          "replies_policy": "followed",
+          "exclusive": false
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/conversations",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "conversation-1001",
+          "unread": true,
+          "accounts": [
+            {
+              "id": "alice-account",
+              "username": "alice",
+              "display_name": "Alice Fixture",
+              "avatar": "https://mastodon.social/avatars/alice-account.png",
+              "header": "https://mastodon.social/headers/alice-account.png",
+              "acct": "alice",
+              "note": "<p>Fixture account for QuillUI parity.</p>",
+              "created_at": "2024-01-01T00:00:00.000Z",
+              "followers_count": 2200,
+              "following_count": 140,
+              "statuses_count": 510,
+              "last_status_at": "2026-06-16",
+              "fields": [],
+              "locked": false,
+              "emojis": [],
+              "url": "https://mastodon.social/@alice",
+              "source": {
+                "privacy": "public",
+                "sensitive": false,
+                "language": "en",
+                "note": "Fixture account for QuillUI parity.",
+                "fields": []
+              },
+              "bot": false,
+              "discoverable": true,
+              "moved": null
+            }
+          ],
+          "last_status": {
+            "id": "conversation-status-1001",
+            "content": "<p>Conversation fixture: Alice sent a direct message that should render in the Linux Messages tab.</p>",
+            "account": {
+              "id": "alice-account",
+              "username": "alice",
+              "display_name": "Alice Fixture",
+              "avatar": "https://mastodon.social/avatars/alice-account.png",
+              "header": "https://mastodon.social/headers/alice-account.png",
+              "acct": "alice",
+              "note": "<p>Fixture account for QuillUI parity.</p>",
+              "created_at": "2024-01-01T00:00:00.000Z",
+              "followers_count": 2200,
+              "following_count": 140,
+              "statuses_count": 510,
+              "last_status_at": "2026-06-16",
+              "fields": [],
+              "locked": false,
+              "emojis": [],
+              "url": "https://mastodon.social/@alice",
+              "source": {
+                "privacy": "public",
+                "sensitive": false,
+                "language": "en",
+                "note": "Fixture account for QuillUI parity.",
+                "fields": []
+              },
+              "bot": false,
+              "discoverable": true,
+              "moved": null
+            },
+            "created_at": "2026-06-16T12:30:00.000Z",
+            "edited_at": null,
+            "reblog": null,
+            "media_attachments": [],
+            "mentions": [],
+            "replies_count": 1,
+            "reblogs_count": 0,
+            "quotes_count": 0,
+            "favourites_count": 0,
+            "card": null,
+            "favourited": false,
+            "reblogged": false,
+            "pinned": false,
+            "bookmarked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@alice/conversation-status-1001",
+            "application": null,
+            "in_reply_to_id": null,
+            "in_reply_to_account_id": "quill-account",
+            "visibility": "direct",
+            "poll": null,
+            "spoiler_text": "",
+            "filtered": [],
+            "sensitive": false,
+            "language": "en",
+            "tags": [],
+            "quote": null,
+            "quote_approval": null
+          }
+        }
+      ]
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/conversations/conversation-1001/read",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {}
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/conversation-status-1001/context",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "ancestors": [],
+        "descendants": []
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/follow_requests",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/followed_tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPrefix": "/avatars/",
+      "status": 200,
+      "headers": {
+        "Content-Type": "image/png"
+      },
+      "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPrefix": "/headers/",
+      "status": 200,
+      "headers": {
+        "Content-Type": "image/png"
+      },
+      "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v2/notifications/policy",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "for_not_following": "accept",
+        "for_not_followers": "accept",
+        "for_new_accounts": "accept",
+        "for_private_mentions": "drop",
+        "for_limited_accounts": "filter",
+        "summary": {
+          "pending_requests_count": 0,
+          "pending_notifications_count": 0
+        }
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/custom_emojis",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v2/notifications",
+      "query": "grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "bodyBase64": "eyJhY2NvdW50cyI6W3siYWNjdCI6ImFsaWNlIiwiYXZhdGFyIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvYXZhdGFycy9hbGljZS1hY2NvdW50LnBuZyIsImJvdCI6ZmFsc2UsImNyZWF0ZWRfYXQiOiIyMDI0LTAxLTAxVDAwOjAwOjAwLjAwMFoiLCJkaXNjb3ZlcmFibGUiOnRydWUsImRpc3BsYXlfbmFtZSI6IkFsaWNlIEZpeHR1cmUiLCJlbW9qaXMiOltdLCJmaWVsZHMiOltdLCJmb2xsb3dlcnNfY291bnQiOjEyMDAsImZvbGxvd2luZ19jb3VudCI6ODAsImhlYWRlciI6Imh0dHBzOi8vbWFzdG9kb24uc29jaWFsL2hlYWRlcnMvYWxpY2UtYWNjb3VudC5wbmciLCJpZCI6ImFsaWNlLWFjY291bnQiLCJsYXN0X3N0YXR1c19hdCI6IjIwMjYtMDYtMTYiLCJsb2NrZWQiOmZhbHNlLCJtb3ZlZCI6bnVsbCwibm90ZSI6IjxwPkZpeHR1cmUgYWNjb3VudCBmb3IgUXVpbGxVSSBwYXJpdHkuPC9wPiIsInNvdXJjZSI6eyJmaWVsZHMiOltdLCJsYW5ndWFnZSI6ImVuIiwibm90ZSI6IkZpeHR1cmUgYWNjb3VudCBmb3IgUXVpbGxVSSBwYXJpdHkuIiwicHJpdmFjeSI6InB1YmxpYyIsInNlbnNpdGl2ZSI6ZmFsc2V9LCJzdGF0dXNlc19jb3VudCI6MzQwLCJ1cmwiOiJodHRwczovL21hc3RvZG9uLnNvY2lhbC9AYWxpY2UiLCJ1c2VybmFtZSI6ImFsaWNlIn0seyJhY2N0IjoiYm9iIiwiYXZhdGFyIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvYXZhdGFycy9ib2ItYWNjb3VudC5wbmciLCJib3QiOmZhbHNlLCJjcmVhdGVkX2F0IjoiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIiwiZGlzY292ZXJhYmxlIjp0cnVlLCJkaXNwbGF5X25hbWUiOiJCb2IgRml4dHVyZSIsImVtb2ppcyI6W10sImZpZWxkcyI6W10sImZvbGxvd2Vyc19jb3VudCI6MTIwMCwiZm9sbG93aW5nX2NvdW50Ijo4MCwiaGVhZGVyIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvaGVhZGVycy9ib2ItYWNjb3VudC5wbmciLCJpZCI6ImJvYi1hY2NvdW50IiwibGFzdF9zdGF0dXNfYXQiOiIyMDI2LTA2LTE2IiwibG9ja2VkIjpmYWxzZSwibW92ZWQiOm51bGwsIm5vdGUiOiI8cD5GaXh0dXJlIGFjY291bnQgZm9yIFF1aWxsVUkgcGFyaXR5LjwvcD4iLCJzb3VyY2UiOnsiZmllbGRzIjpbXSwibGFuZ3VhZ2UiOiJlbiIsIm5vdGUiOiJGaXh0dXJlIGFjY291bnQgZm9yIFF1aWxsVUkgcGFyaXR5LiIsInByaXZhY3kiOiJwdWJsaWMiLCJzZW5zaXRpdmUiOmZhbHNlfSwic3RhdHVzZXNfY291bnQiOjM0MCwidXJsIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvQGJvYiIsInVzZXJuYW1lIjoiYm9iIn1dLCJub3RpZmljYXRpb25fZ3JvdXBzIjpbeyJncm91cF9rZXkiOiJmYXZvdXJpdGUtbm90aWZpY2F0aW9uLXN0YXR1cy0xMDAyIiwibGF0ZXN0X3BhZ2Vfbm90aWZpY2F0aW9uX2F0IjoiMjAyNi0wNi0xNlQxMjoxMDowMC4wMDBaIiwibW9zdF9yZWNlbnRfbm90aWZpY2F0aW9uX2lkIjoxMDAyLCJub3RpZmljYXRpb25zX2NvdW50IjoxLCJwYWdlX21heF9pZCI6IjEwMDIiLCJwYWdlX21pbl9pZCI6IjEwMDIiLCJzYW1wbGVfYWNjb3VudF9pZHMiOlsiYWxpY2UtYWNjb3VudCJdLCJzdGF0dXNfaWQiOiJub3RpZmljYXRpb24tc3RhdHVzLTEwMDIiLCJ0eXBlIjoiZmF2b3VyaXRlIn0seyJncm91cF9rZXkiOiJtZW50aW9uLW5vdGlmaWNhdGlvbi1zdGF0dXMtMTAwMSIsImxhdGVzdF9wYWdlX25vdGlmaWNhdGlvbl9hdCI6IjIwMjYtMDYtMTZUMTI6MDU6MDAuMDAwWiIsIm1vc3RfcmVjZW50X25vdGlmaWNhdGlvbl9pZCI6MTAwMSwibm90aWZpY2F0aW9uc19jb3VudCI6MSwicGFnZV9tYXhfaWQiOiIxMDAxIiwicGFnZV9taW5faWQiOiIxMDAxIiwic2FtcGxlX2FjY291bnRfaWRzIjpbImJvYi1hY2NvdW50Il0sInN0YXR1c19pZCI6Im5vdGlmaWNhdGlvbi1zdGF0dXMtMTAwMSIsInR5cGUiOiJtZW50aW9uIn1dLCJzdGF0dXNlcyI6W3siYWNjb3VudCI6eyJhY2N0IjoicXVpbGwiLCJhdmF0YXIiOiJodHRwczovL21hc3RvZG9uLnNvY2lhbC9hdmF0YXJzL3F1aWxsLWFjY291bnQucG5nIiwiYm90IjpmYWxzZSwiY3JlYXRlZF9hdCI6IjIwMjQtMDEtMDFUMDA6MDA6MDAuMDAwWiIsImRpc2NvdmVyYWJsZSI6dHJ1ZSwiZGlzcGxheV9uYW1lIjoiUXVpbGwgVUkiLCJlbW9qaXMiOltdLCJmaWVsZHMiOltdLCJmb2xsb3dlcnNfY291bnQiOjEyMDAsImZvbGxvd2luZ19jb3VudCI6ODAsImhlYWRlciI6Imh0dHBzOi8vbWFzdG9kb24uc29jaWFsL2hlYWRlcnMvcXVpbGwtYWNjb3VudC5wbmciLCJpZCI6InF1aWxsLWFjY291bnQiLCJsYXN0X3N0YXR1c19hdCI6IjIwMjYtMDYtMTYiLCJsb2NrZWQiOmZhbHNlLCJtb3ZlZCI6bnVsbCwibm90ZSI6IjxwPkZpeHR1cmUgYWNjb3VudCBmb3IgUXVpbGxVSSBwYXJpdHkuPC9wPiIsInNvdXJjZSI6eyJmaWVsZHMiOltdLCJsYW5ndWFnZSI6ImVuIiwibm90ZSI6IkZpeHR1cmUgYWNjb3VudCBmb3IgUXVpbGxVSSBwYXJpdHkuIiwicHJpdmFjeSI6InB1YmxpYyIsInNlbnNpdGl2ZSI6ZmFsc2V9LCJzdGF0dXNlc19jb3VudCI6MzQwLCJ1cmwiOiJodHRwczovL21hc3RvZG9uLnNvY2lhbC9AcXVpbGwiLCJ1c2VybmFtZSI6InF1aWxsIn0sImFwcGxpY2F0aW9uIjpudWxsLCJib29rbWFya2VkIjpmYWxzZSwiY2FyZCI6bnVsbCwiY29udGVudCI6IjxwPk5vdGlmaWNhdGlvbiBmaXh0dXJlOiBBbGljZSBmYXZvcml0ZWQgdGhlIEljZUN1YmVzIExpbnV4IHBhcml0eSBzdGF0dXMuPC9wPiIsImNyZWF0ZWRfYXQiOiIyMDI2LTA2LTE2VDEyOjAwOjAwLjAwMFoiLCJlZGl0ZWRfYXQiOm51bGwsImVtb2ppcyI6W10sImZhdm91cml0ZWQiOmZhbHNlLCJmYXZvdXJpdGVzX2NvdW50Ijo0MiwiZmlsdGVyZWQiOltdLCJpZCI6Im5vdGlmaWNhdGlvbi1zdGF0dXMtMTAwMiIsImluX3JlcGx5X3RvX2FjY291bnRfaWQiOm51bGwsImluX3JlcGx5X3RvX2lkIjpudWxsLCJsYW5ndWFnZSI6ImVuIiwibWVkaWFfYXR0YWNobWVudHMiOltdLCJtZW50aW9ucyI6W10sInBpbm5lZCI6ZmFsc2UsInBvbGwiOm51bGwsInF1b3RlIjpudWxsLCJxdW90ZV9hcHByb3ZhbCI6bnVsbCwicXVvdGVzX2NvdW50IjowLCJyZWJsb2ciOm51bGwsInJlYmxvZ2dlZCI6ZmFsc2UsInJlYmxvZ3NfY291bnQiOjgsInJlcGxpZXNfY291bnQiOjQsInNlbnNpdGl2ZSI6ZmFsc2UsInNwb2lsZXJfdGV4dCI6IiIsInRhZ3MiOltdLCJ1cmwiOiJodHRwczovL21hc3RvZG9uLnNvY2lhbC9AcXVpbGwvbm90aWZpY2F0aW9uLXN0YXR1cy0xMDAyIiwidmlzaWJpbGl0eSI6InB1YmxpYyJ9LHsiYWNjb3VudCI6eyJhY2N0IjoiYm9iIiwiYXZhdGFyIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvYXZhdGFycy9ib2ItYWNjb3VudC5wbmciLCJib3QiOmZhbHNlLCJjcmVhdGVkX2F0IjoiMjAyNC0wMS0wMVQwMDowMDowMC4wMDBaIiwiZGlzY292ZXJhYmxlIjp0cnVlLCJkaXNwbGF5X25hbWUiOiJCb2IgRml4dHVyZSIsImVtb2ppcyI6W10sImZpZWxkcyI6W10sImZvbGxvd2Vyc19jb3VudCI6MTIwMCwiZm9sbG93aW5nX2NvdW50Ijo4MCwiaGVhZGVyIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvaGVhZGVycy9ib2ItYWNjb3VudC5wbmciLCJpZCI6ImJvYi1hY2NvdW50IiwibGFzdF9zdGF0dXNfYXQiOiIyMDI2LTA2LTE2IiwibG9ja2VkIjpmYWxzZSwibW92ZWQiOm51bGwsIm5vdGUiOiI8cD5GaXh0dXJlIGFjY291bnQgZm9yIFF1aWxsVUkgcGFyaXR5LjwvcD4iLCJzb3VyY2UiOnsiZmllbGRzIjpbXSwibGFuZ3VhZ2UiOiJlbiIsIm5vdGUiOiJGaXh0dXJlIGFjY291bnQgZm9yIFF1aWxsVUkgcGFyaXR5LiIsInByaXZhY3kiOiJwdWJsaWMiLCJzZW5zaXRpdmUiOmZhbHNlfSwic3RhdHVzZXNfY291bnQiOjM0MCwidXJsIjoiaHR0cHM6Ly9tYXN0b2Rvbi5zb2NpYWwvQGJvYiIsInVzZXJuYW1lIjoiYm9iIn0sImFwcGxpY2F0aW9uIjpudWxsLCJib29rbWFya2VkIjpmYWxzZSwiY2FyZCI6bnVsbCwiY29udGVudCI6IjxwPk5vdGlmaWNhdGlvbiBmaXh0dXJlOiBCb2IgbWVudGlvbmVkIEBxdWlsbCB3aGlsZSB0ZXN0aW5nIHRoZSBMaW51eCBub3RpZmljYXRpb25zIHRhYi48L3A+IiwiY3JlYXRlZF9hdCI6IjIwMjYtMDYtMTZUMTE6NTU6MDAuMDAwWiIsImVkaXRlZF9hdCI6bnVsbCwiZW1vamlzIjpbXSwiZmF2b3VyaXRlZCI6ZmFsc2UsImZhdm91cml0ZXNfY291bnQiOjEyLCJmaWx0ZXJlZCI6W10sImlkIjoibm90aWZpY2F0aW9uLXN0YXR1cy0xMDAxIiwiaW5fcmVwbHlfdG9fYWNjb3VudF9pZCI6bnVsbCwiaW5fcmVwbHlfdG9faWQiOm51bGwsImxhbmd1YWdlIjoiZW4iLCJtZWRpYV9hdHRhY2htZW50cyI6W10sIm1lbnRpb25zIjpbXSwicGlubmVkIjpmYWxzZSwicG9sbCI6bnVsbCwicXVvdGUiOm51bGwsInF1b3RlX2FwcHJvdmFsIjpudWxsLCJxdW90ZXNfY291bnQiOjAsInJlYmxvZyI6bnVsbCwicmVibG9nZ2VkIjpmYWxzZSwicmVibG9nc19jb3VudCI6MiwicmVwbGllc19jb3VudCI6MSwic2Vuc2l0aXZlIjpmYWxzZSwic3BvaWxlcl90ZXh0IjoiIiwidGFncyI6W10sInVybCI6Imh0dHBzOi8vbWFzdG9kb24uc29jaWFsL0Bib2Ivbm90aWZpY2F0aW9uLXN0YXR1cy0xMDAxIiwidmlzaWJpbGl0eSI6InB1YmxpYyJ9XX0="
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v2/notifications",
+      "query": "since_id=1002&grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "bodyBase64": "eyJhY2NvdW50cyI6W10sIm5vdGlmaWNhdGlvbl9ncm91cHMiOltdLCJzdGF0dXNlcyI6W119"
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/notifications",
+      "query": "limit=30",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "notification-1002",
+          "type": "favourite",
+          "created_at": "2026-06-16T12:10:00.000Z",
+          "group_key": null,
+          "account": {
+            "id": "alice-account",
+            "username": "alice",
+            "display_name": "Alice Fixture",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "alice",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@alice",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "status": {
+            "id": "notification-status-1002",
+            "content": "<p>Notification fixture: Alice favorited the IceCubes Linux parity status.</p>",
+            "account": {
+              "id": "quill-account",
+              "username": "quill",
+              "display_name": "Quill UI",
+              "avatar": "https://mastodon.social/avatars/quill-account.png",
+              "header": "https://mastodon.social/headers/quill-account.png",
+              "acct": "quill",
+              "note": "<p>Fixture account for QuillUI parity.</p>",
+              "created_at": "2024-01-01T00:00:00.000Z",
+              "followers_count": 1200,
+              "following_count": 80,
+              "statuses_count": 340,
+              "last_status_at": "2026-06-16",
+              "fields": [],
+              "locked": false,
+              "emojis": [],
+              "url": "https://mastodon.social/@quill",
+              "source": {
+                "privacy": "public",
+                "sensitive": false,
+                "language": "en",
+                "note": "Fixture account for QuillUI parity.",
+                "fields": []
+              },
+              "bot": false,
+              "discoverable": true,
+              "moved": null
+            },
+            "created_at": "2026-06-16T12:00:00.000Z",
+            "edited_at": null,
+            "reblog": null,
+            "media_attachments": [],
+            "mentions": [],
+            "replies_count": 4,
+            "reblogs_count": 8,
+            "quotes_count": 0,
+            "favourites_count": 42,
+            "card": null,
+            "favourited": false,
+            "reblogged": false,
+            "pinned": false,
+            "bookmarked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@quill/notification-status-1002",
+            "application": null,
+            "in_reply_to_id": null,
+            "in_reply_to_account_id": null,
+            "visibility": "public",
+            "poll": null,
+            "spoiler_text": "",
+            "filtered": [],
+            "sensitive": false,
+            "language": "en",
+            "tags": [],
+            "quote": null,
+            "quote_approval": null
+          }
+        },
+        {
+          "id": "notification-1001",
+          "type": "mention",
+          "created_at": "2026-06-16T12:05:00.000Z",
+          "group_key": null,
+          "account": {
+            "id": "bob-account",
+            "username": "bob",
+            "display_name": "Bob Fixture",
+            "avatar": "https://mastodon.social/avatars/bob-account.png",
+            "header": "https://mastodon.social/headers/bob-account.png",
+            "acct": "bob",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@bob",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "status": {
+            "id": "notification-status-1001",
+            "content": "<p>Notification fixture: Bob mentioned @quill while testing the Linux notifications tab.</p>",
+            "account": {
+              "id": "bob-account",
+              "username": "bob",
+              "display_name": "Bob Fixture",
+              "avatar": "https://mastodon.social/avatars/bob-account.png",
+              "header": "https://mastodon.social/headers/bob-account.png",
+              "acct": "bob",
+              "note": "<p>Fixture account for QuillUI parity.</p>",
+              "created_at": "2024-01-01T00:00:00.000Z",
+              "followers_count": 1200,
+              "following_count": 80,
+              "statuses_count": 340,
+              "last_status_at": "2026-06-16",
+              "fields": [],
+              "locked": false,
+              "emojis": [],
+              "url": "https://mastodon.social/@bob",
+              "source": {
+                "privacy": "public",
+                "sensitive": false,
+                "language": "en",
+                "note": "Fixture account for QuillUI parity.",
+                "fields": []
+              },
+              "bot": false,
+              "discoverable": true,
+              "moved": null
+            },
+            "created_at": "2026-06-16T11:55:00.000Z",
+            "edited_at": null,
+            "reblog": null,
+            "media_attachments": [],
+            "mentions": [],
+            "replies_count": 1,
+            "reblogs_count": 2,
+            "quotes_count": 0,
+            "favourites_count": 12,
+            "card": null,
+            "favourited": false,
+            "reblogged": false,
+            "pinned": false,
+            "bookmarked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@bob/notification-status-1001",
+            "application": null,
+            "in_reply_to_id": null,
+            "in_reply_to_account_id": null,
+            "visibility": "public",
+            "poll": null,
+            "spoiler_text": "",
+            "filtered": [],
+            "sensitive": false,
+            "language": "en",
+            "tags": [],
+            "quote": null,
+            "quote_approval": null
+          }
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/notifications",
+      "query": "min_id=notification-1002&limit=30",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/markers",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "notifications": {
+          "last_read_id": "notification-1002",
+          "version": 1,
+          "updated_at": "2026-06-16T12:10:00.000Z"
+        },
+        "home": null
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "posted-hello-from-linux",
+        "content": "<p>hello from linux</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 341,
+          "last_status_at": "2026-06-19",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-19T08:52:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [],
+        "mentions": [],
+        "replies_count": 0,
+        "reblogs_count": 0,
+        "quotes_count": 0,
+        "favourites_count": 0,
+        "card": null,
+        "favourited": false,
+        "reblogged": false,
+        "pinned": false,
+        "bookmarked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/posted-hello-from-linux",
+        "application": {
+          "name": "QuillUI fixture",
+          "website": "https://github.com/Lore-Hex/QuillUI"
+        },
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/home",
+      "query": "max_id=1001&limit=40",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "1000",
+          "content": "<p>Pagination Fixture: IceCubes requested the next home timeline page after a real Linux scroll.</p>",
+          "account": {
+            "id": "carol-account",
+            "username": "carol",
+            "display_name": "Carol Pagination",
+            "avatar": "https://mastodon.social/avatars/carol-account.png",
+            "header": "https://mastodon.social/headers/carol-account.png",
+            "acct": "carol",
+            "note": "<p>Fixture account for QuillUI pagination parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 420,
+            "following_count": 88,
+            "statuses_count": 72,
+            "last_status_at": "2026-06-19",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@carol",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI pagination parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T11:50:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 1,
+          "reblogs_count": 2,
+          "quotes_count": 0,
+          "favourites_count": 9,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@carol/1000",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "999",
+          "content": "<p>Bottom Pagination Fixture: the appended page stayed visible after IceCubes rebuilt the timeline.</p>",
+          "account": {
+            "id": "dana-account",
+            "username": "dana",
+            "display_name": "Dana Bottom",
+            "avatar": "https://mastodon.social/avatars/dana-account.png",
+            "header": "https://mastodon.social/headers/dana-account.png",
+            "acct": "dana",
+            "note": "<p>Fixture account for QuillUI pagination parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 315,
+            "following_count": 64,
+            "statuses_count": 55,
+            "last_status_at": "2026-06-19",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@dana",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI pagination parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T11:45:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 0,
+          "reblogs_count": 1,
+          "quotes_count": 0,
+          "favourites_count": 5,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@dana/999",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/home",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "1003",
+          "content": "<p>QuillUI fixture timeline: home rows are rendering through the real IceCubes URLSession client on Linux.</p>",
+          "account": {
+            "id": "quill-account",
+            "username": "quill",
+            "display_name": "Quill UI",
+            "avatar": "https://mastodon.social/avatars/quill-account.png",
+            "header": "https://mastodon.social/headers/quill-account.png",
+            "acct": "quill",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@quill",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [
+            {
+              "id": "media-home-1003",
+              "type": "image",
+              "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+              "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+              "remote_url": null,
+              "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+              "blurhash": null,
+              "meta": {
+                "original": {
+                  "width": 640,
+                  "height": 360
+                }
+              }
+            }
+          ],
+          "mentions": [],
+          "replies_count": 4,
+          "reblogs_count": 8,
+          "quotes_count": 0,
+          "favourites_count": 42,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill/1003",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "1002",
+          "content": "<p>This is a deterministic Mastodon status used to test IceCubes row layout, account headers, dates, and action chrome.</p>",
+          "account": {
+            "id": "alice-account",
+            "username": "alice",
+            "display_name": "Alice Fixture",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "alice",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@alice",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 2,
+          "reblogs_count": 5,
+          "quotes_count": 0,
+          "favourites_count": 18,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@alice/1002",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "1001",
+          "content": "<p>Another fixture row so scrolling and list separators have visible content in the Linux parity smoke.</p>",
+          "account": {
+            "id": "bob-account",
+            "username": "bob",
+            "display_name": "Bob Fixture",
+            "avatar": "https://mastodon.social/avatars/bob-account.png",
+            "header": "https://mastodon.social/headers/bob-account.png",
+            "acct": "bob",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@bob",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 1,
+          "reblogs_count": 3,
+          "quotes_count": 0,
+          "favourites_count": 12,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@bob/1001",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/list/list-quill-core",
+      "query": "max_id=list-9002",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/list/list-quill-core",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "list-9001",
+          "content": "<p>QuillUI fixture list timeline: dynamic IceCubes Lists sidebar navigation rendered row 1 through Linux.</p>",
+          "account": {
+            "id": "quill-account",
+            "username": "quill",
+            "display_name": "Quill UI",
+            "avatar": "https://mastodon.social/avatars/quill-account.png",
+            "header": "https://mastodon.social/headers/quill-account.png",
+            "acct": "quill",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@quill",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 6,
+          "reblogs_count": 9,
+          "quotes_count": 0,
+          "favourites_count": 33,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill/list-9001",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "list-9002",
+          "content": "<p>QuillUI fixture list timeline: dynamic IceCubes Lists sidebar navigation rendered row 2 through Linux.</p>",
+          "account": {
+            "id": "alice-account",
+            "username": "alice",
+            "display_name": "Alice Fixture",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "alice",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@alice",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 3,
+          "reblogs_count": 4,
+          "quotes_count": 0,
+          "favourites_count": 21,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@alice/list-9002",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/public",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "3001",
+          "content": "<p>QuillUI fixture local timeline: authenticated Local sidebar navigation rendered row 1 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "local-account-1",
+            "username": "local-fixture",
+            "display_name": "Local Fixture",
+            "avatar": "https://mastodon.social/avatars/quill-account.png",
+            "header": "https://mastodon.social/headers/quill-account.png",
+            "acct": "local-fixture",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@local-fixture",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 4,
+          "reblogs_count": 8,
+          "quotes_count": 0,
+          "favourites_count": 42,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@local-fixture/3001",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "3002",
+          "content": "<p>QuillUI fixture local timeline: authenticated Local sidebar navigation rendered row 2 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "local-account-2",
+            "username": "local-reporter",
+            "display_name": "Local Reporter",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "local-reporter",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@local-reporter",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 2,
+          "reblogs_count": 5,
+          "quotes_count": 0,
+          "favourites_count": 18,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@local-reporter/3002",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ],
+      "query": "local=true&limit=50"
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/timelines/public",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "4001",
+          "content": "<p>QuillUI fixture federated timeline: authenticated Federated sidebar navigation rendered row 1 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "federated-account-1",
+            "username": "federated-fixture",
+            "display_name": "Federated Fixture",
+            "avatar": "https://mastodon.social/avatars/quill-account.png",
+            "header": "https://mastodon.social/headers/quill-account.png",
+            "acct": "federated-fixture",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@federated-fixture",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 4,
+          "reblogs_count": 8,
+          "quotes_count": 0,
+          "favourites_count": 42,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@federated-fixture/4001",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "4002",
+          "content": "<p>QuillUI fixture federated timeline: authenticated Federated sidebar navigation rendered row 2 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "federated-account-2",
+            "username": "federated-reporter",
+            "display_name": "Federated Reporter",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "federated-reporter",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@federated-reporter",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T12:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 2,
+          "reblogs_count": 5,
+          "quotes_count": 0,
+          "favourites_count": 18,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@federated-reporter/4002",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ],
+      "query": "local=false&limit=50"
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/suggestions",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "suggested-account-1",
+          "username": "explorer",
+          "display_name": "Explore Fixture",
+          "avatar": "https://mastodon.social/avatars/explore-account.png",
+          "header": "https://mastodon.social/headers/explore-account.png",
+          "acct": "explorer",
+          "note": "<p>Suggested account fixture for the IceCubes Explore tab.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 4200,
+          "following_count": 210,
+          "statuses_count": 900,
+          "last_status_at": "2026-06-18",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@explorer",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Suggested account fixture for the IceCubes Explore tab.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        {
+          "id": "suggested-account-2",
+          "username": "swiftlinux",
+          "display_name": "Swift Linux Fixture",
+          "avatar": "https://mastodon.social/avatars/swift-linux-account.png",
+          "header": "https://mastodon.social/headers/swift-linux-account.png",
+          "acct": "swiftlinux",
+          "note": "<p>Second suggested account fixture for Explore parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 3100,
+          "following_count": 180,
+          "statuses_count": 640,
+          "last_status_at": "2026-06-18",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@swiftlinux",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Second suggested account fixture for Explore parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/trends/tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "name": "quillui",
+          "url": "https://mastodon.social/tags/quillui",
+          "following": false,
+          "history": [
+            {
+              "day": "17800",
+              "accounts": "27",
+              "uses": "84"
+            },
+            {
+              "day": "17799",
+              "accounts": "18",
+              "uses": "62"
+            }
+          ]
+        },
+        {
+          "name": "swiftlinux",
+          "url": "https://mastodon.social/tags/swiftlinux",
+          "following": true,
+          "history": [
+            {
+              "day": "17800",
+              "accounts": "41",
+              "uses": "121"
+            },
+            {
+              "day": "17799",
+              "accounts": "34",
+              "uses": "96"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/trends/links",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "url": "https://example.com/quillui-explore-fixture",
+          "title": "QuillUI Explore Fixture Link",
+          "description": "Trending link fixture rendered by the IceCubes Explore tab on Linux.",
+          "type": "link",
+          "author_name": "QuillUI",
+          "provider_name": "Fixture News",
+          "provider_url": "https://example.com",
+          "image": null,
+          "width": null,
+          "height": null,
+          "history": [
+            {
+              "day": "17800",
+              "accounts": "12",
+              "uses": "33"
+            }
+          ],
+          "authors": []
+        },
+        {
+          "url": "https://example.com/swift-linux-fixture",
+          "title": "Swift on Linux Fixture Link",
+          "description": "Second deterministic card for Explore link-section parity.",
+          "type": "link",
+          "author_name": "Swift Linux",
+          "provider_name": "Fixture Digest",
+          "provider_url": "https://example.com",
+          "image": null,
+          "width": null,
+          "height": null,
+          "history": [
+            {
+              "day": "17800",
+              "accounts": "9",
+              "uses": "21"
+            }
+          ],
+          "authors": []
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/trends/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "2001",
+          "content": "<p>QuillUI fixture trending status: authenticated sidebar navigation rendered trend row 1 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "trend-account-1",
+            "username": "trend",
+            "display_name": "Trending Fixture",
+            "avatar": "https://mastodon.social/avatars/quill-account.png",
+            "header": "https://mastodon.social/headers/quill-account.png",
+            "acct": "trend",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@trend",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T13:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 4,
+          "reblogs_count": 8,
+          "quotes_count": 0,
+          "favourites_count": 42,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill/1003",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        },
+        {
+          "id": "2002",
+          "content": "<p>QuillUI fixture trending status: authenticated sidebar navigation rendered trend row 2 through IceCubes on Linux.</p>",
+          "account": {
+            "id": "trend-account-2",
+            "username": "trend-reporter",
+            "display_name": "Trend Reporter",
+            "avatar": "https://mastodon.social/avatars/alice-account.png",
+            "header": "https://mastodon.social/headers/alice-account.png",
+            "acct": "trend-reporter",
+            "note": "<p>Fixture account for QuillUI parity.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 1200,
+            "following_count": 80,
+            "statuses_count": 340,
+            "last_status_at": "2026-06-16",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@trend-reporter",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Fixture account for QuillUI parity.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          },
+          "created_at": "2026-06-16T13:00:00.000Z",
+          "edited_at": null,
+          "reblog": null,
+          "media_attachments": [],
+          "mentions": [],
+          "replies_count": 2,
+          "reblogs_count": 5,
+          "quotes_count": 0,
+          "favourites_count": 18,
+          "card": null,
+          "favourited": false,
+          "reblogged": false,
+          "pinned": false,
+          "bookmarked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@alice/1002",
+          "application": null,
+          "in_reply_to_id": null,
+          "in_reply_to_account_id": null,
+          "visibility": "public",
+          "poll": null,
+          "spoiler_text": "",
+          "filtered": [],
+          "sensitive": false,
+          "language": "en",
+          "tags": [],
+          "quote": null,
+          "quote_approval": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v2/search",
+      "query": "q=quill&resolve=true",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "accounts": [
+          {
+            "id": "search-account-1",
+            "username": "quillsearch",
+            "display_name": "Search Fixture",
+            "avatar": "https://mastodon.social/avatars/search-account-1.png",
+            "header": "https://mastodon.social/headers/search-account-1.png",
+            "acct": "quillsearch",
+            "note": "<p>Search account fixture for the IceCubes Explore tab.</p>",
+            "created_at": "2024-01-01T00:00:00.000Z",
+            "followers_count": 2800,
+            "following_count": 190,
+            "statuses_count": 510,
+            "last_status_at": "2026-06-18",
+            "fields": [],
+            "locked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@quillsearch",
+            "source": {
+              "privacy": "public",
+              "sensitive": false,
+              "language": "en",
+              "note": "Search account fixture for the IceCubes Explore tab.",
+              "fields": []
+            },
+            "bot": false,
+            "discoverable": true,
+            "moved": null
+          }
+        ],
+        "hashtags": [
+          {
+            "name": "quillsearch",
+            "url": "https://mastodon.social/tags/quillsearch",
+            "following": false,
+            "history": [
+              {
+                "day": "17800",
+                "accounts": "13",
+                "uses": "34"
+              },
+              {
+                "day": "17799",
+                "accounts": "8",
+                "uses": "21"
+              }
+            ]
+          }
+        ],
+        "statuses": [
+          {
+            "id": "search-status-1001",
+            "content": "<p>QuillUI fixture search status: Explore search rendered account, tag, and post results through IceCubes on Linux.</p>",
+            "account": {
+              "id": "search-account-1",
+              "username": "quillsearch",
+              "display_name": "Search Fixture",
+              "avatar": "https://mastodon.social/avatars/search-account-1.png",
+              "header": "https://mastodon.social/headers/search-account-1.png",
+              "acct": "quillsearch",
+              "note": "<p>Search account fixture for the IceCubes Explore tab.</p>",
+              "created_at": "2024-01-01T00:00:00.000Z",
+              "followers_count": 2800,
+              "following_count": 190,
+              "statuses_count": 510,
+              "last_status_at": "2026-06-18",
+              "fields": [],
+              "locked": false,
+              "emojis": [],
+              "url": "https://mastodon.social/@quillsearch",
+              "source": {
+                "privacy": "public",
+                "sensitive": false,
+                "language": "en",
+                "note": "Search account fixture for the IceCubes Explore tab.",
+                "fields": []
+              },
+              "bot": false,
+              "discoverable": true,
+              "moved": null
+            },
+            "created_at": "2026-06-18T13:00:00.000Z",
+            "edited_at": null,
+            "reblog": null,
+            "media_attachments": [],
+            "mentions": [],
+            "replies_count": 1,
+            "reblogs_count": 2,
+            "quotes_count": 0,
+            "favourites_count": 7,
+            "card": null,
+            "favourited": false,
+            "reblogged": false,
+            "pinned": false,
+            "bookmarked": false,
+            "emojis": [],
+            "url": "https://mastodon.social/@quillsearch/search-status-1001",
+            "application": null,
+            "in_reply_to_id": null,
+            "in_reply_to_account_id": null,
+            "visibility": "public",
+            "poll": null,
+            "spoiler_text": "",
+            "filtered": [],
+            "sensitive": false,
+            "language": "en",
+            "tags": [],
+            "quote": null,
+            "quote_approval": null
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/relationships",
+      "query": "id%5B%5D=search-account-1",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "search-account-1",
+          "following": false,
+          "showing_reblogs": false,
+          "followed_by": false,
+          "blocking": false,
+          "blocked_by": false,
+          "muting": false,
+          "muting_notifications": false,
+          "requested": false,
+          "domain_blocking": false,
+          "endorsed": false,
+          "note": "",
+          "notifying": false
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/relationships",
+      "query": "id%5B%5D=suggested-account-1&id%5B%5D=suggested-account-2",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "suggested-account-1",
+          "following": false,
+          "showing_reblogs": false,
+          "followed_by": false,
+          "blocking": false,
+          "blocked_by": false,
+          "muting": false,
+          "muting_notifications": false,
+          "requested": false,
+          "domain_blocking": false,
+          "endorsed": false,
+          "note": "",
+          "notifying": false
+        },
+        {
+          "id": "suggested-account-2",
+          "following": true,
+          "showing_reblogs": true,
+          "followed_by": false,
+          "blocking": false,
+          "blocked_by": false,
+          "muting": false,
+          "muting_notifications": false,
+          "requested": false,
+          "domain_blocking": false,
+          "endorsed": false,
+          "note": "",
+          "notifying": false
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/relationships",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/familiar_followers",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/quill-account",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-account",
+        "username": "quill",
+        "display_name": "Quill UI",
+        "avatar": "https://mastodon.social/avatars/quill-account.png",
+        "header": "https://mastodon.social/headers/quill-account.png",
+        "acct": "quill",
+        "note": "<p>Fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 1200,
+        "following_count": 80,
+        "statuses_count": 340,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/quill-account/featured_tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/quill-account/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/alice-account",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "alice-account",
+        "username": "alice",
+        "display_name": "Alice Fixture",
+        "avatar": "https://mastodon.social/avatars/alice-account.png",
+        "header": "https://mastodon.social/headers/alice-account.png",
+        "acct": "alice",
+        "note": "<p>Fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 1200,
+        "following_count": 80,
+        "statuses_count": 340,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@alice",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/alice-account/featured_tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/alice-account/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/bob-account",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "bob-account",
+        "username": "bob",
+        "display_name": "Bob Fixture",
+        "avatar": "https://mastodon.social/avatars/bob-account.png",
+        "header": "https://mastodon.social/headers/bob-account.png",
+        "acct": "bob",
+        "note": "<p>Fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 1200,
+        "following_count": 80,
+        "statuses_count": 340,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@bob",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/bob-account/featured_tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/bob-account/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPattern": "/api/v1/accounts/{id}",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "dynamic-account",
+        "username": "fixture",
+        "display_name": "Fixture Account",
+        "avatar": "https://mastodon.social/avatars/dynamic-account.png",
+        "header": "https://mastodon.social/headers/dynamic-account.png",
+        "acct": "fixture",
+        "note": "<p>Dynamic fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 1200,
+        "following_count": 80,
+        "statuses_count": 340,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@fixture",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Dynamic fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPattern": "/api/v1/accounts/{id}/featured_tags",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPattern": "/api/v1/accounts/{id}/statuses",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": []
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPattern": "/api/v1/statuses/{id}",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "1003",
+        "content": "<p>QuillUI fixture status detail: the selected home timeline row navigated into IceCubes' real status detail screen on Linux.</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-16T12:00:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [],
+        "mentions": [],
+        "replies_count": 4,
+        "reblogs_count": 8,
+        "quotes_count": 0,
+        "favourites_count": 42,
+        "card": null,
+        "favourited": false,
+        "reblogged": false,
+        "pinned": false,
+        "bookmarked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/1003",
+        "application": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/1003/favourite",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "1003",
+        "content": "<p>QuillUI fixture status detail: the selected home timeline row navigated into IceCubes' real status detail screen on Linux.</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-16T12:00:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [],
+        "mentions": [],
+        "replies_count": 4,
+        "reblogs_count": 8,
+        "quotes_count": 0,
+        "favourites_count": 43,
+        "card": null,
+        "favourited": true,
+        "reblogged": false,
+        "pinned": false,
+        "bookmarked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/1003",
+        "application": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/1003/reblog",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "1003",
+        "content": "<p>QuillUI fixture status detail: the selected home timeline row navigated into IceCubes' real status detail screen on Linux.</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-16T12:00:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [],
+        "mentions": [],
+        "replies_count": 4,
+        "reblogs_count": 9,
+        "quotes_count": 0,
+        "favourites_count": 42,
+        "card": null,
+        "favourited": false,
+        "reblogged": true,
+        "pinned": false,
+        "bookmarked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/1003",
+        "application": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/1003/bookmark",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "1003",
+        "content": "<p>QuillUI fixture status detail: the selected home timeline row navigated into IceCubes' real status detail screen on Linux.</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-16T12:00:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [],
+        "mentions": [],
+        "replies_count": 4,
+        "reblogs_count": 8,
+        "quotes_count": 0,
+        "favourites_count": 42,
+        "card": null,
+        "favourited": false,
+        "reblogged": false,
+        "pinned": false,
+        "bookmarked": true,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/1003",
+        "application": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "pathPattern": "/api/v1/statuses/{id}/context",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "ancestors": [],
+        "descendants": []
+      }
+    },
+    {
+      "method": "GET",
+      "host": "files.mastodon.social",
+      "pathPrefix": "/media_attachments/",
+      "status": 200,
+      "headers": {
+        "Content-Type": "image/png"
+      },
+      "bodyBase64": "iVBORw0KGgoAAAANSUhEUgAAAKAAAABaCAIAAACwpMoFAAAAoUlEQVR42u3RAQ0AAAjDsDvEGJ7BBzSZgjXVo8PFAsACLMACLMACLMCABViABViABViAAQuwAAuwAAuwAAswYAEWYAEWYAEWYMACLMACLMACLMCABViABViABViABRiwAAuwAAuwAAswYAEWYAEWYAEWYMAuABZgARZgARZgAQYswAIswAIswAIMWIAFWIAFWIAFWIABC7AAC7AAC7AA/2oBR40smWEV2aUAAAAASUVORK5CYII="
+    }
+  ]
+}

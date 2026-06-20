@@ -1,6 +1,6 @@
 import JavaScriptKit
 import SwiftOpenUI
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -115,7 +115,7 @@ public class WebViewHost: AnyViewHost, DependencyTrackingHost {
 
     /// Build the body with observation tracking for @Observable support.
     func buildBodyWithTracking() -> JSValue {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: JSValue = .undefined
             withObservationTracking {
@@ -223,7 +223,7 @@ public class WebViewHost: AnyViewHost, DependencyTrackingHost {
             setCurrentEnvironment(capturedEnvironment)
             resetOnChangeTracking()
             // ID registry not cleared — global, overwrite + liveness handles stale entries
-            beginDependencyTracking()
+            beginDependencyTracking(host: self)
             let element = buildBodyWithTracking()
             if let tracking = endDependencyTracking() {
                 lastReadSet = tracking.readSet
@@ -585,7 +585,7 @@ public func webRenderStatefulView<V: View>(_ view: V) -> JSValue {
         host.capturedEnvironment = previousEnv
         resetOnChangeTracking()
         // ID registry not cleared — global, overwrite + liveness handles stale entries
-        beginDependencyTracking()
+        beginDependencyTracking(host: host)
         let element = host.buildBodyWithTracking()
         if let tracking = endDependencyTracking() {
             host.lastReadSet = tracking.readSet

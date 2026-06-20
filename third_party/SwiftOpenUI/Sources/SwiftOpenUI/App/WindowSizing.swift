@@ -74,7 +74,9 @@ extension WindowGroup {
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: hides
+            quillHidesTitleBar: hides,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 
@@ -93,7 +95,9 @@ extension WindowGroup {
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: quillHidesTitleBar
+            quillHidesTitleBar: quillHidesTitleBar,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 
@@ -117,7 +121,9 @@ extension WindowGroup {
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: quillHidesTitleBar
+            quillHidesTitleBar: quillHidesTitleBar,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 
@@ -136,7 +142,9 @@ extension WindowGroup {
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: quillHidesTitleBar
+            quillHidesTitleBar: quillHidesTitleBar,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 
@@ -155,7 +163,9 @@ extension WindowGroup {
             windowResizeBehavior: behavior,
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: quillHidesTitleBar
+            quillHidesTitleBar: quillHidesTitleBar,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 
@@ -177,7 +187,9 @@ extension WindowGroup {
             windowResizeBehavior: windowResizeBehavior,
             windowResizability: resizability,
             launchesAtStartup: launchesAtStartup,
-            quillHidesTitleBar: quillHidesTitleBar
+            quillHidesTitleBar: quillHidesTitleBar,
+            quillValueTypeKey: quillValueTypeKey,
+            quillValueContentFactory: quillValueContentFactory
         )
     }
 }

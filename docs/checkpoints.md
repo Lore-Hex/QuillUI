@@ -2,6 +2,20 @@
 
 Target app order is tracked in `docs/app-targets.md`: Enchanted first, IceCubes second, NetNewsWire third, then CodeEdit, Signal iOS, Telegram Swift, and IINA. WireGuard Apple is tracked as an opportunistic side target.
 
+## Checkpoint 120: CloudKit/iCloud Compatibility Track
+
+Status: compile shim plus documented provider boundary.
+
+- Added a Linux `CloudKit` shim target/product with common `CKContainer`,
+  `CKDatabase`, `CKRecord`, zone, query, subscription, account-status, and
+  error-code surface.
+- Documented OpenCloudKit (`https://github.com/cocologics/OpenCloudKit`) as the
+  candidate CloudKit Web Services provider for future iCloud compatibility while
+  keeping it behind an optional adapter boundary instead of a default package
+  dependency.
+- Added tests that `import CloudKit`, exercise fallback diagnostics, and keep the
+  manifest/docs aligned with the provider boundary.
+
 ## Checkpoint 1: Local App Shell
 
 Status: passing on macOS.

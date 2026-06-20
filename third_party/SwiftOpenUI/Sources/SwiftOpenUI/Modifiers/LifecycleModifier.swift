@@ -24,11 +24,18 @@ public struct TaskView<Content: View>: View {
 
     public let content: Content
     public let priority: TaskPriority
+    public let lifecycleID: String?
     public let action: @Sendable () async -> Void
 
-    public init(content: Content, priority: TaskPriority, action: @escaping @Sendable () async -> Void) {
+    public init(
+        content: Content,
+        priority: TaskPriority,
+        lifecycleID: String? = nil,
+        action: @escaping @Sendable () async -> Void
+    ) {
         self.content = content
         self.priority = priority
+        self.lifecycleID = lifecycleID
         self.action = action
     }
 

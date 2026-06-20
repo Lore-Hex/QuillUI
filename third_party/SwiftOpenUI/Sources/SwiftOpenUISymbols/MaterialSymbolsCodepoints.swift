@@ -9,9 +9,10 @@ import Foundation
 /// draw the glyph directly by its PUA codepoint instead of relying on
 /// ligatures.
 ///
-/// Backends that do apply ligatures (GTK4 / Pango, Web / CSS) don't
-/// need this table; they draw the literal name as text and let the
-/// font's ligature feature substitute the glyph during shaping.
+/// GTK4 and Win32 use this table directly so icon labels stay compact
+/// even when ligature shaping or test-time font registration is incomplete.
+/// Web / CSS can still draw the literal name and let the font's ligature
+/// feature substitute the glyph during shaping.
 ///
 /// Coverage is demand-driven: V1 targets every Material name referenced
 /// by `SFSymbolCompatibility.map` plus the parity sample. New entries
@@ -53,19 +54,24 @@ public enum MaterialSymbolsCodepoints {
         "undo":                0xE166,
 
         // File / folder
-        "data_object":         0xE3B5,
+        "article":             0xEF42,
         "content_copy":        0xE14D,
         "create_new_folder":   0xE2CC,
+        "data_object":         0xE3B5,
         "delete":              0xE872,
         "description":         0xE873,
+        "dns":                 0xE875,
         "find_in_page":        0xE880,
         "folder":              0xE2C7,
         "folder_open":         0xE2C8,
+        "hard_drive":          0xF80E,
+        "newspaper":           0xEB81,
 
         // Search / find
         "search":              0xE8B6,
 
         // Status / feedback
+        "bar_chart":           0xE26B,
         "cancel":              0xE5C9,
         "check":               0xE5CA,
         "check_box":           0xE834,
@@ -74,17 +80,31 @@ public enum MaterialSymbolsCodepoints {
         "close":               0xE5CD,
         "help_outline":        0xE8FD,
         "info":                0xE88E,
+        "lightbulb":           0xE0F0,
+        "radio_button_checked": 0xE837,
+        "radio_button_unchecked": 0xE836,
         "stop":                0xE047,
+        "trending_up":         0xE8E5,
         "verified":            0xEF76,
         "warning":             0xE002,
 
         // Common actions
         "add":                 0xE145,
         "add_circle":          0xE147,
+        "attach_file":         0xE226,
         "download":            0xF090,
+        "draw":                0xE746,
         "edit":                0xE3C9,
+        "filter":              0xE3D3,
+        "gesture":             0xE155,
+        "keep_off":            0xE6F9,
+        "magic_button":        0xF136,
+        "palette":             0xE3B7,
+        "push_pin":            0xF10D,
         "remove":              0xE15B,
         "remove_circle":       0xE15C,
+        "repeat":              0xE040,
+        "reply":               0xE15E,
         "select_all":          0xE162,
         "send":                0xE163,
         "settings":            0xE8B8,
@@ -94,27 +114,45 @@ public enum MaterialSymbolsCodepoints {
         "account_circle":      0xE853,
         "group":               0xE7EF,
         "person":              0xE7FD,
+        "person_add":          0xE7FE,
+        "person_remove":       0xEF66,
 
         // UI primitives
+        "alternate_email":     0xE0E6,
         "bookmark":            0xE866,
         "calendar_today":      0xE935,
         "favorite":            0xE87D,
         "favorite_border":     0xE87E,
+        "filter_list":         0xE152,
+        "format_quote":        0xE244,
+        "forum":               0xE0BF,
         "graphic_eq":          0xE1B8,
+        "history":             0xE889,
         "home":                0xE88A,
         "image":               0xE3F4,
+        "inbox":               0xE156,
         "keyboard":            0xE312,
         "label":               0xE892,
+        "layers":              0xE53B,
         "link":                0xE157,
+        "list":                0xE896,
+        "list_alt":            0xE0EE,
         "lock":                0xE897,
         "lock_open":           0xE898,
         "menu":                0xE5D2,
         "mic":                 0xE029,
         "more_horiz":          0xE5D3,
         "notifications":       0xE7F4,
+        "public":              0xE80B,
+        "quickreply":          0xEF6C,
+        "rss_feed":            0xE0E5,
         "schedule":            0xE8B5,
+        "shield":              0xE9E0,
+        "shield_lock":         0xF686,
         "star":                0xE838,
         "star_border":         0xE83A,
+        "stacks":              0xF500,
+        "subtitles":           0xE048,
         "text_fields":         0xE262,
         "visibility":          0xE8F4,
         "visibility_off":      0xE8F5,
@@ -122,10 +160,16 @@ public enum MaterialSymbolsCodepoints {
         "water_drop":          0xE798,
 
         // Media
+        "flip":                0xE3E8,
         "light_mode":          0xE518,
         "pause":               0xE034,
+        "photo_camera":        0xE412,
         "play_arrow":          0xE037,
+        "rotate_right":        0xE41A,
         "space_bar":           0xE256,
+        "straighten":          0xE41C,
+        "tag":                 0xE9EF,
+        "videocam_off":        0xE04C,
         "volume_off":          0xE04F,
         "volume_up":           0xE050,
     ]

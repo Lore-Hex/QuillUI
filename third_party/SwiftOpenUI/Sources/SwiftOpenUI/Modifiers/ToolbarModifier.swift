@@ -1,6 +1,7 @@
 /// Placement for toolbar items.
 public enum ToolbarItemPlacement: Equatable, Hashable {
     case leading
+    case center
     case trailing
     case primaryAction
 }

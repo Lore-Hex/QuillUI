@@ -188,6 +188,242 @@ gtk_swift_scrolled_window_set_child(GtkWidget *scrolled, GtkWidget *child) {
     gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), child);
 }
 
+static inline void
+gtk_swift_overlay_set_measure_overlay(GtkWidget *overlay,
+                                      GtkWidget *child,
+                                      gboolean measure) {
+    gtk_overlay_set_measure_overlay(GTK_OVERLAY(overlay), child, measure);
+}
+
+static inline GtkWidget *
+gtk_swift_min_width_viewport_new(GtkWidget *child) {
+    GtkWidget *viewport = gtk_viewport_new(NULL, NULL);
+    gtk_scrollable_set_hscroll_policy(GTK_SCROLLABLE(viewport), GTK_SCROLL_MINIMUM);
+    gtk_scrollable_set_vscroll_policy(GTK_SCROLLABLE(viewport), GTK_SCROLL_NATURAL);
+    gtk_viewport_set_child(GTK_VIEWPORT(viewport), child);
+    return viewport;
+}
+
+static inline GtkSizeRequestMode
+gtk_swift_width_clamp_request_mode(GtkWidget *widget) {
+    return GTK_SIZE_REQUEST_HEIGHT_FOR_WIDTH;
+}
+
+static inline void
+gtk_swift_width_clamp_measure(GtkWidget *widget,
+                              GtkOrientation orientation,
+                              int for_size,
+                              int *minimum,
+                              int *natural,
+                              int *minimum_baseline,
+                              int *natural_baseline) {
+    GtkWidget *child = gtk_widget_get_first_child(widget);
+    if (minimum_baseline) *minimum_baseline = -1;
+    if (natural_baseline) *natural_baseline = -1;
+    if (child == NULL || !gtk_widget_should_layout(child)) {
+        if (minimum) *minimum = 0;
+        if (natural) *natural = 0;
+        return;
+    }
+
+    if (orientation == GTK_ORIENTATION_HORIZONTAL) {
+        gtk_widget_measure(
+            child,
+            orientation,
+            for_size,
+            minimum,
+            natural,
+            minimum_baseline,
+            natural_baseline);
+        return;
+    }
+
+    gtk_widget_measure(
+        child,
+        orientation,
+        for_size,
+        minimum,
+        natural,
+        minimum_baseline,
+        natural_baseline);
+}
+
+static inline void
+gtk_swift_width_clamp_allocate(GtkWidget *widget,
+                               int width,
+                               int height,
+                               int baseline) {
+    GtkWidget *child = gtk_widget_get_first_child(widget);
+    if (child != NULL && gtk_widget_should_layout(child)) {
+        gtk_widget_allocate(child, width, height, baseline, NULL);
+    }
+}
+
+static inline GtkWidget *
+gtk_swift_width_clamp_new(GtkWidget *child) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_width_clamp_request_mode,
+        gtk_swift_width_clamp_measure,
+        gtk_swift_width_clamp_allocate);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_hexpand(container, gtk_widget_get_hexpand(child));
+    gtk_widget_set_vexpand(container, gtk_widget_get_vexpand(child));
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
+static inline void
+gtk_swift_compressible_width_clamp_measure(GtkWidget *widget,
+                                           GtkOrientation orientation,
+                                           int for_size,
+                                           int *minimum,
+                                           int *natural,
+                                           int *minimum_baseline,
+                                           int *natural_baseline) {
+    GtkWidget *child = gtk_widget_get_first_child(widget);
+    if (minimum_baseline) *minimum_baseline = -1;
+    if (natural_baseline) *natural_baseline = -1;
+    if (child == NULL || !gtk_widget_should_layout(child)) {
+        if (minimum) *minimum = 0;
+        if (natural) *natural = 0;
+        return;
+    }
+
+    if (orientation == GTK_ORIENTATION_HORIZONTAL) {
+        if (minimum) *minimum = 1;
+        if (natural) *natural = 1;
+        return;
+    }
+
+    gtk_widget_measure(
+        child,
+        orientation,
+        for_size,
+        minimum,
+        natural,
+        minimum_baseline,
+        natural_baseline);
+}
+
+static inline GtkWidget *
+gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_width_clamp_request_mode,
+        gtk_swift_compressible_width_clamp_measure,
+        gtk_swift_width_clamp_allocate);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_hexpand(container, gtk_widget_get_hexpand(child));
+    gtk_widget_set_vexpand(container, gtk_widget_get_vexpand(child));
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
+typedef void (*GtkSwiftCustomLayoutMeasureFunc)(void *user_data,
+                                                GtkOrientation orientation,
+                                                int for_size,
+                                                int *minimum,
+                                                int *natural);
+typedef void (*GtkSwiftCustomLayoutAllocateFunc)(void *user_data,
+                                                 int width,
+                                                 int height,
+                                                 int baseline);
+typedef void (*GtkSwiftCustomLayoutDestroyFunc)(void *user_data);
+
+typedef struct {
+    void *user_data;
+    GtkSwiftCustomLayoutMeasureFunc measure;
+    GtkSwiftCustomLayoutAllocateFunc allocate;
+    GtkSwiftCustomLayoutDestroyFunc destroy;
+} GtkSwiftCustomLayoutData;
+
+static inline GtkSwiftCustomLayoutData *
+gtk_swift_custom_layout_data(GtkWidget *widget) {
+    GObject *object = G_OBJECT(widget);
+    return (GtkSwiftCustomLayoutData *)g_object_get_data(object, "gtk-swift-custom-layout-data");
+}
+
+static inline GtkSizeRequestMode
+gtk_swift_custom_layout_request_mode(GtkWidget *widget) {
+    (void)widget;
+    return GTK_SIZE_REQUEST_HEIGHT_FOR_WIDTH;
+}
+
+static inline void
+gtk_swift_custom_layout_measure(GtkWidget *widget,
+                                GtkOrientation orientation,
+                                int for_size,
+                                int *minimum,
+                                int *natural,
+                                int *minimum_baseline,
+                                int *natural_baseline) {
+    if (minimum_baseline) *minimum_baseline = -1;
+    if (natural_baseline) *natural_baseline = -1;
+
+    GtkSwiftCustomLayoutData *data = gtk_swift_custom_layout_data(widget);
+    if (data != NULL && data->measure != NULL) {
+        data->measure(data->user_data, orientation, for_size, minimum, natural);
+        return;
+    }
+
+    if (minimum) *minimum = 0;
+    if (natural) *natural = 0;
+}
+
+static inline void
+gtk_swift_custom_layout_allocate(GtkWidget *widget,
+                                 int width,
+                                 int height,
+                                 int baseline) {
+    GtkSwiftCustomLayoutData *data = gtk_swift_custom_layout_data(widget);
+    if (data != NULL && data->allocate != NULL) {
+        data->allocate(data->user_data, width, height, baseline);
+    }
+}
+
+static inline void
+gtk_swift_custom_layout_data_destroy(gpointer pointer) {
+    GtkSwiftCustomLayoutData *data = (GtkSwiftCustomLayoutData *)pointer;
+    if (data != NULL) {
+        if (data->destroy != NULL) {
+            data->destroy(data->user_data);
+        }
+        g_free(data);
+    }
+}
+
+static inline GtkWidget *
+gtk_swift_custom_layout_new(GtkWidget *child,
+                            void *user_data,
+                            GtkSwiftCustomLayoutMeasureFunc measure,
+                            GtkSwiftCustomLayoutAllocateFunc allocate,
+                            GtkSwiftCustomLayoutDestroyFunc destroy) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_custom_layout_request_mode,
+        gtk_swift_custom_layout_measure,
+        gtk_swift_custom_layout_allocate);
+    GtkSwiftCustomLayoutData *data = g_new0(GtkSwiftCustomLayoutData, 1);
+    data->user_data = user_data;
+    data->measure = measure;
+    data->allocate = allocate;
+    data->destroy = destroy;
+    g_object_set_data_full(G_OBJECT(container),
+                           "gtk-swift-custom-layout-data",
+                           data,
+                           gtk_swift_custom_layout_data_destroy);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
 // --- Focus shims ---
 
 static inline gboolean
@@ -250,6 +486,20 @@ gtk_swift_add_capture_gesture(GtkWidget *widget, GtkGesture *gesture) {
 }
 
 static inline void
+gtk_swift_gesture_deny(gpointer gesture) {
+    if (gesture != NULL) {
+        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_DENIED);
+    }
+}
+
+static inline void
+gtk_swift_gesture_claim(gpointer gesture) {
+    if (gesture != NULL) {
+        gtk_gesture_set_state(GTK_GESTURE(gesture), GTK_EVENT_SEQUENCE_CLAIMED);
+    }
+}
+
+static inline void
 gtk_swift_add_capture_multitouch_gesture(GtkWidget *widget, GtkGesture *gesture) {
     gtk_event_controller_set_propagation_phase(GTK_EVENT_CONTROLLER(gesture), GTK_PHASE_CAPTURE);
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
@@ -288,6 +538,13 @@ gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));
 }
 
+static inline GtkWidget *
+gtk_swift_event_controller_widget(gpointer controller) {
+    return controller != NULL
+        ? gtk_event_controller_get_widget(GTK_EVENT_CONTROLLER(controller))
+        : NULL;
+}
+
 static inline void
 gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
     gtk_widget_remove_controller(widget, GTK_EVENT_CONTROLLER(controller));
@@ -307,6 +564,61 @@ gtk_swift_event_get_position(gpointer event, double *x, double *y) {
     return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
 }
 
+static inline gboolean
+gtk_swift_widget_compute_point(GtkWidget *source,
+                               GtkWidget *target,
+                               double x,
+                               double y,
+                               double *out_x,
+                               double *out_y) {
+    if (source == NULL || target == NULL) {
+        return FALSE;
+    }
+    graphene_point_t source_point;
+    graphene_point_t target_point;
+    source_point.x = (float)x;
+    source_point.y = (float)y;
+    if (!gtk_widget_compute_point(source, target, &source_point, &target_point)) {
+        return FALSE;
+    }
+    if (out_x != NULL) {
+        *out_x = target_point.x;
+    }
+    if (out_y != NULL) {
+        *out_y = target_point.y;
+    }
+    return TRUE;
+}
+
+static inline gboolean
+gtk_swift_widget_compute_bounds(GtkWidget *source,
+                                GtkWidget *target,
+                                double *out_x,
+                                double *out_y,
+                                double *out_width,
+                                double *out_height) {
+    if (source == NULL || target == NULL) {
+        return FALSE;
+    }
+    graphene_rect_t bounds;
+    if (!gtk_widget_compute_bounds(source, target, &bounds)) {
+        return FALSE;
+    }
+    if (out_x != NULL) {
+        *out_x = bounds.origin.x;
+    }
+    if (out_y != NULL) {
+        *out_y = bounds.origin.y;
+    }
+    if (out_width != NULL) {
+        *out_width = bounds.size.width;
+    }
+    if (out_height != NULL) {
+        *out_height = bounds.size.height;
+    }
+    return TRUE;
+}
+
 static inline GtkWidget *
 gtk_swift_widget_root_widget(GtkWidget *widget) {
     GtkRoot *root = gtk_widget_get_root(widget);
@@ -320,7 +632,7 @@ gtk_swift_widget_contains_root_point(GtkWidget *root, GtkWidget *widget, double 
     }
     double local_x = 0;
     double local_y = 0;
-    if (!gtk_widget_translate_coordinates(root, widget, x, y, &local_x, &local_y)) {
+    if (!gtk_swift_widget_compute_point(root, widget, x, y, &local_x, &local_y)) {
         return FALSE;
     }
     return local_x >= 0
@@ -369,6 +681,184 @@ gtk_swift_widget_is_topmost_at_root_point(GtkWidget *root, GtkWidget *widget, do
         return TRUE;
     }
     return picked != NULL && picked != root && gtk_swift_widget_is_ancestor_or_self(picked, widget);
+}
+
+static inline gboolean
+gtk_swift_root_point_picks_button(GtkWidget *root, double x, double y) {
+    if (root == NULL) {
+        return FALSE;
+    }
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    while (picked != NULL) {
+        if (GTK_IS_BUTTON(picked) || GTK_IS_MENU_BUTTON(picked)) {
+            return TRUE;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+    return FALSE;
+}
+
+static inline GtkWidget *
+gtk_swift_root_point_pick_widget(GtkWidget *root, double x, double y) {
+    if (root == NULL) {
+        return NULL;
+    }
+
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    if (picked != NULL) {
+        return picked;
+    }
+
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    if (picked != NULL) {
+        return picked;
+    }
+
+    return gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+}
+
+static inline GtkWidget *
+gtk_swift_root_point_pick_menu_button(GtkWidget *root, double x, double y) {
+    if (root == NULL) {
+        return NULL;
+    }
+
+    GtkWidget *picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    while (picked != NULL) {
+        if (GTK_IS_MENU_BUTTON(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            return NULL;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+    return NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_is_button(GtkWidget *widget) {
+    return widget != NULL && (GTK_IS_BUTTON(widget) || GTK_IS_MENU_BUTTON(widget));
+}
+
+static inline gboolean
+gtk_swift_widget_is_menu_button(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_MENU_BUTTON(widget);
+}
+
+static inline GtkWidget *
+gtk_swift_list_box_row_at_point(GtkWidget *list_box, double x, double y) {
+    if (list_box == NULL) {
+        return NULL;
+    }
+
+    GtkWidget *picked = gtk_widget_pick(list_box, x, y, GTK_PICK_DEFAULT);
+    while (picked != NULL && picked != list_box) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(list_box, x, y, GTK_PICK_NON_TARGETABLE);
+    while (picked != NULL && picked != list_box) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(
+        list_box,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    while (picked != NULL && picked != list_box) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    return NULL;
+}
+
+static inline GtkWidget *
+gtk_swift_root_point_pick_list_box_row(GtkWidget *root, double x, double y) {
+    if (root == NULL) {
+        return NULL;
+    }
+
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    while (picked != NULL) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    while (picked != NULL) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    while (picked != NULL) {
+        if (GTK_IS_LIST_BOX_ROW(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    return NULL;
+}
+
+static inline gboolean
+gtk_swift_widget_is_list_box_row(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_LIST_BOX_ROW(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_list_box(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_LIST_BOX(widget);
+}
+
+static inline void
+gtk_swift_list_box_set_activate_on_single_click(GtkWidget *list_box, gboolean activate) {
+    gtk_list_box_set_activate_on_single_click(GTK_LIST_BOX(list_box), activate);
+}
+
+static inline void
+gtk_swift_list_box_row_set_activatable(GtkWidget *row, gboolean activatable) {
+    gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), activatable);
 }
 
 // --- Scale (Slider) type check ---
@@ -508,6 +998,11 @@ gtk_swift_stack_set_visible_child_name(GtkWidget *stack, const char *name) {
     gtk_stack_set_visible_child_name(GTK_STACK(stack), name);
 }
 
+static inline const char *
+gtk_swift_stack_get_visible_child_name(GtkWidget *stack) {
+    return gtk_stack_get_visible_child_name(GTK_STACK(stack));
+}
+
 static inline void
 gtk_swift_stack_switcher_set_stack(GtkWidget *switcher, GtkWidget *stack) {
     gtk_stack_switcher_set_stack(GTK_STACK_SWITCHER(switcher), GTK_STACK(stack));
@@ -556,6 +1051,16 @@ gtk_swift_calendar_select_ymd(GtkWidget *calendar, int year, int month, int day)
 static inline GtkWidget *
 gtk_swift_search_entry_new(void) {
     return gtk_search_entry_new();
+}
+
+static inline void
+gtk_swift_search_entry_set_key_capture_widget(GtkWidget *entry, GtkWidget *widget) {
+    gtk_search_entry_set_key_capture_widget(GTK_SEARCH_ENTRY(entry), widget);
+}
+
+static inline GtkWidget *
+gtk_swift_search_entry_get_key_capture_widget(GtkWidget *entry) {
+    return gtk_search_entry_get_key_capture_widget(GTK_SEARCH_ENTRY(entry));
 }
 
 static inline void
@@ -633,6 +1138,19 @@ gtk_swift_menu_button_set_always_show_arrow(GtkWidget *button,
                                             gboolean always_show_arrow) {
     gtk_menu_button_set_always_show_arrow(GTK_MENU_BUTTON(button),
                                           always_show_arrow);
+}
+
+static inline gboolean
+gtk_swift_menu_button_popup_if_closed(GtkWidget *button) {
+    if (button == NULL || !GTK_IS_MENU_BUTTON(button)) {
+        return FALSE;
+    }
+    GtkPopover *popover = gtk_menu_button_get_popover(GTK_MENU_BUTTON(button));
+    if (popover == NULL || !gtk_widget_get_visible(GTK_WIDGET(popover))) {
+        gtk_menu_button_popup(GTK_MENU_BUTTON(button));
+        popover = gtk_menu_button_get_popover(GTK_MENU_BUTTON(button));
+    }
+    return (popover != NULL && gtk_widget_get_mapped(GTK_WIDGET(popover))) ? TRUE : FALSE;
 }
 
 // --- GtkListView / GtkListItem / GtkStringObject shims ---

@@ -44,7 +44,15 @@ find "$SOURCE_DIR" -name '*.swift' -print0 |
     s/^[ \t]*\@MainActor[ \t]*\n//gm;
     s/^([ \t]*)\@MainActor[ \t]+/$1/gm;
     s/: View, Sendable/: View/g;
-    s/\.keyboardType\([ \t]*\.URL[ \t]*\)/.keyboardType(KeyboardType.URL)/g;
+    # No keyboardType(.URL) rewrite: the shim now exposes a single canonical
+    # keyboardType(_ type: UIKeyboardType), so upstream `.keyboardType(.URL)`
+    # resolves to UIKeyboardType.URL by inference — exactly like every other
+    # `.keyboardType(.emailAddress)` / `.numberPad` case that was never rewritten.
+    # The old rewrite qualified `.URL` to DSSC.KeyboardType.URL only to break the
+    # ambiguity from a second keyboardType(KeyboardType) overload that no longer
+    # exists (the bespoke KeyboardType struct was removed to mirror Apple, which
+    # ships exactly one keyboard-type — UIKeyboardType). Leading-dot inference
+    # needs no `import UIKit` in the lowered source.
     s/\.textContentType\([ \t]*\.URL[ \t]*\)/.textContentType(TextContentType.URL)/g;
   '
 

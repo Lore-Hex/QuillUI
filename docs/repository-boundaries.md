@@ -36,6 +36,10 @@ uses explicit Linux backends for platform behavior.
   except through explicit profile arguments.
 - Backend targets may depend on C bridges and rendering libraries, but app code
   should see a QuillUI/QuillKit capability rather than raw GTK/Qt details.
+- External Apple-service providers such as OpenCloudKit belong behind
+  framework-named shim modules and QuillKit capability/configuration surfaces.
+  Do not make every consumer resolve a network/auth package until the adapter is
+  tested and optional.
 - Agent infrastructure is operational tooling only. Treat it like CI/devops,
   not project source.
 

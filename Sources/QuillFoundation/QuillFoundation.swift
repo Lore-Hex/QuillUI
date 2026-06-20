@@ -182,6 +182,7 @@ public class CGImage: Hashable, @unchecked Sendable {
     /// populate it; the Cairo CGContext backend draws it.
     public var quillBGRAPixels: [UInt8]?
     public var quillBytesPerRow: Int = 0
+    public var quillUTType: String?
 
     public init() {}
 

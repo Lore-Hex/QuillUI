@@ -3,7 +3,7 @@ import CGTKBridge
 import SwiftOpenUI
 import SwiftOpenUISymbols
 import Foundation
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -53,6 +53,15 @@ private func findTitlebar(in widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeM
 /// Protocol for scenes that can render onto GTK top-level windows.
 protocol GTKWindowRenderable {
     func gtkRender(app: OpaquePointer?)
+}
+
+private var gtkCurrentAppStateSource: Any?
+
+private func gtkWithAppStateSource<T>(_ source: Any, _ body: () -> T) -> T {
+    let previous = gtkCurrentAppStateSource
+    gtkCurrentAppStateSource = source
+    defer { gtkCurrentAppStateSource = previous }
+    return body()
 }
 
 /// Root GTK window content should fill the proposed size; leaf alignment is
@@ -179,11 +188,32 @@ extension WindowGroup: GTKWindowRenderable {
     }
 
     func gtkRender(app: OpaquePointer?) {
+        let appStateSource = gtkCurrentAppStateSource
+        if let valueTypeKey = quillValueTypeKey {
+            GTK4WindowRegistry.shared.registerValue(typeKey: valueTypeKey) { [self] value in
+                self.gtkCreateWindow(
+                    app: app,
+                    content: self.quillContent(forPresentedValue: value),
+                    dismissesWindow: true,
+                    appStateSource: appStateSource
+                )
+            }
+        }
+
         guard launchesAtStartup else {
             gtkBackendDebugLog("defer WindowGroup title=\(title)")
             return
         }
 
+        gtkCreateWindow(app: app, content: content, appStateSource: appStateSource)
+    }
+
+    func gtkCreateWindow(
+        app: OpaquePointer?,
+        content renderedContent: Content,
+        dismissesWindow: Bool = false,
+        appStateSource: Any? = nil
+    ) {
         let window: UnsafeMutablePointer<GtkWidget>
         if let app {
             window = gtk_application_window_new(gtkApplicationPointer(app))!
@@ -201,9 +231,27 @@ extension WindowGroup: GTKWindowRenderable {
         // Set window ID in environment for keyboard shortcut scoping
         var wgEnv = getCurrentEnvironment()
         wgEnv.windowID = Int(bitPattern: winPtr)
+        if dismissesWindow {
+            wgEnv.dismiss = DismissAction(handler: {
+                gtkBackendDebugLog("dismiss value WindowGroup title=\(title)")
+                gtk_window_destroy(winPtr)
+            }, debugName: "gtk value WindowGroup")
+        }
         setCurrentEnvironment(wgEnv)
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget: UnsafeMutablePointer<GtkWidget>
+        if dismissesWindow {
+            contentWidget = widgetFromOpaque(swiftOpenUIWithPresentationDismissAction({
+                gtkBackendDebugLog("dismiss value WindowGroup presentation title=\(title)")
+                gtk_window_destroy(winPtr)
+            }) {
+                gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)
+            })
+        } else {
+            contentWidget = widgetFromOpaque(
+                gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)
+            )
+        }
         if let titlebarWidget = findTitlebar(in: contentWidget) {
             gtk_window_set_titlebar(winPtr, titlebarWidget)
         }
@@ -263,9 +311,7 @@ extension WindowGroup: GTKWindowRenderable {
 
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        if !quillHidesTitleBar {
-            // The macOS reference has no in-window menu strip (global menu
-            // bar); hidden-title-bar windows drop ours for the same look.
+        if !quillHidesTitleBar && gtkShouldShowWindowMenuBar() {
             gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
         } else {
             gtkSetupCommandShortcutsIfNeeded(winPtr: winWidget, windowID: Int(bitPattern: winPtr))
@@ -388,6 +434,34 @@ private final class MenuActionClosure {
     init(_ closure: @escaping () -> Void) { self.closure = closure }
 }
 
+private func gtkEnvironmentFlag(_ canonical: String, legacy: String) -> Bool? {
+    guard let rawValue = ProcessInfo.processInfo.environment[canonical]
+        ?? ProcessInfo.processInfo.environment[legacy]
+    else {
+        return nil
+    }
+    let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if ["1", "true", "yes", "on"].contains(normalized) { return true }
+    if ["0", "false", "no", "off"].contains(normalized) { return false }
+    return nil
+}
+
+private func gtkShouldShowWindowMenuBar() -> Bool {
+    if let explicitShow = gtkEnvironmentFlag(
+        "QUILLUI_BACKEND_SHOW_WINDOW_MENUBAR",
+        legacy: "QUILLUI_GTK_SHOW_WINDOW_MENUBAR"
+    ) {
+        return explicitShow
+    }
+    if let explicitHide = gtkEnvironmentFlag(
+        "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR",
+        legacy: "QUILLUI_GTK_HIDE_WINDOW_MENUBAR"
+    ) {
+        return !explicitHide
+    }
+    return false
+}
+
 /// Manages a GtkPopoverMenuBar on a GTK4 window.
 /// Handles command dispatch via GAction, keyboard shortcut registration,
 /// and observation-based re-evaluation of Commands.
@@ -458,7 +532,7 @@ final class GTK4MenuBarHost {
 
     /// Evaluate Commands with observation tracking and re-arm on change.
     func evaluateWithTracking() {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             withObservationTracking {
                 let groups = self.factory()
@@ -721,7 +795,7 @@ final class GTK4CommandShortcutHost {
     }
 
     func evaluateWithTracking() {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             withObservationTracking {
                 let groups = self.factory()
@@ -843,16 +917,23 @@ public struct GTK4Backend: RenderBackend {
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
             var env = getCurrentEnvironment()
-            env.openWindow = OpenWindowAction { id in
-                GTK4WindowRegistry.shared.open(id: id)
-            }
+            env.openWindow = OpenWindowAction(
+                handler: { id in
+                    GTK4WindowRegistry.shared.open(id: id)
+                },
+                valueHandler: { valueTypeKey, value in
+                    GTK4WindowRegistry.shared.openValue(typeKey: valueTypeKey, value: value)
+                }
+            )
             setCurrentEnvironment(env)
 
             // App.init/App.body are @MainActor (Apple semantics); the GTK app
             // activate callback runs on the GTK main loop == main thread.
             MainActor.assumeIsolated {
                 let instance = A()
-                gtkRenderScene(instance.body, app: appPtr)
+                gtkWithAppStateSource(instance) {
+                    gtkRenderScene(instance.body, app: appPtr)
+                }
             }
         }
 
@@ -880,10 +961,11 @@ public struct GTK4Backend: RenderBackend {
 /// GTK4 rendering for Window scenes (single-instance, identified windows).
 extension Window: GTKWindowRenderable {
     func gtkRender(app: OpaquePointer?) {
+        let appStateSource = gtkCurrentAppStateSource
         // Register a factory for all Window scenes so openWindow(id:) works
         // regardless of launch behavior.
         GTK4WindowRegistry.shared.register(id: id) { [self] in
-            self.gtkCreateWindow(app: app)
+            self.gtkCreateWindow(app: app, appStateSource: appStateSource)
         }
 
         // For non-suppressed windows, use the registry's open(id:) to
@@ -894,7 +976,7 @@ extension Window: GTKWindowRenderable {
         }
     }
 
-    func gtkCreateWindow(app: OpaquePointer?) {
+    func gtkCreateWindow(app: OpaquePointer?, appStateSource: Any? = nil) {
         let window: UnsafeMutablePointer<GtkWidget>
         if let app {
             window = gtk_application_window_new(gtkApplicationPointer(app))!
@@ -909,7 +991,9 @@ extension Window: GTKWindowRenderable {
         wsEnv.windowID = Int(bitPattern: winPtr)
         setCurrentEnvironment(wsEnv)
 
-        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = widgetFromOpaque(
+            gtkRenderWindowRootView(content, appStateSource: appStateSource)
+        )
 
         if let w = defaultWindowWidth, let h = defaultWindowHeight {
             gtk_window_set_default_size(winPtr, gint(w), gint(h))
@@ -926,7 +1010,11 @@ extension Window: GTKWindowRenderable {
 
         gtk_window_set_child(winPtr, rootContentWidget)
         let winWidget = widgetPointer(winPtr)
-        gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        if gtkShouldShowWindowMenuBar() {
+            gtkSetupMenuBarIfNeeded(winPtr: winWidget, contentWidget: rootContentWidget, windowID: Int(bitPattern: winPtr))
+        } else {
+            gtkSetupCommandShortcutsIfNeeded(winPtr: winWidget, windowID: Int(bitPattern: winPtr))
+        }
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
         gtk_window_present(winPtr)
@@ -970,10 +1058,15 @@ extension TupleScene: GTKWindowRenderable {
 class GTK4WindowRegistry {
     static let shared = GTK4WindowRegistry()
     private var factories: [String: () -> Void] = [:]
+    private var valueFactories: [String: (Any) -> Void] = [:]
     private var liveWindows: [String: UnsafeMutablePointer<GtkWindow>] = [:]
 
     func register(id: String, factory: @escaping () -> Void) {
         factories[id] = factory
+    }
+
+    func registerValue(typeKey: String, factory: @escaping (Any) -> Void) {
+        valueFactories[typeKey] = factory
     }
 
     /// Record a live GTK window for the given id.
@@ -996,6 +1089,12 @@ class GTK4WindowRegistry {
         }
         // Window was closed or never created — invoke the factory.
         factories[id]?()
+    }
+
+    /// Open a value-based WindowGroup. SwiftUI treats these as window groups,
+    /// so this deliberately creates a fresh top-level window for each request.
+    func openValue(typeKey: String, value: Any) {
+        valueFactories[typeKey]?(value)
     }
 }
 

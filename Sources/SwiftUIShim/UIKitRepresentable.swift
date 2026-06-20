@@ -14,13 +14,43 @@ private enum QuillMainActorView {
 }
 
 @MainActor
+private protocol QuillHostedSwiftUIView: AnyObject {
+    var quillHostedRootAnyView: AnyView { get }
+}
+
+@MainActor
+private final class QuillUIHostingUIView<Content: View>: UIView, QuillHostedSwiftUIView {
+    var rootView: Content
+
+    init(rootView: Content) {
+        self.rootView = rootView
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("QuillUIHostingUIView(coder:) requires a rootView")
+    }
+
+    var quillHostedRootAnyView: AnyView {
+        AnyView(rootView)
+    }
+}
+
+@MainActor
 open class UIHostingController<Content: View>: UIViewController {
-    public var rootView: Content
+    public var rootView: Content {
+        didSet {
+            if let hostedView = viewIfLoaded as? QuillUIHostingUIView<Content> {
+                hostedView.rootView = rootView
+            }
+        }
+    }
 
     public init(rootView: Content) {
         self.rootView = rootView
         super.init(nibName: nil, bundle: nil)
-        self.view = UIView()
+        self.view = QuillUIHostingUIView(rootView: rootView)
     }
 
     // UIViewController now declares `required init?(coder:)` (Apple-faithful);
@@ -29,6 +59,12 @@ open class UIHostingController<Content: View>: UIViewController {
     @available(*, unavailable)
     public required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) is not available on Linux")
+    }
+}
+
+extension UIHostingController: QuillHostedSwiftUIView {
+    fileprivate var quillHostedRootAnyView: AnyView {
+        AnyView(rootView)
     }
 }
 
@@ -82,7 +118,7 @@ public extension UIViewControllerRepresentableContext where Representable: UIVie
     }
 }
 
-public protocol UIViewControllerRepresentable: View where Body == EmptyView {
+public protocol UIViewControllerRepresentable: View {
     associatedtype UIViewControllerType: UIViewController
     associatedtype Coordinator = Void
 
@@ -94,11 +130,76 @@ public protocol UIViewControllerRepresentable: View where Body == EmptyView {
 }
 
 public extension UIViewControllerRepresentable {
-    var body: EmptyView {
-        EmptyView()
+    var body: QuillUIViewControllerRepresentableHostView<Self> {
+        QuillUIViewControllerRepresentableHostView(self)
     }
 
     @MainActor func makeCoordinator() -> Void {}
+}
+
+/// Host view that lowers common UIKit controller representables into
+/// SwiftOpenUI-native controls on non-UIKit platforms.
+public struct QuillUIViewControllerRepresentableHostView<R: UIViewControllerRepresentable>: View {
+    let representable: R
+
+    init(_ representable: R) {
+        self.representable = representable
+    }
+
+    @ViewBuilder
+    public var body: some View {
+        let coordinator = representable.makeCoordinator()
+        let context = R.Context(coordinator: coordinator)
+        let controller = {
+            let controller = representable.makeUIViewController(context: context)
+            representable.updateUIViewController(controller, context: context)
+            return controller
+        }()
+
+        if let fontPicker = controller as? UIFontPickerViewController {
+            QuillUIFontPickerControllerHost(controller: fontPicker, coordinatorRetainer: coordinator)
+        } else {
+            EmptyView()
+        }
+    }
+}
+
+private struct QuillUIFontPickerControllerHost: View {
+    let controller: UIFontPickerViewController
+    private let coordinatorRetainer: Any
+
+    init(controller: UIFontPickerViewController, coordinatorRetainer: Any) {
+        self.controller = controller
+        self.coordinatorRetainer = coordinatorRetainer
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Choose Font")
+                .font(.headline)
+            Text("Select a font for this app.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                fontButton("System", descriptorName: ".AppleSystemUIFont")
+                fontButton("Rounded", descriptorName: ".AppleSystemUIFontRounded-Regular")
+                fontButton("Inter", descriptorName: "Inter-Regular")
+                fontButton("Atkinson Hyperlegible", descriptorName: "AtkinsonHyperlegible-Regular")
+            }
+            Divider()
+            Button("Cancel") {
+                controller.delegate?.fontPickerViewControllerDidCancel(controller)
+            }
+        }
+        .padding()
+    }
+
+    private func fontButton(_ title: String, descriptorName: String) -> some View {
+        Button(title) {
+            controller.selectedFontDescriptor = UIFontDescriptor(name: descriptorName)
+            controller.delegate?.fontPickerViewControllerDidPickFont(controller)
+        }
+    }
 }
 
 public struct UIViewRepresentableContext<Representable> {
@@ -115,7 +216,7 @@ public extension UIViewRepresentableContext where Representable: UIViewRepresent
     }
 }
 
-public protocol UIViewRepresentable: View where Body == EmptyView {
+public protocol UIViewRepresentable: View {
     associatedtype UIViewType: UIView
     associatedtype Coordinator = Void
 
@@ -127,9 +228,155 @@ public protocol UIViewRepresentable: View where Body == EmptyView {
 }
 
 public extension UIViewRepresentable {
-    var body: EmptyView {
-        EmptyView()
+    var body: QuillUIViewRepresentableHostView<Self> {
+        QuillUIViewRepresentableHostView(self)
     }
 
     @MainActor func makeCoordinator() -> Void {}
+}
+
+/// Host view that lowers common UIKit representables into SwiftOpenUI-native
+/// controls. This keeps source compatibility for apps that wrap UIKit inputs
+/// in `UIViewRepresentable` while avoiding an app-specific rewrite.
+public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>: View {
+    let representable: R
+
+    init(_ representable: R) {
+        self.representable = representable
+    }
+
+    public var body: some View {
+        if let attributedText = quillFindBinding(
+            in: representable,
+            as: NSMutableAttributedString.self
+        ) {
+            QuillAttributedTextRepresentableEditor(text: attributedText)
+        } else if let plainText = quillFindBinding(in: representable, as: String.self) {
+            TextEditor(text: plainText)
+        } else {
+            if let hostedContent = quillHostedSwiftUIView(from: representable) {
+                hostedContent
+            } else {
+                EmptyView()
+            }
+        }
+    }
+}
+
+private struct QuillAttributedTextRepresentableEditor: View {
+    let text: Binding<NSMutableAttributedString>
+
+    var body: some View {
+        TextEditor(text: Binding<String>(
+            get: { text.wrappedValue.string },
+            set: { newValue in
+                guard text.wrappedValue.string != newValue else { return }
+                text.wrappedValue = NSMutableAttributedString(string: newValue)
+            },
+            quillUIIdentity: text.quillUIIdentity
+        ))
+    }
+}
+
+private func quillFindBinding<Value>(
+    in value: Any,
+    as _: Value.Type,
+    depth: Int = 0
+) -> Binding<Value>? {
+    if let binding = value as? Binding<Value> {
+        return binding
+    }
+    guard depth < 4 else { return nil }
+
+    let mirror = Mirror(reflecting: value)
+    for child in mirror.children {
+        if let binding = quillFindBinding(in: child.value, as: Value.self, depth: depth + 1) {
+            return binding
+        }
+    }
+    return nil
+}
+
+@MainActor
+private func quillHostedSwiftUIView<R: UIViewRepresentable>(from representable: R) -> AnyView? {
+    let coordinator = representable.makeCoordinator()
+    let context = R.Context(coordinator: coordinator)
+    let uiView = representable.makeUIView(context: context)
+    representable.updateUIView(uiView, context: context)
+    return quillFindHostedSwiftUIView(in: coordinator)
+        ?? quillFindHostedSwiftUIView(in: uiView)
+}
+
+@MainActor
+private func quillFindHostedSwiftUIView(in value: Any) -> AnyView? {
+    var visitedObjects = Set<ObjectIdentifier>()
+    return quillFindHostedSwiftUIView(in: value, depth: 0, visitedObjects: &visitedObjects)
+}
+
+@MainActor
+private func quillFindHostedSwiftUIView(
+    in value: Any,
+    depth: Int,
+    visitedObjects: inout Set<ObjectIdentifier>
+) -> AnyView? {
+    if let hosted = value as? any QuillHostedSwiftUIView {
+        return hosted.quillHostedRootAnyView
+    }
+    guard depth < 6 else { return nil }
+
+    if let uiView = value as? UIView {
+        let id = ObjectIdentifier(uiView)
+        guard visitedObjects.insert(id).inserted else { return nil }
+        for subview in uiView.subviews {
+            if let hosted = quillFindHostedSwiftUIView(
+                in: subview,
+                depth: depth + 1,
+                visitedObjects: &visitedObjects
+            ) {
+                return hosted
+            }
+        }
+        return nil
+    }
+
+    if let controller = value as? UIViewController {
+        let id = ObjectIdentifier(controller)
+        guard visitedObjects.insert(id).inserted else { return nil }
+        if let view = controller.viewIfLoaded,
+           let hosted = quillFindHostedSwiftUIView(
+            in: view,
+            depth: depth + 1,
+            visitedObjects: &visitedObjects
+           ) {
+            return hosted
+        }
+        for child in controller.children {
+            if let hosted = quillFindHostedSwiftUIView(
+                in: child,
+                depth: depth + 1,
+                visitedObjects: &visitedObjects
+            ) {
+                return hosted
+            }
+        }
+        return nil
+    }
+
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .class {
+        let object = value as AnyObject
+        let id = ObjectIdentifier(object)
+        guard visitedObjects.insert(id).inserted else { return nil }
+    }
+
+    for child in mirror.children {
+        if let hosted = quillFindHostedSwiftUIView(
+            in: child.value,
+            depth: depth + 1,
+            visitedObjects: &visitedObjects
+        ) {
+            return hosted
+        }
+    }
+    return nil
 }

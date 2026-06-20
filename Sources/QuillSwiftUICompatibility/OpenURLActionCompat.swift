@@ -1,4 +1,5 @@
 import Foundation
+import QuillKit
 import SwiftOpenUI
 
 // SwiftUI's `OpenURLAction` lives here (rather than in QuillUI) so it is
@@ -50,15 +51,7 @@ public struct OpenURLAction: @unchecked Sendable {
     @MainActor
     public static func defaultHandler(_ url: URL) -> Result {
         #if os(Linux)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/xdg-open")
-        process.arguments = [url.absoluteString]
-        do {
-            try process.run()
-            return .handled
-        } catch {
-            return .discarded
-        }
+        return QuillWorkspace.open(url) ? .handled : .discarded
         #else
         return .discarded
         #endif

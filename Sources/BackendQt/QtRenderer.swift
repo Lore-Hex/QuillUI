@@ -141,7 +141,7 @@ func qtRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? QtMultiChildRenderable {
         return multi.qtRenderChildren()
     }
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
     if let multi = view as? MultiChildView {
@@ -155,7 +155,7 @@ func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
         if let multi = child as? QtMultiChildRenderable {
             return multi.qtRenderChildren()
         }
-        if let transparent = child as? TransparentMultiChildView {
+        if let transparent = child as? any TransparentMultiChildView {
             return qtRenderExpandedChildren(transparent.children)
         }
         return [qtRenderAnyView(child)]
@@ -400,7 +400,7 @@ func qtRenderLazyVGridContainer(
 }
 
 func qtRenderLazyVGridCells<V: View>(_ view: V) -> [OpaquePointer] {
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
 
@@ -451,7 +451,47 @@ final class QtIntClosureBox {
     init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
 }
 
+final class QtDoubleClosureBox {
+    let closure: (Double) -> Void
+    init(_ closure: @escaping (Double) -> Void) { self.closure = closure }
+}
+
+final class QtDateClosureBox {
+    let closure: (SwiftOpenUI.DateComponents) -> Void
+    init(_ closure: @escaping (SwiftOpenUI.DateComponents) -> Void) { self.closure = closure }
+}
+
+private final class QtEnvironmentCapture: @unchecked Sendable {
+    let environment: EnvironmentValues
+    init(_ environment: EnvironmentValues) { self.environment = environment }
+}
+
+func qtBindTaskActionToCurrentEnvironment(
+    _ action: @escaping @Sendable () async -> Void
+) -> @Sendable () async -> Void {
+    let captured = QtEnvironmentCapture(getCurrentEnvironment())
+    return {
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(captured.environment)
+        defer { setCurrentEnvironment(previous) }
+        await action()
+    }
+}
+
+func qtPostIdleAction(_ action: @escaping () -> Void) {
+    let box = Unmanaged.passRetained(QtClosureBox(action)).toOpaque()
+    let callback: quill_qt_bridge_idle_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>.fromOpaque(userData).takeRetainedValue().closure()
+    }
+    quill_qt_bridge_post_idle(callback, box)
+}
+
 func qtTextLabel(from view: any View) -> String {
+    if let anyView = view as? AnyView {
+        return qtTextLabel(from: anyView.wrapped)
+    }
+
     if let text = view as? Text {
         return text.content
     }
@@ -816,6 +856,12 @@ extension LazyVGrid: QtRenderable {
 }
 #endif
 
+extension Form: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderVerticalContainer(qtRenderChildren(content), spacing: 8, alignment: .leading)
+    }
+}
+
 extension ForEach: QtRenderable, QtMultiChildRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         qtRenderVerticalContainer(qtRenderChildren(), spacing: 0, alignment: .leading)
@@ -908,6 +954,965 @@ extension FrameView: QtRenderable {
             Int32(layout.childPlacement.size.height)
         )
         return container
+    }
+}
+
+// MARK: - Shape views
+
+private func qtColorCSS(_ color: Color) -> String {
+    String(format: "rgba(%d, %d, %d, %.3f)",
+           Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255), color.alpha)
+}
+
+private func qtCreateStyledContainer(_ css: String) -> OpaquePointer {
+    let container = qtOpaque(quill_qt_bridge_container_create())
+    quill_qt_bridge_widget_set_stylesheet(qtHandle(container), css)
+    return container
+}
+
+private func qtShapeCSS(_ shape: Any) -> String {
+    switch shape {
+    case let r as RoundedRectangle: return "border-radius: \(r.cornerRadius)px;"
+    case is Circle, is Ellipse, is Capsule: return "border-radius: 50%;"
+    default: return ""
+    }
+}
+
+private func qtFilledShapeColor(from filledShape: Any) -> Color? {
+    for child in Mirror(reflecting: filledShape).children
+        where child.label == "fill" || child.label == "color" {
+        if let c = child.value as? Color { return c }
+    }
+    return nil
+}
+
+private func qtFilledShapeInnerShape(from filledShape: Any) -> Any? {
+    Mirror(reflecting: filledShape).children.first { $0.label == "shape" }?.value
+}
+
+private func qtGradientStopsCSS(_ stops: [Gradient.Stop]) -> String {
+    stops.map { "\(qtColorCSS($0.color)) \(Int($0.location * 100))%" }.joined(separator: ", ")
+}
+
+extension Rectangle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor;")
+    }
+}
+
+extension RoundedRectangle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: \(cornerRadius)px;")
+    }
+}
+
+extension Circle: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension Ellipse: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension Capsule: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtCreateStyledContainer("background-color: currentColor; border-radius: 50%;")
+    }
+}
+
+extension LinearGradient: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        guard !gradient.stops.isEmpty else {
+            return qtCreateStyledContainer("background-color: transparent;")
+        }
+        let dx = endPoint.x - startPoint.x
+        let dy = endPoint.y - startPoint.y
+        let angleDeg = Int((atan2(dx, -dy) * 180 / .pi).rounded())
+        let stops = qtGradientStopsCSS(gradient.stops)
+        return qtCreateStyledContainer("background: linear-gradient(\(angleDeg)deg, \(stops));")
+    }
+}
+
+extension FilledShape: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let fillCSS = qtFilledShapeColor(from: self)
+            .map { "background-color: \(qtColorCSS($0));" }
+            ?? "background-color: currentColor;"
+        let shapeCSS = qtFilledShapeInnerShape(from: self).map(qtShapeCSS) ?? ""
+        return qtCreateStyledContainer("\(fillCSS) \(shapeCSS)")
+    }
+}
+
+// MARK: - Style modifiers
+
+extension ForegroundColorView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "color: \(color.hex);")
+        return child
+    }
+}
+
+extension OptionalForegroundColorView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        guard let color else {
+            return qtRenderView(content)
+        }
+        return qtRenderView(content.foregroundColor(color))
+    }
+}
+
+extension FontModifiedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let css: String
+        switch font {
+        case .largeTitle:    css = "font-size: 28px;"
+        case .title:         css = "font-size: 24px;"
+        case .title2:        css = "font-size: 20px; font-weight: bold;"
+        case .title3:        css = "font-size: 18px;"
+        case .headline:      css = "font-weight: bold;"
+        case .subheadline:   css = "font-size: 12px; font-weight: bold;"
+        case .body:          css = "font-size: 14px;"
+        case .callout:       css = "font-size: 12px;"
+        case .footnote:      css = "font-size: 10px;"
+        case .caption:       css = "font-size: 12px;"
+        case .caption2:      css = "font-size: 10px; font-weight: bold;"
+        case .custom(let size, _, _): css = "font-size: \(Int(size))px;"
+        }
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), css)
+        return child
+    }
+}
+
+extension OpacityView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "opacity: \(opacity);")
+        return child
+    }
+}
+
+extension CornerRadiusView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "border-radius: \(Int(radius))px;")
+        return child
+    }
+}
+
+extension HiddenView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_visible(qtHandle(child), 0)
+        return child
+    }
+}
+
+extension DisabledView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.isEnabled = env.isEnabled && !isDisabled
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let child = qtRenderView(content)
+        setCurrentEnvironment(previous)
+        return child
+    }
+}
+
+extension BorderView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(
+            qtHandle(child), "border: \(width)px solid \(color.hex);")
+        return child
+    }
+}
+
+extension FixedSizeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+// MARK: - AnyView
+
+extension AnyView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderAnyView(wrapped)
+    }
+}
+
+// MARK: - Link
+
+extension Link: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let text = title.isEmpty ? qtTextLabel(from: labelView.wrapped) : title
+        let box = Unmanaged.passRetained(QtClosureBox({})).toOpaque()
+        let click: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+        }
+        return qtOpaque(quill_qt_bridge_button_create(text, click, box, destroy))
+    }
+}
+
+// MARK: - Navigation views
+
+private func qtRenderFirstChildOrView<V: View>(_ view: V) -> OpaquePointer {
+    if let multi = view as? MultiChildView, let first = multi.children.first {
+        return qtRenderAnyView(first)
+    }
+    return qtRenderView(view)
+}
+
+extension NavigationStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderFirstChildOrView(content)
+    }
+}
+
+extension NavigationLink: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let title = label.isEmpty ? qtTextLabel(from: labelView.wrapped) : label
+        let box = Unmanaged.passRetained(QtClosureBox({})).toOpaque()
+        let click: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+        }
+        return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+    }
+}
+
+extension TabView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = tabs.map { tab in qtRenderAnyView(tab.wrapped) }
+        return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
+    }
+}
+
+extension Section: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var children: [OpaquePointer] = []
+        if let header, !header.isEmpty {
+            children.append(qtRenderView(Text(header)))
+        }
+        children.append(qtRenderView(content))
+        if let footer, !footer.isEmpty {
+            children.append(qtRenderView(Text(footer)))
+        }
+        return qtRenderVerticalContainer(children, spacing: 4, alignment: .leading)
+    }
+}
+
+// MARK: - Label
+
+extension Label: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        var children: [OpaquePointer] = []
+        if let iconName = systemImage {
+            children.append(qtRenderView(Image(systemName: iconName)))
+        } else if let path = imagePath {
+            children.append(qtRenderView(Image(filePath: path)))
+        }
+        children.append(qtOpaque(quill_qt_bridge_label_create(title)))
+        return qtRenderHorizontalContainer(children, spacing: 6, alignment: .center)
+    }
+}
+
+// MARK: - Lazy stacks
+
+extension LazyVStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
+    }
+}
+
+extension LazyHStack: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderHorizontalContainer(children, spacing: 0, alignment: .center)
+    }
+}
+
+// MARK: - Async / geometry
+
+extension ProgressView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtOpaque(quill_qt_bridge_label_create("Loading…"))
+    }
+}
+
+extension GeometryReader: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content(GeometryProxy(size: CGSize(width: 300, height: 300))))
+    }
+}
+
+// MARK: - Lifecycle and event views
+
+extension OnAppearView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        qtPostIdleAction(qtBindActionToCurrentEnvironment(action))
+        return widget
+    }
+}
+
+extension OnDisappearView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension TaskView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        let boundAction = qtBindTaskActionToCurrentEnvironment(action)
+        _ = Task(priority: priority) { await boundAction() }
+        return widget
+    }
+}
+
+extension TapGestureView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        // No Qt tap signal yet — pass content through in a wrapper container.
+        qtRenderView(content)
+    }
+}
+
+extension DisclosureGroup: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let labelWidget: OpaquePointer
+        if !title.isEmpty {
+            labelWidget = qtOpaque(quill_qt_bridge_label_create(title))
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(labelWidget), "font-weight: bold;")
+        } else if let lv = labelView {
+            labelWidget = qtRenderAnyView(lv)
+        } else {
+            labelWidget = qtOpaque(quill_qt_bridge_label_create(""))
+        }
+        return qtRenderVerticalContainer(
+            [labelWidget, qtRenderView(content)], spacing: 4, alignment: .leading)
+    }
+}
+
+// MARK: - Core container Qt extensions
+
+// The placeholder SwiftUI substitutes for "the content being modified" inside a
+// custom ViewModifier's body. It carries the original view in `wrapped`; render
+// straight through to it (mirrors the GTK backend). Without this, every custom
+// ViewModifier subtree (e.g. IceCubes' ThemeApplier) dead-ends as an empty
+// placeholder.
+extension _ViewModifierContent: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderAnyView(wrapped.wrapped)
+    }
+}
+
+extension ButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.buttonStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension CustomButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.customButtonStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+// Qt stylesheets have no CSS-transition analogue; render the content and let
+// state changes apply immediately (no animated tween).
+extension AnimatedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+// The destination factory is consumed by the navigation system; the modifier is
+// transparent to layout, so render the source content straight through.
+extension NavigationDestinationModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension Group: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension TupleView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widgets = children.map { qtRenderAnyView($0) }
+        return qtRenderVerticalContainer(widgets, spacing: 0, alignment: .leading)
+    }
+}
+
+extension Grid: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension GridRow: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension GridCellSpanView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension LazyHGrid: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
+        return qtRenderHorizontalContainer(children, spacing: 0, alignment: .center)
+    }
+}
+
+extension EnvironmentObjectModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.setObject(object)
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension EnvironmentObservableModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.setObject(object)
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+// MARK: - Misc modifier Qt extensions
+
+extension BlurView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        if radius > 0 {
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "filter: blur(\(radius)px);")
+        }
+        return child
+    }
+}
+
+extension ClippedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "overflow: hidden;")
+        return child
+    }
+}
+
+extension ClipShapeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "overflow: hidden;")
+        return child
+    }
+}
+
+extension HelpView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PositionView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let css = "position: absolute; left: \(Int(x))px; top: \(Int(y))px;"
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), css)
+        return child
+    }
+}
+
+extension LayoutPriorityView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.toggleStyle = style
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension KeyboardShortcutView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.keyboardShortcut = shortcut
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension FocusedValueView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension DropDestinationView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension LongPressGestureView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension StrokedShape: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let r = Int(color.red * 255)
+        let g = Int(color.green * 255)
+        let b = Int(color.blue * 255)
+        let a = String(format: "%.2f", color.alpha)
+        let css = "border: 1px solid rgba(\(r),\(g),\(b),\(a));"
+        return qtCreateStyledContainer(css)
+    }
+}
+
+extension FullScreenCoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PopoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension Stepper: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let spinBox = qtOpaque(
+            quill_qt_make_double_spin_box(
+                range.lowerBound,
+                range.upperBound,
+                step
+            )
+        )
+        quill_qt_double_spin_box_set_value(qtHandle(spinBox), value.wrappedValue)
+
+        let binding = value
+        let stepValue = step
+        let box = Unmanaged.passRetained(QtDoubleClosureBox { newValue in
+            if abs(newValue - binding.wrappedValue) > stepValue * 0.01 {
+                binding.wrappedValue = newValue
+            }
+        }).toOpaque()
+
+        let valueChanged: quill_qt_bridge_double_callback = { newValue, userData in
+            guard let userData else { return }
+            Unmanaged<QtDoubleClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(newValue)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtDoubleClosureBox>.fromOpaque(userData).release()
+        }
+        quill_qt_double_spin_box_connect_value_changed(
+            qtHandle(spinBox),
+            valueChanged,
+            box,
+            destroy
+        )
+
+        guard !label.isEmpty else { return spinBox }
+        return qtRenderHorizontalContainer(
+            [qtOpaque(quill_qt_bridge_label_create(label)), spinBox],
+            spacing: 8,
+            alignment: .center
+        )
+    }
+}
+
+extension DatePicker: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let calendar = qtOpaque(quill_qt_make_calendar_widget())
+        if let selection {
+            let components = selection.wrappedValue
+            quill_qt_calendar_select_ymd(
+                qtHandle(calendar),
+                Int32(components.year),
+                Int32(components.month),
+                Int32(components.day)
+            )
+        }
+
+        let binding = selection
+        let callback = onChange
+        let box = Unmanaged.passRetained(QtDateClosureBox { components in
+            if let binding, components != binding.wrappedValue {
+                binding.wrappedValue = components
+            }
+            callback?(components)
+        }).toOpaque()
+
+        let selectionChanged: quill_qt_bridge_date_callback = { year, month, day, userData in
+            guard let userData else { return }
+            let components = SwiftOpenUI.DateComponents(
+                year: Int(year),
+                month: Int(month),
+                day: Int(day)
+            )
+            Unmanaged<QtDateClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(components)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtDateClosureBox>.fromOpaque(userData).release()
+        }
+        quill_qt_calendar_connect_selection_changed(
+            qtHandle(calendar),
+            selectionChanged,
+            box,
+            destroy
+        )
+
+        guard !title.isEmpty else { return calendar }
+        return qtRenderVerticalContainer(
+            [qtOpaque(quill_qt_bridge_label_create(title)), calendar],
+            spacing: 4,
+            alignment: .leading
+        )
+    }
+}
+
+// MARK: - Text modifier Qt extensions
+
+extension FontWeightView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let cssWeight: Int
+        switch weight {
+        case .ultraLight: cssWeight = 100
+        case .thin:       cssWeight = 200
+        case .light:      cssWeight = 300
+        case .regular:    cssWeight = 400
+        case .medium:     cssWeight = 500
+        case .semibold:   cssWeight = 600
+        case .bold:       cssWeight = 700
+        case .heavy:      cssWeight = 800
+        case .black:      cssWeight = 900
+        }
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "font-weight: \(cssWeight);")
+        return child
+    }
+}
+
+extension BoldView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "font-weight: bold;")
+        return child
+    }
+}
+
+extension ItalicView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "font-style: italic;")
+        return child
+    }
+}
+
+extension LineLimitView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_apply_line_limit_to_labels(
+            qtHandle(child),
+            Int32(lineLimit ?? -1)
+        )
+        return child
+    }
+}
+
+extension TruncationModeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let qtMode: Int32
+        switch mode {
+        case .head:
+            qtMode = 0
+        case .tail:
+            qtMode = 1
+        case .middle:
+            qtMode = 2
+        }
+        quill_qt_bridge_widget_apply_truncation_mode_to_labels(qtHandle(child), qtMode)
+        return child
+    }
+}
+
+extension LineSpacingView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "line-height: calc(1em + \(spacing)px);")
+        return child
+    }
+}
+
+extension MultilineTextAlignmentView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let cssAlignment: String
+        switch alignment {
+        case .leading:  cssAlignment = "left"
+        case .center:   cssAlignment = "center"
+        case .trailing: cssAlignment = "right"
+        }
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "text-align: \(cssAlignment);")
+        return child
+    }
+}
+
+extension UnderlineView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(
+            qtHandle(child),
+            "text-decoration-line: \(isActive ? "underline" : "none");")
+        return child
+    }
+}
+
+extension StrikethroughView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(
+            qtHandle(child),
+            "text-decoration-line: \(isActive ? "line-through" : "none");")
+        return child
+    }
+}
+
+extension TextCaseView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let cssTransform: String
+        switch textCase {
+        case .uppercase?: cssTransform = "uppercase"
+        case .lowercase?: cssTransform = "lowercase"
+        case nil:         cssTransform = "none"
+        }
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "text-transform: \(cssTransform);")
+        return child
+    }
+}
+
+// MARK: - Environment and toolbar Qt extensions
+
+extension EnvironmentModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env[keyPath: keyPath] = value
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension ToolbarItem: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content)
+    }
+}
+
+extension ScrollViewReader: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content(ScrollViewProxy()))
+    }
+}
+
+extension LabelsHiddenView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let prev = getCurrentEnvironment()
+        var env = prev
+        env.labelsHidden = true
+        setCurrentEnvironment(env)
+        let widget = qtRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension TagView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension IdView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ContextMenuView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ConfirmationDialogView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension SearchableView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+// MARK: - Visual effects Qt extensions
+
+extension RadialGradient: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let cx = Int(center.x * 100)
+        let cy = Int(center.y * 100)
+        let stops = qtGradientStopsCSS(gradient.stops)
+        let css = "background: radial-gradient(circle at \(cx)% \(cy)%, \(stops)); min-height: 20px;"
+        return qtCreateStyledContainer(css)
+    }
+}
+
+extension ScaleEffectView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "transform: scale(\(scaleX), \(scaleY));")
+        return child
+    }
+}
+
+extension RotationView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "transform: rotate(\(angle)deg);")
+        return child
+    }
+}
+
+extension OffsetView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "transform: translate(\(Int(x))px, \(Int(y))px);")
+        return child
+    }
+}
+
+extension ShadowView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let r = Int(color.red * 255)
+        let g = Int(color.green * 255)
+        let b = Int(color.blue * 255)
+        let a = String(format: "%.2f", color.alpha)
+        let css = "box-shadow: \(Int(x))px \(Int(y))px \(Int(radius))px rgba(\(r),\(g),\(b),\(a)); margin: \(Int(radius))px;"
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(child), css)
+        return child
+    }
+}
+
+extension AspectRatioView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        if let ratio {
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "aspect-ratio: \(ratio);")
+        }
+        return child
+    }
+}
+
+extension ViewThatFits: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        if children.isEmpty { return qtOpaque(quill_qt_bridge_container_create()) }
+        return qtRenderAnyView(children[0])
+    }
+}
+
+// MARK: - Modifier pass-throughs
+
+extension TitledView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToolbarView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ToolbarConfigurationView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension AlertModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension SheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension ItemSheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension BackgroundView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
+}
+
+extension PaddedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        var childW: Int32 = 0
+        var childH: Int32 = 0
+        quill_qt_bridge_widget_resolved_size(qtHandle(child), &childW, &childH)
+        let container = qtOpaque(quill_qt_bridge_container_create())
+        let w = max(0, Int(childW) + leading + trailing)
+        let h = max(0, Int(childH) + top + bottom)
+        quill_qt_bridge_widget_set_fixed_size(qtHandle(container), Int32(w), Int32(h))
+        quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))
+        quill_qt_bridge_widget_set_geometry(
+            qtHandle(child), Int32(leading), Int32(top), childW, childH)
+        return container
+    }
+}
+
+extension OverlayView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        #if QUILLUI_QT_GENERIC
+        return qtRenderOverlayContainer(
+            [qtRenderView(content), qtRenderView(overlay)],
+            alignment: alignment
+        )
+        #else
+        return qtRenderView(content)
+        #endif
     }
 }
 

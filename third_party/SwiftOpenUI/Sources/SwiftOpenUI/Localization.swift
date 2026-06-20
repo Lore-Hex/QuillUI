@@ -7,8 +7,17 @@ private final class QuillLocalizationStore {
     }
 
     private struct PluralSubstitution {
+        var argumentIndex: Int?
+        var zero: String?
         var one: String?
+        var two: String?
+        var few: String?
+        var many: String?
         var other: String?
+
+        var hasAnyValue: Bool {
+            zero != nil || one != nil || two != nil || few != nil || many != nil || other != nil
+        }
     }
 
     static let shared = QuillLocalizationStore()
@@ -148,15 +157,27 @@ private final class QuillLocalizationStore {
     }
 
     private func localizationTemplate(_ value: Any?) -> LocalizedTemplate? {
-        guard let localization = value as? [String: Any],
-              let stringUnit = localization["stringUnit"] as? [String: Any] else {
-            return nil
-        }
-        guard let value = stringUnit["value"] as? String else {
+        guard let localization = value as? [String: Any] else {
             return nil
         }
 
-        var template = LocalizedTemplate(value: value)
+        var template: LocalizedTemplate
+        if let stringUnit = localization["stringUnit"] as? [String: Any],
+           let value = stringUnit["value"] as? String {
+            template = LocalizedTemplate(value: value)
+        } else if let variations = localization["variations"] as? [String: Any],
+                  let plural = variations["plural"] as? [String: Any] {
+            let pluralName = "__quill_plural"
+            let substitution = pluralSubstitution(in: plural)
+            guard substitution.hasAnyValue else {
+                return nil
+            }
+            template = LocalizedTemplate(value: "%#@\(pluralName)@")
+            template.pluralSubstitutions[pluralName] = substitution
+        } else {
+            return nil
+        }
+
         if let substitutions = localization["substitutions"] as? [String: Any] {
             for (name, rawSubstitution) in substitutions {
                 guard let substitution = rawSubstitution as? [String: Any],
@@ -164,13 +185,42 @@ private final class QuillLocalizationStore {
                       let plural = variations["plural"] as? [String: Any] else {
                     continue
                 }
-                template.pluralSubstitutions[name] = PluralSubstitution(
-                    one: pluralString(in: plural["one"]),
-                    other: pluralString(in: plural["other"])
-                )
+                var pluralSubstitution = pluralSubstitution(in: plural)
+                pluralSubstitution.argumentIndex = substitutionArgumentIndex(substitution["argNum"])
+                if pluralSubstitution.hasAnyValue {
+                    template.pluralSubstitutions[name] = pluralSubstitution
+                }
             }
         }
         return template
+    }
+
+    private func substitutionArgumentIndex(_ value: Any?) -> Int? {
+        let argumentNumber: Int?
+        if let number = value as? NSNumber {
+            argumentNumber = number.intValue
+        } else if let int = value as? Int {
+            argumentNumber = int
+        } else if let string = value as? String {
+            argumentNumber = Int(string)
+        } else {
+            argumentNumber = nil
+        }
+        guard let argumentNumber, argumentNumber > 0 else {
+            return nil
+        }
+        return argumentNumber - 1
+    }
+
+    private func pluralSubstitution(in plural: [String: Any]) -> PluralSubstitution {
+        PluralSubstitution(
+            zero: pluralString(in: plural["zero"]),
+            one: pluralString(in: plural["one"]),
+            two: pluralString(in: plural["two"]),
+            few: pluralString(in: plural["few"]),
+            many: pluralString(in: plural["many"]),
+            other: pluralString(in: plural["other"])
+        )
     }
 
     private func pluralString(in value: Any?) -> String? {
@@ -184,13 +234,31 @@ private final class QuillLocalizationStore {
     private func format(_ template: LocalizedTemplate, arguments: [String]) -> String {
         var value = template.value
         for (name, substitution) in template.pluralSubstitutions {
-            let count = arguments.first.flatMap { Double($0) } ?? 0
-            let replacement = count == 1 ? (substitution.one ?? substitution.other) : (substitution.other ?? substitution.one)
+            let argumentIndex = substitution.argumentIndex ?? 0
+            let argument = arguments.indices.contains(argumentIndex) ? arguments[argumentIndex] : (arguments.first ?? "0")
+            let count = Double(argument) ?? 0
+            let replacement: String?
+            switch count {
+            case 0:
+                replacement = substitution.zero ?? substitution.other ?? substitution.one
+            case 1:
+                replacement = substitution.one ?? substitution.other
+            case 2:
+                replacement = substitution.two ?? substitution.other ?? substitution.one
+            default:
+                replacement = substitution.other ?? substitution.many ?? substitution.few ?? substitution.one
+            }
             if let replacement {
-                value = value.replacingOccurrences(of: "%#@\(name)@", with: replacement)
+                let formattedReplacement = formatPluralReplacement(replacement, argument: argument, arguments: arguments)
+                value = value.replacingOccurrences(of: "%#@\(name)@", with: formattedReplacement)
             }
         }
         return format(value, arguments: arguments)
+    }
+
+    private func formatPluralReplacement(_ replacement: String, argument: String, arguments: [String]) -> String {
+        let argResolved = replacement.replacingOccurrences(of: "%arg", with: argument)
+        return format(argResolved, arguments: arguments)
     }
 
     private func format(_ template: String, arguments: [String]) -> String {

@@ -160,7 +160,7 @@ public struct CACornerMask: OptionSet, Sendable {
 
 // MARK: - CALayer
 
-open class CALayer: NSObject, CAMediaTiming {
+open class CALayer: NSObject, @preconcurrency CAMediaTiming {
 
     // MARK: Initializers
 

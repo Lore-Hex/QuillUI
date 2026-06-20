@@ -16,75 +16,185 @@ private let keychainSwiftParamStatus: Int32 = -50
 private let keychainSwiftItemNotFoundStatus: Int32 = -25300
 private let keychainSwiftInvalidEncodingStatus: Int32 = -67853
 
-private struct KeychainSwiftStorageKey: Hashable {
+private struct KeychainSwiftStorageKey: Codable, Hashable {
     var accessGroup: String?
     var synchronizable: Bool
     var key: String
 }
 
-private struct KeychainSwiftStorageValue: Sendable {
+private struct KeychainSwiftStorageValue: Codable, Sendable {
     var data: Data
     var reference: Data
     var access: String?
 }
 
-/// Process-local KeychainSwift compatibility storage.
+private struct KeychainSwiftStorageRecord: Codable {
+    var key: KeychainSwiftStorageKey
+    var value: KeychainSwiftStorageValue
+}
+
+/// File-backed KeychainSwift compatibility storage.
 ///
 /// This module exists so upstream apps that import `KeychainSwift` can compile
-/// and exercise non-sensitive flows under QuillUI. It intentionally does not
-/// claim native secure persistence; `QuillKitCapabilities.secureStorage`
-/// remains unavailable on Linux until a real Secret Service backend is wired.
+/// and exercise account flows under QuillUI. The Linux fallback persists across
+/// launches, but it intentionally does not claim native secure storage;
+/// `QuillKitCapabilities.secureStorage` remains unavailable until a real Secret
+/// Service backend is wired.
 open class KeychainSwift: @unchecked Sendable {
     private final class Storage: @unchecked Sendable {
         private let lock = NSLock()
+        private var storeURL: URL
         private var values: [KeychainSwiftStorageKey: KeychainSwiftStorageValue] = [:]
 
-        func set(_ data: Data, access: String?, forKey key: KeychainSwiftStorageKey) {
+        init() {
+            storeURL = Self.defaultStoreURL()
+            values = Self.loadValues(from: storeURL)
+        }
+
+        func set(_ data: Data, access: String?, forKey key: KeychainSwiftStorageKey) -> Bool {
             lock.lock()
             defer { lock.unlock() }
+            reloadLocked()
             values[key] = KeychainSwiftStorageValue(
                 data: data,
                 reference: referenceData(for: key),
                 access: access
             )
+            return saveLocked()
         }
 
         func get(_ key: KeychainSwiftStorageKey) -> KeychainSwiftStorageValue? {
             lock.lock()
             defer { lock.unlock() }
+            reloadLocked()
             return values[key]
         }
 
         func delete(_ key: KeychainSwiftStorageKey) -> Bool {
             lock.lock()
             defer { lock.unlock() }
-            return values.removeValue(forKey: key) != nil
+            reloadLocked()
+            guard values.removeValue(forKey: key) != nil else {
+                return false
+            }
+            return saveLocked()
         }
 
         func clearNamespace(accessGroup: String?, synchronizable: Bool) -> Bool {
             lock.lock()
             defer { lock.unlock() }
+            reloadLocked()
             let originalCount = values.count
             values = values.filter { storageKey, _ in
                 storageKey.accessGroup != accessGroup
                     || storageKey.synchronizable != synchronizable
             }
-            return values.count != originalCount
+            guard values.count != originalCount else {
+                return false
+            }
+            return saveLocked()
         }
 
         func allKeys(accessGroup: String?, synchronizable: Bool) -> [String] {
             lock.lock()
             defer { lock.unlock() }
+            reloadLocked()
             return values.keys
                 .filter { $0.accessGroup == accessGroup && $0.synchronizable == synchronizable }
                 .map(\.key)
                 .sorted()
         }
 
+        func useStoreForTesting(_ url: URL?) {
+            lock.lock()
+            defer { lock.unlock() }
+            storeURL = url ?? Self.defaultStoreURL()
+            values = Self.loadValues(from: storeURL)
+        }
+
+        func reloadForTesting() {
+            lock.lock()
+            defer { lock.unlock() }
+            reloadLocked()
+        }
+
         private func referenceData(for key: KeychainSwiftStorageKey) -> Data {
             let group = key.accessGroup ?? ""
             let sync = key.synchronizable ? "1" : "0"
             return Data("keychainswift-ref:\(group):\(sync):\(key.key)".utf8)
+        }
+
+        private func reloadLocked() {
+            values = Self.loadValues(from: storeURL)
+        }
+
+        private func saveLocked() -> Bool {
+            let records = values
+                .map { KeychainSwiftStorageRecord(key: $0.key, value: $0.value) }
+                .sorted { lhs, rhs in
+                    let l = lhs.key
+                    let r = rhs.key
+                    return [
+                        l.accessGroup ?? "",
+                        l.synchronizable ? "1" : "0",
+                        l.key
+                    ].lexicographicallyPrecedes([
+                        r.accessGroup ?? "",
+                        r.synchronizable ? "1" : "0",
+                        r.key
+                    ])
+                }
+
+            do {
+                try FileManager.default.createDirectory(
+                    at: storeURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                let data = try JSONEncoder().encode(records)
+                try data.write(to: storeURL, options: [.atomic])
+                return true
+            } catch {
+                return false
+            }
+        }
+
+        private static func loadValues(from url: URL) -> [KeychainSwiftStorageKey: KeychainSwiftStorageValue] {
+            guard let data = try? Data(contentsOf: url),
+                  let records = try? JSONDecoder().decode([KeychainSwiftStorageRecord].self, from: data) else {
+                return [:]
+            }
+            var loaded: [KeychainSwiftStorageKey: KeychainSwiftStorageValue] = [:]
+            for record in records {
+                loaded[record.key] = record.value
+            }
+            return loaded
+        }
+
+        private static func defaultStoreURL() -> URL {
+            if let override = ProcessInfo.processInfo.environment["QUILLUI_KEYCHAINSWIFT_STORE_PATH"],
+               !override.isEmpty {
+                return URL(fileURLWithPath: override)
+            }
+
+            #if os(Linux)
+            if let dataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"],
+               !dataHome.isEmpty {
+                return URL(fileURLWithPath: dataHome)
+                    .appendingPathComponent("QuillUI", isDirectory: true)
+                    .appendingPathComponent("KeychainSwiftStore.json")
+            }
+            return FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".local/share/QuillUI", isDirectory: true)
+                .appendingPathComponent("KeychainSwiftStore.json")
+            #else
+            let base = FileManager.default.urls(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask
+            ).first ?? FileManager.default.homeDirectoryForCurrentUser
+            return base
+                .appendingPathComponent("QuillUI", isDirectory: true)
+                .appendingPathComponent("KeychainSwiftStore.json")
+            #endif
         }
     }
 
@@ -100,6 +210,14 @@ open class KeychainSwift: @unchecked Sendable {
         self.accessGroup = accessGroup
         self.synchronizable = synchronizable
         lastResultCode = keychainSwiftSuccessStatus
+    }
+
+    static func quillUsePersistentStoreForTesting(_ url: URL?) {
+        storage.useStoreForTesting(url)
+    }
+
+    static func quillReloadPersistentStoreForTesting() {
+        storage.reloadForTesting()
     }
 
     private func storageKey(_ key: String) -> KeychainSwiftStorageKey {
@@ -145,9 +263,9 @@ open class KeychainSwift: @unchecked Sendable {
 
     @discardableResult
     open func set(_ value: Data, forKey key: String, withAccess: Any? = nil) -> Bool {
-        Self.storage.set(value, access: accessValue(from: withAccess), forKey: storageKey(key))
-        lastResultCode = keychainSwiftSuccessStatus
-        return true
+        let stored = Self.storage.set(value, access: accessValue(from: withAccess), forKey: storageKey(key))
+        lastResultCode = stored ? keychainSwiftSuccessStatus : keychainSwiftParamStatus
+        return stored
     }
 
     @discardableResult

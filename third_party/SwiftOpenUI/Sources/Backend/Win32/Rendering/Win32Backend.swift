@@ -4,7 +4,7 @@ import CWin32Bridge
 import SwiftOpenUI
 import SwiftOpenUISymbols
 import Foundation
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -464,7 +464,7 @@ final class Win32MenuBarHost {
 
     /// Evaluate Commands with observation tracking and re-arm on change.
     func evaluateWithTracking() {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             withObservationTracking {
                 let groups = self.factory()

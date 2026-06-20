@@ -2,7 +2,7 @@ import CGTK
 import CGTKBridge
 import SwiftOpenUI
 import Foundation
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -13,6 +13,220 @@ private func gtkViewHostDebugLog(_ message: String) {
     if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
         FileHandle.standardError.write(data)
     }
+}
+
+private struct GTKActiveTask {
+    var lifecycleID: String?
+    var task: Task<Void, Never>
+}
+
+private struct GTKViewHostLifecycleSnapshot {
+    var appearedOnAppearIdentities: Set<GTK4DescriptorIdentity>
+    var activeTasksByIdentity: [GTK4DescriptorIdentity: GTKActiveTask]
+}
+
+private let gtkViewHostLifecycleRemountLock = NSLock()
+private var gtkViewHostLifecycleRemountDepth = 0
+private var gtkViewHostLifecycleRemountCache: [String: GTKViewHostLifecycleSnapshot] = [:]
+
+private func gtkViewHostLifecycleRemountIsActive() -> Bool {
+    gtkViewHostLifecycleRemountLock.lock()
+    defer { gtkViewHostLifecycleRemountLock.unlock() }
+    return gtkViewHostLifecycleRemountDepth > 0
+}
+
+private func gtkBeginViewHostLifecycleRemountPass() {
+    gtkViewHostLifecycleRemountLock.lock()
+    gtkViewHostLifecycleRemountDepth += 1
+    gtkViewHostLifecycleRemountLock.unlock()
+}
+
+private func gtkEndViewHostLifecycleRemountPass() {
+    let tasksToCancel: [Task<Void, Never>]
+
+    gtkViewHostLifecycleRemountLock.lock()
+    gtkViewHostLifecycleRemountDepth = max(0, gtkViewHostLifecycleRemountDepth - 1)
+    if gtkViewHostLifecycleRemountDepth == 0 {
+        tasksToCancel = gtkViewHostLifecycleRemountCache.values.flatMap {
+            $0.activeTasksByIdentity.values.map(\.task)
+        }
+        gtkViewHostLifecycleRemountCache.removeAll()
+    } else {
+        tasksToCancel = []
+    }
+    gtkViewHostLifecycleRemountLock.unlock()
+
+    tasksToCancel.forEach { $0.cancel() }
+}
+
+private func gtkStoreViewHostLifecycleSnapshot(
+    _ snapshot: GTKViewHostLifecycleSnapshot,
+    for namespace: String
+) {
+    gtkViewHostLifecycleRemountLock.lock()
+    if gtkViewHostLifecycleRemountDepth > 0 {
+        if var existing = gtkViewHostLifecycleRemountCache[namespace] {
+            existing.appearedOnAppearIdentities.formUnion(snapshot.appearedOnAppearIdentities)
+            for (identity, task) in snapshot.activeTasksByIdentity {
+                existing.activeTasksByIdentity[identity] = task
+            }
+            gtkViewHostLifecycleRemountCache[namespace] = existing
+        } else {
+            gtkViewHostLifecycleRemountCache[namespace] = snapshot
+        }
+        gtkViewHostDebugLog(
+            "host lifecycle snapshot store ns=\(namespace) onAppear=\(snapshot.appearedOnAppearIdentities.count) tasks=\(snapshot.activeTasksByIdentity.count)"
+        )
+    }
+    gtkViewHostLifecycleRemountLock.unlock()
+}
+
+private func gtkTakeViewHostLifecycleSnapshot(
+    for namespace: String
+) -> GTKViewHostLifecycleSnapshot? {
+    gtkViewHostLifecycleRemountLock.lock()
+    let snapshot = gtkViewHostLifecycleRemountCache.removeValue(forKey: namespace)
+    gtkViewHostLifecycleRemountLock.unlock()
+    gtkViewHostDebugLog(
+        "host lifecycle snapshot take ns=\(namespace) hit=\(snapshot != nil)"
+    )
+    return snapshot
+}
+
+func gtkRestoreViewHostLifecycleIfAvailable(_ host: GTKViewHost) {
+    guard let snapshot = gtkTakeViewHostLifecycleSnapshot(for: host.stateIdentityNamespace) else {
+        return
+    }
+    gtkViewHostDebugLog(
+        "host lifecycle snapshot restore host=\(ObjectIdentifier(host)) ns=\(host.stateIdentityNamespace) onAppear=\(snapshot.appearedOnAppearIdentities.count) tasks=\(snapshot.activeTasksByIdentity.count)"
+    )
+    host.restoreLifecycleSnapshot(snapshot)
+}
+
+private struct GTKScrollAxisSnapshot {
+    let value: Double
+    let isAtEnd: Bool
+}
+
+private struct GTKScrollAdjustmentSnapshot {
+    let horizontal: GTKScrollAxisSnapshot?
+    let vertical: GTKScrollAxisSnapshot?
+}
+
+private final class GTKScrollRestorationContext {
+    let root: UnsafeMutablePointer<GtkWidget>
+    let snapshots: [GTKScrollAdjustmentSnapshot]
+
+    init(root: UnsafeMutablePointer<GtkWidget>, snapshots: [GTKScrollAdjustmentSnapshot]) {
+        self.root = root
+        self.snapshots = snapshots
+        g_object_ref(gpointer(root))
+    }
+
+    deinit {
+        g_object_unref(gpointer(root))
+    }
+}
+
+private func gtkWidgetIsScrolledWindow(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    String(cString: g_type_name(gtk_swift_get_widget_type(widget))) == "GtkScrolledWindow"
+}
+
+private func gtkSnapshotAdjustment(_ adjustment: UnsafeMutablePointer<GtkAdjustment>?) -> GTKScrollAxisSnapshot? {
+    guard let adjustment else { return nil }
+    let lower = gtk_adjustment_get_lower(adjustment)
+    let upper = gtk_adjustment_get_upper(adjustment)
+    let pageSize = gtk_adjustment_get_page_size(adjustment)
+    let maxValue = max(lower, upper - pageSize)
+    let value = gtk_adjustment_get_value(adjustment)
+    return GTKScrollAxisSnapshot(value: value, isAtEnd: maxValue > lower && value >= maxValue - 2.0)
+}
+
+private func gtkCollectScrollAdjustmentSnapshots(in widget: UnsafeMutablePointer<GtkWidget>) -> [GTKScrollAdjustmentSnapshot] {
+    guard gtk_swift_is_widget(widget) != 0 else { return [] }
+
+    var snapshots: [GTKScrollAdjustmentSnapshot] = []
+
+    func walk(_ current: UnsafeMutablePointer<GtkWidget>) {
+        guard gtk_swift_is_widget(current) != 0 else { return }
+
+        if gtkWidgetIsScrolledWindow(current) {
+            let scrolled = OpaquePointer(current)
+            snapshots.append(
+                GTKScrollAdjustmentSnapshot(
+                    horizontal: gtkSnapshotAdjustment(gtk_scrolled_window_get_hadjustment(scrolled)),
+                    vertical: gtkSnapshotAdjustment(gtk_scrolled_window_get_vadjustment(scrolled))
+                )
+            )
+        }
+
+        var child = gtk_widget_get_first_child(current)
+        while let c = child {
+            walk(c)
+            child = gtk_widget_get_next_sibling(c)
+        }
+    }
+
+    walk(widget)
+    return snapshots
+}
+
+private func gtkRestoreAdjustment(_ adjustment: UnsafeMutablePointer<GtkAdjustment>?, snapshot: GTKScrollAxisSnapshot?) {
+    guard let adjustment, let snapshot else { return }
+    let lower = gtk_adjustment_get_lower(adjustment)
+    let upper = gtk_adjustment_get_upper(adjustment)
+    let pageSize = gtk_adjustment_get_page_size(adjustment)
+    let maxValue = max(lower, upper - pageSize)
+    let value = snapshot.isAtEnd ? maxValue : min(max(snapshot.value, lower), maxValue)
+    gtk_adjustment_set_value(adjustment, value)
+}
+
+private func gtkRestoreScrollAdjustmentSnapshots(
+    _ snapshots: [GTKScrollAdjustmentSnapshot],
+    in widget: UnsafeMutablePointer<GtkWidget>
+) {
+    guard !snapshots.isEmpty, gtk_swift_is_widget(widget) != 0 else { return }
+
+    var index = 0
+
+    func walk(_ current: UnsafeMutablePointer<GtkWidget>) {
+        guard gtk_swift_is_widget(current) != 0 else { return }
+
+        if gtkWidgetIsScrolledWindow(current), index < snapshots.count {
+            let snapshot = snapshots[index]
+            let scrolled = OpaquePointer(current)
+            gtkRestoreAdjustment(
+                gtk_scrolled_window_get_hadjustment(scrolled),
+                snapshot: snapshot.horizontal
+            )
+            gtkRestoreAdjustment(
+                gtk_scrolled_window_get_vadjustment(scrolled),
+                snapshot: snapshot.vertical
+            )
+            index += 1
+        }
+
+        var child = gtk_widget_get_first_child(current)
+        while let c = child {
+            walk(c)
+            child = gtk_widget_get_next_sibling(c)
+        }
+    }
+
+    walk(widget)
+}
+
+private func gtkScheduleScrollAdjustmentSnapshotRestore(
+    _ snapshots: [GTKScrollAdjustmentSnapshot],
+    in widget: UnsafeMutablePointer<GtkWidget>
+) {
+    guard !snapshots.isEmpty else { return }
+    let context = GTKScrollRestorationContext(root: widget, snapshots: snapshots)
+    g_idle_add({ userData -> gboolean in
+        let context = Unmanaged<GTKScrollRestorationContext>.fromOpaque(userData!).takeRetainedValue()
+        gtkRestoreScrollAdjustmentSnapshots(context.snapshots, in: context.root)
+        return 0
+    }, Unmanaged.passRetained(context).toOpaque())
 }
 
 /// Thread-local key for the ViewHost currently performing a rebuild.
@@ -41,11 +255,14 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private var suppressFocusRestoreOnce = false
     private var interactiveUpdateDepth = 0
     private var rebuildDeferredDuringInteraction = false
+    private var observableObjectMutationSchedulePending = false
     private var pendingAnimation: Animation?
+    private var lastConstrainedChildWidth: gint = -1
+    private var lastConstrainedChildHeight: gint = -1
     private var onAppearPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
     private var appearedOnAppearIdentities: Set<GTK4DescriptorIdentity> = []
     private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
-    private var activeTasksByIdentity: [GTK4DescriptorIdentity: Task<Void, Never>] = [:]
+    private var activeTasksByIdentity: [GTK4DescriptorIdentity: GTKActiveTask] = [:]
     private var taskLifecycleSuspended = true
     /// True when the pending/next rebuild was requested by withObservationTracking's
     /// onChange callback. withObservationTracking is one-shot: once it fires, the
@@ -78,7 +295,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private func installRebuildEnvironment() {
         var env = capturedEnvironment
         for (typeID, object) in capturedInjectedObjects {
-            env.setObjectByID(typeID, object)
+            env.setLatestObjectByID(typeID, fallback: object)
         }
         setCurrentEnvironment(env)
     }
@@ -140,20 +357,39 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             nil,
             GConnectFlags(rawValue: 0)
         )
+        _ = gtk_widget_add_tick_callback(
+            box,
+            gtkViewHostWidthTickCallback,
+            hostPointer,
+            nil
+        )
     }
 
     private func markContainerDestroyed() {
         let tasksToCancel: [Task<Void, Never>]
+        let lifecycleSnapshot: GTKViewHostLifecycleSnapshot?
         lock.lock()
         isContainerAlive = false
         scheduled = false
         taskLifecycleSuspended = true
+        if gtkViewHostLifecycleRemountIsActive() {
+            lifecycleSnapshot = GTKViewHostLifecycleSnapshot(
+                appearedOnAppearIdentities: appearedOnAppearIdentities,
+                activeTasksByIdentity: activeTasksByIdentity
+            )
+            tasksToCancel = []
+        } else {
+            lifecycleSnapshot = nil
+            tasksToCancel = activeTasksByIdentity.values.map(\.task)
+        }
         onAppearPayloadsByIdentity.removeAll()
         appearedOnAppearIdentities.removeAll()
         taskPayloadsByIdentity.removeAll()
-        tasksToCancel = Array(activeTasksByIdentity.values)
         activeTasksByIdentity.removeAll()
         lock.unlock()
+        if let lifecycleSnapshot {
+            gtkStoreViewHostLifecycleSnapshot(lifecycleSnapshot, for: stateIdentityNamespace)
+        }
         tasksToCancel.forEach { $0.cancel() }
     }
 
@@ -161,11 +397,16 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         descriptorRoot: GTK4IdentifiedDescriptorNode,
         taskPayloads: [GTK4TaskPayload]
     ) {
+        let payloadsByIdentity = gtkTaskPayloadsByIdentity(
+            descriptorRoot: descriptorRoot,
+            payloads: taskPayloads,
+            includingListRowScopes: false
+        )
+        gtkViewHostDebugLog(
+            "host task lifecycle host=\(ObjectIdentifier(self)) ns=\(stateIdentityNamespace) payloads=\(taskPayloads.count) mapped=\(payloadsByIdentity.count)"
+        )
         reconcileTaskPayloads(
-            gtkTaskPayloadsByIdentity(
-                descriptorRoot: descriptorRoot,
-                payloads: taskPayloads
-            )
+            payloadsByIdentity
         )
         resumeTasksIfAlreadyMapped()
     }
@@ -177,7 +418,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         reconcileOnAppearPayloads(
             gtkOnAppearPayloadsByIdentity(
                 descriptorRoot: descriptorRoot,
-                payloads: onAppearPayloads
+                payloads: onAppearPayloads,
+                includingListRowScopes: false
             )
         )
         resumeTasksIfAlreadyMapped()
@@ -198,6 +440,9 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             actionsToRun = []
         } else {
             let newAppearances = liveIdentities.subtracting(appearedOnAppearIdentities)
+            gtkViewHostDebugLog(
+                "host onAppear reconcile host=\(ObjectIdentifier(self)) live=\(liveIdentities.count) appeared=\(appearedOnAppearIdentities.count) new=\(newAppearances.count) suspended=false"
+            )
             appearedOnAppearIdentities.formUnion(newAppearances)
             actionsToRun = newAppearances.compactMap { newPayloadsByIdentity[$0]?.action }
         }
@@ -213,11 +458,17 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
 
         lock.lock()
         taskPayloadsByIdentity = newPayloadsByIdentity
+        gtkViewHostDebugLog(
+            "host task reconcile host=\(ObjectIdentifier(self)) live=\(newPayloadsByIdentity.count) active=\(activeTasksByIdentity.count) suspended=\(taskLifecycleSuspended)"
+        )
 
-        let staleIdentities = activeTasksByIdentity.keys.filter { newPayloadsByIdentity[$0] == nil }
+        let staleIdentities = activeTasksByIdentity.keys.filter { identity in
+            guard let newPayload = newPayloadsByIdentity[identity] else { return true }
+            return activeTasksByIdentity[identity]?.lifecycleID != newPayload.lifecycleID
+        }
         for identity in staleIdentities {
-            if let task = activeTasksByIdentity.removeValue(forKey: identity) {
-                tasksToCancel.append(task)
+            if let active = activeTasksByIdentity.removeValue(forKey: identity) {
+                tasksToCancel.append(active.task)
             }
         }
 
@@ -233,17 +484,34 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
 
     private func startTaskLocked(identity: GTK4DescriptorIdentity, payload: GTK4TaskPayload) {
         let action = payload.action
-        activeTasksByIdentity[identity] = Task(priority: payload.priority) {
-            await action()
-        }
+        gtkViewHostDebugLog("host task start host=\(ObjectIdentifier(self)) identity=\(identity) lifecycleID=\(payload.lifecycleID ?? "<none>")")
+        activeTasksByIdentity[identity] = GTKActiveTask(
+            lifecycleID: payload.lifecycleID,
+            task: Task(priority: payload.priority) {
+                await action()
+            }
+        )
     }
 
     private func suspendTasksForDisappear() {
         let tasksToCancel: [Task<Void, Never>]
         lock.lock()
         taskLifecycleSuspended = true
+        if gtkViewHostLifecycleRemountIsActive() {
+            let lifecycleSnapshot = GTKViewHostLifecycleSnapshot(
+                appearedOnAppearIdentities: appearedOnAppearIdentities,
+                activeTasksByIdentity: activeTasksByIdentity
+            )
+            activeTasksByIdentity.removeAll()
+            lock.unlock()
+            gtkViewHostDebugLog(
+                "host lifecycle snapshot transfer-on-unmap host=\(ObjectIdentifier(self)) ns=\(stateIdentityNamespace) onAppear=\(lifecycleSnapshot.appearedOnAppearIdentities.count) tasks=\(lifecycleSnapshot.activeTasksByIdentity.count)"
+            )
+            gtkStoreViewHostLifecycleSnapshot(lifecycleSnapshot, for: stateIdentityNamespace)
+            return
+        }
         appearedOnAppearIdentities.removeAll()
-        tasksToCancel = Array(activeTasksByIdentity.values)
+        tasksToCancel = activeTasksByIdentity.values.map(\.task)
         activeTasksByIdentity.removeAll()
         lock.unlock()
 
@@ -259,10 +527,16 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             return
         }
         taskLifecycleSuspended = false
+        gtkViewHostDebugLog(
+            "host task resume host=\(ObjectIdentifier(self)) payloads=\(taskPayloadsByIdentity.count) active=\(activeTasksByIdentity.count)"
+        )
         for (identity, payload) in taskPayloadsByIdentity where activeTasksByIdentity[identity] == nil {
             startTaskLocked(identity: identity, payload: payload)
         }
         let newAppearances = Set(onAppearPayloadsByIdentity.keys).subtracting(appearedOnAppearIdentities)
+        gtkViewHostDebugLog(
+            "host onAppear resume host=\(ObjectIdentifier(self)) live=\(onAppearPayloadsByIdentity.count) appeared=\(appearedOnAppearIdentities.count) new=\(newAppearances.count)"
+        )
         appearedOnAppearIdentities.formUnion(newAppearances)
         actionsToRun = newAppearances.compactMap { onAppearPayloadsByIdentity[$0]?.action }
         lock.unlock()
@@ -272,6 +546,19 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
 
     private func resumeTasksIfAlreadyMapped() {
         guard gtk_widget_get_mapped(container) != 0 else { return }
+        resumeTasksAfterAppear()
+    }
+
+    fileprivate func restoreLifecycleSnapshot(_ snapshot: GTKViewHostLifecycleSnapshot) {
+        lock.lock()
+        appearedOnAppearIdentities.formUnion(snapshot.appearedOnAppearIdentities)
+        for (identity, activeTask) in snapshot.activeTasksByIdentity {
+            activeTasksByIdentity[identity] = activeTask
+        }
+        lock.unlock()
+    }
+
+    func resumeLifecycleAfterProgrammaticVisibilityChange() {
         resumeTasksAfterAppear()
     }
 
@@ -301,6 +588,37 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         g_idle_add({ userData -> gboolean in
             let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeRetainedValue()
             host.rebuild()
+            return 0 // G_SOURCE_REMOVE
+        }, retained.toOpaque())
+    }
+
+    public func scheduleRebuildAfterObservableObjectMutation() {
+        lock.lock()
+        guard isContainerAlive else {
+            lock.unlock()
+            gtkViewHostDebugLog("host observable schedule ignored alive=false host=\(ObjectIdentifier(self))")
+            return
+        }
+        guard !observableObjectMutationSchedulePending else {
+            lock.unlock()
+            gtkViewHostDebugLog("host observable schedule coalesced host=\(ObjectIdentifier(self))")
+            return
+        }
+        observableObjectMutationSchedulePending = true
+        lock.unlock()
+
+        gtkViewHostDebugLog("host observable schedule host=\(ObjectIdentifier(self))")
+        let retained = Unmanaged.passRetained(self)
+        g_timeout_add(1, { userData -> gboolean in
+            let host = Unmanaged<GTKViewHost>.fromOpaque(userData!).takeRetainedValue()
+            host.lock.lock()
+            host.observableObjectMutationSchedulePending = false
+            host.observationDidFire = true
+            let alive = host.isContainerAlive
+            host.lock.unlock()
+            if alive {
+                host.scheduleRebuild()
+            }
             return 0 // G_SOURCE_REMOVE
         }, retained.toOpaque())
     }
@@ -354,7 +672,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         // `endEnvironmentReadTracking()` after body evaluates.
         beginEnvironmentReadTracking()
 
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
@@ -394,18 +712,20 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         descriptor: GTK4DescriptorNode,
         canvasPayloads: [GTK4CanvasPayload],
         onAppearPayloads: [GTK4OnAppearPayload],
-        taskPayloads: [GTK4TaskPayload]
+        taskPayloads: [GTK4TaskPayload],
+        buttonPayloads: [GTK4ButtonPayload]
     ) {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: (
                 descriptor: GTK4DescriptorNode,
                 canvasPayloads: [GTK4CanvasPayload],
                 onAppearPayloads: [GTK4OnAppearPayload],
-                taskPayloads: [GTK4TaskPayload]
+                taskPayloads: [GTK4TaskPayload],
+                buttonPayloads: [GTK4ButtonPayload]
             )!
             withObservationTracking {
-                result = gtkDescribeCapturingCanvasPayloads(describeBody)
+                result = describeBodyCapturingPayloads(describeBody)
             } onChange: { [weak self] in
                 guard let self else { return }
                 self.lock.lock()
@@ -416,6 +736,22 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             return result
         }
         #endif
+        return describeBodyCapturingPayloads(describeBody)
+    }
+
+    func describeBodyCapturingPayloads(
+        _ describeBody: () -> GTK4DescriptorNode
+    ) -> (
+        descriptor: GTK4DescriptorNode,
+        canvasPayloads: [GTK4CanvasPayload],
+        onAppearPayloads: [GTK4OnAppearPayload],
+        taskPayloads: [GTK4TaskPayload],
+        buttonPayloads: [GTK4ButtonPayload]
+    ) {
+        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        gtkBeginStateIdentityPass()
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
         return gtkDescribeCapturingCanvasPayloads(describeBody)
     }
 
@@ -454,12 +790,13 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 descriptor: GTK4DescriptorNode,
                 canvasPayloads: [GTK4CanvasPayload],
                 onAppearPayloads: [GTK4OnAppearPayload],
-                taskPayloads: [GTK4TaskPayload]
+                taskPayloads: [GTK4TaskPayload],
+                buttonPayloads: [GTK4ButtonPayload]
             )
             if fromObservation {
                 described = describeReestablishingObservation(describeBody)
             } else {
-                described = gtkDescribeCapturingCanvasPayloads(describeBody)
+                described = describeBodyCapturingPayloads(describeBody)
             }
             setCurrentEnvironment(previousEnv)
 
@@ -467,6 +804,10 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             let canvasPayloads = gtkCanvasPayloadsByIdentity(
                 descriptorRoot: newIdentified,
                 payloads: described.canvasPayloads
+            )
+            let buttonPayloads = gtkButtonPayloadsByIdentity(
+                descriptorRoot: newIdentified,
+                payloads: described.buttonPayloads
             )
             let plan = gtkPlanDescriptorTree(old: oldRetained, new: newIdentified)
 
@@ -481,7 +822,11 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 let allSlotsValid = gtkAllSlotsValid(action: action)
                 if allSlotsValid {
                     let result = gtkApplyHookMutation(action: action)
-                    if gtkHookMutationSucceeded(result) {
+                    let buttonActionsUpdated = gtkUpdateButtonActions(
+                        in: action.resultingNode,
+                        payloadsByIdentity: buttonPayloads
+                    )
+                    if gtkHookMutationSucceeded(result), buttonActionsUpdated {
                         // Success — update retained state, skip full rebuild
                         updateOnAppearLifecycle(
                             descriptorRoot: newIdentified,
@@ -490,6 +835,9 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                         lastRetainedDescriptor = gtkRetainDescriptorTree(newIdentified)
                         retainedExecutor = action.resultingNode
                         return
+                    }
+                    if !buttonActionsUpdated {
+                        debugLogRebuild("narrow button action update failed ns=\(stateIdentityNamespace)")
                     }
                     debugLogRebuild("narrow hook mutation failed ns=\(stateIdentityNamespace)")
                 } else {
@@ -534,6 +882,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         // Always save focus state before teardown — cursor/selection must
         // survive even when focus restore is suppressed (parity with Win32/Web).
         let focusInfo = saveFocusInfo(in: container)
+        let scrollSnapshots = gtkCollectScrollAdjustmentSnapshots(in: container)
 
         // Capture old animatable state before teardown
         var oldOpacity: Double? = nil
@@ -550,6 +899,9 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             oldScaleY = getWidgetDouble(oldChild, key: "gtk-swift-scale-y")
             oldRotation = getWidgetDouble(oldChild, key: "gtk-swift-rotation")
         }
+
+        gtkBeginViewHostLifecycleRemountPass()
+        defer { gtkEndViewHostLifecycleRemountPass() }
 
         // Remove old children
         while gtk_swift_is_widget(container) != 0, let child = gtk_widget_get_first_child(container) {
@@ -569,7 +921,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         // sibling hosts. Instead, registerViewID() overwrites stale entries
         // during rebuild, and the scrollTo liveness check handles any remaining
         // stale pointers.
-        beginDependencyTracking()
+        beginDependencyTracking(host: self)
         let widget = buildBodyWithTracking()
         if let tracking = endDependencyTracking() {
             lastReadSet = tracking.readSet
@@ -591,6 +943,9 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             gtk_widget_set_valign(newChild, GTK_ALIGN_FILL)
         }
         gtk_box_append(boxPointer(container), newChild)
+        constrainCurrentChildToAllocatedWidth()
+        gtkRestoreScrollAdjustmentSnapshots(scrollSnapshots, in: newChild)
+        gtkScheduleScrollAdjustmentSnapshotRestore(scrollSnapshots, in: newChild)
 
         // If this subtree contains a NavigationStack titlebar, refresh it on the window.
         // We intentionally do NOT clear (pass nil) when no titlebar is found, because
@@ -671,7 +1026,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if let describeBody = describeBody {
             let previousEnvForDesc = getCurrentEnvironment()
             installRebuildEnvironment()
-            let described = gtkDescribeCapturingCanvasPayloads(describeBody)
+            let described = describeBodyCapturingPayloads(describeBody)
             setCurrentEnvironment(previousEnvForDesc)
 
             let identified = gtkIdentifyDescriptorTree(described.descriptor)
@@ -714,6 +1069,11 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                 descriptorRoot: rebuiltDescriptorState.identified,
                 executorRoot: executor
             )
+            executor = gtkCaptureButtonNativeSlots(
+                from: newChild,
+                descriptorRoot: rebuiltDescriptorState.identified,
+                executorRoot: executor
+            )
             retainedExecutor = executor
         }
     }
@@ -733,6 +1093,70 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             pthread_setspecific(rebuildingViewHostKey, nil)
         }
     }
+
+    func constrainCurrentChildToAllocatedWidth() {
+        let width = gtk_widget_get_width(container)
+        let height = gtk_widget_get_height(container)
+        guard let child = gtk_widget_get_first_child(container) else {
+            return
+        }
+        guard (width > 1 && width != lastConstrainedChildWidth)
+            || (height > 1 && height != lastConstrainedChildHeight && gtk_widget_get_vexpand(child) != 0)
+        else {
+            return
+        }
+        if width > 1 {
+            lastConstrainedChildWidth = width
+        }
+        if height > 1 {
+            lastConstrainedChildHeight = height
+        }
+        let horizontalMargins = gtk_widget_get_margin_start(child)
+            + gtk_widget_get_margin_end(child)
+        let verticalMargins = gtk_widget_get_margin_top(child)
+            + gtk_widget_get_margin_bottom(child)
+        let childWidth = width > 1 ? max(gint(1), width - horizontalMargins) : -1
+        let childHeight = height > 1 && gtk_widget_get_vexpand(child) != 0
+            ? max(gint(1), height - verticalMargins)
+            : -1
+        gtk_widget_set_size_request(child, childWidth, childHeight)
+        if childWidth > 0 {
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if childHeight > 0 {
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
+        gtk_widget_queue_resize(child)
+        gtk_widget_queue_resize(container)
+    }
+}
+
+func gtkResumeViewHostLifecycleForVisibleSubtree(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    func walk(_ node: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 128, gtk_swift_is_widget(node) != 0 else { return }
+        if let rawHost = g_object_get_data(
+            UnsafeMutableRawPointer(node).assumingMemoryBound(to: GObject.self),
+            "gtk-swift-view-host"
+        ) {
+            let host = Unmanaged<GTKViewHost>.fromOpaque(rawHost).takeUnretainedValue()
+            host.resumeLifecycleAfterProgrammaticVisibilityChange()
+        }
+
+        var child = gtk_widget_get_first_child(node)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(widget, depth: 0)
+}
+
+private let gtkViewHostWidthTickCallback: GtkTickCallback = { _, _, userData in
+    guard let userData else { return 0 }
+    let host = Unmanaged<GTKViewHost>.fromOpaque(userData).takeUnretainedValue()
+    host.constrainCurrentChildToAllocatedWidth()
+    return 1
 }
 
 /// Recursively search a rebuilt subtree for a window titlebar attachment point.
@@ -784,6 +1208,24 @@ private class AnimationTransitionContext {
 private struct RebuiltDescriptorState {
     let identified: GTK4IdentifiedDescriptorNode
     let canvasPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4CanvasPayload]
+}
+
+private func gtkUpdateButtonActions(
+    in node: GTK4RetainedExecutorNode,
+    payloadsByIdentity: [GTK4DescriptorIdentity: GTK4ButtonPayload]
+) -> Bool {
+    var succeeded = true
+    if node.kind == .button {
+        guard let slotID = node.nativeSlotID,
+              let payload = payloadsByIdentity[node.identity],
+              gtkSetButtonAction(slotID: slotID, action: payload.action) else {
+            return false
+        }
+    }
+    for child in node.children {
+        succeeded = gtkUpdateButtonActions(in: child, payloadsByIdentity: payloadsByIdentity) && succeeded
+    }
+    return succeeded
 }
 
 // MARK: - Focus preservation across rebuilds

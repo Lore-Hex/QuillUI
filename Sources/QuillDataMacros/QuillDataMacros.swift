@@ -184,16 +184,79 @@ public struct QuillRelationshipMacro: PeerMacro {
     public static func expansion(of node: AttributeSyntax, providingPeersOf declaration: some DeclSyntaxProtocol, in context: some MacroExpansionContext) throws -> [DeclSyntax] { [] }
 }
 
-/// `@Observable` (Observation, iOS 17) — source-compatibility shim. The
-/// renderer still relies on QuillSourceLowering for full observable-object
-/// publishing today; this no-op macro lets real upstream packages that only
-/// need the declaration shape compile unchanged.
-public struct QuillObservableMacro: MemberMacro {
+/// `@Observable` (Observation, iOS 17) — source-compatibility shim. On Linux
+/// we map the source shape to SwiftOpenUI's canonical Combine/OpenCombine
+/// observable path so unmodified app view models still invalidate rendered UI.
+public struct QuillObservableMacro: MemberMacro, MemberAttributeMacro, ExtensionMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
         in context: some MacroExpansionContext
     ) throws -> [DeclSyntax] { [] }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingAttributesFor member: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AttributeSyntax] {
+        guard let variable = member.as(VariableDeclSyntax.self),
+              isObservablePublishedStoredVar(variable) else {
+            return []
+        }
+
+        return [
+            AttributeSyntax(
+                attributeName: IdentifierTypeSyntax(
+                    name: .identifier("Published")
+                )
+            )
+        ]
+    }
+
+    public static func expansion(
+        of node: AttributeSyntax,
+        attachedTo declaration: some DeclGroupSyntax,
+        providingExtensionsOf type: some TypeSyntaxProtocol,
+        conformingTo protocols: [TypeSyntax],
+        in context: some MacroExpansionContext
+    ) throws -> [ExtensionDeclSyntax] {
+        guard !protocols.isEmpty else { return [] }
+        let conformances = protocols.map { $0.trimmedDescription }.joined(separator: ", ")
+        let extensionDecl: DeclSyntax = "extension \(type.trimmed): \(raw: conformances) {}"
+        guard let parsed = extensionDecl.as(ExtensionDeclSyntax.self) else {
+            return []
+        }
+        return [parsed]
+    }
+
+    private static func isObservablePublishedStoredVar(_ variable: VariableDeclSyntax) -> Bool {
+        guard variable.bindingSpecifier.text == "var" else { return false }
+        guard variable.bindings.count == 1 else { return false }
+
+        if variable.attributes.contains(where: {
+            isAttribute($0, named: "Published")
+                || isAttribute($0, named: "QuillPublished")
+                || isAttribute($0, named: "ObservationIgnored")
+        }) {
+            return false
+        }
+
+        if variable.modifiers.contains(where: { modifier in
+            let name = modifier.name.text
+            return name == "static" || name == "class" || name == "lazy"
+        }) {
+            return false
+        }
+
+        guard let binding = variable.bindings.first else { return false }
+        return binding.accessorBlock == nil
+    }
+
+    private static func isAttribute(_ element: AttributeListSyntax.Element, named name: String) -> Bool {
+        guard case let .attribute(attribute) = element else { return false }
+        return attribute.attributeName.trimmedDescription == name
+    }
 }
 
 /// `@Entry` (SwiftUI, iOS 18) — declares a property in an `EnvironmentValues`

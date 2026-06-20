@@ -49,6 +49,63 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(childOrigin.y, 0, accuracy: 0.01)
     }
 
+    func testFrameViewExpandsShapeOverlayContentToFillFixedFrame() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.28, green: 0.52, blue: 0.86))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray, style: StrokeStyle(lineWidth: 1))
+                    )
+            }
+            .frame(width: 160, height: 90, alignment: .topLeading)
+        ))
+        let slot = try unwrapFirstChild(of: wrapper)
+        let overlay = try unwrapFirstDescendant(ofType: "GtkOverlay", in: slot)
+        let drawingArea = try unwrapFirstDescendant(ofType: "GtkDrawingArea", in: overlay)
+
+        let wrapperSize = measuredSize(of: wrapper)
+        allocate(widget: wrapper, size: wrapperSize)
+        let slotSize = allocatedSize(of: slot)
+        let overlaySize = allocatedSize(of: overlay)
+        let drawingAreaSize = allocatedSize(of: drawingArea)
+        let slotOrigin = translatedChildOrigin(child: slot, in: wrapper)
+
+        XCTAssertEqual(wrapperSize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(wrapperSize.height, 90, accuracy: 0.01)
+        XCTAssertEqual(slotSize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(slotSize.height, 90, accuracy: 0.01)
+        XCTAssertEqual(overlaySize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(overlaySize.height, 90, accuracy: 0.01)
+        XCTAssertEqual(drawingAreaSize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(drawingAreaSize.height, 90, accuracy: 0.01)
+        XCTAssertEqual(slotOrigin.x, 0, accuracy: 0.01)
+        XCTAssertEqual(slotOrigin.y, 0, accuracy: 0.01)
+    }
+
+    func testClippedViewPreservesFixedFrameNaturalWidth() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Color(red: 0.28, green: 0.52, blue: 0.86)
+                .frame(width: 160, height: 90)
+                .clipped()
+        ))
+        let child = try unwrapFirstChild(of: wrapper)
+
+        let wrapperSize = measuredSize(of: wrapper)
+        allocate(widget: wrapper, size: wrapperSize)
+        let childSize = allocatedSize(of: child)
+
+        XCTAssertEqual(wrapperSize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(wrapperSize.height, 90, accuracy: 0.01)
+        XCTAssertEqual(childSize.width, 160, accuracy: 0.01)
+        XCTAssertEqual(childSize.height, 90, accuracy: 0.01)
+    }
+
     func testFrameViewClampsOversizedChildHeight() throws {
         try requireGTK()
 
@@ -79,6 +136,19 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(slotOrigin.x, 0, accuracy: 0.01)
         XCTAssertEqual(slotOrigin.y, 0, accuracy: 0.01)
         XCTAssertEqual(gtk_widget_get_overflow(wrapper), GTK_OVERFLOW_HIDDEN)
+    }
+
+    func testCustomSystemCalloutSizeFitsTwentyPointFrame() throws {
+        try requireGTK()
+
+        let label = widgetFromOpaque(gtkRenderView(
+            Text("status.summary.n-favorites 42")
+                .font(.system(size: 16))
+        ))
+
+        let labelSize = measuredSize(of: label)
+
+        XCTAssertLessThanOrEqual(labelSize.height, 20)
     }
 
     func testVStackSharedLayoutAppliesTrailingAlignmentAndSpacing() throws {
@@ -184,6 +254,234 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(baseOrigin.y, 0, accuracy: 0.01)
         XCTAssertEqual(trailingOrigin.x, wrapperSize.width - trailingSize.width, accuracy: 0.01)
         XCTAssertEqual(trailingOrigin.y, wrapperSize.height - trailingSize.height, accuracy: 0.01)
+    }
+
+    func testZStackTopOverlayDoesNotFillHeightFromUnmarkedVExpand() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            ZStack(alignment: .top) {
+                Color.gray
+                GTKAccidentalVExpandOverlayProbe()
+            }
+        ))
+        let base = try unwrapFirstChild(of: wrapper)
+        let overlay = try unwrapNextSibling(of: base)
+
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 280))
+
+        let overlaySize = allocatedSize(of: overlay)
+        let overlayOrigin = translatedChildOrigin(child: overlay, in: wrapper)
+
+        XCTAssertEqual(gtkWidgetTypeName(wrapper), "GtkOverlay")
+        XCTAssertEqual(overlayOrigin.y, 0, accuracy: 0.01)
+        XCTAssertLessThan(
+            overlaySize.height,
+            120,
+            "Inherited GTK vexpand without SwiftUI fill intent must not make a top ZStack overlay cover the whole container."
+        )
+    }
+
+    func testZStackTopOverlayFillsHeightForExplicitFlexibleFrame() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            ZStack(alignment: .top) {
+                Color.gray
+                Text("Fill")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        ))
+        let base = try unwrapFirstChild(of: wrapper)
+        let overlay = try unwrapNextSibling(of: base)
+
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 280))
+
+        XCTAssertEqual(gtkWidgetTypeName(wrapper), "GtkOverlay")
+        XCTAssertGreaterThan(
+            allocatedSize(of: overlay).height,
+            240,
+            "An explicit SwiftUI maxHeight frame should still fill a ZStack overlay vertically."
+        )
+    }
+
+    func testEmptyBranchModifiersCollapseBeforeFlexibleFrame() throws {
+        try requireGTK()
+
+        let absent = Optional<Text>.none
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            absent
+                .buttonStyle(.bordered)
+                .background(Color.red)
+                .cornerRadius(8)
+                .foregroundStyle(Color.gray)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.blue, lineWidth: 1)
+                )
+                .padding(8)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        ))
+
+        XCTAssertEqual(measuredSize(of: wrapper).width, 0, accuracy: 0.01)
+        XCTAssertEqual(measuredSize(of: wrapper).height, 0, accuracy: 0.01)
+        XCTAssertEqual(gtk_widget_get_hexpand(wrapper), 0)
+        XCTAssertEqual(gtk_widget_get_vexpand(wrapper), 0)
+        XCTAssertEqual(gtk_widget_get_can_target(wrapper), 0)
+    }
+
+    func testZStackDropsEmptyFlexibleOverlayBranch() throws {
+        try requireGTK()
+
+        let absent = Optional<Text>.none
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            ZStack(alignment: .top) {
+                Text("Timeline")
+                absent
+                    .buttonStyle(.bordered)
+                    .background(Color.red)
+                    .cornerRadius(8)
+                    .foregroundStyle(Color.gray)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.blue, lineWidth: 1)
+                    )
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            }
+        ))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        XCTAssertEqual(
+            labels.map { String(cString: gtk_label_get_text(OpaquePointer($0))) },
+            ["Timeline"]
+        )
+
+        let firstChild = try unwrapFirstChild(of: wrapper)
+        XCTAssertNil(
+            gtk_widget_get_next_sibling(firstChild),
+            "The absent overlay branch must not be materialized as a second ZStack child."
+        )
+    }
+
+    func testListSkipsStatefulRowsWhoseBodyIsCurrentlyEmpty() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                GTKEmptyStatefulRowProbe()
+                Text("Visible row")
+            }
+            .frame(width: 360, height: 180)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 180))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        XCTAssertEqual(
+            labels.map { String(cString: gtk_label_get_text(OpaquePointer($0))) },
+            ["Visible row"]
+        )
+        XCTAssertEqual(
+            gtkCountDescendants(ofType: "GtkListBoxRow", in: wrapper),
+            1,
+            "Stateful EmptyView rows should be skipped instead of materializing blank timeline rows."
+        )
+    }
+
+    func testListRowsExposeNestedTapGesturesAsVisualTapTargets() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                VStack(alignment: .leading) {
+                    Text("Nested media tap")
+                        .frame(width: 160, height: 90)
+                        .background(Color.blue)
+                        .onTapGesture {}
+                }
+                .frame(width: 280, height: 140, alignment: .topLeading)
+                .onTapGesture {}
+            }
+            .frame(width: 320, height: 220)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 220))
+        drainGTKMainContext(maxIterations: 100)
+
+        let label = try unwrapFirstDescendant(ofType: "GtkLabel", in: wrapper)
+        let labelOrigin = translatedChildOrigin(child: label, in: wrapper)
+        let labelSize = allocatedSize(of: label)
+        let hitX = labelOrigin.x + max(1, labelSize.width / 2)
+        let hitY = labelOrigin.y + max(1, labelSize.height / 2)
+
+        XCTAssertTrue(
+            gtkTestWidgetTreeContainsVisualTapActionAtRootPoint(
+                wrapper,
+                root: wrapper,
+                x: hitX,
+                y: hitY
+            ),
+            "A nested onTapGesture inside a List row must be treated as a visual tap target so the row fallback does not steal the click."
+        )
+        XCTAssertTrue(
+            gtkTestPreferredTapActionMatchesWidgetTapData(
+                label,
+                root: wrapper,
+                x: hitX,
+                y: hitY
+            ),
+            "When parent and child onTapGesture wrappers overlap, GTK dispatch should prefer the child tap action at the clicked media pixel."
+        )
+    }
+
+    func testHorizontalLazyStackPagerUsesOuterScrollerAndFillsViewportHeight() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack([1]) { _ in
+                    Text("Media")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 560, height: 360))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(
+            gtkCountDescendants(ofType: "GtkScrolledWindow", in: wrapper),
+            1,
+            "A LazyHStack inside a horizontal ScrollView should render as layout content, not as a nested scroller."
+        )
+
+        let label = try unwrapFirstDescendant(ofType: "GtkLabel", in: wrapper)
+        let labelSize = allocatedSize(of: label)
+        let labelOrigin = translatedChildOrigin(child: label, in: wrapper)
+
+        XCTAssertGreaterThan(labelSize.width, 20)
+        XCTAssertGreaterThan(labelSize.height, 10)
+        XCTAssertGreaterThan(labelOrigin.y, 120)
+        XCTAssertLessThan(labelOrigin.y, 240)
     }
 
     func testGridSharedLayoutWrapsRowsUsingSharedPlacements() throws {
@@ -700,6 +998,21 @@ final class GTK4RenderTests: XCTestCase {
 
     // MARK: - Searchable Tests
 
+    private func unwrapSearchSurface(in widget: UnsafeMutablePointer<GtkWidget>) throws -> UnsafeMutablePointer<GtkWidget> {
+        let surface = try unwrapFirstChild(of: widget)
+        XCTAssertEqual(gtkWidgetTypeName(surface), "GtkBox")
+        _ = try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: surface)
+        return surface
+    }
+
+    private func unwrapSearchEntry(in widget: UnsafeMutablePointer<GtkWidget>) throws -> UnsafeMutablePointer<GtkWidget> {
+        try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: try unwrapSearchSurface(in: widget))
+    }
+
+    private func unwrapSiblingAfterSearchSurface(in widget: UnsafeMutablePointer<GtkWidget>) throws -> UnsafeMutablePointer<GtkWidget> {
+        try unwrapNextSibling(of: try unwrapSearchSurface(in: widget))
+    }
+
     func testSearchableRendersSearchEntryAboveContent() throws {
         try requireGTK()
 
@@ -709,11 +1022,22 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
 
-        // First child should be a search entry, second should be content
-        let first = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(first), "GtkSearchEntry")
+        // First child is a search surface wrapper; the native entry lives inside
+        // it so root hit testing uses the painted search-row geometry.
+        let first = try unwrapSearchSurface(in: widget)
+        let entry = try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: first)
 
         let second = try unwrapNextSibling(of: first)
+        XCTAssertEqual(
+            gtk_swift_search_entry_get_key_capture_widget(entry),
+            widget,
+            "Searchable should capture wrapper/content key events into the search entry"
+        )
+        XCTAssertNotEqual(
+            gtk_widget_get_can_target(widget),
+            0,
+            "Searchable wrapper should accept pointer presses so it can focus the search entry"
+        )
         let label = try unwrapFirstDescendant(ofType: "GtkLabel", in: second)
         XCTAssertEqual(String(cString: gtk_label_get_text(OpaquePointer(label))), "Content")
     }
@@ -731,8 +1055,7 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
 
-        let first = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(first), "GtkSearchEntry")
+        _ = try unwrapSearchEntry(in: widget)
     }
 
     func testSearchableIsPresentedFalseHidesEntry() throws {
@@ -747,9 +1070,76 @@ final class GTK4RenderTests: XCTestCase {
             )
         ))
 
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
+        let surface = try unwrapSearchSurface(in: widget)
+        let entry = try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: surface)
         XCTAssertEqual(gtk_widget_get_visible(entry), 0, "Entry should be hidden when isPresented is false")
+        XCTAssertEqual(gtk_widget_get_visible(surface), 0, "Search surface should be hidden when isPresented is false")
+    }
+
+    func testSearchableNavigationBarDrawerAlwaysKeepsChromeVisibleWhenNotPresented() throws {
+        try requireGTK()
+
+        enum Scope: String, CaseIterable {
+            case all
+            case people
+        }
+
+        var searchText = ""
+        var presented = false
+        var selectedScope = Scope.all
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Content")
+                .searchable(
+                    text: Binding(get: { searchText }, set: { searchText = $0 }),
+                    isPresented: Binding(get: { presented }, set: { presented = $0 }),
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search"
+                )
+                .searchScopes(Binding(get: { selectedScope }, set: { selectedScope = $0 }),
+                              scopes: Scope.allCases) { scope in
+                    Text(scope.rawValue)
+                }
+        ))
+
+        let surface = try unwrapSearchSurface(in: widget)
+        let entry = try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: surface)
+        XCTAssertNotEqual(
+            gtk_widget_get_visible(entry),
+            0,
+            "Navigation drawer search with displayMode .always must remain visible when isPresented is false"
+        )
+        XCTAssertNotEqual(
+            gtk_widget_get_focusable(entry),
+            0,
+            "Visible searchable chrome should be focusable so a click can start text entry"
+        )
+
+        let scopeRow = try unwrapNextSibling(of: surface)
+        XCTAssertEqual(gtkWidgetTypeName(scopeRow), "GtkBox")
+        XCTAssertNotEqual(
+            gtk_widget_get_visible(scopeRow),
+            0,
+            "Search scopes should remain visible with navigation drawer displayMode .always"
+        )
+    }
+
+    func testSearchableEntryChangedSignalUpdatesBinding() throws {
+        try requireGTK()
+
+        var searchText = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Content").searchable(
+                text: Binding(get: { searchText }, set: { searchText = $0 }),
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search"
+            )
+        ))
+
+        let entry = try unwrapSearchEntry(in: widget)
+        gtk_swift_editable_set_text(entry, "quill")
+        gtkFlushPendingTextBindingUpdate()
+
+        XCTAssertEqual(searchText, "quill")
     }
 
     func testSearchableIsPresentedTrueShowsEntry() throws {
@@ -764,8 +1154,7 @@ final class GTK4RenderTests: XCTestCase {
             )
         ))
 
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
+        let entry = try unwrapSearchEntry(in: widget)
         // Default visibility is true (GTK shows widgets by default)
         XCTAssertNotEqual(gtk_widget_get_visible(entry), 0, "Entry should be visible when isPresented is true")
     }
@@ -836,10 +1225,9 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
 
-        // First child: search entry, second: token row, third: content
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let tokenRow = try unwrapNextSibling(of: entry)
+        // First child: search surface, second: token row, third: content
+        let surface = try unwrapSearchSurface(in: widget)
+        let tokenRow = try unwrapNextSibling(of: surface)
         XCTAssertEqual(gtkWidgetTypeName(tokenRow), "GtkBox")
         // Token row should have 2 labels
         let firstLabel = try unwrapFirstChild(of: tokenRow)
@@ -863,10 +1251,8 @@ final class GTK4RenderTests: XCTestCase {
             }
         ))
 
-        // With no tokens: search entry then content directly, no token row
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let content = try unwrapNextSibling(of: entry)
+        // With no tokens: search surface then content directly, no token row
+        let content = try unwrapSiblingAfterSearchSurface(in: widget)
         let label = try unwrapFirstDescendant(ofType: "GtkLabel", in: content)
         XCTAssertEqual(String(cString: gtk_label_get_text(OpaquePointer(label))), "Content")
     }
@@ -908,10 +1294,9 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
 
-        // Layout: entry, suggestion box, content
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let suggestionBox = try unwrapNextSibling(of: entry)
+        // Layout: search surface, suggestion box, content
+        let surface = try unwrapSearchSurface(in: widget)
+        let suggestionBox = try unwrapNextSibling(of: surface)
         XCTAssertEqual(gtkWidgetTypeName(suggestionBox), "GtkBox")
         // Suggestion box has 2 buttons
         let firstBtn = try unwrapFirstChild(of: suggestionBox)
@@ -929,10 +1314,8 @@ final class GTK4RenderTests: XCTestCase {
                 .searchable(text: Binding(get: { searchText }, set: { searchText = $0 }))
                 .searchSuggestions { }
         ))
-        // With no suggestions: entry then content, no suggestion box
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let content = try unwrapNextSibling(of: entry)
+        // With no suggestions: search surface then content, no suggestion box
+        let content = try unwrapSiblingAfterSearchSurface(in: widget)
         let label = try unwrapFirstDescendant(ofType: "GtkLabel", in: content)
         XCTAssertEqual(String(cString: gtk_label_get_text(OpaquePointer(label))), "Content")
     }
@@ -973,9 +1356,8 @@ final class GTK4RenderTests: XCTestCase {
         ))
 
         // Core filters case-insensitively with .contains — "an" matches "Banana" and "Orange"
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let suggestionBox = try unwrapNextSibling(of: entry)
+        let surface = try unwrapSearchSurface(in: widget)
+        let suggestionBox = try unwrapNextSibling(of: surface)
         XCTAssertEqual(gtkWidgetTypeName(suggestionBox), "GtkBox")
 
         // Should have 2 buttons (Banana, Orange), not 3 — Apple excluded
@@ -1008,13 +1390,14 @@ final class GTK4RenderTests: XCTestCase {
                 }
         ))
 
-        // Entry should be hidden
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
+        // Search surface should be hidden
+        let surface = try unwrapSearchSurface(in: widget)
+        let entry = try unwrapFirstDescendant(ofType: "GtkSearchEntry", in: surface)
         XCTAssertEqual(gtk_widget_get_visible(entry), 0, "Entry should be hidden when dismissed")
+        XCTAssertEqual(gtk_widget_get_visible(surface), 0, "Search surface should be hidden when dismissed")
 
         // Suggestion box should be hidden
-        let suggestionBox = try unwrapNextSibling(of: entry)
+        let suggestionBox = try unwrapNextSibling(of: surface)
         XCTAssertEqual(gtk_widget_get_visible(suggestionBox), 0, "Suggestion box should be hidden when dismissed")
     }
 
@@ -1037,10 +1420,9 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
 
-        // Layout: entry, scope row, content
-        let entry = try unwrapFirstChild(of: widget)
-        XCTAssertEqual(gtkWidgetTypeName(entry), "GtkSearchEntry")
-        let scopeRow = try unwrapNextSibling(of: entry)
+        // Layout: search surface, scope row, content
+        let surface = try unwrapSearchSurface(in: widget)
+        let scopeRow = try unwrapNextSibling(of: surface)
         XCTAssertEqual(gtkWidgetTypeName(scopeRow), "GtkBox")
         // Scope row has 3 toggle buttons
         let firstBtn = try unwrapFirstChild(of: scopeRow)
@@ -1509,6 +1891,402 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(String(cString: gtk_label_get_text(OpaquePointer(label))), "Main")
     }
 
+    func testNavigationStackSyncsTypedBoundPathChanges() throws {
+        try requireGTK()
+
+        var path: [String] = []
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[String]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                Text("Root")
+                    .navigationDestination(for: String.self) { value in
+                        Text("Detail \(value)")
+                    }
+            }
+        ))
+
+        XCTAssertEqual(gtkTestNavigationEntryCount(in: widget), 1)
+
+        path = ["1003"]
+        XCTAssertEqual(
+            gtkTestSyncNavigationPath(in: widget),
+            2,
+            "Programmatic NavigationStack(path:) mutations should push the registered destination."
+        )
+        let pushedName = gtk_stack_get_visible_child_name(OpaquePointer(widget))
+            .map { String(cString: $0) }
+        XCTAssertNotEqual(pushedName, "nav-root")
+
+        path = []
+        XCTAssertEqual(
+            gtkTestSyncNavigationPath(in: widget),
+            1,
+            "Programmatic NavigationStack(path:) removals should pop back to the root entry."
+        )
+        let rootName = gtk_stack_get_visible_child_name(OpaquePointer(widget))
+            .map { String(cString: $0) }
+        XCTAssertEqual(rootName, "nav-root")
+    }
+
+    func testNavigationDestinationIsPresentedPushesAndClearsBindingOnPop() throws {
+        try requireGTK()
+
+        var isPresented = true
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                Text("Root")
+                    .navigationDestination(
+                        isPresented: Binding<Bool>(
+                            get: { isPresented },
+                            set: { isPresented = $0 }
+                        )
+                    ) {
+                        Text("Presented Destination")
+                    }
+            }
+        ))
+
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            2,
+            "navigationDestination(isPresented:) should push when its binding is true."
+        )
+        guard let visibleChild = gtk_stack_get_visible_child(OpaquePointer(widget)) else {
+            XCTFail("Expected a visible navigation stack child")
+            return
+        }
+        XCTAssertTrue(
+            gtkLabelTexts(in: visibleChild).contains("Presented Destination"),
+            "Expected presented destination to become visible, got: \(gtkLabelTexts(in: visibleChild))"
+        )
+
+        XCTAssertEqual(gtkTestPopNavigation(in: widget), 1)
+        XCTAssertFalse(
+            isPresented,
+            "Popping a navigationDestination(isPresented:) route should clear the source binding."
+        )
+    }
+
+    func testNavigationDestinationIsPresentedPushesAfterStateMutationInChildHost() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                GTKPresentedNavigationStateProbeView()
+            }
+        ))
+
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            1,
+            "The presented destination starts inactive."
+        )
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: widget, into: &buttons)
+        guard let showButton = buttons.first(where: { gtkLabelTexts(in: $0).contains("Show Presented") }) else {
+            XCTFail("Expected a button that mutates the child host's @State.")
+            return
+        }
+
+        XCTAssertTrue(gtkTestActivateButton(showButton))
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+                labels.contains("Presented After State")
+            },
+            "A child ViewHost state mutation should restore the NavigationStack context and push the destination."
+        )
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            2,
+            "navigationDestination(isPresented:) should push after its source binding changes."
+        )
+    }
+
+    func testNavigationDestinationIsPresentedDismissActionPopsRouteAndClearsBinding() throws {
+        try requireGTK()
+
+        var isPresented = true
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                Text("Root")
+                    .navigationDestination(
+                        isPresented: Binding<Bool>(
+                            get: { isPresented },
+                            set: { isPresented = $0 }
+                        )
+                    ) {
+                        GTKPresentedNavigationDismissDestination()
+                    }
+            }
+        ))
+
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            2,
+            "The presented destination starts pushed."
+        )
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: widget, into: &buttons)
+        guard let dismissButton = buttons.first(where: { gtkLabelTexts(in: $0).contains("Dismiss Destination") }) else {
+            XCTFail("Expected the destination button that calls dismiss().")
+            return
+        }
+
+        XCTAssertTrue(gtkTestActivateButton(dismissButton))
+        let popped = waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+            labels.contains("Root") && !labels.contains("Dismiss Destination")
+        }
+        XCTAssertTrue(popped, "dismiss() from a navigation destination should pop back to root.")
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            1,
+            "dismiss() from a navigation destination should remove the pushed route."
+        )
+        XCTAssertFalse(
+            isPresented,
+            "dismiss() should clear the navigationDestination(isPresented:) binding through the normal pop path."
+        )
+    }
+
+    func testNavigationDestinationIsPresentedPushesAfterPickerSelectionMutation() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                GTKPresentedNavigationPickerProbeView()
+            }
+        ))
+
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            1,
+            "The picker-driven presented destination starts inactive."
+        )
+
+        guard let dropdown = gtkFirstDescendant(ofType: "GtkDropDown", in: widget) else {
+            XCTFail(
+                "Expected picker probe to render a GtkDropDown. Tree:\n\(gtkSnapshotTree(root: widget).debugDescription())"
+            )
+            return
+        }
+        gtk_drop_down_set_selected(OpaquePointer(dropdown), guint(1))
+
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+                labels.contains("Picker Presented Destination")
+            },
+            "A Picker binding setter should be able to toggle navigationDestination(isPresented:)."
+        )
+        XCTAssertEqual(
+            gtkTestNavigationEntryCount(in: widget),
+            2,
+            "navigationDestination(isPresented:) should push after a Picker selection mutates its source binding."
+        )
+    }
+
+    func testNavigationStackSyncsTypedBoundPathDestinationContentFromSwitchBuilder() throws {
+        try requireGTK()
+
+        enum Route: Hashable {
+            case tags
+            case accounts
+        }
+
+        var path: [Route] = []
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[Route]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                Text("Root")
+                    .navigationDestination(for: Route.self) { route in
+                        switch route {
+                        case .tags:
+                            Text("Tags Destination")
+                        case .accounts:
+                            Text("Accounts Destination")
+                        }
+                    }
+            }
+        ))
+
+        path = [.accounts]
+        XCTAssertEqual(gtkTestSyncNavigationPath(in: widget), 2)
+
+        guard let visibleChild = gtk_stack_get_visible_child(OpaquePointer(widget)) else {
+            XCTFail("Expected a visible navigation stack child")
+            return
+        }
+
+        let labels = gtkLabelTexts(in: visibleChild)
+        XCTAssertTrue(
+            labels.contains("Accounts Destination"),
+            "Expected pushed accounts destination label, got: \(labels)"
+        )
+        XCTAssertFalse(
+            labels.contains("Tags Destination"),
+            "Inactive switch branch should not render, got: \(labels)"
+        )
+        XCTAssertFalse(
+            labels.contains("Root"),
+            "Root label should not remain in the visible pushed child, got: \(labels)"
+        )
+    }
+
+    func testNavigationStackProgrammaticTypedPathRunsDestinationOnAppear() throws {
+        try requireGTK()
+
+        var path: [String] = []
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[String]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                Text("Root")
+                    .navigationDestination(for: String.self) { value in
+                        GTKBoundNavigationOnAppearProbeView(value: value, counter: counter)
+                    }
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(counter.value, 0)
+        path = ["posts"]
+        XCTAssertEqual(gtkTestSyncNavigationPath(in: widget), 2)
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "Programmatic NavigationStack(path:) pushes should fire destination onAppear after the destination becomes visible."
+        )
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+                labels.contains("Appeared posts")
+            },
+            "Destination onAppear state update should repaint the visible navigation page, got: \(gtkLabelTexts(in: widget))"
+        )
+    }
+
+    func testNavigationStackProgrammaticTypedPathObservesDestinationStateObservableObject() throws {
+        try requireGTK()
+
+        var path: [String] = []
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[String]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                Text("Root")
+                    .navigationDestination(for: String.self) { value in
+                        GTKBoundNavigationObservableProbeView(value: value, counter: counter)
+                    }
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(counter.value, 0)
+        path = ["posts"]
+        XCTAssertEqual(gtkTestSyncNavigationPath(in: widget), 2)
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "Programmatic NavigationStack(path:) pushes should fire destination onAppear for @State observable models."
+        )
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+                labels.contains("Loaded posts")
+            },
+            "Destination @State ObservableObject changes should repaint the visible navigation page, got: \(gtkLabelTexts(in: widget))"
+        )
+    }
+
+    func testNavigationStackBoundPathDestinationStateSurvivesParentRebuild() throws {
+        try requireGTK()
+
+        var path: [String] = ["accounts"]
+        let counter = GTKTaskRunCounter()
+
+        gtkBeginStateIdentityPass()
+        let firstStack = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[String]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                GTKBoundNavigationRootContentProbeView(includePrefix: false, counter: counter)
+            }
+        ))
+        let firstWindow = presentGTKWidget(firstStack)
+        defer {
+            gtk_window_destroy(windowPointer(firstWindow))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertEqual(gtkWidgetTypeName(firstStack), "GtkStack")
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: firstStack, into: &buttons)
+        let loadButton = try XCTUnwrap(buttons.first, "Expected the destination to render a Load button.")
+        XCTAssertTrue(gtkTestActivateButton(loadButton))
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1)
+        XCTAssertTrue(
+            waitForGTKLabelText(in: firstStack, timeout: 1.0) { labels in
+                labels.contains("Loaded accounts")
+            },
+            "Expected destination button to publish its loaded state, got: \(gtkLabelTexts(in: firstStack))"
+        )
+
+        gtkBeginStateIdentityPass()
+        let secondStack = widgetFromOpaque(gtkRenderView(
+            NavigationStack(
+                path: Binding<[String]>(
+                    get: { path },
+                    set: { path = $0 }
+                )
+            ) {
+                GTKBoundNavigationRootContentProbeView(includePrefix: true, counter: counter)
+            }
+        ))
+        let secondWindow = presentGTKWidget(secondStack)
+        defer {
+            gtk_window_destroy(windowPointer(secondWindow))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertEqual(gtkWidgetTypeName(secondStack), "GtkStack")
+
+        XCTAssertTrue(
+            waitForGTKLabelText(in: secondStack, timeout: 1.0) { labels in
+                labels.contains("Loaded accounts")
+            },
+            "Root rebuild should preserve pushed destination state, got: \(gtkLabelTexts(in: secondStack))"
+        )
+        XCTAssertEqual(
+            counter.value,
+            1,
+            "Destination @State should not reset when the NavigationStack root structure changes."
+        )
+    }
+
     // MARK: - Toolbar Batch B Tests
 
     func testToolbarConfigurationViewRendersContent() throws {
@@ -1822,6 +2600,22 @@ final class GTK4RenderTests: XCTestCase {
                         "Button view with .environment(model) should render a widget")
     }
 
+    func testDescriptorPassAppliesEnvironmentObservableModifier() throws {
+        try requireGTK()
+
+        let model = GTKDelayedEnvModel()
+        model.count = 7
+
+        let descriptor = gtkDescribeView(
+            GTKDelayedEnvDescriptorTextView().environment(model)
+        )
+
+        XCTAssertTrue(
+            gtkDescriptorContainsText(descriptor, "count 7"),
+            "Descriptor passes must apply .environment(object) before describing descendants"
+        )
+    }
+
     func testOnAppearRendersWithEnvironmentBinding() throws {
         try requireGTK()
 
@@ -1904,6 +2698,48 @@ final class GTK4RenderTests: XCTestCase {
                        ".task should not re-run when a stable task view's child subtree is torn down and rebuilt")
     }
 
+    func testTaskInsideTabViewRunsFromHostDescriptorLifecycle() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKTabTaskProbeView(counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertNotNil(widget)
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      ".task inside a TabView child should be collected by the host descriptor lifecycle")
+    }
+
+    func testStackedStandaloneTasksOnSameWidgetBothRun() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("stacked")
+                .task {
+                    counter.increment()
+                }
+                .task {
+                    counter.increment()
+                }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertNotNil(widget)
+        XCTAssertTrue(counter.waitForCount(2, timeout: 1.0),
+                      "Stacked standalone .task modifiers should both run even when they attach to the same GTK widget")
+    }
+
     func testOnAppearRunsOnceAcrossUnrelatedStateRebuilds() throws {
         try requireGTK()
 
@@ -1928,6 +2764,32 @@ final class GTK4RenderTests: XCTestCase {
 
         XCTAssertEqual(counter.value, 1,
                        "onAppear should not re-run for unrelated rebuilds of the same descriptor identity")
+    }
+
+    func testOnAppearSurvivesParentHostFullRemountWhenStateIdentityMatches() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKParentRemountOnAppearProbeView(tick: tick, counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial child onAppear should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(counter.value, 1,
+                       "Child onAppear should not re-run when a parent full rebuild remounts the same state identity")
     }
 
     func testOnAppearRunsAgainAfterConditionalReinsert() throws {
@@ -1958,6 +2820,67 @@ final class GTK4RenderTests: XCTestCase {
                       "Reinserting the view should fire onAppear again")
     }
 
+    func testOnAppearInsideCustomViewModifierRunsWhenMapped() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("modified")
+                .modifier(GTKOnAppearModifier(counter: counter))
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "onAppear emitted from a custom ViewModifier should run when the modified widget maps."
+        )
+    }
+
+    func testOnAppearModifierObservableMutationRepaintsStyledDescendant() throws {
+        try requireGTK()
+
+        let theme = GTKThemeBootstrapModel()
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKThemeBootstrapProbeView(theme: State(wrappedValue: theme))
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(theme.tintColor, GTKThemeBootstrapModel.iceCubePurple)
+
+        XCTAssertTrue(
+            waitForGTKLabelMarkup(in: widget, timeout: 1.0) { markup in
+                markup.contains("foreground=\"#BB3BE2\"")
+            },
+            "A custom onAppear modifier mutating a shared ObservableObject should repaint descendant foreground markup; final labels: \(gtkDebugLabelMarkups(in: widget))"
+        )
+    }
+
+    func testCustomButtonStyleDescriptorChangesWhenCapturedStateChanges() throws {
+        try requireGTK()
+
+        let off = gtkDescribeView(
+            Button("Toggle") {}
+                .buttonStyle(GTKStatefulDescriptorButtonStyle(isOn: false, tintColor: .blue))
+        )
+        let on = gtkDescribeView(
+            Button("Toggle") {}
+                .buttonStyle(GTKStatefulDescriptorButtonStyle(isOn: true, tintColor: .blue))
+        )
+
+        XCTAssertNotEqual(off, on,
+                          "Custom ButtonStyle captured state must invalidate the GTK descriptor so styled controls rebuild")
+    }
+
     func testTapGestureRendersWithEnvironmentBinding() throws {
         try requireGTK()
 
@@ -1967,6 +2890,19 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertNotNil(widget,
                         "onTapGesture view with .environment(model) should render a widget")
+    }
+
+    func testTapGestureUsesTargetableWrapperAroundContent() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Tap").onTapGesture {}
+        ))
+        let child = try unwrapFirstChild(of: widget)
+
+        XCTAssertEqual(gtkWidgetTypeName(widget), "GtkBox")
+        XCTAssertEqual(gtk_widget_get_can_target(widget), 1)
+        XCTAssertEqual(gtkWidgetTypeName(child), "GtkLabel")
     }
 
     func testLongPressGestureRendersWithEnvironmentBinding() throws {
@@ -2059,50 +2995,6 @@ final class GTK4RenderTests: XCTestCase {
             50,
             accuracy: 0.01,
             "Color inside a fixed-width frame must not bleed hexpand into the HStack."
-        )
-    }
-
-    func testFixedWidthFlexibleHeightFrameClampsLongChildNaturalWidth() throws {
-        try requireGTK()
-
-        let longTitle = String(repeating: "Auto-config test reply with one short phrase ", count: 8)
-        let wrapper = widgetFromOpaque(gtkRenderView(
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text(longTitle)
-                            .lineLimit(1)
-                        Spacer()
-                    }
-                    Spacer()
-                }
-                .frame(width: 320)
-
-                Divider()
-
-                Color.white
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        ))
-        gtkConfigureRootContentToFillWindow(wrapper)
-        allocate(widget: wrapper, size: ViewSize(width: 1000, height: 600))
-
-        let sidebar = try unwrapFirstChild(of: wrapper)
-        let divider = try unwrapNextSibling(of: sidebar)
-        let detail = try unwrapNextSibling(of: divider)
-        let sidebarSize = allocatedSize(of: sidebar)
-        let detailSize = allocatedSize(of: detail)
-
-        XCTAssertEqual(
-            sidebarSize.width,
-            320,
-            accuracy: 4,
-            "A fixed-width flexible-height frame must not expand to a long child's natural width."
-        )
-        XCTAssertGreaterThan(
-            detailSize.width,
-            600,
-            "The sibling after a fixed-width frame should receive remaining HStack width."
         )
     }
 
@@ -2291,6 +3183,870 @@ final class GTK4RenderTests: XCTestCase {
             XCTAssertGreaterThan(size.width, 0,
                                  "Label must receive non-zero width inside a fixed-width HStack parent.")
         }
+    }
+
+    func testStatusActionRowKeepsLeadingActionsInsideAllocatedRow() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Here's to the #crazy ones. The misfits. The rebels. The troublemakers.")
+                    .lineLimit(nil)
+                HStack {
+                    statusActionProbeButton("reply", count: "34")
+                    statusActionProbeButton("boost", count: "10")
+                    statusActionProbeButton("favorite", count: "8")
+                    HStack {
+                        statusActionProbeButton("share", count: nil)
+                        Spacer()
+                    }
+                    Text("menu").padding(.vertical, 6).padding(.horizontal, 8)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 560, height: 130))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        guard let reply = labels.first(where: { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "reply"
+        }) else {
+            XCTFail("Expected action row to render the reply action.")
+            return
+        }
+
+        let replyOrigin = translatedChildOrigin(child: reply, in: wrapper)
+        XCTAssertLessThan(
+            replyOrigin.x,
+            48,
+            "The first status action should stay at the leading edge, not collapse into a trailing action rail."
+        )
+    }
+
+    func testOffsetStatusActionButtonsKeepVisualHitRegion() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack {
+                statusActionProbeButton("favorite", count: "8")
+                Spacer()
+            }
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 48))
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: wrapper, into: &buttons)
+        guard let button = buttons.first else {
+            XCTFail("Expected the offset status action to render as a GtkButton.")
+            return
+        }
+
+        let origin = translatedChildOrigin(child: button, in: wrapper)
+        let size = allocatedSize(of: button)
+        let visualX = origin.x - 4
+        let visualY = origin.y + (size.height / 2)
+
+        XCTAssertFalse(
+            visualX >= origin.x && visualX < origin.x + size.width,
+            "The test point must sit outside the logical GTK allocation."
+        )
+        XCTAssertTrue(
+            gtkTestWidgetVisuallyContainsRootPoint(button, root: wrapper, x: visualX, y: visualY),
+            "Offset buttons must keep their visible SwiftUI hit region, not only their untransformed GTK box."
+        )
+        XCTAssertTrue(
+            gtkTestWidgetTreeContainsVisualButtonAtRootPoint(wrapper, root: wrapper, x: visualX, y: visualY),
+            "List-row tap fallbacks must be able to identify offset button descendants and stand down."
+        )
+    }
+
+    func testMenuButtonsCountAsActionableControlsForRowTapGuards() throws {
+        try requireGTK()
+
+        let menu = widgetFromOpaque(gtkRenderView(
+            Menu("Actions") {
+                MenuItem("Boost") {}
+            }
+        ))
+        allocate(widget: menu, size: ViewSize(width: 96, height: 40))
+
+        XCTAssertTrue(
+            gtkTestWidgetTreeContainsVisualButtonAtRootPoint(menu, root: menu, x: 32, y: 20),
+            "List-row tap fallbacks must treat GtkMenuButton descendants like normal buttons so row navigation does not steal menu clicks."
+        )
+    }
+
+    func testCustomStyledMenuButtonCanBeFoundByVisualHitRegion() throws {
+        try requireGTK()
+
+        let menu = widgetFromOpaque(gtkRenderView(
+            Menu {
+                MenuItem("Boost") {}
+            } label: {
+                HStack(spacing: 2) {
+                    Text("boost")
+                    Text("10")
+                        .lineLimit(1)
+                        .foregroundColor(Color.gray)
+                }
+                .padding(.vertical, 6)
+                .padding(.horizontal, 8)
+            }
+            .buttonStyle(GTKStatusActionProbeButtonStyle())
+            .offset(x: -8)
+        ))
+
+        gtk_widget_set_halign(menu, GTK_ALIGN_START)
+        allocate(widget: menu, size: ViewSize(width: 96, height: 40))
+
+        let visualX = 4.0
+        let visualY = 20.0
+        let menuButton = gtkTestFindVisualMenuButtonAtRootPoint(menu, root: menu, x: visualX, y: visualY)
+
+        XCTAssertNotNil(
+            menuButton,
+            "Custom-styled SwiftUI Menu labels must stay discoverable by visual hit region so status action menus can open instead of falling through to row navigation."
+        )
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: menu, into: &labels)
+        let boostLabel = labels.first {
+            String(cString: gtk_label_get_text(OpaquePointer($0))) == "boost"
+        }
+        XCTAssertNotNil(boostLabel)
+        if let boostLabel {
+            let markup = String(cString: gtk_label_get_label(OpaquePointer(boostLabel)))
+            XCTAssertNotEqual(gtk_label_get_use_markup(OpaquePointer(boostLabel)), 0)
+            XCTAssertTrue(
+                markup.contains("foreground=\"#878787\""),
+                "Custom ButtonStyle foregroundColor should reach plain Text inside Menu labels; markup was \(markup)"
+            )
+
+            let owner = gtkTestMenuOwnerButton(for: boostLabel)
+            XCTAssertNotNil(owner)
+            if let owner {
+                XCTAssertEqual(
+                    UnsafeRawPointer(owner),
+                    UnsafeRawPointer(menu),
+                    "Rendered custom Menu label descendants should retain a semantic owner pointer to the GtkMenuButton."
+                )
+            }
+        }
+        XCTAssertTrue(
+            gtkTestWidgetTreeContainsVisualButtonAtRootPoint(menu, root: menu, x: visualX, y: visualY),
+            "A custom-styled Menu should also count as an actionable control for row tap guards."
+        )
+    }
+
+    func testCollapsedSplitListMenuControlUsesDetailFrameOrigin() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                Color.gray
+                    .frame(width: 240)
+                List {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Status row fixture")
+                        Text("A split-view detail list keeps status actions near the detail frame leading edge.")
+                            .lineLimit(nil)
+
+                        HStack {
+                            statusActionProbeButton("reply", count: "4")
+                            Menu {
+                                MenuItem("Boost") {}
+                                MenuItem("Quote") {}
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text("boost-menu")
+                                    Text("8")
+                                        .lineLimit(1)
+                                        .foregroundColor(Color.gray)
+                                }
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 8)
+                            }
+                            .buttonStyle(GTKStatusActionProbeButtonStyle())
+                            .offset(x: -8)
+                            statusActionProbeButton("favorite", count: "42")
+                            statusActionProbeButton("share", count: nil)
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: 560, height: 260)
+            }
+            .frame(width: 800, height: 260)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtkTestDismissActiveMenuOverlay()
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 800, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let boostLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "boost-menu"
+        })
+        let origin = translatedChildOrigin(child: boostLabel, in: wrapper)
+        let size = allocatedSize(of: boostLabel)
+        let x = origin.x + (size.width / 2)
+        let y = origin.y + (size.height / 2)
+
+        XCTAssertGreaterThan(x, 240)
+        XCTAssertLessThan(
+            x,
+            440,
+            "The boost menu is in the detail column before the old double-counted desktop sidebar guard."
+        )
+        XCTAssertTrue(
+            gtkTestActivateCollapsedListRowControlAtRootPoint(root: wrapper, x: x, y: y),
+            "Collapsed split-list hit testing should open the custom Menu using the detail-frame origin, not skip it as leading chrome."
+        )
+    }
+
+    func testRootPresentationMenuOverlayUsesStableFillLayer() throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtkTestDismissActiveMenuOverlay()
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                Color.gray
+                    .frame(width: 240)
+                List {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Status row fixture")
+                        Text("Root-overlay menu panels must remain painted after the click schedules a host rebuild.")
+                            .lineLimit(nil)
+
+                        HStack {
+                            statusActionProbeButton("reply", count: "4")
+                            Menu {
+                                MenuItem("Boost") {}
+                                MenuItem("Quote") {}
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text("boost-menu")
+                                    Text("8")
+                                        .lineLimit(1)
+                                        .foregroundColor(Color.gray)
+                                }
+                                .padding(.vertical, 6)
+                                .padding(.horizontal, 8)
+                            }
+                            .buttonStyle(GTKStatusActionProbeButtonStyle())
+                            .offset(x: -8)
+                            statusActionProbeButton("favorite", count: "42")
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(width: 560, height: 260)
+            }
+            .frame(width: 800, height: 260)
+        ))
+
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        allocate(widget: rootContainer, size: ViewSize(width: 800, height: 260))
+        allocate(widget: wrapper, size: ViewSize(width: 800, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: rootContainer, into: &labels)
+        let boostLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "boost-menu"
+        })
+        let origin = translatedChildOrigin(child: boostLabel, in: wrapper)
+        let size = allocatedSize(of: boostLabel)
+        let x = origin.x + (size.width / 2)
+        let y = origin.y + (size.height / 2)
+
+        XCTAssertTrue(
+            gtkTestActivateCollapsedListRowControlAtRootPoint(root: wrapper, x: x, y: y),
+            "The status-row menu should open from the visual hit region inside a root presentation container."
+        )
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkTestHasActiveMenuOverlay())
+        XCTAssertEqual(
+            gtkTestActiveMenuOverlayLayerTypeName(),
+            "GtkOverlay",
+            "Root presentation menus should use a fill overlay layer so the positioned panel is allocated and repainted."
+        )
+        let overlayLabels = gtkLabelTexts(in: rootContainer)
+        XCTAssertTrue(overlayLabels.contains("Boost"))
+        XCTAssertTrue(overlayLabels.contains("Quote"))
+    }
+
+    func testCollapsedSplitListMenuControlUsesClickedListWhenMultipleListsAreMapped() throws {
+        try requireGTK()
+
+        var leftActivations = 0
+        var rightActivations = 0
+
+        func row(label: String, action: @escaping () -> Void) -> some View {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("\(label) status row")
+                Text("Multiple mapped lists must not leak cached action controls across columns.")
+                    .lineLimit(nil)
+
+                HStack {
+                    statusActionProbeButton("reply", count: "4")
+                    Button(action: action) {
+                        HStack(spacing: 2) {
+                            Text(label)
+                            Text("8")
+                                .lineLimit(1)
+                                .foregroundColor(Color.gray)
+                        }
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 8)
+                    }
+                    .buttonStyle(GTKStatusActionProbeButtonStyle())
+                    .offset(x: -8)
+                    statusActionProbeButton("favorite", count: "42")
+                    statusActionProbeButton("share", count: nil)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                List {
+                    row(label: "left-action") { leftActivations += 1 }
+                }
+                .frame(width: 240, height: 260)
+
+                List {
+                    row(label: "right-action") { rightActivations += 1 }
+                }
+                .frame(width: 560, height: 260)
+            }
+            .frame(width: 800, height: 260)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtkTestDismissActiveMenuOverlay()
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 800, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let rightMenuLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "right-action"
+        })
+        let origin = translatedChildOrigin(child: rightMenuLabel, in: wrapper)
+        let size = allocatedSize(of: rightMenuLabel)
+        let x = origin.x + (size.width / 2)
+        let y = origin.y + (size.height / 2)
+
+        XCTAssertTrue(
+            gtkTestActivateCollapsedListRowControlAtRootPoint(root: wrapper, x: x, y: y),
+            "Collapsed split-list hit testing should activate the control in the clicked list."
+        )
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(rightActivations, 1)
+        XCTAssertEqual(leftActivations, 0)
+    }
+
+    func testCollapsedSplitListWideTextControlsUseNaturalHitWidth() throws {
+        try requireGTK()
+
+        var tagsActivations = 0
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                Color.gray
+                    .frame(width: 240)
+
+                List {
+                    HStack(spacing: 8) {
+                        Button("News") {}
+                        Button("Trending Posts") {}
+                        Button("Suggested Users") {}
+                        Button("Trending Tags") { tagsActivations += 1 }
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(16)
+                }
+                .frame(width: 560, height: 160)
+            }
+            .frame(width: 800, height: 160)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 800, height: 160))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let tagsLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "Trending Tags"
+        })
+        let origin = translatedChildOrigin(child: tagsLabel, in: wrapper)
+        let size = allocatedSize(of: tagsLabel)
+        let x = origin.x + (size.width / 2)
+        let y = origin.y + (size.height / 2)
+
+        XCTAssertTrue(
+            gtkTestActivateCollapsedListRowControlAtRootPoint(root: wrapper, x: x, y: y),
+            "Collapsed split-list hit testing should use natural widths for wide text buttons such as IceCubes Explore quick-access controls."
+        )
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(tagsActivations, 1)
+    }
+
+    func testHiddenButtonsDoNotBlockRowTapGuards() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack {
+                Button("Hidden") {}
+                    .hidden()
+                Spacer()
+            }
+        ))
+        allocate(widget: wrapper, size: ViewSize(width: 96, height: 40))
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: wrapper, into: &buttons)
+        guard let button = buttons.first else {
+            XCTFail("Expected hidden SwiftUI button to keep its GTK subtree for layout.")
+            return
+        }
+        let origin = translatedChildOrigin(child: button, in: wrapper)
+        let size = allocatedSize(of: button)
+        let hitX = origin.x + (size.width / 2)
+        let hitY = origin.y + (size.height / 2)
+
+        XCTAssertFalse(
+            gtkTestWidgetTreeContainsVisualButtonAtRootPoint(wrapper, root: wrapper, x: hitX, y: hitY),
+            "Hidden or absent button branches must not prevent list-row fallback taps from reaching the row."
+        )
+    }
+
+    func testNarrowMutationRefreshesReusedButtonAction() throws {
+        try requireGTK()
+
+        let selectedID = State(wrappedValue: 1001)
+        let recorder = GTKButtonActionRecorder()
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKMutableButtonActionProbeView(selectedID: selectedID, recorder: recorder)
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: wrapper, into: &buttons)
+        let button = try XCTUnwrap(buttons.first, "Expected the probe view to render a GtkButton.")
+        selectedID.storage.setValue(1003)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkTestActivateButton(button))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(
+            recorder.values,
+            [1003],
+            "A reused GtkButton must fire the current model-bound Swift action, not the closure captured at first render."
+        )
+    }
+
+    func testExplicitIdResetsStatefulSubviewIdentity() throws {
+        try requireGTK()
+
+        let selectedID = State(wrappedValue: 1001)
+        let recorder = GTKButtonActionRecorder()
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKMutableIdentifiedStateProbeView(selectedID: selectedID, recorder: recorder)
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        selectedID.storage.setValue(1003)
+        drainGTKMainContext(maxIterations: 100)
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: wrapper, into: &buttons)
+        let button = try XCTUnwrap(buttons.first, "Expected the identified probe view to render a GtkButton.")
+        XCTAssertTrue(gtkTestActivateButton(button))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(
+            recorder.values,
+            [1003],
+            "A subtree wrapped in .id(newValue) must receive fresh @State storage instead of reusing the previous id's model."
+        )
+    }
+
+    func testNavigationRootToolbarButtonCapturesDismissEnvironment() throws {
+        try requireGTK()
+
+        var dismissCount = 0
+        let previousEnvironment = getCurrentEnvironment()
+        var environment = previousEnvironment
+        environment.dismiss = DismissAction {
+            dismissCount += 1
+        }
+        setCurrentEnvironment(environment)
+        let wrapper = widgetFromOpaque(gtkRenderView(GTKNavigationToolbarDismissProbeView()))
+        setCurrentEnvironment(previousEnvironment)
+
+        let wrapperObject = UnsafeMutableRawPointer(wrapper).assumingMemoryBound(to: GObject.self)
+        let titlebarData = try XCTUnwrap(
+            g_object_get_data(wrapperObject, "gtk-swift-window-titlebar"),
+            "Expected NavigationStack to expose a GTK window titlebar."
+        )
+        let titlebar = titlebarData.assumingMemoryBound(to: GtkWidget.self)
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: titlebar, into: &buttons)
+        XCTAssertFalse(buttons.isEmpty, "Expected NavigationStack toolbar to render at least one GtkButton.")
+
+        for button in buttons where dismissCount == 0 {
+            guard gtkTestActivateButton(button) else { continue }
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(
+            dismissCount,
+            1,
+            "Root toolbar button actions must capture the active dismiss environment for deferred GTK callbacks."
+        )
+    }
+
+    func testItemSheetRootOverlayDismissRemovesPresentedLayer() throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        var onDismissCount = 0
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKItemSheetRootOverlayDismissProbeView {
+                onDismissCount += 1
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(
+            gtkLabelTexts(in: rootContainer).contains("Sheet Content"),
+            "The item sheet should render into the root presentation overlay."
+        )
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: rootContainer, into: &buttons)
+        let dismissButton = try XCTUnwrap(
+            buttons.first,
+            "Expected a dismiss button inside the root-overlay sheet."
+        )
+        XCTAssertTrue(gtkTestActivateButton(dismissButton))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(onDismissCount, 1)
+        XCTAssertFalse(
+            gtkLabelTexts(in: rootContainer).contains("Sheet Content"),
+            "A programmatic sheet dismiss must unparent the root-overlay layer without waiting for a parent rebuild."
+        )
+    }
+
+    func testWindowRootHostInstallsAppStateForCapturedSheetBindings() throws {
+        try requireGTK()
+
+        let appState = GTKWindowRootAppStateProbe()
+        let model = appState.model
+        let storage = try XCTUnwrap(
+            Mirror(reflecting: appState).children
+                .compactMap { $0.value as? AnyStateStorageProvider }
+                .first?.anyStorage as? StateStorage<GTKWindowRootObservableProbe>
+        )
+
+        XCTAssertNil(storage.host)
+
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            Text("Base").sheet(item: appState.$model.item) { item in
+                Text(item.name)
+            },
+            appStateSource: appState
+        ))
+        defer {
+            if gtk_widget_get_parent(widget) != nil {
+                gtk_widget_unparent(widget)
+            }
+        }
+
+        XCTAssertNotNil(
+            storage.host,
+            "WindowGroup root rendering must install @State stored on the owning App so captured app-level bindings can invalidate the sheet host."
+        )
+
+        let generation = storage.generation
+        model.item = GTKWindowRootSheetItem(id: 42, name: "Media")
+
+        XCTAssertGreaterThan(
+            storage.generation,
+            generation,
+            "Mutating an app-level @Observable stored in @State should publish through the root window host storage."
+        )
+    }
+
+    func testItemSheetRootOverlayProgrammaticDismissBypassesDismissalInterception() throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        var shouldConfirm = false
+        var onDismissCount = 0
+        let shouldConfirmBinding = Binding(
+            get: { shouldConfirm },
+            set: { shouldConfirm = $0 }
+        )
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKItemSheetRootOverlayInterceptedDismissProbeView(
+                shouldConfirm: shouldConfirmBinding
+            ) {
+                onDismissCount += 1
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkLabelTexts(in: rootContainer).contains("Guarded Sheet Content"))
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: rootContainer, into: &buttons)
+        let dismissButton = try XCTUnwrap(buttons.first)
+        XCTAssertTrue(gtkTestActivateButton(dismissButton))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertFalse(
+            shouldConfirm,
+            "Programmatic dismiss() should not trigger interactive-dismiss confirmation metadata."
+        )
+        XCTAssertEqual(onDismissCount, 1)
+        XCTAssertFalse(gtkLabelTexts(in: rootContainer).contains("Guarded Sheet Content"))
+    }
+
+    func testListStatusLikeRowGrowsBeyondFallbackHeight() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("""
+                    Here's to the crazy ones. The misfits. The rebels. The troublemakers. The round pegs in the square holes.
+                    They are long enough to wrap in a timeline cell and force the row to resolve height from its allocated width.
+                    """)
+                    .lineLimit(nil)
+
+                    HStack {
+                        statusActionProbeButton("reply", count: "34")
+                        statusActionProbeButton("boost", count: "10")
+                        statusActionProbeButton("favorite", count: "8")
+                        HStack {
+                            statusActionProbeButton("share", count: nil)
+                            Spacer()
+                        }
+                        Text("menu").padding(.vertical, 6).padding(.horizontal, 8)
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(width: 560, height: 260)
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 560, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        let row = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: wrapper)
+        let rowSize = allocatedSize(of: row)
+        XCTAssertGreaterThan(
+            rowSize.height,
+            112,
+            "Status-like List rows must grow beyond the complex-row fallback instead of clipping resolved content."
+        )
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: row, into: &labels)
+        let reply = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "reply"
+        })
+        let replyOrigin = translatedChildOrigin(child: reply, in: row)
+        XCTAssertLessThan(
+            replyOrigin.x,
+            64,
+            "The first action in a status-like List row should remain at the leading edge."
+        )
+        XCTAssertLessThanOrEqual(
+            replyOrigin.y + allocatedSize(of: reply).height,
+            rowSize.height,
+            "The row allocation must include the action row instead of clipping it into a trailing rail."
+        )
+    }
+
+    func testStatefulStatusLikeRowsKeepActionsLeadingInList() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                StatefulGTKStatusRowProbe(index: 1)
+                StatefulGTKStatusRowProbe(index: 2)
+                StatefulGTKStatusRowProbe(index: 3)
+            }
+            .frame(width: 560, height: 390)
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 560, height: 390))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let replyLabels = labels.filter { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))).hasPrefix("reply-")
+        }
+        XCTAssertEqual(
+            replyLabels.count,
+            3,
+            "Each stateful timeline row should render its leading reply action."
+        )
+
+        for reply in replyLabels {
+            let origin = translatedChildOrigin(child: reply, in: wrapper)
+            if ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_TEST_TREE"] == "1" {
+                gtkDebugWidgetAncestors(reply, in: wrapper)
+            }
+            XCTAssertLessThan(
+                origin.x,
+                100,
+                "Stateful status action rows should stay near the row's leading content edge, not collapse into a trailing rail."
+            )
+        }
+    }
+
+    func testForEachNestedStatefulStatusRowsResolveListRowHeight() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                ForEach([1, 2, 3], id: \.self) { index in
+                    ExternalStatefulGTKStatusRowProbe(index: index)
+                        .listRowInsets(.init(top: 0, leading: 16, bottom: 0, trailing: 16))
+                }
+            }
+            .frame(width: 560, height: 390)
+        ))
+
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 560, height: 390))
+        drainGTKMainContext(maxIterations: 100)
+
+        let row = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: wrapper)
+        let rowSize = allocatedSize(of: row)
+        XCTAssertGreaterThan(
+            rowSize.height,
+            112,
+            "Nested stateful rows from ForEach must resolve beyond the complex-row fallback height."
+        )
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: row, into: &labels)
+        let reply = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "reply-1"
+        })
+        let replyOrigin = translatedChildOrigin(child: reply, in: row)
+        XCTAssertLessThanOrEqual(
+            replyOrigin.y + allocatedSize(of: reply).height,
+            rowSize.height,
+            "Resolved nested status row height must include the action row."
+        )
     }
 
     /// NavigationSplitView sidebars must behave like fixed SwiftUI columns:
@@ -2551,6 +4307,12 @@ private final class GTKDelayedEnvModel {
     var count: Int = 0
 }
 
+private final class GTKThemeBootstrapModel: SwiftOpenUI.ObservableObject {
+    static let iceCubePurple = Color(red: 187 / 255, green: 59 / 255, blue: 226 / 255)
+
+    @SwiftOpenUI.Published var tintColor: Color = .black
+}
+
 private final class GTKTaskRunCounter: @unchecked Sendable {
     private let condition = NSCondition()
     private var count = 0
@@ -2582,11 +4344,118 @@ private final class GTKTaskRunCounter: @unchecked Sendable {
     }
 }
 
+private struct GTKPresentedNavigationStateProbeView: View {
+    @State private var isPresented = false
+
+    var body: some View {
+        VStack {
+            Button("Show Presented") {
+                isPresented = true
+            }
+            Text("Root")
+                .navigationDestination(isPresented: $isPresented) {
+                    Text("Presented After State")
+                }
+        }
+    }
+}
+
+private struct GTKPresentedNavigationPickerProbeView: View {
+    enum Choice: String, Hashable, CaseIterable {
+        case system
+        case custom
+    }
+
+    @State private var choice: Choice = .system
+    @State private var isPresented = false
+
+    var body: some View {
+        VStack {
+            Picker(
+                "Font",
+                selection: Binding<Choice>(
+                    get: { choice },
+                    set: { newValue in
+                        choice = newValue
+                        if newValue == .custom {
+                            isPresented = true
+                        }
+                    }
+                )
+            ) {
+                Text("System").tag(Choice.system)
+                Text("Custom").tag(Choice.custom)
+            }
+            .navigationDestination(isPresented: $isPresented) {
+                Text("Picker Presented Destination")
+            }
+        }
+    }
+}
+
+private struct GTKPresentedNavigationDismissDestination: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Button("Dismiss Destination") {
+            dismiss()
+        }
+    }
+}
+
 private func drainGTKMainContext(maxIterations: Int = 20) {
     for _ in 0..<maxIterations {
         if g_main_context_iteration(nil, 0) == 0 {
             break
         }
+    }
+}
+
+private func waitForGTKLabelMarkup(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    timeout: TimeInterval,
+    predicate: (String) -> Bool
+) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+        drainGTKMainContext(maxIterations: 100)
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: widget, into: &labels)
+        for label in labels {
+            guard gtk_label_get_use_markup(OpaquePointer(label)) != 0 else { continue }
+            let markup = String(cString: gtk_label_get_label(OpaquePointer(label)))
+            if predicate(markup) {
+                return true
+            }
+        }
+        Thread.sleep(forTimeInterval: 0.001)
+    } while Date() < deadline
+    return false
+}
+
+private func waitForGTKLabelText(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    timeout: TimeInterval,
+    predicate: ([String]) -> Bool
+) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    repeat {
+        drainGTKMainContext(maxIterations: 100)
+        let labels = gtkLabelTexts(in: widget)
+        if predicate(labels) {
+            return true
+        }
+        Thread.sleep(forTimeInterval: 0.001)
+    } while Date() < deadline
+    drainGTKMainContext(maxIterations: 100)
+    return predicate(gtkLabelTexts(in: widget))
+}
+
+private func gtkDebugLabelMarkups(in widget: UnsafeMutablePointer<GtkWidget>) -> [String] {
+    var labels: [UnsafeMutablePointer<GtkWidget>] = []
+    gtkCollectLabels(in: widget, into: &labels)
+    return labels.map { label in
+        String(cString: gtk_label_get_label(OpaquePointer(label)))
     }
 }
 
@@ -2598,6 +4467,78 @@ private func presentGTKWidget(
     gtk_window_present(windowPointer(window))
     drainGTKMainContext(maxIterations: 100)
     return window
+}
+
+private struct GTKItemSheetRootOverlayDismissProbeItem: Identifiable {
+    let id: Int
+}
+
+private struct GTKItemSheetRootOverlayDismissProbeView: View {
+    @State private var item: GTKItemSheetRootOverlayDismissProbeItem?
+    let onDismiss: () -> Void
+
+    init(onDismiss: @escaping () -> Void) {
+        _item = State(wrappedValue: GTKItemSheetRootOverlayDismissProbeItem(id: 1))
+        self.onDismiss = onDismiss
+    }
+
+    var body: some View {
+        Text("Host")
+            .sheet(item: $item, onDismiss: onDismiss) { _ in
+                GTKItemSheetRootOverlayDismissSheet()
+            }
+    }
+}
+
+private struct GTKItemSheetRootOverlayDismissSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack {
+            Text("Sheet Content")
+            Button("Dismiss Sheet") {
+                dismiss()
+            }
+        }
+    }
+}
+
+private struct GTKItemSheetRootOverlayInterceptedDismissProbeView: View {
+    @State private var item: GTKItemSheetRootOverlayDismissProbeItem?
+    let shouldConfirm: Binding<Bool>
+    let onDismiss: () -> Void
+
+    init(shouldConfirm: Binding<Bool>, onDismiss: @escaping () -> Void) {
+        _item = State(wrappedValue: GTKItemSheetRootOverlayDismissProbeItem(id: 1))
+        self.shouldConfirm = shouldConfirm
+        self.onDismiss = onDismiss
+    }
+
+    var body: some View {
+        Text("Host")
+            .sheet(item: $item, onDismiss: onDismiss) { _ in
+                GTKItemSheetRootOverlayInterceptedDismissSheet(shouldConfirm: shouldConfirm)
+            }
+    }
+}
+
+private struct GTKItemSheetRootOverlayInterceptedDismissSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let shouldConfirm: Binding<Bool>
+
+    var body: some View {
+        VStack {
+            Text("Guarded Sheet Content")
+            Button("Dismiss Guarded Sheet") {
+                dismiss()
+            }
+        }
+        .dismissalConfirmationDialog(
+            "Discard changes?",
+            shouldPresent: shouldConfirm,
+            actions: [AlertButton("Discard", role: .destructive)]
+        )
+    }
 }
 
 private struct GTKTaskOnceProbeView: View {
@@ -2644,6 +4585,105 @@ private struct GTKTaskFullRebuildProbeView: View {
     }
 }
 
+private struct GTKTabTaskProbeView: View {
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        TabView(initialTab: 1) {
+            Tab("Timeline", id: "timeline") {
+                Text("Timeline")
+            }
+            Tab("Explore", id: "explore") {
+                List {
+                    Text("Explore row")
+                }
+                .task {
+                    counter.increment()
+                }
+            }
+        }
+    }
+}
+
+private struct GTKBoundNavigationRootContentProbeView: View {
+    let includePrefix: Bool
+    let counter: GTKTaskRunCounter
+
+    init(includePrefix: Bool, counter: GTKTaskRunCounter) {
+        self.includePrefix = includePrefix
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            if includePrefix {
+                GTKEmptyStatefulRowProbe()
+                Text("Changed Root Prefix")
+            }
+            Text("Root")
+                .navigationDestination(for: String.self) { value in
+                    GTKBoundNavigationDestinationProbeView(value: value, counter: counter)
+                }
+        }
+    }
+}
+
+private struct GTKBoundNavigationDestinationProbeView: View {
+    let value: String
+    let counter: GTKTaskRunCounter
+    @State private var loaded = false
+
+    var body: some View {
+        VStack {
+            Text(loaded ? "Loaded \(value)" : "Loading \(value)")
+            Button("Load \(value)") {
+                guard !loaded else { return }
+                counter.increment()
+                loaded = true
+            }
+        }
+    }
+}
+
+private struct GTKBoundNavigationOnAppearProbeView: View {
+    let value: String
+    let counter: GTKTaskRunCounter
+    @State private var appeared = false
+
+    var body: some View {
+        Text(appeared ? "Appeared \(value)" : "Waiting \(value)")
+            .onAppear {
+                guard !appeared else { return }
+                counter.increment()
+                appeared = true
+            }
+    }
+}
+
+private final class GTKNavigationObservableProbeModel: ObservableObject {
+    let objectWillChange = ObservableObjectPublisher()
+    var text = "Retry" {
+        willSet {
+            objectWillChange.send()
+        }
+    }
+}
+
+private struct GTKBoundNavigationObservableProbeView: View {
+    let value: String
+    let counter: GTKTaskRunCounter
+    @State private var model = GTKNavigationObservableProbeModel()
+
+    var body: some View {
+        Text(model.text)
+            .onAppear {
+                guard model.text != "Loaded \(value)" else { return }
+                counter.increment()
+                model.text = "Loaded \(value)"
+            }
+    }
+}
+
 private struct GTKOnAppearOnceProbeView: View {
     @State private var tick: Int
     let counter: GTKTaskRunCounter
@@ -2684,11 +4724,101 @@ private struct GTKConditionalOnAppearProbeView: View {
     }
 }
 
+private struct GTKParentRemountOnAppearProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            GTKChildRemountedOnAppearProbeView(counter: counter)
+            if tick.isMultiple(of: 2) {
+                Text("even \(tick)")
+            } else {
+                HStack {
+                    Text("odd \(tick)")
+                    Text("detail")
+                }
+            }
+        }
+    }
+}
+
+private struct GTKChildRemountedOnAppearProbeView: View {
+    @State private var loaded = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(loaded ? "loaded" : "loading")
+            .onAppear {
+                counter.increment()
+                loaded = true
+            }
+    }
+}
+
+private struct GTKOnAppearModifier: ViewModifier {
+    let counter: GTKTaskRunCounter
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            counter.increment()
+        }
+    }
+}
+
+private struct GTKThemeBootstrapProbeView: View {
+    @State private var theme: GTKThemeBootstrapModel
+
+    init(theme: State<GTKThemeBootstrapModel>) {
+        self._theme = theme
+    }
+
+    var body: some View {
+        let color = theme.tintColor
+        Text("Boost")
+            .foregroundColor(color)
+            .modifier(GTKThemeBootstrapModifier(theme: theme))
+    }
+}
+
+private struct GTKThemeBootstrapModifier: ViewModifier {
+    let theme: GTKThemeBootstrapModel
+
+    func body(content: Content) -> some View {
+        content.onAppear {
+            theme.tintColor = GTKThemeBootstrapModel.iceCubePurple
+        }
+    }
+}
+
+private struct GTKStatefulDescriptorButtonStyle: ButtonStyle {
+    let isOn: Bool
+    let tintColor: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(isOn ? tintColor : .secondary)
+    }
+}
+
 private struct GTKDelayedEnvButtonView: View {
     @Environment(GTKDelayedEnvModel.self) var model
 
     var body: some View {
         Button("Increment") { model.count += 1 }
+    }
+}
+
+private struct GTKDelayedEnvDescriptorTextView: View {
+    @Environment(GTKDelayedEnvModel.self) var model
+
+    var body: some View {
+        Text("count \(model.count)")
     }
 }
 
@@ -2758,6 +4888,217 @@ private struct GTKDelayedEnvMenuView: View {
     }
 }
 
+private struct GTKNavigationToolbarDismissProbeView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Text("Root")
+                .toolbar {
+                    ToolbarItem(placement: .trailing) {
+                        Button("Close") {
+                            dismiss()
+                        }
+                    }
+                }
+        }
+    }
+}
+
+private struct GTKEmptyStatefulRowProbe: View {
+    @State private var isVisible = false
+
+    var body: some View {
+        if isVisible {
+            Text("Hidden state row")
+        }
+    }
+}
+
+private struct GTKStatusActionProbeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .foregroundColor(Color.gray)
+            .scaleEffect(configuration.isPressed ? 0.8 : 1)
+    }
+}
+
+private func gtkDescriptorContainsText(_ node: GTK4DescriptorNode, _ text: String) -> Bool {
+    if case .text(let descriptor) = node.props, descriptor.content == text {
+        return true
+    }
+    return node.children.contains { gtkDescriptorContainsText($0, text) }
+}
+
+private struct StatefulGTKStatusRowProbe: View {
+    let index: Int
+    @State private var isExpanded = false
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text("avatar")
+                .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("John Mastodon")
+                    .lineLimit(1)
+                Text("""
+                Here's to the crazy ones. The misfits. The rebels. The troublemakers.
+                They are long enough to wrap in a timeline cell and force width-resolved row height.
+                """)
+                .lineLimit(nil)
+
+                StatefulGTKStatusActionsProbe(index: index)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 12)
+    }
+}
+
+private struct ExternalStatefulGTKStatusRowProbe: View {
+    @State private var index: Int
+
+    init(index: Int) {
+        _index = .init(wrappedValue: index)
+    }
+
+    var body: some View {
+        StatefulGTKStatusRowProbe(index: index)
+    }
+}
+
+private struct StatefulGTKStatusActionsProbe: View {
+    let index: Int
+    @State private var isShareSheetPresented = false
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                statusActionProbeButton("reply-\(index)", count: "34")
+                statusActionProbeButton("boost-\(index)", count: "10")
+                statusActionProbeButton("favorite-\(index)", count: "8")
+                HStack {
+                    statusActionProbeButton("share-\(index)", count: nil)
+                    Spacer()
+                }
+                Text("menu-\(index)")
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 8)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private final class GTKButtonActionRecorder {
+    private let lock = NSLock()
+    private(set) var values: [Int] = []
+
+    func record(_ value: Int) {
+        lock.lock()
+        values.append(value)
+        lock.unlock()
+    }
+}
+
+private struct GTKMutableButtonActionProbeView: View {
+    @State private var selectedID: Int
+    let recorder: GTKButtonActionRecorder
+
+    init(selectedID: State<Int>, recorder: GTKButtonActionRecorder) {
+        self._selectedID = selectedID
+        self.recorder = recorder
+    }
+
+    var body: some View {
+        VStack {
+            Text("selected \(selectedID)")
+            Button("Favorite") {
+                recorder.record(selectedID)
+            }
+        }
+    }
+}
+
+private struct GTKMutableIdentifiedStateProbeView: View {
+    @State private var selectedID: Int
+    let recorder: GTKButtonActionRecorder
+
+    init(selectedID: State<Int>, recorder: GTKButtonActionRecorder) {
+        self._selectedID = selectedID
+        self.recorder = recorder
+    }
+
+    var body: some View {
+        GTKStatefulIdentifiedButtonProbeView(modelID: selectedID, recorder: recorder)
+            .id(selectedID)
+    }
+}
+
+private struct GTKStatefulIdentifiedButtonProbeView: View {
+    @State private var modelID: Int
+    let recorder: GTKButtonActionRecorder
+
+    init(modelID: Int, recorder: GTKButtonActionRecorder) {
+        self._modelID = State(wrappedValue: modelID)
+        self.recorder = recorder
+    }
+
+    var body: some View {
+        Button("Record") {
+            recorder.record(modelID)
+        }
+    }
+}
+
+private struct GTKAccidentalVExpandOverlayProbe: View, GTKRenderable {
+    typealias Body = Never
+
+    var body: Never { fatalError("GTKAccidentalVExpandOverlayProbe is a primitive view") }
+
+    @MainActor
+    func gtkCreateWidget() -> OpaquePointer {
+        let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let label = gtk_label_new("Preview")!
+        gtk_widget_set_size_request(box, -1, 64)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_vexpand(box, 1)
+        gtk_box_append(boxPointer(box), label)
+        return opaqueFromWidget(box)
+    }
+}
+
+private func statusActionProbeButton(_ title: String, count: String?) -> some View {
+    Button {} label: {
+        HStack(spacing: 2) {
+            Text(title)
+            if let count {
+                Text(count)
+                    .lineLimit(1)
+                    .foregroundColor(Color.gray)
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+    }
+    .buttonStyle(GTKStatusActionProbeButtonStyle())
+    .offset(x: -8)
+}
+
+private struct GTKWindowRootSheetItem: Identifiable {
+    let id: Int
+    let name: String
+}
+
+private final class GTKWindowRootObservableProbe: ObservableObject {
+    @Published var item: GTKWindowRootSheetItem?
+}
+
+private struct GTKWindowRootAppStateProbe {
+    @State var model = GTKWindowRootObservableProbe()
+}
+
 private func requireGTK(
     file: StaticString = #filePath,
     line: UInt = #line
@@ -2785,20 +5126,30 @@ private func unwrapFirstDescendant(
     file: StaticString = #filePath,
     line: UInt = #line
 ) throws -> UnsafeMutablePointer<GtkWidget> {
+    if let found = gtkFirstDescendant(ofType: typeName, in: widget) {
+        return found
+    }
+    XCTFail("Expected widget tree to contain \(typeName).", file: file, line: line)
+    throw XCTSkip()
+}
+
+private func gtkFirstDescendant(
+    ofType typeName: String,
+    in widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
     if gtkWidgetTypeName(widget) == typeName {
         return widget
     }
 
     var child = gtk_widget_get_first_child(widget)
     while let current = child {
-        if let found = try? unwrapFirstDescendant(ofType: typeName, in: current, file: file, line: line) {
+        if let found = gtkFirstDescendant(ofType: typeName, in: current) {
             return found
         }
         child = gtk_widget_get_next_sibling(current)
     }
 
-    XCTFail("Expected widget tree to contain \(typeName).", file: file, line: line)
-    throw XCTSkip()
+    return nil
 }
 
 private func unwrapNextSibling(
@@ -2866,6 +5217,33 @@ private func gtkCountLayoutHelpers(in widget: UnsafeMutablePointer<GtkWidget>) -
     return count
 }
 
+private func gtkCountDescendants(
+    ofType typeName: String,
+    in widget: UnsafeMutablePointer<GtkWidget>
+) -> Int {
+    var count = gtkWidgetTypeName(widget) == typeName ? 1 : 0
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        count += gtkCountDescendants(ofType: typeName, in: current)
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return count
+}
+
+private func gtkCollectButtons(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    into buttons: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    if gtk_swift_widget_is_button(widget) != 0 {
+        buttons.append(widget)
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollectButtons(in: current, into: &buttons)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
 private func gtkCollectLabels(
     in widget: UnsafeMutablePointer<GtkWidget>,
     into labels: inout [UnsafeMutablePointer<GtkWidget>]
@@ -2879,4 +5257,56 @@ private func gtkCollectLabels(
         gtkCollectLabels(in: current, into: &labels)
         child = gtk_widget_get_next_sibling(current)
     }
+}
+
+private func gtkLabelTexts(in widget: UnsafeMutablePointer<GtkWidget>) -> [String] {
+    var labels: [UnsafeMutablePointer<GtkWidget>] = []
+    gtkCollectLabels(in: widget, into: &labels)
+    return labels.map { label in
+        String(cString: gtk_label_get_text(OpaquePointer(label)))
+    }
+}
+
+private func gtkDebugWidgetAncestors(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    in root: UnsafeMutablePointer<GtkWidget>
+) {
+    var lines: [String] = []
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 24 {
+        var minW: gint = 0
+        var natW: gint = 0
+        var minH: gint = 0
+        var natH: gint = 0
+        gtk_widget_measure(node, GTK_ORIENTATION_HORIZONTAL, -1, &minW, &natW, nil, nil)
+        gtk_widget_measure(node, GTK_ORIENTATION_VERTICAL, -1, &minH, &natH, nil, nil)
+        let origin = translatedChildOrigin(child: node, in: root)
+        let size = allocatedSize(of: node)
+        lines.append(
+            "#\(depth) \(gtkWidgetTypeName(node)) origin=\(Int(origin.x)),\(Int(origin.y)) size=\(Int(size.width))x\(Int(size.height)) natural=\(natW)x\(natH) min=\(minW)x\(minH) hex=\(gtk_widget_get_hexpand(node)) halign=\(gtk_widget_get_halign(node).rawValue)"
+        )
+        var childLines: [String] = []
+        var child = gtk_widget_get_first_child(node)
+        var index = 0
+        while let current = child, index < 12 {
+            let childOrigin = translatedChildOrigin(child: current, in: root)
+            let childSize = allocatedSize(of: current)
+            childLines.append(
+                "  child[\(index)] \(gtkWidgetTypeName(current)) origin=\(Int(childOrigin.x)),\(Int(childOrigin.y)) size=\(Int(childSize.width))x\(Int(childSize.height)) hex=\(gtk_widget_get_hexpand(current)) halign=\(gtk_widget_get_halign(current).rawValue)"
+            )
+            child = gtk_widget_get_next_sibling(current)
+            index += 1
+        }
+        if !childLines.isEmpty {
+            lines.append(contentsOf: childLines)
+        }
+        if node == root {
+            break
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+    let output = "[GTK4RenderTests tree]\n" + lines.joined(separator: "\n") + "\n"
+    FileHandle.standardError.write(Data(output.utf8))
 }

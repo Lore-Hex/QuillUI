@@ -18,11 +18,11 @@ public class AVCaptureSession: @unchecked Sendable {
         public static let medium = Preset(rawValue: "AVCaptureSessionPresetMedium")
         public static let low = Preset(rawValue: "AVCaptureSessionPresetLow")
         public static let photo = Preset(rawValue: "AVCaptureSessionPresetPhoto")
+        public static let inputPriority = Preset(rawValue: "AVCaptureSessionPresetInputPriority")
         public static let hd1280x720 = Preset(rawValue: "AVCaptureSessionPreset1280x720")
         public static let hd1920x1080 = Preset(rawValue: "AVCaptureSessionPreset1920x1080")
         public static let hd4K3840x2160 = Preset(rawValue: "AVCaptureSessionPreset3840x2160")
         public static let vga640x480 = Preset(rawValue: "AVCaptureSessionPreset640x480")
-        public static let inputPriority = Preset(rawValue: "AVCaptureSessionPresetInputPriority")
     }
 
     /// `.AVCaptureSessionWasInterrupted` userInfo reason codes (Apple raw values).
