@@ -113,6 +113,7 @@ struct SourceHygieneTests {
         let mapper = try packageSource("Sources/SignalUIRenderCore/Mappers/LabelImageMappers.swift")
         let bridge = try packageSource("Sources/SignalUIRenderCore/Mappers/TextViewEntryBridge.swift")
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
+        let captureScript = try packageSource("scripts/signal-render-capture.sh")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
         #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
@@ -139,6 +140,8 @@ struct SourceHygieneTests {
         #expect(host.contains("quillSignalRenderSetFirstTextEntry"))
         #expect(gtkShim.contains("static inline int quill_widget_is_editable"))
         #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
+        #expect(captureScript.contains("conversation|real-conversation|real-conversation-accepted)"))
+        #expect(captureScript.contains("width=\"${SIGNAL_RENDER_CAPTURE_WIDTH:-$default_width}\""))
     }
 
     @Test("Signal UIKit renderer maps UIButtons through GTK button actions")

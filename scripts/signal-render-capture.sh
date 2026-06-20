@@ -4,8 +4,30 @@ set -euo pipefail
 demo="${1:-real-conversation-accepted}"
 output="${2:-.qa/signal-${demo}.png}"
 log_output="${3:-${output%.png}.log}"
-width="${SIGNAL_RENDER_CAPTURE_WIDTH:-820}"
-height="${SIGNAL_RENDER_CAPTURE_HEIGHT:-780}"
+case "$demo" in
+  conversation|real-conversation|real-conversation-accepted)
+    default_width=760
+    default_height=720
+    ;;
+  real-components)
+    default_width=568
+    default_height=300
+    ;;
+  ssk-bootstrap)
+    default_width=620
+    default_height=280
+    ;;
+  firstlight)
+    default_width=390
+    default_height=600
+    ;;
+  privacy|settings|*)
+    default_width=390
+    default_height=720
+    ;;
+esac
+width="${SIGNAL_RENDER_CAPTURE_WIDTH:-$default_width}"
+height="${SIGNAL_RENDER_CAPTURE_HEIGHT:-$default_height}"
 binary="${SIGNAL_RENDER_CAPTURE_BINARY:-.build/aarch64-unknown-linux-gnu/debug/signal-ui-render}"
 display_id="${SIGNAL_RENDER_CAPTURE_DISPLAY:-:99}"
 
