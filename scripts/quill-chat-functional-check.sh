@@ -360,11 +360,20 @@ for y in range(top + int(app_height * 0.68), bottom + 1):
 if not composer_matches:
     raise SystemExit(0)
 
-best_y, composer_segment = max(composer_matches, key=lambda item: item[1].width)
+bottom_band_floor = top + int(app_height * 0.82)
+preferred_matches = [
+    (y, segment)
+    for y, segment in composer_matches
+    if y >= bottom_band_floor
+]
+if not preferred_matches:
+    preferred_matches = composer_matches
+
+best_y, composer_segment = max(preferred_matches, key=lambda item: (item[0], item[1].width))
 max_width = composer_segment.width
 matched_rows = [
     (y, segment)
-    for y, segment in composer_matches
+    for y, segment in preferred_matches
     if segment.width >= int(max_width * 0.95)
     and abs(segment.start - composer_segment.start) <= 8
     and abs(segment.end - composer_segment.end) <= 8
@@ -502,6 +511,22 @@ quill_chat_functional_submit_methods() {
   esac
 }
 
+quill_chat_functional_action_click_y() {
+  local fallback_y="$1"
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_ACTION_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_ACTION_Y"
+    return
+  fi
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    local reference_height="${reference_window_height:-$window_height}"
+    printf '%s\n' "$((window_y + reference_height - 135))"
+  else
+    printf '%s\n' "$fallback_y"
+  fi
+}
+
 quill_chat_functional_send_attempt() {
   local click_x="$1"
   local click_y="$2"
@@ -513,7 +538,7 @@ quill_chat_functional_send_attempt() {
 
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
-    attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$click_y}"
+    attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
     quillui_functional_refocus_window
     quillui_functional_click_at "$attachment_x" "$attachment_y"
     sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
@@ -529,7 +554,7 @@ quill_chat_functional_send_attempt() {
   sleep 1
   if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
-    send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$click_y}"
+    send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
     quillui_functional_refocus_window
     quillui_functional_click_at "$send_x" "$send_y"
   else
