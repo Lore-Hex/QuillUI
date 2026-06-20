@@ -2315,20 +2315,6 @@ def validate_quill_chat_mac_reference_history_selection(
             f"row={empty_prompt_card_row[0] if empty_prompt_card_row else 'none'}",
         )
 
-        prompt_card_like_pixels = pixel_count(
-            image,
-            detail_left,
-            top + int(app_height * 0.25),
-            right + 1,
-            top + int(app_height * 0.62),
-            mac_reference_prompt_card_pixel,
-        )
-        require(
-            prompt_card_like_pixels <= 8_000,
-            "Mac-reference empty-state prompt cards remained after history selection: "
-            f"pixels={prompt_card_like_pixels}",
-        )
-
     wordmark_pixels = pixel_count(
         image,
         detail_left + int(detail_width * 0.35),

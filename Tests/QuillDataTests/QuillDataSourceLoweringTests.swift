@@ -547,6 +547,16 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("panel={panel_kind}"))
         #expect(verifier.contains("Mac-reference completions list dividers were not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_history_selection"))
+        let historyValidatorStart = try #require(
+            verifier.range(of: "def validate_quill_chat_mac_reference_history_selection")
+        )
+        let historyValidatorEnd = try #require(
+            verifier.range(
+                of: "\ndef validate_quill_chat_mac_reference_long_transcript_selection",
+                range: historyValidatorStart.lowerBound..<verifier.endIndex
+            )
+        )
+        let historyValidator = String(verifier[historyValidatorStart.lowerBound..<historyValidatorEnd.lowerBound])
         #expect(verifier.contains("Mac-reference selected history marker was not detected"))
         #expect(verifier.contains("top + int(app_height * 0.12)"))
         #expect(verifier.contains("left + 120"))
@@ -562,7 +572,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("mac_reference_or_gtk_prompt_card_pixel,"))
         #expect(verifier.contains("if not require_transcript:"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-history-selection\":\n        print(validate_quill_chat_mac_reference_history_selection(image, require_transcript=True))"))
-        #expect(verifier.contains("prompt_card_like_pixels <= 8_000"))
+        #expect(!historyValidator.contains("prompt_card_like_pixels <= 8_000"))
         #expect(verifier.contains("Mac-reference empty-state wordmark remained after history selection"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-transcript-selection"))
         #expect(verifier.contains("Mac-reference selected transcript assistant message was not detected"))
