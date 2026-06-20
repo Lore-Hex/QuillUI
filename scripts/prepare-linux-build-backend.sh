@@ -66,6 +66,17 @@ done
 
 REQUESTED_BACKEND="$(quillui_require_linux_build_backend_identifier "${REQUESTED_BACKEND:-gtk}")"
 
+nnw_mac_quill_support_dir="$ROOT_DIR/.upstream/netnewswire/Mac/QuillSupport"
+nnw_linux_host_source="$ROOT_DIR/Sources/NetNewsWireMacCoreSupport/NetNewsWireLinuxMainWindowHost.swift"
+nnw_linux_host_link="$nnw_mac_quill_support_dir/NetNewsWireLinuxMainWindowHost.swift"
+if [[ -d "$nnw_mac_quill_support_dir" && -f "$nnw_linux_host_source" ]]; then
+  if [[ -e "$nnw_linux_host_link" && ! -L "$nnw_linux_host_link" ]]; then
+    echo "Refusing to overwrite existing upstream NetNewsWire support file: $nnw_linux_host_link" >&2
+    exit 73
+  fi
+  ln -sfn "../../../../Sources/NetNewsWireMacCoreSupport/NetNewsWireLinuxMainWindowHost.swift" "$nnw_linux_host_link"
+fi
+
 case "$REQUESTED_BACKEND" in
   gtk)
     "$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh" "$SCRATCH_PATH"

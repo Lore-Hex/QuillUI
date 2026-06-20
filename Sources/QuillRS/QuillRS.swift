@@ -48,20 +48,27 @@ public class Node: NSObject {
     }
     
     public func existingOrNewChildNode(with representedObject: Any) -> Node {
-        if let existing = childNodes.first(where: { ($0.representedObject as? NSObject) === (representedObject as? NSObject) }) {
+        if let existing = childNodes.first(where: { $0.represents(representedObject) }) {
             return existing
         }
         return createChildNode(representedObject)
     }
     
     public func childNodeRepresentingObject(_ representedObject: Any) -> Node? {
-        return childNodes.first(where: { ($0.representedObject as? NSObject) === (representedObject as? NSObject) })
+        childNodes.first { $0.represents(representedObject) }
     }
     
     public func createChildNode(_ representedObject: Any) -> Node {
         let node = Node(representedObject: representedObject, parent: self)
         childNodes.append(node)
         return node
+    }
+
+    private func represents(_ representedObject: Any) -> Bool {
+        guard let object = self.representedObject else {
+            return false
+        }
+        return object === (representedObject as AnyObject)
     }
 }
 
@@ -71,7 +78,6 @@ public class NodePath: NSObject {
 }
 
 public protocol SmallIconProvider {}
-public protocol PasteboardWriterOwner {}
 
 public func postUnreadCountDidChangeNotification() {}
 

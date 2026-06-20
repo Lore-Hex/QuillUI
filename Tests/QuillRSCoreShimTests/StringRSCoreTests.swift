@@ -64,9 +64,41 @@ struct StringRSCoreTests {
         #expect("  x \n".trimmingWhitespace == "x")
     }
 
+    @Test("mayBeURL accepts host-like strings and rejects empty or unsafe strings")
+    func mayBeURL() {
+        #expect("example.com/feed".mayBeURL)
+        #expect("https://example.com/feed".mayBeURL)
+        #expect("localhost:8080/feed".mayBeURL)
+        #expect("http://[::1]/feed".mayBeURL)
+        #expect(!"".mayBeURL)
+        #expect(!"not-a-host".mayBeURL)
+        #expect(!"https://example.com/bad path".mayBeURL)
+        #expect(!"https://example.com/\u{0000}".mayBeURL)
+    }
+
     @Test("prepending(tabCount:) adds leading tabs and preserves the payload")
     func prependingTabs() {
         #expect("outline".prepending(tabCount: 0) == "outline")
         #expect("outline".prepending(tabCount: 2) == "\t\toutline")
+    }
+
+    @Test("HTML link helpers preserve upstream string shape")
+    func htmlLinkHelpers() {
+        #expect("Ranchero".htmlByAddingLink("https://ranchero.com/") == #"<a href="https://ranchero.com/">Ranchero</a>"#)
+        #expect("Ranchero".htmlByAddingLink("https://ranchero.com/", className: "byline") == #"<a class="byline" href="https://ranchero.com/">Ranchero</a>"#)
+        #expect(String.htmlWithLink("https://ranchero.com/") == #"<a href="https://ranchero.com/">https://ranchero.com/</a>"#)
+    }
+
+    @Test("hmacUsingSHA1 matches upstream RSCore hex output")
+    func hmacUsingSHA1() {
+        #expect("what do ya want for nothing?".hmacUsingSHA1(key: "Jefe") == "effcdf6ae5eb2fa2d27416d5f184df9c259a7c79")
+        #expect("https://example.com/article".hmacUsingSHA1(key: "") == "7161205f3742a0ba9c0920532cae6983e85d27e5")
+    }
+
+    @Test("strippingHTTPOrHTTPSScheme removes only web URL schemes")
+    func strippingHTTPOrHTTPS() {
+        #expect("http://ranchero.com/".strippingHTTPOrHTTPSScheme == "ranchero.com/")
+        #expect("https://ranchero.com/".strippingHTTPOrHTTPSScheme == "ranchero.com/")
+        #expect("example://ranchero.com/".strippingHTTPOrHTTPSScheme == "example://ranchero.com/")
     }
 }

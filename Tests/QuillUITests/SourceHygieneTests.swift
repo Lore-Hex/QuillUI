@@ -224,6 +224,54 @@ struct SourceHygieneTests {
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
 
+    @Test("AppKit umbrella targets carry GTK importer settings")
+    func appKitUmbrellaTargetsCarryGTKImporterSettings() throws {
+        let root = try packageRoot()
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        let snippets = [
+            """
+            name: "QuillWebKit",
+            dependencies: quillWebKitDependencies,
+            path: "Sources/QuillWebKit",
+            swiftSettings: appSwiftSettings
+            """,
+            """
+            name: "WebKit",
+            dependencies: ["QuillWebKit"],
+            path: "Sources/WebKitShim",
+            swiftSettings: appSwiftSettings
+            """,
+            """
+            name: "QuillShims",
+            dependencies: quillShimsDependencies,
+            swiftSettings: appSwiftSettings
+            """,
+            """
+            name: "Cocoa",
+            dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"],
+            path: "Sources/CocoaShim",
+            swiftSettings: appSwiftSettings
+            """,
+            """
+            name: "SafariServices",
+            dependencies: ["QuillFoundation", "QuillUIKit", "AppKit"],
+            path: "Sources/SafariServicesShim",
+            swiftSettings: appSwiftSettings
+            """,
+            """
+            name: "Magnet",
+            dependencies: ["AppKit", "QuillKit"],
+            path: "Sources/Magnet",
+            swiftSettings: appSwiftSettings
+            """,
+        ]
+
+        for snippet in snippets {
+            #expect(manifest.contains(snippet), "Missing appSwiftSettings manifest snippet:\n\(snippet)")
+        }
+    }
+
     @Test("IceCubes Env target keeps UIKit shim dependency")
     func iceCubesEnvTargetKeepsUIKitShimDependency() throws {
         let root = try packageRoot()
@@ -691,6 +739,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"),
             encoding: .utf8
         )
+        let swiftOpenUIAlignment = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Layout/Alignment.swift"),
+            encoding: .utf8
+        )
 
         #expect(manifest.contains("name: \"QuillSwiftUICompatibility\""))
         #expect(manifest.contains("\"QuillFoundation\",\n    \"QuillSwiftUICompatibility\","))
@@ -707,7 +759,10 @@ struct SourceHygieneTests {
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
-        #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
+        #expect(!compatibility.contains("static var firstTextBaseline"))
+        #expect(!compatibility.contains("static var lastTextBaseline"))
+        #expect(swiftOpenUIAlignment.contains("case firstTextBaseline"))
+        #expect(swiftOpenUIAlignment.contains("case lastTextBaseline"))
         #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))

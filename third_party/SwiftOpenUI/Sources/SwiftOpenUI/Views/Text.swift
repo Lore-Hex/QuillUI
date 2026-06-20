@@ -30,6 +30,13 @@ public struct Text {
         self.runs = [Run(text: resolved)]
     }
 
+    public init(_ content: String, comment: String) {
+        _ = comment
+        let resolved = quillResolveLocalizedString(content)
+        self.content = resolved
+        self.runs = [Run(text: resolved)]
+    }
+
     public init(_ content: AttributedString) {
         let resolved = String(content.characters)
         self.content = resolved

@@ -1908,9 +1908,9 @@ extension HStack: WinRenderable {
         // Map SwiftOpenUI VerticalAlignment to cross-axis int
         let crossAlign: Int
         switch alignment {
-        case .top:    crossAlign = 0
+        case .top, .firstTextBaseline: crossAlign = 0
         case .center: crossAlign = 1
-        case .bottom: crossAlign = 2
+        case .bottom, .lastTextBaseline: crossAlign = 2
         }
 
         let info = StackLayoutInfo(
@@ -9936,9 +9936,9 @@ private func safeAreaCrossAlignY(alignment: SafeAreaInsetAlignment,
     case .horizontal: vAlign = .center
     }
     switch vAlign {
-    case .top:    return 0
+    case .top, .firstTextBaseline: return 0
     case .center: return (containerHeight - insetHeight) / 2
-    case .bottom: return containerHeight - insetHeight
+    case .bottom, .lastTextBaseline: return containerHeight - insetHeight
     }
 }
 

@@ -361,6 +361,9 @@ products.append(.executable(name: "quill-wireguard-qt", targets: ["QuillWireGuar
 // `quill-netnewswire` stays in the canonical app product roster even when the
 // upstream NetNewsWire tree is absent because it is backed by the self-contained
 // QuillNetNewsWireCore Foundation/XMLParser reader.
+if nnwUpstreamEnabled {
+    products.append(.executable(name: "quill-netnewswire-upstream", targets: ["QuillNetNewsWireUpstream"]))
+}
 
 // SwiftData stays cross-platform: generated packages can depend on
 // this product explicitly, while Apple's SDK module remains available
@@ -418,7 +421,6 @@ products += [
     .library(name: "Carbon", targets: ["Carbon"]),
     .library(name: "CoreGraphics", targets: ["CoreGraphics"]),
     .library(name: "Security", targets: ["Security"]),
-    .library(name: "CryptoKit", targets: ["CryptoKit"]),
     .library(name: "CoreImage", targets: ["CoreImage"]),
     .library(name: "AVFoundation", targets: ["AVFoundation"]),
     .library(name: "AVKit", targets: ["AVKit"]),
@@ -451,6 +453,8 @@ products += [
     .library(name: "LRUCache", targets: ["LRUCache"]),
     .library(name: "OllamaKit", targets: ["OllamaKit"]),
     .library(name: "Sparkle", targets: ["Sparkle"]),
+    .library(name: "CrashReporter", targets: ["CrashReporter"]),
+    .library(name: "HTMLMetadata", targets: ["HTMLMetadata"]),
     .library(name: "IOKit", targets: ["IOKit"]),
     .library(name: "COSUnfairLock", targets: ["COSUnfairLock"]),
     .library(name: "NaturalLanguage", targets: ["NaturalLanguage"]),
@@ -489,6 +493,7 @@ products += [
     .library(name: "Lottie", targets: ["Lottie"]),
     .library(name: "TdBinding", targets: ["TdBinding"]),
     .library(name: "UserNotifications", targets: ["UserNotifications"]),
+    .library(name: "WidgetKit", targets: ["WidgetKit"]),
     .library(name: "CoreServices", targets: ["CoreServices"]),
     .library(name: "LocalAuthentication", targets: ["LocalAuthentication"]),
     .library(name: "Zip", targets: ["Zip"])
@@ -499,9 +504,11 @@ products += [
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage",
+    "UniformTypeIdentifiers", "CoreSpotlight", "CoreTransferable",
     // NSBitmapImageRep's real raster encode (rung 4) goes through gdk-pixbuf.
     "CGdkPixbuf",
 ]
+let rsWebShimDependencies: [Target.Dependency] = ["QuillRSCoreShim", "AppKit"]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
 // UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
 // it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
@@ -518,6 +525,7 @@ let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
+let rsWebShimDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation"]
 let quillUIKitDependencies: [Target.Dependency] = ["QuillFoundation", "QuillKit"]
 let uiKitShimDependencies: [Target.Dependency] =
@@ -609,12 +617,17 @@ let quillSwiftTestingAppleOverlaySwiftSettings: [SwiftSetting] = appSwiftSetting
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
 // QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
 // (the os shadow target on Linux), same as Articles' AuthorCache.
-let quillRSCoreShimDependencies: [Target.Dependency] = ["QuillFoundation", "os"]
+let quillRSCoreShimDependencies: [Target.Dependency] = ["QuillFoundation", "CryptoKit", "os"]
+products.append(.library(name: "CryptoKit", targets: ["CryptoKit"]))
 let swiftUIIntrospectTargetDependencies: [Target.Dependency] = ["SwiftUI"]
+let rsTreeDependencies: [Target.Dependency] = ["AppKit", "QuillRSTree"]
+let quillRSTreeTestDependencies: [Target.Dependency] = ["AppKit", "QuillRSTree", "RSTree"]
 #else
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
 let quillRSCoreShimDependencies: [Target.Dependency] = []
 let swiftUIIntrospectTargetDependencies: [Target.Dependency] = []
+let rsTreeDependencies: [Target.Dependency] = ["QuillRSTree"]
+let quillRSTreeTestDependencies: [Target.Dependency] = ["QuillRSTree", "RSTree"]
 #endif
 
 // QuillIceCubesCore consumes the real vendored Models when present (gtk-Linux);
@@ -695,7 +708,7 @@ let quillLinuxShimTestDependencies: [Target.Dependency] = [
     "AVFoundation", "AudioToolbox", "Speech", "ApplicationServices",
     "ServiceManagement", "Alamofire", "MarkdownUI", "Splash",
     "ActivityIndicatorView", "ButtonKit", "WrappingHStack", "Vortex",
-    "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine",
+    "KeyboardShortcuts", "PhotosUI", "Magnet", "Combine", "SafariServices",
     "OllamaKit", "Sparkle", "IOKit", "CoreSpotlight", "Vision", "KeychainSwift"
 ]
 let quillLinuxCompatibilityModuleTestDependencies: [Target.Dependency] = [
@@ -1083,12 +1096,14 @@ var targets: [Target] = [
     .target(
         name: "QuillWebKit",
         dependencies: quillWebKitDependencies,
-        path: "Sources/QuillWebKit"
+        path: "Sources/QuillWebKit",
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "WebKit",
         dependencies: ["QuillWebKit"],
-        path: "Sources/WebKitShim"
+        path: "Sources/WebKitShim",
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "JavaScriptCore",
@@ -1122,20 +1137,22 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillShims",
-        dependencies: quillShimsDependencies
+        dependencies: quillShimsDependencies,
+        swiftSettings: appSwiftSettings
     ),
     .target(
         name: "KeychainSwift",
         dependencies: [],
         path: "Sources/KeychainSwift"
     ),
-    // RSTree lives in-tree (Sources/RSTree) so its target stays here
-    // regardless of which upstream is fetched.
+    // Upstream-facing RSTree module name; re-exports the vendored
+    // QuillRSTree implementation so imported NetNewsWire source keeps
+    // its original `import RSTree`.
     .target(
         name: "RSTree",
-        dependencies: ["QuillShims"],
+        dependencies: rsTreeDependencies,
         path: "Sources/RSTree",
-        swiftSettings: nnwSwiftSettings
+        swiftSettings: appSwiftSettings
     ),
     // CYCLE-BREAK: these are deps of QuillShims (Linux block) so they
     // can't depend on QuillShims back. Their *.swift sources have been
@@ -1265,7 +1282,7 @@ var targets: [Target] = [
     // resolves to it verbatim. Grows toward real RSWeb as Account needs more.
     .target(
         name: "RSWeb",
-        dependencies: ["QuillRSCoreShim"],
+        dependencies: rsWebShimDependencies,
         path: "Sources/QuillRSWebShim",
         swiftSettings: appSwiftSettings
     ),
@@ -1576,7 +1593,7 @@ if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "RSCore",
-            dependencies: ["QuillRSCoreShim", "UIKit"],
+            dependencies: ["QuillRSCoreShim", "AppKit", "UIKit"],
             path: "Sources/RSCoreShimModule",
             swiftSettings: appSwiftSettings
         ),
@@ -1643,6 +1660,12 @@ if nnwUpstreamEnabled {
 if nnwUpstreamEnabled {
     targets += [
         .target(
+            name: "RSCoreResources",
+            dependencies: ["AppKit", "WebKit"],
+            path: "Sources/RSCoreResourcesShim",
+            swiftSettings: appSwiftSettings
+        ),
+        .target(
             name: "Images",
             // NNW's Account compiles as the NNWAccount target (the bare
             // "Account" belongs to the IceCubes lane); this in-repo shim
@@ -1657,49 +1680,36 @@ if nnwUpstreamEnabled {
     targets += [
         .target(
             name: "NetNewsWireSharedCore",
-            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "ArticlesDatabase", "Images", "QuillShims", "RSCore", "RSParser", "RSTree", "SwiftUI", "UIKit"],
+            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "ArticlesDatabase", "CoreServices", "CoreSpotlight", "Images", "Intents", "QuillShims", "RSCore", "RSParser", "RSTree", "Secrets", "SwiftUI", "UIKit", "UniformTypeIdentifiers", "WebKit", "WidgetKit"],
             path: ".upstream/netnewswire/Shared",
             exclude: [
-                "Activity/ActivityManager.swift",
-                "Article Extractor/ArticleExtractor.swift",
-                "Article Rendering/ArticleRenderer.swift",
-                "Article Rendering/WebViewConfiguration.swift",
                 "DefaultAccountNames.xcstrings",
                 "Localizable.xcstrings",
-                "Article Rendering/core.css",
-                "Article Rendering/main.js",
-                "Article Rendering/newsfoot.js",
-                "Article Rendering/stylesheet.css",
-                "Article Rendering/template.html",
-                "ArticleStyles/ArticleTheme.swift",
-                "ArticleStyles/ArticleThemeDownloader.swift",
-                "ArticleStyles/ArticleThemesManager.swift",
-                "Commands/DeleteCommand.swift",
                 "ExtensionPoints",
-                "Extensions/IconImageView.swift",
-                "Extensions/NSAttributedString+Extensions.swift",
-                "Resources",
                 "ShareExtension/SafariExt.js",
-                "Timeline/FetchRequestOperation.swift",
-                "Timeline/FetchRequestQueue.swift",
-                "Tree",
-                "Widget/WidgetDataDecoder.swift",
-                "Widget/WidgetDataEncoder.swift",
             ],
             sources: [
                 "AccountType+Helpers.swift",
                 "AccountStats/AccountStatsViewModel.swift",
-                "ActivityLog/ActivityLogViewModel.swift",
+                "Activity/ActivityManager.swift",
                 "Activity/ActivityType.swift",
+                "ActivityLog/ActivityLogViewModel.swift",
                 "AppNotifications.swift",
                 "Assets.swift",
+                "Article Extractor/ArticleExtractor.swift",
                 "Article Extractor/ExtractedArticle.swift",
+                "Article Rendering/ArticleRenderer.swift",
                 "Article Rendering/ArticleRenderingSpecialCases.swift",
                 "Article Rendering/ArticleTextSize.swift",
+                "Article Rendering/WebViewConfiguration.swift",
+                "ArticleStyles/ArticleTheme.swift",
                 "ArticleStyles/ArticleTheme+Notifications.swift",
+                "ArticleStyles/ArticleThemeDownloader.swift",
                 "ArticleSpecifier.swift",
                 "ArticleStyles/ArticleThemePlist.swift",
+                "ArticleStyles/ArticleThemesManager.swift",
                 "Commands/MarkCommandValidationStatus.swift",
+                "Commands/DeleteCommand.swift",
                 "Commands/MarkStatusCommand.swift",
                 "CurrentActivity/CurrentActivityViewModel.swift",
                 "Dinosaurs/DinosaursViewModel.swift",
@@ -1708,12 +1718,15 @@ if nnwUpstreamEnabled {
                 "Extensions/AddFeedDefaultContainer.swift",
                 "Extensions/CacheCleaner.swift",
                 "Extensions/Node+Extensions.swift",
+                "Extensions/NSAttributedString+Extensions.swift",
+                "Extensions/IconImageView.swift",
                 "Extensions/RSImage+Extensions.swift",
                 "Extensions/SmallIconProvider.swift",
                 "Exporters/OPMLExporter.swift",
                 "HelpURL.swift",
                 "IconImageCache.swift",
                 "Importers/DefaultFeedsImporter.swift",
+                "QuillSupport/NetNewsWireResource.swift",
                 "Settings/AddCloudKitAccount.swift",
                 "ShareExtension/ExtensionContainers.swift",
                 "ShareExtension/ExtensionContainersFile.swift",
@@ -1731,7 +1744,11 @@ if nnwUpstreamEnabled {
                 "SmartFeeds/TodayFeedDelegate.swift",
                 "SmartFeeds/UnreadFeed.swift",
                 "Timeline/ArticleArray.swift",
+                "Timeline/FetchRequestOperation.swift",
+                "Timeline/FetchRequestQueue.swift",
                 "Timeline/ArticleSorter.swift",
+                "Tree/FolderTreeControllerDelegate.swift",
+                "Tree/SidebarTreeControllerDelegate.swift",
                 "Timer/AccountRefreshTimer.swift",
                 "Timer/ArticleStatusSyncTimer.swift",
                 "Timer/RefreshInterval.swift",
@@ -1739,9 +1756,207 @@ if nnwUpstreamEnabled {
                 "UserNotifications/UserNotificationManager.swift",
                 "Widget/WidgetData.swift",
                 "Widget/WidgetDataDecoder.swift",
+                "Widget/WidgetDataEncoder.swift",
                 "Widget/WidgetDeepLinks.swift",
             ],
-            resources: [.process("Importers/DefaultFeeds.opml")],
+            resources: [
+                .process("Article Rendering/core.css"),
+                .process("Article Rendering/main.js"),
+                .process("Article Rendering/newsfoot.js"),
+                .process("Article Rendering/stylesheet.css"),
+                .process("Article Rendering/template.html"),
+                .process("Importers/DefaultFeeds.opml"),
+                .process("Resources/ContentRules.json"),
+                .process("Resources/DetailKeyboardShortcuts.plist"),
+                .process("Resources/GlobalKeyboardShortcuts.plist"),
+                .process("Resources/SidebarKeyboardShortcuts.plist"),
+                .process("Resources/TimelineKeyboardShortcuts.plist"),
+            ],
+            swiftSettings: nnwSwiftSettings
+        ),
+        .target(
+            name: "NetNewsWireMacCore",
+            dependencies: ["AppKit", "NetNewsWireContext", "NetNewsWireSharedCore", "NNWAccount", "ActivityLog", "Articles", "CrashReporter", "ErrorLog", "HTMLMetadata", "Images", "RSCore", "RSCoreObjC", "RSCoreResources", "RSWeb", "RSTree", "SafariServices", "Secrets", "Sparkle", "os"],
+            path: ".upstream/netnewswire/Mac",
+            exclude: [
+                "About/AboutWindowController.xib",
+                "ActivityLog/Base.lproj",
+                "ActivityLog/mul.lproj",
+                "Base.lproj",
+                "CrashReporter/CrashReporterWindow.xib",
+                "ErrorLog/Base.lproj",
+                "ErrorLog/mul.lproj",
+                "Inspector/Inspector.storyboard",
+                "MainWindow/Detail/blank.html",
+                "MainWindow/Detail/main_mac.js",
+                "MainWindow/Detail/page.html",
+                "MainWindow/NNW3/NNW3OpenPanelAccessoryView.xib",
+                "MainWindow/OPML/ExportOPMLSheet.xib",
+                "MainWindow/OPML/ImportOPMLSheet.xib",
+                "MainWindow/Timeline/TimelineTableView.xib",
+                "QuillSupport/ArticleRendererSupport.swift",
+                "QuillSupport/ScriptingAppDelegateSupport.swift",
+                "QuillSupport/ScriptingMainWindowControllerSupport.swift",
+                "QuillSupport/SharingServiceSupport.swift",
+                "QuillSupport/TimelineSupport.swift",
+                "Resources/Credits.rtf",
+                "Resources/Info.plist",
+                "Resources/NetNewsWire-dev.entitlements",
+                "Resources/NetNewsWire.entitlements",
+                "Resources/NetNewsWire.provisionprofile",
+                "Resources/NetNewsWire.sdef",
+                "Resources/container-migration.plist",
+                "Resources/org.sparkle-project.Downloader.xpc",
+                "Resources/org.sparkle-project.InstallerConnection.xpc",
+                "Resources/org.sparkle-project.InstallerLauncher.xpc",
+                "Resources/org.sparkle-project.InstallerStatus.xpc",
+                "SafariExtension/Base.lproj",
+                "SafariExtension/Info.plist",
+                "SafariExtension/Subscribe_to_Feed.entitlements",
+                "SafariExtension/ToolbarItemIcon.pdf",
+                "SafariExtension/netnewswire-subscribe-to-feed.js",
+                "ShareExtension/Info.plist",
+                "ShareExtension/ShareExtension.entitlements",
+                "ShareExtension/icon.icns",
+                "NSOpenPanel+Extras.m",
+                "Preferences/Accounts/AccountsAddCloudKit.xib",
+                "Preferences/Accounts/AccountsAddLocal.xib",
+                "Preferences/Accounts/AccountsFeedbin.xib",
+                "Preferences/Accounts/AccountsNewsBlur.xib",
+                "Preferences/Accounts/AccountsReaderAPI.xib",
+            ],
+            sources: [
+                "About/AboutWindowController.swift",
+                "About/LinkLabel.swift",
+                "About/LinksTextView.swift",
+                "AccountStats/AccountStatsWindowController.swift",
+                "ActivityLog/ActivityLogWindowController.swift",
+                "AppDelegate.swift",
+                "AppDefaults.swift",
+                "Browser.swift",
+                "CloudKitStats/CloudKitStatsLayout.swift",
+                "CloudKitStats/CloudKitStatsToolbarView.swift",
+                "CloudKitStats/CloudKitStatsViewController.swift",
+                "CloudKitStats/CloudKitStatsWindowController.swift",
+                "CloudKitStats/CleanUp/CloudKitStatsCleanUpContentView.swift",
+                "CloudKitStats/CleanUp/CloudKitStatsCleanUpStatusView.swift",
+                "CloudKitStats/CleanUp/CloudKitStatsCleanUpViewController.swift",
+                "CloudKitStats/Scan/CloudKitStatsScanContentView.swift",
+                "CloudKitStats/Scan/CloudKitStatsScanStatusView.swift",
+                "CloudKitStats/Scan/CloudKitStatsScanViewController.swift",
+                "CrashReporter/CrashReporter.swift",
+                "CrashReporter/CrashReportWindowController.swift",
+                "CurrentActivity/CurrentActivityWindowController.swift",
+                "Dinosaurs/DinosaursWindowController.swift",
+                "ErrorHandler.swift",
+                "ErrorLog/ErrorLogWindowController.swift",
+                "Inspector/BuiltinSmartFeedInspectorViewController.swift",
+                "Inspector/FeedInspectorViewController.swift",
+                "Inspector/FolderInspectorViewController.swift",
+                "Inspector/InspectorWindowController.swift",
+                "Inspector/NothingInspectorViewController.swift",
+                "LogTextStyle.swift",
+                "MainWindow/ArticleExtractorButton.swift",
+                "MainWindow/IconView.swift",
+                "MainWindow/SharingServiceDelegate.swift",
+                "MainWindow/SharingServicePickerDelegate.swift",
+                "MainWindow/Detail/DetailViewController.swift",
+                "MainWindow/Detail/DetailWebView.swift",
+                "MainWindow/Detail/DetailWebViewController.swift",
+                "MainWindow/Detail/DetailStatusBarView.swift",
+                "MainWindow/Detail/DetailContainerView.swift",
+                "MainWindow/Detail/DetailIconSchemeHandler.swift",
+                "MainWindow/Detail/DetailWindowState.swift",
+                "MainWindow/Detail/Keyboard/DetailKeyboardDelegate.swift",
+                "MainWindow/AddFolder/AddFolderWindowController.swift",
+                "MainWindow/AddFeed/AddFeedController.swift",
+                "MainWindow/AddFeed/AddFeedWindowController.swift",
+                "MainWindow/AddFeed/FolderTreeMenu.swift",
+                "MainWindow/OPML/ExportOPMLWindowController.swift",
+                "MainWindow/OPML/ImportOPMLWindowController.swift",
+                "MainWindow/NNW3/NNW3Document.swift",
+                "MainWindow/NNW3/NNW3ImportController.swift",
+                "MainWindow/NNW3/NNW3OpenPanelAccessoryViewController.swift",
+                "MainWindow/Keyboard/MainWindowKeyboardHandler.swift",
+                "MainWindow/MainWindowController.swift",
+                "MainWindow/MainWindowState.swift",
+                "MainWindow/Sidebar/SidebarWindowState.swift",
+                "MainWindow/Sidebar/Cell/SidebarCell.swift",
+                "MainWindow/Sidebar/Cell/SidebarCellAppearance.swift",
+                "MainWindow/Sidebar/Cell/SidebarCellLayout.swift",
+                "MainWindow/Sidebar/Keyboard/SidebarKeyboardDelegate.swift",
+                "MainWindow/Sidebar/PasteboardFeed.swift",
+                "MainWindow/Sidebar/PasteboardFolder.swift",
+                "MainWindow/Sidebar/SidebarDeleteItemsAlert.swift",
+                "MainWindow/Sidebar/SidebarOutlineDataSource.swift",
+                "MainWindow/Sidebar/SidebarOutlineView.swift",
+                "MainWindow/Sidebar/SidebarViewController.swift",
+                "MainWindow/Sidebar/SidebarViewController+ContextualMenus.swift",
+                "MainWindow/Sidebar/Renaming/RenameWindowController.swift",
+                "MainWindow/Sidebar/SidebarStatusBarView.swift",
+                "MainWindow/Sidebar/UnreadCountView.swift",
+                "MainWindow/Timeline/Cell/TimelineCellAppearance.swift",
+                "MainWindow/Timeline/Cell/TimelineCellData.swift",
+                "MainWindow/Timeline/Cell/TimelineCellLayout.swift",
+                "MainWindow/Timeline/Cell/TimelineTableCellView.swift",
+                "MainWindow/Timeline/Cell/UnreadIndicatorView.swift",
+                "MainWindow/Timeline/ArticlePasteboardWriter.swift",
+                "MainWindow/Timeline/Keyboard/TimelineKeyboardDelegate.swift",
+                "MainWindow/Timeline/TimelineContainerView.swift",
+                "MainWindow/Timeline/TimelineContainerViewController.swift",
+                "MainWindow/Timeline/TimelineTableRowView.swift",
+                "MainWindow/Timeline/TimelineTableView.swift",
+                "MainWindow/Timeline/TimelineViewController.swift",
+                "MainWindow/Timeline/TimelineViewController+ContextualMenus.swift",
+                "MainWindow/Timeline/TimelineWindowState.swift",
+                "Preferences/Advanced/AdvancedPreferencesViewController.swift",
+                "Preferences/Accounts/AccountCell.swift",
+                "Preferences/Accounts/AccountsAddCloudKitWindowController.swift",
+                "Preferences/Accounts/AccountsAddLocalWindowController.swift",
+                "Preferences/Accounts/AccountsDetailView.swift",
+                "Preferences/Accounts/AccountsDetailViewController.swift",
+                "Preferences/Accounts/AccountsFeedbinWindowController.swift",
+                "Preferences/Accounts/AccountsNewsBlurWindowController.swift",
+                "Preferences/Accounts/AccountsPreferencesViewController.swift",
+                "Preferences/Accounts/AccountsReaderAPIWindowController.swift",
+                "Preferences/Accounts/AddAccountHelpView.swift",
+                "Preferences/Accounts/AddAccountsView.swift",
+                "Preferences/General/GeneralPrefencesViewController.swift",
+                "Preferences/PreferencesControlsBackgroundView.swift",
+                "Preferences/PreferencesTableViewBackgroundView.swift",
+                "Preferences/PreferencesWindowController.swift",
+                "QuillSupport/AccountTypeLogColor.swift",
+                "QuillSupport/AppDelegateSupport.swift",
+                "QuillSupport/MainWindowArticleSupport.swift",
+                "QuillSupport/NSOpenPanelExtrasSupport.swift",
+                "QuillSupport/OPMLSupport.swift",
+                "QuillSupport/SendToCommandSupport.swift",
+                "QuillSupport/NetNewsWireLinuxMainWindowHost.swift",
+                "SafariExtension/SafariExtensionHandler.swift",
+                "SafariExtension/SafariExtensionViewController.swift",
+                "ShareExtension/ShareViewController.swift",
+                "Scripting/Account+Scriptability.swift",
+                "Scripting/AppDelegate+Scriptability.swift",
+                "Scripting/Article+Scriptability.swift",
+                "Scripting/Author+Scriptability.swift",
+                "Scripting/Feed+Scriptability.swift",
+                "Scripting/Folder+Scriptability.swift",
+                "Scripting/MainWindowController+Scriptability.swift",
+                "Scripting/NSApplication+Scriptability.swift",
+                "Scripting/NSScriptCommand+NetNewsWire.swift",
+                "Scripting/ScriptingObject.swift",
+                "Scripting/ScriptingObjectContainer.swift",
+            ],
+            resources: [
+                .copy("Resources/Assets.xcassets"),
+                .process("Resources/KeyboardShortcuts/KeyboardShortcuts.html"),
+            ],
+            swiftSettings: nnwSwiftSettings
+        ),
+        .executableTarget(
+            name: "QuillNetNewsWireUpstream",
+            dependencies: ["AppKit", "NetNewsWireMacCore", "QuillAppKitGTK"],
+            path: "Sources/QuillNetNewsWireUpstream",
             swiftSettings: nnwSwiftSettings
         )
     ]
@@ -2251,6 +2466,7 @@ let signalAppleFrameworkShims = [
     "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
     "UserNotifications", "SystemConfiguration", "StoreKit", "NaturalLanguage",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
+    "WidgetKit",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
     // Telegram-Mac app-target surface (scripts/generated-telegram-app-source-check.sh).
@@ -2972,9 +3188,19 @@ targets.append(contentsOf: [
     // common AppKit-adjacent Apple modules, so source that relies on Cocoa as
     // an umbrella import recompiles unchanged.
     // so unmodified macOS app source that `import Cocoa` recompiles unchanged.
-    .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
+    .target(
+        name: "Cocoa",
+        dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"],
+        path: "Sources/CocoaShim",
+        swiftSettings: appSwiftSettings
+    ),
     .target(name: "MessageUI", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/MessageUIShim"),
-    .target(name: "SafariServices", dependencies: ["QuillFoundation", "QuillUIKit"], path: "Sources/SafariServicesShim"),
+    .target(
+        name: "SafariServices",
+        dependencies: ["QuillFoundation", "QuillUIKit", "AppKit"],
+        path: "Sources/SafariServicesShim",
+        swiftSettings: appSwiftSettings
+    ),
     .target(name: "MobileCoreServices", dependencies: ["QuillFoundation"], path: "Sources/MobileCoreServicesShim"),
     .target(name: "RevenueCat", dependencies: [], path: "Sources/RevenueCat"),
     .target(name: "WishKit", dependencies: ["SwiftUI"], path: "Sources/WishKit"),
@@ -3034,7 +3260,12 @@ targets.append(contentsOf: [
     // BonMot's StringStyle stores UIFont/UIColor/NSTextAlignment -- hence the
     // dependency on the UIKit umbrella (same pattern as PureLayout above).
     .target(name: "BonMot", dependencies: ["UIKit"], path: "Sources/BonMot"),
-    .target(name: "Magnet", dependencies: ["AppKit", "QuillKit"], path: "Sources/Magnet"),
+    .target(
+        name: "Magnet",
+        dependencies: ["AppKit", "QuillKit"],
+        path: "Sources/Magnet",
+        swiftSettings: appSwiftSettings
+    ),
     .target(name: "Nuke", dependencies: [], path: "Sources/Nuke"),
     .target(name: "NukeUI", dependencies: ["SwiftUI", "Nuke"], path: "Sources/NukeUI"),
     .target(name: "EmojiText", dependencies: ["SwiftUI", "QuillFoundation"], path: "Sources/EmojiText"),
@@ -3054,6 +3285,9 @@ targets.append(contentsOf: [
     // Combine-dependent shims.
     .target(name: "OllamaKit", dependencies: ["Combine", "QuillKit"], path: "Sources/OllamaKit"),
     .target(name: "Sparkle", dependencies: ["Combine", "QuillKit"], path: "Sources/Sparkle"),
+    .target(name: "CrashReporter", dependencies: [], path: "Sources/CrashReporterShim"),
+    .target(name: "HTMLMetadata", dependencies: ["QuillRSCoreShim"], path: "Sources/HTMLMetadataShim"),
+    .target(name: "RSCoreObjC", dependencies: [], path: "Sources/RSCoreObjCShim"),
     // IOKit: header-only C target. `module.modulemap` exposes
     // `IOKit` and its `IOKit.usb` submodule; `dummy.c` is an empty
     // translation unit so SwiftPM treats this as a buildable C
@@ -3206,13 +3440,14 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics"],
+            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "UniformTypeIdentifiers"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
         // (appKitShadowDependencies) and the Cocoa umbrella below now
         // re-export. The default/GTK graph gets these from the
         // signalAppleFrameworkShims loop, which this replacement list bypasses.
+        .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
         .target(name: "CoreGraphics", dependencies: ["QuillKit", "QuillFoundation"], path: "Sources/CoreGraphics"),
         .target(name: "Metal", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/Metal"),
         .target(name: "QuartzCore", dependencies: ["QuillFoundation", "Metal"], path: "Sources/AppleFrameworkShims/QuartzCore"),
@@ -3226,7 +3461,8 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillAppKit",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(gdkPixbufSwiftImporterFlags)
             ]
         ),
         // `import Cocoa` umbrella (re-exports AppKit + common AppKit-adjacent
@@ -3234,7 +3470,14 @@ if quillUILinuxBuildBackend == .qt {
         // recompiles in the qt graph — needed for the literal WireGuard VC
         // render conformance below.
         // Mirrors the default/GTK-graph Cocoa target.
-        .target(name: "Cocoa", dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"], path: "Sources/CocoaShim"),
+        .target(
+            name: "Cocoa",
+            dependencies: ["AppKit", "CoreGraphics", "CoreImage", "CoreText", "QuartzCore"],
+            path: "Sources/CocoaShim",
+            swiftSettings: [
+                .unsafeFlags(gdkPixbufSwiftImporterFlags)
+            ]
+        ),
         .target(
             name: "CKiwi",
             path: "Sources/CKiwi",
@@ -3494,13 +3737,18 @@ let packageTestTargets: [Target] = {
             #if os(Linux)
             let testDeps: [Target.Dependency] = quillLinuxShimTestDependencies
             #else
-            let testDeps: [Target.Dependency] = ["QuillShims"]
+            let testDeps: [Target.Dependency] = ["QuillShims", "Zip"]
             #endif
             return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
         }(),
         .testTarget(
             name: "QuillAutoLayoutTests",
             dependencies: ["QuillAutoLayout"],
+            swiftSettings: appSwiftSettings
+        ),
+        .testTarget(
+            name: "QuillAppKitTests",
+            dependencies: ["AppKit"],
             swiftSettings: appSwiftSettings
         ),
         .testTarget(
@@ -3654,7 +3902,7 @@ let packageTestTargets: [Target] = {
         // migration will lean on.
         .testTarget(
             name: "QuillRSTreeTests",
-            dependencies: ["QuillRSTree"],
+            dependencies: quillRSTreeTestDependencies,
             swiftSettings: appSwiftSettings
         ),
         // Pins the vendored upstream NetNewsWire ActivityLog module:
@@ -3748,7 +3996,12 @@ let packageTestTargets: [Target] = {
         // through the local QuillNetNewsWireCore reader replacement.
         tests.append(.testTarget(
             name: "NetNewsWireSharedCoreTests",
-            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore", "RSTree", "UserNotifications"],
+            dependencies: ["NNWAccount", "ActivityLog", "AppKit", "Articles", "NetNewsWireContext", "NetNewsWireSharedCore", "RSCore", "RSTree", "UserNotifications", "WebKit", "WidgetKit"],
+            swiftSettings: nnwSwiftSettings
+        ))
+        tests.append(.testTarget(
+            name: "NetNewsWireMacCoreTests",
+            dependencies: ["ActivityLog", "AppKit", "Images", "NNWAccount", "NetNewsWireContext", "NetNewsWireMacCore", "NetNewsWireSharedCore", "RSCore", "RSCoreResources", "RSTree", "SafariServices"],
             swiftSettings: nnwSwiftSettings
         ))
     }

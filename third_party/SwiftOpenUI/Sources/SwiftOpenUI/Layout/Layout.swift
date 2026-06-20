@@ -234,11 +234,11 @@ public func computeHStackLayout(
     let placements = childSizes.map { childSize in
         let y: Double
         switch alignment {
-        case .top:
+        case .top, .firstTextBaseline:
             y = 0
         case .center:
             y = max(0, (containerHeight - childSize.height) / 2)
-        case .bottom:
+        case .bottom, .lastTextBaseline:
             y = max(0, containerHeight - childSize.height)
         }
 

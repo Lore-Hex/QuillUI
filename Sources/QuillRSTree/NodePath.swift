@@ -9,7 +9,7 @@
 import Foundation
 
 @MainActor public struct NodePath {
-	let components: [Node]
+	public let components: [Node]
 
 	public init(node: Node) {
 

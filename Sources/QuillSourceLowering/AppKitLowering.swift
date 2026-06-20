@@ -871,7 +871,7 @@ public struct HierarchyMap {
 }
 
 /// Lightweight pre-pass visitor: records each class's simple name → its immediate
-/// superclass simple name, and which classes declare `@objc` action methods.
+/// superclass simple name, and which classes declare target-action methods.
 /// Cheaper than the full `ActionMethodCollector` (no per-method param capture);
 /// it only needs the boolean "has any @objc action" and the inheritance edge.
 private final class HierarchyScanner: SyntaxVisitor {
@@ -945,17 +945,11 @@ private final class HierarchyScanner: SyntaxVisitor {
            node.modifiers.contains(where: { $0.name.text == "override" }) {
             overriddenSignaturesByClass[owner, default: []].insert(functionSignatureKey(node))
         }
-        // @objc-action witness tracking is class-body only (a protocol requirement
+        // Target-action witness tracking is class-body only (a protocol requirement
         // and a same-name foreign-type extension method are not dispatchable here).
         guard let owner = classStack.last else { return .visitChildren }
-        let isObjc = node.attributes.contains { element in
-            if case .attribute(let attr) = element {
-                return attr.attributeName.trimmedDescription == "objc"
-            }
-            return false
-        }
         // Only 0/1-param actions yield a witness, mirroring emittableActions.
-        if isObjc, node.signature.parameterClause.parameters.count <= 1 {
+        if node.hasTargetActionAttribute, node.signature.parameterClause.parameters.count <= 1 {
             classesWithActions.insert(owner)
         }
         return .visitChildren
@@ -986,7 +980,7 @@ struct ActionMethod {
 }
 
 /// Walks a parsed file and records, per type (qualified name, source order), the
-/// `@objc` methods — the target-action handlers AppKitLowering injects a
+/// `@objc` / `@IBAction` methods — the target-action handlers AppKitLowering injects a
 /// `quillPerform` dispatch for — and each class's immediate superclass (to pick
 /// the override vs. root-conformance shape). Methods inside protocols are skipped
 /// (a protocol requirement is not a dispatchable implementation).
@@ -1066,13 +1060,7 @@ private final class ActionMethodCollector: SyntaxVisitor {
             overriddenSignaturesByType[HierarchyMap.simpleName(owner), default: []]
                 .insert(functionSignatureKey(node))
         }
-        let isObjc = node.attributes.contains { element in
-            if case .attribute(let attr) = element {
-                return attr.attributeName.trimmedDescription == "objc"
-            }
-            return false
-        }
-        guard isObjc else { return .visitChildren }
+        guard node.hasTargetActionAttribute else { return .visitChildren }
         let params = node.signature.parameterClause.parameters.map { p in
             (label: p.firstName.text, type: p.type.trimmedDescription)
         }
@@ -1083,6 +1071,22 @@ private final class ActionMethodCollector: SyntaxVisitor {
         }
         byType[typeName]?.append(ActionMethod(name: node.name.text, params: params))
         return .visitChildren
+    }
+}
+
+private extension FunctionDeclSyntax {
+    var hasTargetActionAttribute: Bool {
+        attributes.contains { element in
+            guard case .attribute(let attr) = element else {
+                return false
+            }
+            switch attr.attributeName.trimmedDescription {
+            case "objc", "IBAction":
+                return true
+            default:
+                return false
+            }
+        }
     }
 }
 

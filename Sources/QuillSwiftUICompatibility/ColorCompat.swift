@@ -53,6 +53,38 @@ extension Color {
         self.init(uiColor)
     }
 
+    /// Bridge CoreGraphics colors into the SwiftUI color value. Handles the
+    /// grayscale and RGBA component layouts real Apple sources commonly pass
+    /// through `CGColor`-backed design-system models.
+    public init(cgColor: CGColor) {
+        let components = cgColor.components ?? []
+        switch components.count {
+        case 2:
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[0]),
+                blue: Double(components[0]),
+                opacity: Double(components[1])
+            )
+        case 3:
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[1]),
+                blue: Double(components[2]),
+                opacity: 1
+            )
+        case 4...:
+            self.init(
+                red: Double(components[0]),
+                green: Double(components[1]),
+                blue: Double(components[2]),
+                opacity: Double(components[3])
+            )
+        default:
+            self = .primary
+        }
+    }
+
     public init(rgba: UInt32) {
         self.init(
             red: Double((rgba >> 24) & 0xff) / 255.0,

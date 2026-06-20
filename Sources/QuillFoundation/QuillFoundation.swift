@@ -787,7 +787,7 @@ public func sysctlbyname(
 // SDWebImage's SDAnimatedImage: UIImage. On Apple, UIImage/NSImage are open too.
 public enum QuillResourceLookup {
     public static let commonImageExtensions: [String] = [
-        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg"
+        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "pdf", "svg"
     ]
 
     public static func path(
@@ -815,6 +815,14 @@ public enum QuillResourceLookup {
             }
         }
 
+        if let assetCatalogPath = pathInAssetCatalog(
+            forResource: name,
+            roots: roots,
+            candidateExtensions: candidateExtensions
+        ) {
+            return assetCatalogPath
+        }
+
         return nil
     }
 
@@ -828,6 +836,21 @@ public enum QuillResourceLookup {
         return FileManager.default.contents(atPath: path)
     }
 
+    public static func colorComponents(forResource name: String) -> [CGFloat]? {
+        guard !name.isEmpty else { return nil }
+
+        for catalog in assetCatalogs(in: resourceRoots()) {
+            guard let colorDirectory = assetDirectory(named: name, in: catalog, suffixes: ["colorset"]) else {
+                continue
+            }
+            if let components = selectedAssetColor(in: colorDirectory) {
+                return components
+            }
+        }
+
+        return nil
+    }
+
     private static func candidateNames(for name: String, extensions: [String]) -> [String] {
         let url = URL(fileURLWithPath: name)
         guard url.pathExtension.isEmpty else { return [name] }
@@ -837,6 +860,297 @@ public enum QuillResourceLookup {
             candidates.append("\(name).\(ext)")
         }
         return candidates
+    }
+
+    private struct AssetCatalogContents: Decodable {
+        struct Entry: Decodable {
+            let filename: String?
+            let scale: String?
+            let size: String?
+            let idiom: String?
+        }
+
+        let images: [Entry]?
+        let symbols: [Entry]?
+
+        var entries: [Entry] {
+            (images ?? []) + (symbols ?? [])
+        }
+    }
+
+    private struct AssetColorCatalogContents: Decodable {
+        struct Entry: Decodable {
+            struct Appearance: Decodable {
+                let appearance: String?
+                let value: String?
+            }
+
+            struct Color: Decodable {
+                struct Components: Decodable {
+                    let red: String?
+                    let green: String?
+                    let blue: String?
+                    let alpha: String?
+                    let white: String?
+                }
+
+                let components: Components?
+                let reference: String?
+            }
+
+            let appearances: [Appearance]?
+            let color: Color?
+        }
+
+        let colors: [Entry]?
+    }
+
+    private static func pathInAssetCatalog(
+        forResource name: String,
+        roots: [URL],
+        candidateExtensions: [String]
+    ) -> String? {
+        let requestedURL = URL(fileURLWithPath: name)
+        let requestedName = requestedURL.pathExtension.isEmpty
+            ? name
+            : requestedURL.deletingPathExtension().lastPathComponent
+        let explicitExtension = requestedURL.pathExtension.lowercased()
+        let allowedExtensions = explicitExtension.isEmpty
+            ? Set((candidateExtensions.isEmpty ? commonImageExtensions : candidateExtensions).map { $0.lowercased() })
+            : Set([explicitExtension])
+
+        guard !requestedName.isEmpty else { return nil }
+
+        for catalog in assetCatalogs(in: roots) {
+            for assetName in assetNames(for: requestedName) {
+                guard let assetDirectory = assetDirectory(named: assetName, in: catalog, suffixes: ["imageset", "symbolset", "appiconset"]) else {
+                    continue
+                }
+                if let selected = selectedAssetFile(in: assetDirectory, allowedExtensions: allowedExtensions) {
+                    return selected.path
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private static func assetNames(for requestedName: String) -> [String] {
+        if requestedName == "NSApplicationIcon" {
+            return ["NSApplicationIcon", "AppIcon"]
+        }
+        return [requestedName]
+    }
+
+    private static func assetCatalogs(in roots: [URL]) -> [URL] {
+        var catalogs: [URL] = []
+        var seen: Set<String> = []
+
+        func append(_ url: URL) {
+            let standardized = url.standardizedFileURL
+            guard seen.insert(standardized.path).inserted else { return }
+            catalogs.append(standardized)
+        }
+
+        for root in roots {
+            if root.pathExtension == "xcassets" {
+                append(root)
+            }
+
+            guard let enumerator = FileManager.default.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]
+            ) else {
+                continue
+            }
+
+            for case let url as URL in enumerator where url.pathExtension == "xcassets" {
+                append(url)
+                enumerator.skipDescendants()
+            }
+        }
+
+        return catalogs
+    }
+
+    private static func assetDirectory(named name: String, in catalog: URL, suffixes: [String]) -> URL? {
+        guard let enumerator = FileManager.default.enumerator(
+            at: catalog,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        let directoryNames = Set(suffixes.map { "\(name).\($0)" })
+        for case let url as URL in enumerator {
+            if directoryNames.contains(url.lastPathComponent) {
+                return url
+            }
+        }
+
+        return nil
+    }
+
+    private static func selectedAssetFile(in directory: URL, allowedExtensions: Set<String>) -> URL? {
+        let contentsURL = directory.appendingPathComponent("Contents.json")
+        if let data = try? Data(contentsOf: contentsURL),
+           let contents = try? JSONDecoder().decode(AssetCatalogContents.self, from: data) {
+            let ranked = contents.entries.compactMap { entry -> (URL, Int)? in
+                guard let filename = entry.filename else { return nil }
+                let url = directory.appendingPathComponent(filename)
+                guard allowedExtensions.contains(url.pathExtension.lowercased()),
+                      FileManager.default.fileExists(atPath: url.path)
+                else {
+                    return nil
+                }
+                return (url, assetEntryRank(entry))
+            }
+            if let selected = ranked.max(by: { lhs, rhs in lhs.1 < rhs.1 })?.0 {
+                return selected
+            }
+        }
+
+        guard let files = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return nil
+        }
+
+        return files
+            .filter { allowedExtensions.contains($0.pathExtension.lowercased()) }
+            .sorted { lhs, rhs in
+                assetFilenameRank(lhs.lastPathComponent) > assetFilenameRank(rhs.lastPathComponent)
+            }
+            .first
+    }
+
+    private static func selectedAssetColor(in directory: URL) -> [CGFloat]? {
+        let contentsURL = directory.appendingPathComponent("Contents.json")
+        guard let data = try? Data(contentsOf: contentsURL),
+              let contents = try? JSONDecoder().decode(AssetColorCatalogContents.self, from: data)
+        else {
+            return nil
+        }
+
+        return (contents.colors ?? [])
+            .compactMap { entry -> ([CGFloat], Int)? in
+                guard let components = components(for: entry.color) else {
+                    return nil
+                }
+                return (components, assetColorAppearanceRank(entry.appearances))
+            }
+            .max(by: { lhs, rhs in lhs.1 < rhs.1 })?
+            .0
+    }
+
+    private static func components(for color: AssetColorCatalogContents.Entry.Color?) -> [CGFloat]? {
+        guard let color else { return nil }
+        if let components = color.components {
+            let alpha = normalizedColorComponent(components.alpha) ?? 1
+            if let white = normalizedColorComponent(components.white) {
+                return [white, white, white, alpha]
+            }
+            guard let red = normalizedColorComponent(components.red),
+                  let green = normalizedColorComponent(components.green),
+                  let blue = normalizedColorComponent(components.blue)
+            else {
+                return nil
+            }
+            return [red, green, blue, alpha]
+        }
+
+        return referencedColorComponents(color.reference)
+    }
+
+    private static func normalizedColorComponent(_ rawValue: String?) -> CGFloat? {
+        guard let rawValue else { return nil }
+        let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let value: Double?
+        if trimmed.lowercased().hasPrefix("0x") {
+            value = UInt64(trimmed.dropFirst(2), radix: 16).map(Double.init)
+        } else if trimmed.hasSuffix("%") {
+            value = Double(trimmed.dropLast()).map { $0 / 100 }
+        } else {
+            value = Double(trimmed)
+        }
+
+        guard let value else { return nil }
+        let normalized = value > 1 ? value / 255 : value
+        return CGFloat(max(0, min(1, normalized)))
+    }
+
+    private static func referencedColorComponents(_ reference: String?) -> [CGFloat]? {
+        switch reference {
+        case "labelColor", "textColor":
+            return [0.12, 0.12, 0.13, 1]
+        case "secondaryLabelColor":
+            return [0.38, 0.38, 0.40, 1]
+        case "tertiaryLabelColor":
+            return [0.56, 0.56, 0.58, 1]
+        case "quaternaryLabelColor":
+            return [0, 0, 0, 0.18]
+        case "textBackgroundColor", "windowBackgroundColor":
+            return [1, 1, 1, 1]
+        default:
+            return nil
+        }
+    }
+
+    private static func assetColorAppearanceRank(_ appearances: [AssetColorCatalogContents.Entry.Appearance]?) -> Int {
+        guard let appearances, !appearances.isEmpty else {
+            return 300
+        }
+        if appearances.contains(where: { $0.appearance == "luminosity" && $0.value == "light" }) {
+            return 250
+        }
+        if appearances.contains(where: { $0.appearance == "luminosity" && $0.value == "dark" }) {
+            return 100
+        }
+        return 200
+    }
+
+    private static func assetEntryRank(_ entry: AssetCatalogContents.Entry) -> Int {
+        assetPixelRank(size: entry.size, scale: entry.scale) + assetScaleRank(entry.scale)
+    }
+
+    private static func assetPixelRank(size: String?, scale: String?) -> Int {
+        guard let size,
+              let firstDimension = size.split(separator: "x").first,
+              let points = Double(firstDimension)
+        else {
+            return 0
+        }
+
+        let multiplier: Double
+        switch scale {
+        case "3x": multiplier = 3
+        case "2x": multiplier = 2
+        default: multiplier = 1
+        }
+
+        return Int(points * multiplier) * 1_000
+    }
+
+    private static func assetScaleRank(_ scale: String?) -> Int {
+        switch scale {
+        case "2x": return 300
+        case "3x": return 200
+        case "1x": return 100
+        default: return 0
+        }
+    }
+
+    private static func assetFilenameRank(_ filename: String) -> Int {
+        if filename.contains("@2x") { return 300 }
+        if filename.contains("@3x") { return 200 }
+        if filename.contains("@1x") { return 100 }
+        return 0
     }
 
     private static func resourceRoots() -> [URL] {
@@ -899,7 +1213,7 @@ public enum QuillImageCompositingOperation: Sendable {
     case sourceOver
 }
 
-open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
+open class RSImage: NSObject, NSSecureCoding, NSCopying, @unchecked Sendable {
     public static var supportsSecureCoding: Bool { true }
 
     public enum ResizingMode: Int, Sendable {
@@ -962,6 +1276,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         public init(textStyle: Any) {}
     }
     public var size: CGSize = CGSize(width: 0, height: 0)
+    public var isTemplate: Bool = false
     /// Raw image bytes when the instance was constructed from
     /// `init?(data:)`. Mirrors the `NSImage(data:)` source-
     /// compatibility shape — readers reach back to the original
@@ -976,6 +1291,15 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// islands that only see QuillFoundation get this passthrough.
     @_disfavoredOverload
     public var tiffRepresentation: Data? { data }
+    public func copy(with zone: NSZone? = nil) -> Any {
+        let image = RSImage()
+        image.size = size
+        image.data = data
+        image.capInsets = capInsets
+        image.resizingMode = resizingMode
+        image.isTemplate = isTemplate
+        return image
+    }
     public func addRepresentation(_ imageRep: Any) { _ = imageRep }
     public func tinted(with: Any) -> RSImage { self }
     public static func image(with data: Data, imageResultBlock: @escaping (RSImage?) -> Void) {
@@ -1149,6 +1473,29 @@ public class RSColor: NSObject, @unchecked Sendable {
         self.init(red: white, green: white, blue: white, alpha: alpha)
     }
 
+    public convenience init?(named name: String) {
+        guard !name.isEmpty else { return nil }
+
+        if let components = QuillResourceLookup.colorComponents(forResource: name),
+           components.count >= 4 {
+            self.init(red: components[0], green: components[1], blue: components[2], alpha: components[3])
+            return
+        }
+
+        if let components = Self.fallbackNamedColorComponents(name) {
+            self.init(red: components[0], green: components[1], blue: components[2], alpha: components[3])
+            return
+        }
+
+        QuillCompatibilityDiagnostics.shared.record(
+            subsystem: "QuillFoundation",
+            operation: "NSColor(named:)",
+            severity: .warning,
+            message: "NSColor(named:) could not find '\(name)' in asset catalogs; returning systemBlue as a compatibility fallback."
+        )
+        self.init(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
+    }
+
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
     /// graphics context. There is no graphics context on Linux (UIGraphicsImageRenderer
     /// is inert), so this is a no-op — UIImage+OWS's solid-color image render degrades
@@ -1237,6 +1584,39 @@ public class RSColor: NSObject, @unchecked Sendable {
         return true
     }
 
+    private static func fallbackNamedColorComponents(_ name: String) -> [CGFloat]? {
+        switch name {
+        case "AccentColor", "primaryAccentColor":
+            return [0.031, 0.416, 0.933, 1]
+        case "secondaryAccentColor":
+            return [0.32, 0.34, 0.90, 1]
+        case "StarColor", "starColor":
+            return [0.976, 0.776, 0.204, 1]
+        case "vibrantTextColor":
+            return [0.12, 0.12, 0.13, 1]
+        case "controlBackgroundColor":
+            return [0.94, 0.94, 0.96, 1]
+        case "iconBackgroundColor", "iconLightBackgroundColor":
+            return [242.0 / 255.0, 242.0 / 255.0, 242.0 / 255.0, 1]
+        case "iconDarkBackgroundColor":
+            return [56.0 / 255.0, 56.0 / 255.0, 56.0 / 255.0, 1]
+        case "fullScreenBackgroundColor":
+            return [0.98, 0.98, 0.99, 1]
+        case "sectionHeaderColor":
+            return [0.56, 0.56, 0.58, 1]
+        case "timelineSeparatorColor":
+            return [0.9, 0.9, 0.9, 1]
+        case "SidebarUnreadCountBackground":
+            return [0, 0, 0, 0.5]
+        case "SidebarUnreadCountText":
+            return [1, 1, 1, 0.9]
+        case "DetailStatusBarBackground":
+            return [0.94, 0.94, 0.94, 1]
+        default:
+            return nil
+        }
+    }
+
     @discardableResult
     public func getHue(
         _ hue: UnsafeMutablePointer<CGFloat>?,
@@ -1260,15 +1640,46 @@ public typealias UIColor = RSColor
 
 public class RSFont: NSObject, @unchecked Sendable {
     public let pointSize: CGFloat
-    public init(pointSize: CGFloat) { self.pointSize = pointSize }
-    public override init() { self.pointSize = 13 }
+    private let quillFontDescriptor: UIFontDescriptor
+
+    public init(pointSize: CGFloat) {
+        self.pointSize = pointSize
+        self.quillFontDescriptor = UIFontDescriptor(pointSize: pointSize)
+        super.init()
+    }
+
+    public override init() {
+        self.pointSize = 13
+        self.quillFontDescriptor = UIFontDescriptor(pointSize: 13)
+        super.init()
+    }
+
     public static func systemFont(ofSize size: CGFloat) -> RSFont { RSFont(pointSize: size) }
     public enum Weight { case ultraLight, light, regular, medium, semibold, bold, heavy, black }
 
     // UIFont descriptor surface (SSK's bold/italic body-range styling).
-    public var fontDescriptor: UIFontDescriptor { UIFontDescriptor() }
-    public convenience init(descriptor: UIFontDescriptor, size: CGFloat) {
-        self.init(pointSize: size)
+    public var fontDescriptor: UIFontDescriptor { quillFontDescriptor }
+    public init(descriptor: UIFontDescriptor, size: CGFloat) {
+        self.pointSize = size
+        self.quillFontDescriptor = descriptor.withPointSize(size)
+        super.init()
+    }
+
+    public override var hash: Int {
+        var hasher = Hasher()
+        hasher.combine(pointSize)
+        hasher.combine(fontDescriptor.name)
+        hasher.combine(fontDescriptor.symbolicTraits.rawValue)
+        return hasher.finalize()
+    }
+
+    public override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? RSFont else {
+            return false
+        }
+        return pointSize == other.pointSize
+            && fontDescriptor.name == other.fontDescriptor.name
+            && fontDescriptor.symbolicTraits == other.fontDescriptor.symbolicTraits
     }
 
     // UIFont(name:size:) is failable on UIKit (nil if the named font is absent).
@@ -1280,7 +1691,7 @@ public class RSFont: NSObject, @unchecked Sendable {
         _ = name
     }
 
-    public func withSize(_ size: CGFloat) -> RSFont { RSFont(pointSize: size) }
+    public func withSize(_ size: CGFloat) -> RSFont { RSFont(descriptor: fontDescriptor, size: size) }
 
     // Approximate metrics (the real values come from the font's glyph table,
     // unavailable here). lineHeight ~1.2x, capHeight ~0.7x point size -- enough
@@ -1326,17 +1737,39 @@ public final class UIFontDescriptor: @unchecked Sendable {
         public static let traitTightLeading = SymbolicTraits(rawValue: 1 << 15)
         public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
     }
+    public let name: String
+    public let pointSize: CGFloat
     public var symbolicTraits: SymbolicTraits
-    public init(symbolicTraits: SymbolicTraits = []) {
+    public init(
+        name: String = ".AppleSystemUIFont",
+        pointSize: CGFloat = 13,
+        symbolicTraits: SymbolicTraits = []
+    ) {
+        self.name = name
+        self.pointSize = pointSize
         self.symbolicTraits = symbolicTraits
     }
     public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
-        UIFontDescriptor(symbolicTraits: symbolicTraits.union(traits))
+        UIFontDescriptor(name: name, pointSize: pointSize, symbolicTraits: symbolicTraits.union(traits))
+    }
+
+    public func withPointSize(_ pointSize: CGFloat) -> UIFontDescriptor {
+        UIFontDescriptor(name: name, pointSize: pointSize, symbolicTraits: symbolicTraits)
     }
 
     public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
-        _ = design
-        return self
+        let designName: String
+        switch design {
+        case .monospaced:
+            designName = ".AppleSystemUIFontMonospaced"
+        case .rounded:
+            designName = ".AppleSystemUIFontRounded-Regular"
+        case .serif:
+            designName = ".AppleSystemUIFontSerif"
+        default:
+            designName = name
+        }
+        return UIFontDescriptor(name: designName, pointSize: pointSize, symbolicTraits: symbolicTraits)
     }
 }
 

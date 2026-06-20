@@ -4,8 +4,15 @@ public struct GridRow<Content: View>: View, MultiChildView {
     public typealias Body = Never
 
     public let content: Content
+    public let alignment: VerticalAlignment
 
     public init(@ViewBuilder content: () -> Content) {
+        self.alignment = .center
+        self.content = content()
+    }
+
+    public init(alignment: VerticalAlignment = .center, @ViewBuilder content: () -> Content) {
+        self.alignment = alignment
         self.content = content()
     }
 
@@ -44,5 +51,15 @@ extension View {
     /// When inside a GridRow, this cell spans the given number of columns.
     public func gridCellColumns(_ count: Int) -> GridCellSpanView<Self> {
         GridCellSpanView(content: self, gridColumnSpan: max(1, count))
+    }
+
+    public func gridColumnAlignment(_ alignment: HorizontalAlignment) -> Self {
+        _ = alignment
+        return self
+    }
+
+    public func gridCellUnsizedAxes(_ axes: Axis.Set) -> Self {
+        _ = axes
+        return self
     }
 }

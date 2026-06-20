@@ -23,4 +23,8 @@ extension View {
     public func help(_ text: String) -> HelpView<Self> {
         HelpView(content: self, text: text)
     }
+
+    public func help(_ text: Text) -> HelpView<Self> {
+        HelpView(content: self, text: text.content)
+    }
 }

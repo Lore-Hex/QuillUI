@@ -208,11 +208,4 @@ public extension Font {
     typealias Weight = FontWeight
 }
 
-// SwiftOpenUI currently provides top/center/bottom alignment only.
-// Downgrade baseline-relative alignments to the closest visual
-// approximation until backend text metrics can drive true baselines.
-public extension VerticalAlignment {
-    static var firstTextBaseline: VerticalAlignment { .top }
-    static var lastTextBaseline: VerticalAlignment { .bottom }
-}
 #endif

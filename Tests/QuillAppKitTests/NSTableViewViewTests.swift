@@ -20,38 +20,55 @@ struct NSTableViewViewTests {
         func numberOfRows(in tableView: NSTableView) -> Int { 3 }
     }
 
-    private func makeTable() -> NSTableView {
+    private struct TableFixture {
+        let table: NSTableView
+        let source: Source
+        let delegate: ViewDelegate
+    }
+
+    private func makeTable() -> TableFixture {
         let tv = NSTableView()
         tv.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("c")))
-        tv.dataSource = Source()
-        tv.delegate = ViewDelegate()
+        let source = Source()
+        let delegate = ViewDelegate()
+        tv.dataSource = source
+        tv.delegate = delegate
         tv.reloadData()
-        return tv
+        return TableFixture(table: tv, source: source, delegate: delegate)
     }
 
     @Test("view(atColumn:row:) builds via the delegate and caches the instance")
     func viewBasedCellsCached() {
-        let tv = makeTable()
-        #expect(tv.numberOfRows == 3)
-        let v0 = tv.view(atColumn: 0, row: 0, makeIfNecessary: true)
-        #expect(v0 != nil)
-        // Second access returns the cached instance — even with makeIfNecessary: false.
-        #expect(tv.view(atColumn: 0, row: 0, makeIfNecessary: false) === v0)
+        let fixture = makeTable()
+        withExtendedLifetime((fixture.source, fixture.delegate)) {
+            let tv = fixture.table
+            #expect(tv.numberOfRows == 3)
+            let v0 = tv.view(atColumn: 0, row: 0, makeIfNecessary: true)
+            #expect(v0 != nil)
+            // Second access returns the cached instance — even with makeIfNecessary: false.
+            #expect(tv.view(atColumn: 0, row: 0, makeIfNecessary: false) === v0)
+        }
     }
 
     @Test("view(atColumn:row:) is nil out of range, or uncached with makeIfNecessary false")
     func viewBoundsAndLazy() {
-        let tv = makeTable()
-        #expect(tv.view(atColumn: 0, row: 99, makeIfNecessary: true) == nil)   // row out of range
-        #expect(tv.view(atColumn: 5, row: 0, makeIfNecessary: true) == nil)    // column out of range
-        #expect(tv.view(atColumn: 0, row: 2, makeIfNecessary: false) == nil)   // not made yet
+        let fixture = makeTable()
+        withExtendedLifetime((fixture.source, fixture.delegate)) {
+            let tv = fixture.table
+            #expect(tv.view(atColumn: 0, row: 99, makeIfNecessary: true) == nil)   // row out of range
+            #expect(tv.view(atColumn: 5, row: 0, makeIfNecessary: true) == nil)    // column out of range
+            #expect(tv.view(atColumn: 0, row: 2, makeIfNecessary: false) == nil)   // not made yet
+        }
     }
 
     @Test("reloadData clears the cell-view cache")
     func reloadClearsCache() {
-        let tv = makeTable()
-        _ = tv.view(atColumn: 0, row: 0, makeIfNecessary: true)   // populate the cache
-        tv.reloadData()                                          // clears cachedCellViews
-        #expect(tv.view(atColumn: 0, row: 0, makeIfNecessary: false) == nil)
+        let fixture = makeTable()
+        withExtendedLifetime((fixture.source, fixture.delegate)) {
+            let tv = fixture.table
+            _ = tv.view(atColumn: 0, row: 0, makeIfNecessary: true)   // populate the cache
+            tv.reloadData()                                          // clears cachedCellViews
+            #expect(tv.view(atColumn: 0, row: 0, makeIfNecessary: false) == nil)
+        }
     }
 }

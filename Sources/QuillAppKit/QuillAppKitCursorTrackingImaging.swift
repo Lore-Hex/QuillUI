@@ -19,19 +19,18 @@ extension NSView {
     /// `addCursorRect(_:cursor:)` — associates a cursor with a region of the
     /// view, valid when called from `resetCursorRects()` (SolderScope's
     /// MicroscopeNSView adds `.openHand` over its bounds; its
-    /// CalibrationCanvasNSView adds `.crosshair`). Compile-stub: the
-    /// rect→cursor association is accepted and dropped — the GTK backend does
-    /// not yet resolve pointer position against cursor rects (a real backing
-    /// would map this to gdk_surface_set_cursor on motion). Hover cursors
-    /// simply don't change on Linux yet.
+    /// CalibrationCanvasNSView adds `.crosshair`). The backend does not yet
+    /// resolve pointer position against cursor rects, but the model stores the
+    /// association so control logic can test and inspect the same AppKit surface.
     public func addCursorRect(_ rect: NSRect, cursor: NSCursor) {
-        _ = (rect, cursor)
+        quillCursorRects.append((rect, cursor))
     }
 
     /// Companion to `addCursorRect` — AppKit invalidates a view's cursor
-    /// rects before asking `resetCursorRects()` to re-add them. Inert here
-    /// because `addCursorRect` stores nothing to discard.
-    public func discardCursorRects() {}
+    /// rects before asking `resetCursorRects()` to re-add them.
+    public func discardCursorRects() {
+        quillCursorRects.removeAll()
+    }
 }
 
 // MARK: - NSBitmapImageRep: CGImage init + TIFF compression

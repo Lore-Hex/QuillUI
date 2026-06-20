@@ -80,6 +80,44 @@ struct SwiftOpenUIStateCompatibilityTests {
 
         #expect(submitted.submitLabel == .send)
     }
+
+    @Test("NetNewsWire Accounts SwiftUI overloads preserve lightweight metadata")
+    func netNewsWireAccountsSwiftUICompatibility() {
+        let grid = Grid(alignment: .leading, horizontalSpacing: -4, verticalSpacing: 7) {
+            GridRow(alignment: .firstTextBaseline) {
+                Text("Username")
+                Text("Value")
+            }
+        }
+        #expect(grid.useExplicitRows)
+        #expect(grid.alignment == .leading)
+        #expect(grid.hSpacing == 0)
+        #expect(grid.vSpacing == 7)
+
+        let row = GridRow(alignment: .lastTextBaseline) {
+            Text("Password")
+                .gridColumnAlignment(.trailing)
+                .gridCellUnsizedAxes(.horizontal)
+        }
+        #expect(row.alignment == .lastTextBaseline)
+
+        let commentedText = Text("Account", comment: "Preferences account section title")
+        #expect(commentedText.content == "Account")
+
+        let help = Text("CloudKit").help(Text("Uses iCloud"))
+        #expect(help.text == "Uses iCloud")
+
+        var selected = 0
+        let selection = Binding<Int>(
+            get: { selected },
+            set: { selected = $0 }
+        )
+        let picker = Picker("Account Type", selection: selection, options: ["Local", "CloudKit"])
+            .pickerStyle(RadioGroupPickerStyle())
+        #expect(picker.style == .inline)
+        picker.onChanged?(1)
+        #expect(selected == 1)
+    }
 }
 
 private final class StateObservableProbe: ObservableObject {

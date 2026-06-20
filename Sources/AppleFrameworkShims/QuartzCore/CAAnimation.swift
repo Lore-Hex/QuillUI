@@ -38,8 +38,9 @@
 //     object you add is the object whose delegate fires; re-adding the same
 //     object (or adding it to a second layer) reschedules it rather than
 //     running two independent copies.
-//   * CATransaction keeps ONE global lock-guarded stack rather than Apple's
-//     per-thread stacks; QuillUI drives Core Animation from the main thread.
+//   * CATransaction keeps one lock-guarded stack per Foundation Thread, matching
+//     Apple's broad per-thread transaction model. The implicit run-loop
+//     transaction is approximated with a main-queue hop.
 //   * `speed <= 0` simply never completes here (Apple pauses the animation
 //     at its current time); infinite `repeatCount` never auto-completes and
 //     runs until removed (matching Apple).
@@ -390,34 +391,48 @@ internal final class _CATransactionRecord: @unchecked Sendable {
     }
 }
 
-/// Real transaction semantics for the shim.
-///
-/// Simplifications (documented): Apple keeps one transaction stack PER
-/// THREAD plus an implicit run-loop transaction; this shim keeps ONE global,
-/// NSLock-guarded stack, and models the implicit transaction only as default
-/// values (duration 0.25 s, actions enabled). Writes made with no open
-/// transaction are dropped; `setCompletionBlock` with no open transaction is
-/// treated as a one-shot implicit transaction whose block fires on the next
-/// main-queue hop.
-open class CATransaction: NSObject {
-
-    private static let _lock = NSLock()
-    nonisolated(unsafe) private static var _stack: [_CATransactionRecord] = []
+private final class _CATransactionThreadState: @unchecked Sendable {
+    var stack: [_CATransactionRecord] = []
     /// Records popped by non-outermost commit()s, parked until the outermost
     /// commit of their group arrives (nested begin/commit pairs are ONE
     /// transaction group on Apple; nothing settles early).
-    nonisolated(unsafe) private static var _awaitingGroup: [_CATransactionRecord] = []
+    var awaitingGroup: [_CATransactionRecord] = []
+}
+
+/// Real transaction semantics for the shim.
+///
+/// Simplifications (documented): Apple keeps one transaction stack PER
+/// THREAD plus an implicit run-loop transaction; this shim keeps an
+/// NSLock-guarded state object in each Foundation Thread's threadDictionary,
+/// and models the implicit transaction as a one-shot record committed on the
+/// next main-queue hop. Writes made with no open transaction are dropped;
+/// `setCompletionBlock` with no open transaction creates that implicit record.
+open class CATransaction: NSObject {
+
+    private static let _lock = NSLock()
+    private static let _threadStateKey = "quill.quartzcore.CATransaction.threadState"
 
     /// Implicit-transaction default duration, used when the stack is empty.
     private static let _defaultDuration: CFTimeInterval = 0.25
 
+    private static func _stateForCurrentThread() -> _CATransactionThreadState {
+        let dictionary = Thread.current.threadDictionary
+        if let state = dictionary[_threadStateKey] as? _CATransactionThreadState {
+            return state
+        }
+        let state = _CATransactionThreadState()
+        dictionary[_threadStateKey] = state
+        return state
+    }
+
     // MARK: Public API
 
     public class func begin() {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        let inherited = _stack.last
-        _stack.append(_CATransactionRecord(
+        let inherited = state.stack.last
+        state.stack.append(_CATransactionRecord(
             disableActions: inherited?.disableActions ?? false,
             animationDuration: inherited?.animationDuration ?? _defaultDuration,
             animationTimingFunction: inherited?.animationTimingFunction
@@ -425,22 +440,23 @@ open class CATransaction: NSObject {
     }
 
     public class func commit() {
+        let state = _stateForCurrentThread()
         _lock.lock()
-        guard let record = _stack.popLast() else {
+        guard let record = state.stack.popLast() else {
             _lock.unlock()
             return // unbalanced commit: ignore
         }
         record.isCommitted = true
         // A nested commit only parks its record: the GROUP commits — and
         // completion blocks become eligible — at the outermost commit().
-        guard _stack.isEmpty else {
-            _awaitingGroup.append(record)
+        guard state.stack.isEmpty else {
+            state.awaitingGroup.append(record)
             _lock.unlock()
             return
         }
-        var group = _awaitingGroup
+        var group = state.awaitingGroup
         group.append(record)
-        _awaitingGroup = []
+        state.awaitingGroup = []
         var due: [() -> Void] = []
         for member in group {
             member.groupCommitted = true
@@ -467,52 +483,60 @@ open class CATransaction: NSObject {
     public class func unlock() {}
 
     public class func disableActions() -> Bool {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        return _stack.last?.disableActions ?? false
+        return state.stack.last?.disableActions ?? false
     }
 
     public class func setDisableActions(_ flag: Bool) {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
         // With no open transaction the write is dropped (Apple would absorb
         // it into the implicit run-loop transaction, which is not modeled).
-        _stack.last?.disableActions = flag
+        state.stack.last?.disableActions = flag
     }
 
     public class func animationDuration() -> CFTimeInterval {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        return _stack.last?.animationDuration ?? _defaultDuration
+        return state.stack.last?.animationDuration ?? _defaultDuration
     }
 
     public class func setAnimationDuration(_ dur: CFTimeInterval) {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        _stack.last?.animationDuration = dur
+        state.stack.last?.animationDuration = dur
     }
 
     public class func animationTimingFunction() -> CAMediaTimingFunction? {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        return _stack.last?.animationTimingFunction
+        return state.stack.last?.animationTimingFunction
     }
 
     public class func setAnimationTimingFunction(_ function: CAMediaTimingFunction?) {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        _stack.last?.animationTimingFunction = function
+        state.stack.last?.animationTimingFunction = function
     }
 
     public class func completionBlock() -> (() -> Void)? {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        return _stack.last?.completionBlock
+        return state.stack.last?.completionBlock
     }
 
     public class func setCompletionBlock(_ block: (() -> Void)?) {
+        let state = _stateForCurrentThread()
         _lock.lock()
-        if let top = _stack.last {
+        if let top = state.stack.last {
             top.completionBlock = block
             _lock.unlock()
             return
@@ -531,19 +555,19 @@ open class CATransaction: NSObject {
             animationDuration: _defaultDuration,
             animationTimingFunction: nil)
         implicit.completionBlock = block
-        _stack.append(implicit)
+        state.stack.append(implicit)
         _lock.unlock()
-        DispatchQueue.main.async { _commitImplicit(implicit) }
+        DispatchQueue.main.async { _commitImplicit(implicit, state: state) }
     }
 
     /// Commits the synthetic implicit transaction created by
     /// setCompletionBlock-with-no-begin. Tolerates the record having already
     /// been popped by an (unbalanced) explicit commit(): settling is
     /// idempotent because the completion block is taken exactly once.
-    private static func _commitImplicit(_ record: _CATransactionRecord) {
+    private static func _commitImplicit(_ record: _CATransactionRecord, state: _CATransactionThreadState) {
         _lock.lock()
-        if let index = _stack.firstIndex(where: { $0 === record }) {
-            _stack.remove(at: index)
+        if let index = state.stack.firstIndex(where: { $0 === record }) {
+            state.stack.remove(at: index)
         }
         record.isCommitted = true
         // The implicit record is its own group (it is only ever pushed onto
@@ -567,10 +591,11 @@ open class CATransaction: NSObject {
     /// later report completion or removal to (empty when no transaction is
     /// open).
     internal static func _noteAnimationScheduled() -> [_CATransactionRecord] {
+        let state = _stateForCurrentThread()
         _lock.lock()
         defer { _lock.unlock() }
-        for record in _stack { record.pendingAnimations += 1 }
-        return _stack
+        for record in state.stack { record.pendingAnimations += 1 }
+        return state.stack
     }
 
     /// Reports that an animation registered with `record` completed or was
@@ -624,13 +649,32 @@ internal enum QuartzCoreAnimationEngine {
         let key: String
     }
 
-    private static let _lock = NSLock()
-    /// Keyed by animation object identity (per the module contract). NOTE
-    /// (divergence): Apple copies animations on add; this shim does not, so
-    /// one animation object has at most one in-flight schedule. Re-adding it
-    /// — including to a different layer — silently cancels and replaces the
-    /// previous schedule.
-    nonisolated(unsafe) private static var _pending: [ObjectIdentifier: PendingEntry] = [:]
+    private final class PendingStore: @unchecked Sendable {
+        private let lock = NSLock()
+        /// Keyed by animation object identity (per the module contract). NOTE
+        /// (divergence): Apple copies animations on add; this shim does not, so
+        /// one animation object has at most one in-flight schedule. Re-adding it
+        /// — including to a different layer — silently cancels and replaces the
+        /// previous schedule.
+        private var pending: [ObjectIdentifier: PendingEntry] = [:]
+
+        func set(_ entry: PendingEntry, for animation: CAAnimation) {
+            lock.lock()
+            pending[ObjectIdentifier(animation)] = entry
+            lock.unlock()
+        }
+
+        func take(for animation: CAAnimation, ifOwnedBy layerID: ObjectIdentifier? = nil) -> PendingEntry? {
+            lock.lock()
+            defer { lock.unlock() }
+            let id = ObjectIdentifier(animation)
+            guard let entry = pending[id] else { return nil }
+            if let layerID, entry.ownerID != layerID { return nil }
+            return pending.removeValue(forKey: id)
+        }
+    }
+
+    private static let pendingStore = PendingStore()
 
     // MARK: Cross-file contract (called by CALayer.swift)
 
@@ -667,11 +711,9 @@ internal enum QuartzCoreAnimationEngine {
             || animation.repeatCount >= Float.greatestFiniteMagnitude
 
         if neverCompletes {
-            _lock.lock()
-            _pending[ObjectIdentifier(animation)] = PendingEntry(
+            pendingStore.set(PendingEntry(
                 animation: animation, workItem: nil, transactions: records,
-                owner: layer, ownerID: ObjectIdentifier(layer), key: key)
-            _lock.unlock()
+                owner: layer, ownerID: ObjectIdentifier(layer), key: key), for: animation)
             return
         }
 
@@ -710,11 +752,9 @@ internal enum QuartzCoreAnimationEngine {
             for block in blocks { block() } // already on main; after didStop
         }
 
-        _lock.lock()
-        _pending[ObjectIdentifier(animation)] = PendingEntry(
+        pendingStore.set(PendingEntry(
             animation: animation, workItem: item, transactions: records,
-            owner: layer, ownerID: ObjectIdentifier(layer), key: key)
-        _lock.unlock()
+            owner: layer, ownerID: ObjectIdentifier(layer), key: key), for: animation)
         DispatchQueue.main.asyncAfter(deadline: .now() + total, execute: item)
     }
 
@@ -754,12 +794,7 @@ internal enum QuartzCoreAnimationEngine {
         for animation: CAAnimation,
         ifOwnedBy layerID: ObjectIdentifier? = nil
     ) -> PendingEntry? {
-        _lock.lock()
-        defer { _lock.unlock() }
-        let id = ObjectIdentifier(animation)
-        guard let entry = _pending[id] else { return nil }
-        if let layerID, entry.ownerID != layerID { return nil }
-        return _pending.removeValue(forKey: id)
+        return pendingStore.take(for: animation, ifOwnedBy: layerID)
     }
 
     /// Collects the completion blocks that became due from finishing one

@@ -7,6 +7,10 @@ public enum PickerStyle {
     case inline
 }
 
+public struct RadioGroupPickerStyle {
+    public init() {}
+}
+
 /// A dropdown picker or segmented toggle control.
 public struct Picker: View {
     public typealias Body = Never
@@ -125,7 +129,20 @@ public struct Picker: View {
                onChanged: onChanged, style: style)
     }
 
+    public func pickerStyle(_ style: RadioGroupPickerStyle) -> Picker {
+        _ = style
+        return Picker(label, options: options, selected: selected,
+                      onChanged: onChanged, style: .inline)
+    }
+
     public var body: Never { fatalError("Picker is a primitive view") }
+}
+
+extension View {
+    public func pickerStyle(_ style: RadioGroupPickerStyle) -> Self {
+        _ = style
+        return self
+    }
 }
 
 // MARK: - Tag extraction walker

@@ -2,10 +2,13 @@ import Foundation
 import AppKit
 import ActivityLog
 import Articles
+import CoreSpotlight
 import Images
 import NetNewsWireContext
 import Testing
 import UserNotifications
+import WebKit
+import WidgetKit
 @testable import Account
 @testable import NetNewsWireSharedCore
 @testable import RSCore
@@ -75,6 +78,45 @@ struct NetNewsWireSharedCoreTests {
         #expect(decoded.lastUpdateTime == data.lastUpdateTime)
     }
 
+    @Test("Widget data encoder reloads changed widget timelines through WidgetKit")
+    @MainActor func widgetDataEncoderReloadTimelines() throws {
+        let encoder = try #require(WidgetDataEncoder())
+        let existing = WidgetData(
+            totalUnreadCount: 1,
+            totalTodayCount: 0,
+            totalTodayUnreadCount: 0,
+            totalStarredCount: 0,
+            unreadArticles: [makeLatestArticle(id: "unread-old")],
+            starredArticles: [],
+            todayArticles: [],
+            lastUpdateTime: Date(timeIntervalSince1970: 1_800_000_000)
+        )
+        let updated = WidgetData(
+            totalUnreadCount: 2,
+            totalTodayCount: 1,
+            totalTodayUnreadCount: 1,
+            totalStarredCount: 1,
+            unreadArticles: [makeLatestArticle(id: "unread-new")],
+            starredArticles: [makeLatestArticle(id: "starred-new")],
+            todayArticles: [makeLatestArticle(id: "today-new")],
+            lastUpdateTime: Date(timeIntervalSince1970: 1_800_000_001)
+        )
+
+        WidgetCenter.shared.quillResetReloadTracking()
+        encoder.reloadTimelines(newData: updated, existingData: existing)
+
+        #expect(WidgetCenter.shared.quillReloadedTimelineKinds == [
+            "com.ranchero.NetNewsWire.UnreadWidget",
+            "com.ranchero.NetNewsWire.TodayWidget",
+            "com.ranchero.NetNewsWire.StarredWidget",
+            "com.ranchero.NetNewsWire.LockScreenSummaryWidget",
+        ])
+
+        WidgetCenter.shared.quillResetReloadTracking()
+        encoder.reloadTimelines(newData: updated, existingData: updated)
+        #expect(WidgetCenter.shared.quillReloadedTimelineKinds.isEmpty)
+    }
+
     @Test("Extractor and article-theme plists decode upstream keys")
     func codableSharedModelsDecode() throws {
         let extracted = try JSONDecoder().decode(ExtractedArticle.self, from: Data("""
@@ -110,6 +152,22 @@ struct NetNewsWireSharedCoreTests {
         #expect(plist.name == "Theme")
         #expect(plist.themeIdentifier == "com.example.theme")
         #expect(plist.version == 7)
+    }
+
+    @Test("Article extractor builds a signed Feedbin parser URL without starting network work")
+    @MainActor func articleExtractorInitializesAndCancels() throws {
+        let delegate = RecordingArticleExtractorDelegate()
+        let extractor = try #require(ArticleExtractor("https://example.com/article", delegate: delegate))
+
+        #expect(extractor.articleLink == "https://example.com/article")
+        #expect(extractor.state == .ready)
+        #expect(extractor.article == nil)
+
+        extractor.cancel()
+
+        #expect(extractor.state == .cancelled)
+        #expect(delegate.completedArticles.isEmpty)
+        #expect(delegate.errors.isEmpty)
     }
 
     @Test("Share extension feed add requests preserve destination containers")
@@ -315,13 +373,26 @@ struct NetNewsWireSharedCoreTests {
         let starredFeed = Assets.Images.starredFeed
         let unreadFeed = Assets.Images.unreadFeed
         let mainFolder = Assets.Images.mainFolder
+        #if os(Linux)
+        let appIconImage = RSImage.appIconImage
+        #endif
 
         #expect(starredFeed.isSymbol)
         #expect(starredFeed.isBackgroundSuppressed)
         #expect(starredFeed.preferredColor != nil)
         #expect(unreadFeed.isSymbol)
         #expect(mainFolder.isSymbol)
+        #if os(Linux)
+        #expect(appIconImage?.data?.isEmpty == false)
+        #expect(data(appIconImage, hasPNGSignature: true))
+        #expect(IconImage.appIcon?.image.data?.isEmpty == false)
+        #endif
         #expect(Assets.Colors.primaryAccent.cgColor.components?.count == 4)
+        #expect(color(Assets.Colors.primaryAccent, equals: [0.031, 0.416, 0.933, 1]))
+        #expect(color(Assets.Colors.star, equals: [0.976, 0.776, 0.204, 1]))
+        #expect(color(Assets.Colors.timelineSeparator, equals: [0.9, 0.9, 0.9, 1]))
+        #expect(color(Assets.Colors.sidebarUnreadCountBackground, equals: [0, 0, 0, 0.5]))
+        #expect(color(Assets.Colors.sidebarUnreadCountText, equals: [1, 1, 1, 0.9]))
     }
 
     @Test("Images shim exposes upstream favicon API shape")
@@ -373,6 +444,29 @@ struct NetNewsWireSharedCoreTests {
         #expect(cache.imageForArticle(article) === replacementIcon)
     }
 
+    @Test("Activity manager creates and invalidates Linux user activities")
+    @MainActor func activityManagerCreatesAndInvalidatesLinuxActivities() throws {
+        let manager = ActivityManager()
+        let restoration = manager.stateRestorationActivity
+
+        #expect(restoration.activityType == ActivityType.restoration.rawValue)
+        #expect(restoration.persistentIdentifier?.isEmpty == false)
+        #expect(restoration.isCurrent)
+        #expect(!restoration.isInvalidated)
+        #expect(Notification.Name.feedIconDidBecomeAvailable.rawValue == "FeedIconDidBecomeAvailable")
+
+        manager.selectingNextUnread()
+        let nextUnread = try #require(activity(named: "nextUnreadActivity", in: manager))
+        #expect(nextUnread.activityType == ActivityType.nextUnread.rawValue)
+        #expect(nextUnread.title == "See first unread article")
+        #expect(nextUnread.isCurrent)
+
+        manager.invalidateNextUnread()
+        #expect(activity(named: "nextUnreadActivity", in: manager) == nil)
+        #expect(!nextUnread.isCurrent)
+        #expect(nextUnread.isInvalidated)
+    }
+
     @Test("Mark status command filters articles before mutation")
     @MainActor func markStatusCommandFiltersArticlesBeforeMutation() throws {
         let unread = makeArticle(uniqueID: "unread", title: "Unread", read: false)
@@ -391,6 +485,33 @@ struct NetNewsWireSharedCoreTests {
         let unstar = try #require(MarkStatusCommand(initialArticles: [unread, starred], markingStarred: false, undoManager: undoManager))
         #expect(unstar.undoActionName == "Mark Unstarred")
         #expect(unstar.articles == [starred])
+    }
+
+    @Test("Delete command validates sidebar model nodes")
+    @MainActor func deleteCommandValidatesSidebarModelNodes() throws {
+        try withFreshAccountManager { manager in
+            let account = manager.defaultAccount
+            let alpha = try #require(account.ensureFolder(with: "Alpha"))
+            let beta = try #require(account.ensureFolder(with: "Beta"))
+            let alphaNode = Node(representedObject: alpha, parent: nil)
+            let betaNode = Node(representedObject: beta, parent: nil)
+            let nonDeletableNode = Node(representedObject: NamedDisplayObject("Not Deletable"), parent: nil)
+            let undoManager = UndoManager()
+
+            #expect(!DeleteCommand.canDelete([]))
+            #expect(!DeleteCommand.canDelete([nonDeletableNode]))
+            #expect(DeleteCommand.canDelete([alphaNode]))
+            #expect(DeleteCommand.canDelete([alphaNode, betaNode]))
+            #expect(DeleteCommand(nodesToDelete: [nonDeletableNode], undoManager: undoManager) { _ in } == nil)
+
+            let deleteFolder = try #require(DeleteCommand(nodesToDelete: [alphaNode], undoManager: undoManager) { _ in })
+            #expect(deleteFolder.undoActionName == "Delete Folder")
+            #expect(deleteFolder.redoActionName == "Delete Folder")
+
+            let deleteFolders = try #require(DeleteCommand(nodesToDelete: [alphaNode, betaNode], undoManager: undoManager) { _ in })
+            #expect(deleteFolders.undoActionName == "Delete Folders")
+            #expect(deleteFolders.redoActionName == "Delete Folders")
+        }
     }
 
     @Test("Smart feeds expose upstream identity and icons")
@@ -449,6 +570,40 @@ struct NetNewsWireSharedCoreTests {
 
         #expect([beta, alpha].sortedAlphabetically() == [alpha, beta])
         #expect([folder, alpha, beta].sortedAlphabeticallyWithFoldersAtEnd() == [alpha, beta, folder])
+    }
+
+    @Test("Tree delegates build account, folder, and smart feed nodes")
+    @MainActor func treeDelegatesBuildSidebarAndFolderTrees() throws {
+        try withFreshAccountManager { manager in
+            let account = manager.defaultAccount
+            let beta = try #require(account.ensureFolder(with: "Beta"))
+            let alpha = try #require(account.ensureFolder(with: "Alpha"))
+
+            let folderDelegate = FolderTreeControllerDelegate()
+            let folderTree = TreeController(delegate: folderDelegate)
+            let folderAccountNodes = try #require(folderDelegate.treeController(treeController: folderTree, childNodesFor: folderTree.rootNode))
+            let folderAccountNode = try #require(firstNode(in: folderAccountNodes, representing: account))
+            let folderNodes = try #require(folderDelegate.treeController(treeController: folderTree, childNodesFor: folderAccountNode))
+
+            #expect(folderAccountNodes.compactMap { $0.representedObject as? Account } == [account])
+            #expect(folderAccountNode.canHaveChildNodes)
+            #expect(folderNames(in: folderNodes) == ["Alpha", "Beta"])
+            #expect(Set(folderNodes.compactMap { $0.representedObject as? Folder }) == [alpha, beta])
+
+            let sidebarDelegate = SidebarTreeControllerDelegate()
+            let sidebarTree = TreeController(delegate: sidebarDelegate)
+            let sidebarRootNodes = try #require(sidebarDelegate.treeController(treeController: sidebarTree, childNodesFor: sidebarTree.rootNode))
+            let smartFeedsNode = try #require(firstNode(in: sidebarRootNodes, representing: SmartFeedsController.shared))
+            let smartFeedNodes = try #require(sidebarDelegate.treeController(treeController: sidebarTree, childNodesFor: smartFeedsNode))
+            let sidebarAccountNode = try #require(firstNode(in: sidebarRootNodes, representing: account))
+            let sidebarFolderNodes = try #require(sidebarDelegate.treeController(treeController: sidebarTree, childNodesFor: sidebarAccountNode))
+
+            #expect(smartFeedsNode.representedObject === SmartFeedsController.shared)
+            #expect(smartFeedsNode.isGroupItem)
+            #expect(smartFeedNodes.count == SmartFeedsController.shared.smartFeeds.count)
+            #expect(sidebarAccountNode.isGroupItem)
+            #expect(folderNames(in: sidebarFolderNodes) == ["Alpha", "Beta"])
+        }
     }
 
     @Test("Cache cleaner initializes image cache flush date")
@@ -616,6 +771,115 @@ struct NetNewsWireSharedCoreTests {
         #expect(!formatter.dateString(yesterday).isEmpty)
     }
 
+    @Test("Simple HTML attributed strings decode entities and safe inline styles")
+    @MainActor func simpleHTMLAttributedStringsDecodeEntitiesAndSafeStyles() throws {
+        let attributed = NSAttributedString(simpleHTML: """
+        Plain <strong>bold &amp; more</strong> <u>under</u> <s>strike</s>
+        """)
+        let text = attributed.string as NSString
+
+        #expect(attributed.string == "Plain bold & more under strike")
+
+        let boldRange = text.range(of: "bold")
+        let underRange = text.range(of: "under")
+        let strikeRange = text.range(of: "strike")
+        let noEffectiveRange: NSRangePointer? = nil
+
+        let boldFontValue = attributed.attribute(NSAttributedString.Key.font, at: boldRange.location, effectiveRange: noEffectiveRange) as? RSFont
+        let boldFont = try #require(boldFontValue)
+
+        #expect(boldFont.fontDescriptor.symbolicTraits.contains(NSFontDescriptor.SymbolicTraits.bold))
+        #expect(attributed.attribute(NSAttributedString.Key.underlineStyle, at: underRange.location, effectiveRange: noEffectiveRange) as? Int == NSUnderlineStyle.single.rawValue)
+        #expect(attributed.attribute(NSAttributedString.Key.strikethroughStyle, at: strikeRange.location, effectiveRange: noEffectiveRange) as? Int == NSUnderlineStyle.single.rawValue)
+    }
+
+    @Test("Article renderer loads default theme resources and substitutes desktop macros")
+    @MainActor func articleRendererDefaultTheme() throws {
+        AppDefaults.shared.articleTextSize = .large
+        let author = try #require(Author(authorID: nil, name: "Alice", url: "https://author.example.com/", avatarURL: nil, emailAddress: nil))
+        let article = makeArticle(
+            uniqueID: "render",
+            title: "Render Title",
+            body: "<p>Hello renderer.</p>",
+            authors: [author],
+            url: "https://example.com/article",
+            externalURL: "https://original.example.com/story"
+        )
+        let theme = ArticleTheme.defaultTheme
+        let css = try #require(theme.css)
+        let template = try #require(theme.template)
+
+        #expect(theme.name == "Default")
+        #expect(css.contains("articleBody"))
+        #expect(template.contains("[[title]]"))
+
+        let rendering = ArticleRenderer.articleHTML(article: article, theme: theme)
+        #expect(rendering.style.contains("articleBody"))
+        #expect(rendering.html.contains("Render Title"))
+        #expect(rendering.html.contains("<p>Hello renderer.</p>"))
+        #expect(rendering.html.contains("largeText"))
+        #expect(rendering.html.contains("original.example.com/story"))
+        #expect(rendering.html.contains(#"<a href="https://author.example.com/">Alice</a>"#))
+        #expect(!rendering.html.contains("[["))
+    }
+
+    @Test("Shared resource helper locates bundled keyboard shortcut plists")
+    func sharedResourceHelperFindsKeyboardShortcutPlists() throws {
+        #expect(try shortcutEntries(named: "DetailKeyboardShortcuts").count == 1)
+        #expect(try shortcutEntries(named: "TimelineKeyboardShortcuts").count == 4)
+        #expect(try shortcutEntries(named: "SidebarKeyboardShortcuts").count == 12)
+
+        let globalEntries = try shortcutEntries(named: "GlobalKeyboardShortcuts")
+        #expect(globalEntries.count == 21)
+        #expect(globalEntries.contains { entry in
+            entry["action"] as? String == "nextUnread:" && entry["key"] as? String == "n"
+        })
+    }
+
+    @Test("Default feeds importer loads bundled OPML into provided account")
+    @MainActor func defaultFeedsImporterLoadsBundledOPMLIntoProvidedAccount() async throws {
+        let account = try makeTemporaryLocalAccount(id: "default-feeds-\(UUID().uuidString)")
+
+        #expect(account.flattenedFeeds().isEmpty)
+
+        DefaultFeedsImporter.importDefaultFeeds(account: account)
+        try await waitForMainActorCondition {
+            account.flattenedFeeds().count >= 10
+        }
+
+        let feedNames = Set(account.flattenedFeeds().map(\.nameForDisplay))
+        #expect(feedNames.contains("Daring Fireball"))
+        #expect(feedNames.contains("NetNewsWire Blog"))
+    }
+
+    @Test("Web view configuration loads bundled scripts and content rules through WebKit shim")
+    @MainActor func webViewConfigurationUsesBundledResources() async throws {
+        AppDefaults.shared.isArticleContentJavascriptEnabled = false
+        await WebViewConfiguration.compileContentBlockingRules()
+
+        let handler = RecordingURLSchemeHandler()
+        let configuration = WebViewConfiguration.configuration(with: handler)
+
+        #expect(configuration.mediaTypesRequiringUserActionForPlayback == .all)
+        #expect(configuration.preferences.minimumFontSize == 12)
+        #expect(!configuration.preferences.javaScriptCanOpenWindowsAutomatically)
+        #expect(configuration.defaultWebpagePreferences.allowsContentJavaScript == false)
+        #expect(configuration.quillURLSchemeHandlers[ArticleRenderer.imageIconScheme] as? RecordingURLSchemeHandler === handler)
+
+        let scripts = configuration.userContentController.quillUserScripts
+        #expect(scripts.count == 2)
+        #expect(scripts.allSatisfy { script in
+            script.injectionTime == .atDocumentStart && script.isForMainFrameOnly && !script.source.isEmpty
+        })
+        #expect(configuration.userContentController.quillContentRuleLists.map(\.identifier) == ["ContentBlockingRules"])
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        WebViewConfiguration.addContentBlockingRules(to: webView)
+        WebViewConfiguration.addContentBlockingRules(to: webView)
+
+        #expect(webView.configuration.userContentController.quillContentRuleLists.count == 1)
+    }
+
     @Test("Activity log view model formats timestamp owner detail and account color")
     @MainActor func activityLogViewModelSegments() throws {
         let activity = Activity(
@@ -625,7 +889,7 @@ struct NetNewsWireSharedCoreTests {
             detail: "Example Feed"
         )
 
-        let segments = ActivityLogViewModel.segments(for: activity)
+        let segments = NetNewsWireSharedCore.ActivityLogViewModel.segments(for: activity)
         let text = segments.map(\.text).joined()
 
         #expect(text.hasPrefix("["))
@@ -694,6 +958,64 @@ struct NetNewsWireSharedCoreTests {
         timer.stop()
     }
 
+    @Test("Timeline fetch request operation uses desktop read-filter table on Linux")
+    @MainActor func timelineFetchRequestOperationUsesDesktopReadFilterTable() async throws {
+        let sidebarItemID = SidebarItemIdentifier.feed("account", "feed")
+        let allArticle = makeArticle(uniqueID: "all", title: "All", read: true)
+        let unreadArticle = makeArticle(uniqueID: "unread", title: "Unread", read: false)
+        let fetcher = RecordingSidebarFetcher(
+            sidebarItemID: sidebarItemID,
+            defaultReadFilterType: .read,
+            allArticles: [allArticle],
+            unreadArticles: [unreadArticle]
+        )
+        var resultIDs: [String] = []
+
+        let operation = FetchRequestOperation(
+            id: 1,
+            readFilterEnabledTable: [sidebarItemID: false],
+            fetchers: [fetcher]
+        ) { articles, completedOperation in
+            #expect(completedOperation.id == 1)
+            resultIDs = articles.map(\.articleID).sorted()
+        }
+
+        operation.run { completedOperation in
+            #expect(completedOperation === operation)
+        }
+        try await waitForMainActorCondition { operation.isFinished }
+
+        #expect(fetcher.fetchArticlesAsyncCount == 1)
+        #expect(fetcher.fetchUnreadArticlesAsyncCount == 0)
+        #expect(resultIDs == [allArticle.articleID])
+    }
+
+    @Test("Timeline fetch request queue drops canceled requests")
+    @MainActor func timelineFetchRequestQueueDropsCanceledRequests() async throws {
+        let article = makeArticle(uniqueID: "queued", title: "Queued")
+        let firstFetcher = RecordingSidebarFetcher(allArticles: [article], unreadArticles: [article])
+        let canceledFetcher = RecordingSidebarFetcher(allArticles: [article], unreadArticles: [article])
+        let queue = FetchRequestQueue()
+        var completedIDs: [Int] = []
+
+        let first = FetchRequestOperation(id: 1, readFilterEnabledTable: [:], fetchers: [firstFetcher]) { _, operation in
+            completedIDs.append(operation.id)
+        }
+        let canceled = FetchRequestOperation(id: 2, readFilterEnabledTable: [:], fetchers: [canceledFetcher]) { _, operation in
+            completedIDs.append(operation.id)
+        }
+        canceled.isCanceled = true
+
+        queue.add(first)
+        queue.add(canceled)
+        try await waitForMainActorCondition { first.isFinished }
+        await Task.yield()
+
+        #expect(completedIDs == [1])
+        #expect(canceledFetcher.fetchUnreadArticlesAsyncCount == 0)
+        #expect(!queue.isAnyCurrentRequest)
+    }
+
     @Test("User notification manager registers article actions through shim")
     @MainActor func userNotificationManagerRegistersArticleActions() async throws {
         let center = UNUserNotificationCenter.current()
@@ -711,13 +1033,41 @@ struct NetNewsWireSharedCoreTests {
         ])
     }
 
+    private func shortcutEntries(named name: String) throws -> [[String: Any]] {
+        let url = try #require(NetNewsWireResource.url(forResource: name, withExtension: "plist"))
+        let data = try Data(contentsOf: url)
+        let propertyList = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        return try #require(propertyList as? [[String: Any]])
+    }
+
+    @MainActor private func makeTemporaryLocalAccount(id: String) throws -> Account {
+        let accountURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("NetNewsWireSharedCoreTests", isDirectory: true)
+            .appendingPathComponent(id, isDirectory: true)
+        try? FileManager.default.removeItem(at: accountURL)
+        try FileManager.default.createDirectory(at: accountURL, withIntermediateDirectories: true)
+
+        let emptyOPMLURL = accountURL.appendingPathComponent("Subscriptions.opml")
+        try """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <opml version="2.0">
+          <head><title>Empty</title></head>
+          <body></body>
+        </opml>
+        """.write(to: emptyOPMLURL, atomically: true, encoding: .utf8)
+
+        return Account(dataFolder: accountURL.path, type: .onMyMac, accountID: id)
+    }
+
     private func makeArticle(
         uniqueID: String,
         title: String?,
         read: Bool = false,
         starred: Bool = false,
         body: String? = nil,
-        authors: Set<Author>? = nil
+        authors: Set<Author>? = nil,
+        url: String? = nil,
+        externalURL: String? = nil
     ) -> Article {
         Article(
             accountID: "account",
@@ -728,8 +1078,8 @@ struct NetNewsWireSharedCoreTests {
             contentHTML: body,
             contentText: nil,
             markdown: nil,
-            url: nil,
-            externalURL: nil,
+            url: url,
+            externalURL: externalURL,
             summary: nil,
             imageURL: nil,
             datePublished: nil,
@@ -737,6 +1087,61 @@ struct NetNewsWireSharedCoreTests {
             authors: authors,
             status: ArticleStatus(articleID: "article-\(uniqueID)", read: read, starred: starred, dateArrived: Date(timeIntervalSince1970: 0))
         )
+    }
+
+    private func makeLatestArticle(id: String) -> LatestArticle {
+        LatestArticle(
+            id: id,
+            feedTitle: "Feed \(id)",
+            articleTitle: "Title \(id)",
+            articleSummary: "Summary \(id)",
+            feedIconPath: nil,
+            pubDate: "2026-06-16T00:00:00Z"
+        )
+    }
+
+    @MainActor private func activity(named label: String, in manager: ActivityManager) -> NSUserActivity? {
+        Mirror(reflecting: manager).children.first { $0.label == label }?.value as? NSUserActivity
+    }
+
+    @MainActor private func withFreshAccountManager<T>(_ body: (AccountManager) throws -> T) rethrows -> T {
+        let previous = AccountManager.shared
+        let manager = AccountManager()
+        AccountManager.shared = manager
+        defer {
+            AccountManager.shared = previous
+        }
+        return try body(manager)
+    }
+
+    @MainActor private func firstNode<T: AnyObject>(in nodes: [Node], representing object: T) -> Node? {
+        nodes.first { ($0.representedObject as? T) === object }
+    }
+
+    @MainActor private func folderNames(in nodes: [Node]) -> [String] {
+        nodes.compactMap { ($0.representedObject as? Folder)?.nameForDisplay }
+    }
+
+    @MainActor private func waitForMainActorCondition(_ condition: @MainActor @escaping () -> Bool) async throws {
+        for _ in 0..<50 {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        #expect(condition())
+    }
+
+    private func color(_ color: NSColor?, equals expected: [CGFloat], accuracy: CGFloat = 0.0001) -> Bool {
+        guard let components = color?.components, components.count == expected.count else {
+            return false
+        }
+        return zip(components, expected).allSatisfy { abs($0 - $1) <= accuracy }
+    }
+
+    private func data(_ image: RSImage?, hasPNGSignature: Bool) -> Bool {
+        guard hasPNGSignature, let data = image?.data else { return false }
+        return Array(data.prefix(8)) == [137, 80, 78, 71, 13, 10, 26, 10]
     }
 }
 
@@ -746,5 +1151,64 @@ struct NetNewsWireSharedCoreTests {
     init(_ nameForDisplay: String) {
         self.nameForDisplay = nameForDisplay
         super.init()
+    }
+}
+
+@MainActor private final class RecordingArticleExtractorDelegate: ArticleExtractorDelegate {
+    private(set) var completedArticles: [ExtractedArticle] = []
+    private(set) var errors: [Error] = []
+
+    func articleExtractionDidFail(with error: Error) {
+        errors.append(error)
+    }
+
+    func articleExtractionDidComplete(extractedArticle: ExtractedArticle) {
+        completedArticles.append(extractedArticle)
+    }
+}
+
+private final class RecordingURLSchemeHandler: WKURLSchemeHandler {}
+
+@MainActor private final class RecordingSidebarFetcher: SidebarItem {
+    let account: Account? = nil
+    let defaultReadFilterType: ReadFilterType
+    let nameForDisplay = "Recording"
+    let sidebarItemID: SidebarItemIdentifier?
+    let unreadCount: Int
+
+    private let allArticles: Set<Article>
+    private let unreadArticles: Set<Article>
+    private(set) var fetchArticlesAsyncCount = 0
+    private(set) var fetchUnreadArticlesAsyncCount = 0
+
+    init(
+        sidebarItemID: SidebarItemIdentifier? = .feed("account", "feed"),
+        defaultReadFilterType: ReadFilterType = .read,
+        allArticles: Set<Article>,
+        unreadArticles: Set<Article>
+    ) {
+        self.sidebarItemID = sidebarItemID
+        self.defaultReadFilterType = defaultReadFilterType
+        self.allArticles = allArticles
+        self.unreadArticles = unreadArticles
+        self.unreadCount = unreadArticles.count
+    }
+
+    func fetchArticles() -> Set<Article> {
+        allArticles
+    }
+
+    func fetchArticlesAsync() async -> Set<Article> {
+        fetchArticlesAsyncCount += 1
+        return allArticles
+    }
+
+    func fetchUnreadArticles() -> Set<Article> {
+        unreadArticles
+    }
+
+    func fetchUnreadArticlesAsync() async -> Set<Article> {
+        fetchUnreadArticlesAsyncCount += 1
+        return unreadArticles
     }
 }

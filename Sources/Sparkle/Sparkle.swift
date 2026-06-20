@@ -14,8 +14,38 @@ public final class SPUUpdater: @unchecked Sendable {
         self.service = service
     }
 
+    public convenience init(
+        hostBundle: Bundle,
+        applicationBundle: Bundle,
+        userDriver: SPUStandardUserDriver,
+        delegate: SPUUpdaterDelegate?
+    ) {
+        _ = hostBundle
+        _ = applicationBundle
+        _ = userDriver
+        _ = delegate
+        self.init()
+    }
+
+    public func start() throws {
+        service.configure(canCheckForUpdates: true)
+    }
+
     public func checkForUpdates() {
         service.checkForUpdates()
+    }
+}
+
+public protocol SPUStandardUserDriverDelegate: AnyObject {}
+public protocol SPUUpdaterDelegate: AnyObject {}
+
+public final class SPUStandardUserDriver: @unchecked Sendable {
+    public let hostBundle: Bundle
+    public weak var delegate: SPUStandardUserDriverDelegate?
+
+    public init(hostBundle: Bundle, delegate: SPUStandardUserDriverDelegate?) {
+        self.hostBundle = hostBundle
+        self.delegate = delegate
     }
 }
 

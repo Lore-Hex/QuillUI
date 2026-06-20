@@ -84,6 +84,13 @@ open class AVCaptureVideoPreviewLayer: CALayer {
     public override init() {
         super.init()
     }
+
+    public required init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? AVCaptureVideoPreviewLayer else { return }
+        session = other.session
+        videoGravity = other.videoGravity
+    }
 }
 
 // MARK: - Session notifications + userInfo keys

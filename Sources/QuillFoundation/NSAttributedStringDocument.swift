@@ -1,5 +1,6 @@
 import Foundation
 
+#if os(Linux)
 // NSAttributedString document-conversion surface (HTML / RTF import).
 // ====================================================================
 // Apple's UIKit/AppKit layer adds the `init(data:options:documentAttributes:)`
@@ -85,3 +86,4 @@ public extension NSAttributedString {
         self.init(string: text)
     }
 }
+#endif

@@ -19,8 +19,12 @@
 import Foundation
 
 public extension Data {
-	var md5String: String {
-		MD5.hexString(MD5.hash(Array(self)))
+	var md5Hash: Data {
+		Data(MD5.hash(Array(self)))
+	}
+
+	var md5String: String? {
+		MD5.hexString(Array(md5Hash))
 	}
 
 	var isImage: Bool {

@@ -701,9 +701,9 @@ public func winHorizontalAlignmentDescriptor(_ alignment: HorizontalAlignment) -
 
 public func winVerticalAlignmentDescriptor(_ alignment: VerticalAlignment) -> Win32VerticalAlignmentDescriptor {
     switch alignment {
-    case .top: return .top
+    case .top, .firstTextBaseline: return .top
     case .center: return .center
-    case .bottom: return .bottom
+    case .bottom, .lastTextBaseline: return .bottom
     }
 }
 

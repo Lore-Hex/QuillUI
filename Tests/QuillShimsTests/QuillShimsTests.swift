@@ -1,6 +1,7 @@
 import XCTest
 #if !os(macOS) && !os(iOS)
 @testable import QuillShims
+@testable import QuillRS
 #endif
 
 final class QuillShimsTests: XCTestCase {
@@ -39,6 +40,23 @@ final class QuillShimsTests: XCTestCase {
         XCTAssertTrue(controller.rootNode.isRoot)
         #endif
     }
+
+    @MainActor
+    func testTreeNodeIdentityUsesPureSwiftClassIdentity() {
+        #if !os(macOS) && !os(iOS)
+        let first = QuillTreeIdentityObject()
+        let second = QuillTreeIdentityObject()
+        let root = Node(representedObject: nil, parent: nil)
+
+        let firstNode = root.existingOrNewChildNode(with: first)
+        let secondNode = root.existingOrNewChildNode(with: second)
+
+        XCTAssertTrue(root.existingOrNewChildNode(with: first) === firstNode)
+        XCTAssertTrue(root.childNodeRepresentingObject(first) === firstNode)
+        XCTAssertTrue(root.childNodeRepresentingObject(second) === secondNode)
+        XCTAssertFalse(firstNode === secondNode)
+        #endif
+    }
 }
 
 #if !os(macOS) && !os(iOS)
@@ -48,6 +66,8 @@ class MockTreeDelegate: TreeControllerDelegate {
         return []
     }
 }
+
+private final class QuillTreeIdentityObject {}
 #endif
 
 // Linux-only smoke for the compatibility-product shims declared
@@ -56,6 +76,7 @@ class MockTreeDelegate: TreeControllerDelegate {
 // isn't actually compiling on Linux — the tests don't need to
 // assert anything beyond reachability.
 #if os(Linux)
+import Testing
 import SwiftUI
 import Combine
 import AsyncAlgorithms
@@ -216,9 +237,12 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
     }
 
     func testSwiftUISpacingShims() {
-        // Linux SwiftUI shim bridges baseline alignments to top/bottom.
-        XCTAssertEqual(VerticalAlignment.firstTextBaseline, .top)
-        XCTAssertEqual(VerticalAlignment.lastTextBaseline, .bottom)
+        // Baseline alignments are native SwiftOpenUI cases; layout backends
+        // decide how closely they can render text baselines.
+        XCTAssertEqual(VerticalAlignment.firstTextBaseline, .firstTextBaseline)
+        XCTAssertEqual(VerticalAlignment.lastTextBaseline, .lastTextBaseline)
+        XCTAssertNotEqual(VerticalAlignment.firstTextBaseline, .top)
+        XCTAssertNotEqual(VerticalAlignment.lastTextBaseline, .bottom)
     }
 
     func testCombineShim() {
@@ -522,14 +546,34 @@ final class QuillSwiftUIViewModifierShimTests: XCTestCase {
         XCTAssertEqual(font.weight(.bold), font)
     }
 
-    @MainActor func testModifiersCompileAndReturnView() {
-        // No-op modifiers chain and return some View (compile-level check).
+}
+
+@Suite("SwiftUI view modifier shim smoke")
+struct QuillSwiftUIViewModifierSwiftTesting {
+    @Test("basic design-system modifiers compile")
+    @MainActor func modifiersCompileAndReturnView() {
         let color: SwiftUI.Color = .red
         let _ = color
             .tint(.blue)
             .accessibilityHidden(true)
             .listRowBackground(SwiftUI.Color?.none)
             .previewLayout(.sizeThatFits)
+    }
+
+    @Test("icon image style surface compiles")
+    @MainActor func iconImageViewStyleSurfaceCompiles() {
+        let tint = SwiftUI.Color(cgColor: CGColor(red: 0.25, green: 0.5, blue: 0.75, alpha: 0.8))
+        let resolvedTint = tint.resolve(in: .init())
+        #expect(abs(resolvedTint.red - 0.25) < 0.01)
+        #expect(abs(resolvedTint.green - 0.5) < 0.01)
+        #expect(abs(resolvedTint.blue - 0.75) < 0.01)
+
+        let _ = SwiftUI.RoundedRectangle(cornerRadius: 4, style: .continuous)
+            .fill(tint)
+        let _ = SwiftUI.Image(systemName: "star")
+            .symbolRenderingMode(SwiftUI.SymbolRenderingMode.palette)
+            .foregroundStyle(tint)
+            .accessibilityHidden(false)
     }
 }
 

@@ -9,6 +9,14 @@ struct DataRSCoreTests {
 
     private func d(_ s: String) -> Data { Data(s.utf8) }
 
+    @Test("MD5 hash helpers match upstream RSCore shape and bytes")
+    func md5HashHelpers() throws {
+        let data = d("foobar")
+        #expect(data.md5Hash == Data([0x38, 0x58, 0xf6, 0x22, 0x30, 0xac, 0x3c, 0x91, 0x5f, 0x30, 0x0c, 0x66, 0x43, 0x12, 0xc6, 0x3f]))
+        #expect(try #require(data.md5String) == "3858f62230ac3c915f300c664312c63f")
+        #expect(try #require(Data().md5String) == "d41d8cd98f00b204e9800998ecf8427e")
+    }
+
     @Test("a DOCTYPE page is HTML")
     func doctype() {
         #expect(d("<!DOCTYPE html><html><body>hi</body></html>").isProbablyHTML)

@@ -354,8 +354,17 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(wrapper.contains("SCRATCH_PATH=\".build-linux\""))
         #expect(wrapper.contains("--scratch-path=*"))
+        #expect(wrapper.contains("--nnw-upstream"))
+        #expect(wrapper.contains("export QUILLUI_NNW_UPSTREAM=1"))
+        #expect(wrapper.contains("NetNewsWire upstream tests are outside the default Linux package graph."))
+        #expect(wrapper.contains("NetNewsWireMacCoreTests"))
+        #expect(wrapper.contains("NetNewsWireSharedCoreTests"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+        #expect(wrapper.contains("QUILLUI_SWIFT_TEST_USE_LLD"))
+        #expect(wrapper.contains("-use-ld=lld"))
+        #expect(wrapper.contains("QUILLUI_SWIFT_TEST_DISABLE_INDEX_STORE"))
+        #expect(wrapper.contains("--disable-index-store"))
         // The wrapper builds the test bundle first (untimed) then runs it with
         // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
         // wedge the CI step. Both invocations pass the scratch path through.
@@ -403,9 +412,9 @@ struct QuillDataSourceLoweringTests {
         // QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
-        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"QuartzCore\"]"))
+        #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\", \"UniformTypeIdentifiers\"]"))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
         #expect(manifest.contains(".init(product: \"quill-wireguard\", target: \"QuillWireGuard\", qtPath: \"Sources/QuillWireGuardQt\", qtRuntime: .wireGuardQtNative)"))
         #expect(manifest.contains("] + quillCanonicalLinuxAppProducts"))
@@ -422,6 +431,10 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("dependencies: quillWireGuardCoreDependencies"))
         #expect(manifest.contains("dependencies: quillWireGuardUIDependencies"))
         #expect(manifest.contains("dependencies: quillWireGuardQtDependencies"))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.Downloader.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerConnection.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerLauncher.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerStatus.xpc\""))
     }
 
     @Test("visual smoke exposes opt-in Mac reference landmarks")

@@ -75,6 +75,52 @@ import Foundation
 		#expect(activityLog.completedActivities[0].endDate != nil)
 	}
 
+	@Test func viewModelSegmentsIncludeTimestampOwnerDetailDurationAndStatus() {
+		let activityLog = ActivityLog()
+		let owner = ActivityOwner.account(accountID: "account1", displayName: "Account One")
+		let id = activityLog.createActivity(
+			owner: owner,
+			kind: .refreshFeedContent(feedURL: "https://example.com/feed.xml"),
+			detail: "Example Feed"
+		)
+		activityLog.didStart(id: id)
+		activityLog.didComplete(id: id, message: "Updated")
+
+		let activity = activityLog.completedActivities[0]
+		let segments = ActivityLogViewModel.segments(for: activity)
+		let text = segments.map(\.text).joined()
+
+		#expect(text.hasPrefix("["))
+		#expect(text.contains("Account One: "))
+		#expect(text.contains("Refreshing feed: Example Feed"))
+		#expect(text.contains("https://example.com/feed.xml"))
+		#expect(text.contains("Updated"))
+		#expect(segments.contains(ActivityLogTextSegment(text: "✓ ", color: .success, weight: .bold)))
+		#expect(segments.contains { segment in
+			if case .account(let accountID) = segment.color {
+				return accountID == "account1"
+			}
+			return false
+		})
+	}
+
+	@Test func viewModelSegmentsMirrorUpstreamFailureFormatting() {
+		let activityLog = ActivityLog()
+		let owner = ActivityOwner.account(accountID: "account1", displayName: "Account One")
+		let error = NSError(domain: "test", code: 1, userInfo: [NSLocalizedDescriptionKey: "Network down"])
+		let id = activityLog.createActivity(owner: owner, kind: .refreshFeedList)
+
+		activityLog.didStart(id: id)
+		activityLog.didFail(id: id, error: error)
+
+		let segments = ActivityLogViewModel.segments(for: activityLog.completedActivities[0])
+		let text = segments.map(\.text).joined()
+
+		#expect(text.contains("✗ "))
+		#expect(text.contains(" — Network down"))
+		#expect(segments.contains(ActivityLogTextSegment(text: "✗ ", color: .failure, weight: .bold)))
+	}
+
 	@Test func didStartByID() {
 		let activityLog = ActivityLog()
 

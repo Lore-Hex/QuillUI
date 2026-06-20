@@ -10,11 +10,9 @@
 //
 import Foundation
 
-/// On Apple this is `UIWindow` / `NSWindow`; here an opaque anchor (SSK only
-/// references the providing protocol, it doesn't construct an anchor).
-public final class ASPresentationAnchor: @unchecked Sendable {
-    public init() {}
-}
+/// On Apple this is `UIWindow` / `NSWindow`; the compatibility type accepts
+/// any object anchor so AppKit/UIKit windows can be returned unchanged.
+public typealias ASPresentationAnchor = AnyObject
 
 public protocol ASWebAuthenticationPresentationContextProviding: AnyObject {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor

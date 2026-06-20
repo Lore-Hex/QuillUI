@@ -56,7 +56,11 @@ import AppKit
     /// BodyRangesTextView can `override` it and call `super.forwardingTarget(for:)`.
     /// The lowering adds the `override` keyword to such upstream declarations.
     /// MODEL HONESTY: no ObjC runtime on Linux, so nothing forwards — returns nil.
+    #if os(macOS)
+    override open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
+    #else
     open func forwardingTarget(for aSelector: Selector!) -> Any? { nil }
+    #endif
 
     open var next: UIResponder? { nil }
 
@@ -252,6 +256,10 @@ public class NSLayoutConstraint: NSObject {
     public let quillRelation: QuillRelation
     public let quillMultiplier: CGFloat
     public let quillConstant: CGFloat
+    public var firstItem: AnyObject?
+    public var secondItem: AnyObject?
+    public var firstAttribute: QuillLayoutAttribute = .notAnAttribute
+    public var secondAttribute: QuillLayoutAttribute = .notAnAttribute
 
     /// Globally-active constraints. The native layout pass filters these to the
     /// view subtree it lays out. (AppKit stores them per-view; a global list
@@ -277,6 +285,10 @@ public class NSLayoutConstraint: NSObject {
         quillRelation = relation
         quillMultiplier = multiplier
         quillConstant = constant
+        firstItem = first?.quillItem
+        secondItem = second?.quillItem
+        firstAttribute = first?.quillAttribute ?? .notAnAttribute
+        secondAttribute = second?.quillAttribute ?? .notAnAttribute
         super.init()
     }
     public override init() {

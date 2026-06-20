@@ -34,6 +34,7 @@ import Vortex
 import KeyboardShortcuts
 import Magnet
 import Sparkle
+import SafariServices
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
@@ -1934,6 +1935,145 @@ struct CompatibilityModuleTests {
         let imageURL = directory.appendingPathComponent("logo-nobg.png")
         try imageData.write(to: imageURL)
 
+        withResourceDirectory(directory) {
+            let image = Image("logo-nobg")
+            if case .filePath(let path) = image.source {
+                #expect(path == imageURL.path)
+            } else {
+                Issue.record("Image(\"logo-nobg\") should resolve to a file-backed SwiftOpenUI image")
+            }
+
+            #expect(NSImage(named: "logo-nobg")?.data == imageData)
+            #expect(UIImage(named: "logo-nobg")?.data == imageData)
+            #expect(QuillResourceLookup.path(
+                forResource: "logo-nobg",
+                candidateExtensions: QuillResourceLookup.commonImageExtensions
+            ) == imageURL.path)
+        }
+    }
+
+    @Test("Named images resolve from Linux asset catalogs")
+    func namedImagesResolveFromLinuxAssetCatalogs() throws {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillNamedAssetCatalogResources-\(UUID().uuidString)", isDirectory: true)
+        defer { try? fileManager.removeItem(at: directory) }
+
+        let catalog = directory.appendingPathComponent("Assets.xcassets", isDirectory: true)
+        let imageSet = catalog.appendingPathComponent("catalog-logo.imageset", isDirectory: true)
+        let symbolSet = catalog.appendingPathComponent("catalog-symbol.symbolset", isDirectory: true)
+        let appIconSet = catalog.appendingPathComponent("AppIcon.appiconset", isDirectory: true)
+        let colorSet = catalog.appendingPathComponent("catalog-accent.colorset", isDirectory: true)
+        try fileManager.createDirectory(at: imageSet, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: symbolSet, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: appIconSet, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: colorSet, withIntermediateDirectories: true)
+
+        let oneXData = Data("one-x".utf8)
+        let twoXData = Data("two-x".utf8)
+        let twoXURL = imageSet.appendingPathComponent("catalog-logo@2x.png")
+        try oneXData.write(to: imageSet.appendingPathComponent("catalog-logo.png"))
+        try twoXData.write(to: twoXURL)
+        try Data("""
+        {
+          "images": [
+            { "filename": "catalog-logo.png", "idiom": "universal", "scale": "1x" },
+            { "filename": "catalog-logo@2x.png", "idiom": "universal", "scale": "2x" }
+          ],
+          "info": { "author": "xcode", "version": 1 }
+        }
+        """.utf8).write(to: imageSet.appendingPathComponent("Contents.json"))
+
+        let symbolData = Data("<svg><path d=\"M0 0h1v1H0z\"/></svg>".utf8)
+        let symbolURL = symbolSet.appendingPathComponent("catalog-symbol.svg")
+        try symbolData.write(to: symbolURL)
+        try Data("""
+        {
+          "symbols": [
+            { "filename": "catalog-symbol.svg", "idiom": "universal" }
+          ],
+          "info": { "author": "xcode", "version": 1 }
+        }
+        """.utf8).write(to: symbolSet.appendingPathComponent("Contents.json"))
+
+        let smallIconData = Data("small icon".utf8)
+        let largeIconData = Data("large icon".utf8)
+        let largeIconURL = appIconSet.appendingPathComponent("Icon-512@2x.png")
+        try smallIconData.write(to: appIconSet.appendingPathComponent("Icon-16.png"))
+        try largeIconData.write(to: largeIconURL)
+        try Data("""
+        {
+          "images": [
+            { "filename": "Icon-16.png", "idiom": "mac", "scale": "1x", "size": "16x16" },
+            { "filename": "Icon-512@2x.png", "idiom": "mac", "scale": "2x", "size": "512x512" }
+          ],
+          "info": { "author": "xcode", "version": 1 }
+        }
+        """.utf8).write(to: appIconSet.appendingPathComponent("Contents.json"))
+
+        try Data("""
+        {
+          "colors": [
+            {
+              "color": {
+                "color-space": "srgb",
+                "components": { "red": "128", "green": "64", "blue": "32", "alpha": "0.500" }
+              },
+              "idiom": "universal"
+            },
+            {
+              "appearances": [{ "appearance": "luminosity", "value": "dark" }],
+              "color": {
+                "color-space": "srgb",
+                "components": { "red": "1.000", "green": "1.000", "blue": "1.000", "alpha": "1.000" }
+              },
+              "idiom": "universal"
+            }
+          ],
+          "info": { "author": "xcode", "version": 1 }
+        }
+        """.utf8).write(to: colorSet.appendingPathComponent("Contents.json"))
+
+        withResourceDirectory(directory) {
+            #expect(QuillResourceLookup.path(
+                forResource: "catalog-logo",
+                candidateExtensions: QuillResourceLookup.commonImageExtensions
+            ) == twoXURL.path)
+            #expect(NSImage(named: "catalog-logo")?.data == twoXData)
+            #expect(UIImage(named: "catalog-logo")?.data == twoXData)
+
+            #expect(QuillResourceLookup.path(
+                forResource: "catalog-symbol",
+                candidateExtensions: QuillResourceLookup.commonImageExtensions
+            ) == symbolURL.path)
+            #expect(NSImage(named: "catalog-symbol")?.data == symbolData)
+
+            #expect(QuillResourceLookup.path(
+                forResource: "AppIcon",
+                candidateExtensions: QuillResourceLookup.commonImageExtensions
+            ) == largeIconURL.path)
+            #expect(QuillResourceLookup.path(
+                forResource: "NSApplicationIcon",
+                candidateExtensions: QuillResourceLookup.commonImageExtensions
+            ) == largeIconURL.path)
+            #expect(NSImage(named: "NSApplicationIcon")?.data == largeIconData)
+
+            #expect(components(QuillResourceLookup.colorComponents(forResource: "catalog-accent"), equal: [
+                128.0 / 255.0,
+                64.0 / 255.0,
+                32.0 / 255.0,
+                0.5
+            ]))
+            #expect(components(UIColor(named: "catalog-accent")?.components, equal: [
+                128.0 / 255.0,
+                64.0 / 255.0,
+                32.0 / 255.0,
+                0.5
+            ]))
+        }
+    }
+
+    private func withResourceDirectory<T>(_ directory: URL, _ body: () throws -> T) rethrows -> T {
         let previous = getenv("QUILLUI_RESOURCE_DIRS").map { String(cString: $0) }
         setenv("QUILLUI_RESOURCE_DIRS", directory.path, 1)
         defer {
@@ -1943,20 +2083,12 @@ struct CompatibilityModuleTests {
                 unsetenv("QUILLUI_RESOURCE_DIRS")
             }
         }
+        return try body()
+    }
 
-        let image = Image("logo-nobg")
-        if case .filePath(let path) = image.source {
-            #expect(path == imageURL.path)
-        } else {
-            Issue.record("Image(\"logo-nobg\") should resolve to a file-backed SwiftOpenUI image")
-        }
-
-        #expect(NSImage(named: "logo-nobg")?.data == imageData)
-        #expect(UIImage(named: "logo-nobg")?.data == imageData)
-        #expect(QuillResourceLookup.path(
-            forResource: "logo-nobg",
-            candidateExtensions: QuillResourceLookup.commonImageExtensions
-        ) == imageURL.path)
+    private func components(_ actual: [CGFloat]?, equal expected: [CGFloat], accuracy: CGFloat = 0.0001) -> Bool {
+        guard let actual, actual.count == expected.count else { return false }
+        return zip(actual, expected).allSatisfy { abs($0 - $1) <= accuracy }
     }
     #endif
 
@@ -2130,6 +2262,7 @@ struct CompatibilityModuleTests {
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.txt")) == .plainText)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/document.rtf")) == .rtf)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/feed.xml")) == .xml)
+        #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/preferences.plist")) == .propertyList)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/clip.mp4")) == .mpeg4Movie)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/audio.mp3")) == .mp3)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/no-extension")) == nil)
@@ -2148,6 +2281,7 @@ struct CompatibilityModuleTests {
         #expect(UTType.plainText.conforms(to: .text))
         #expect(UTType.html.conforms(to: .text))
         #expect(UTType.json.conforms(to: .data))
+        #expect(UTType.propertyList.conforms(to: .data))
         #expect(UTType.fileURL.conforms(to: .url))
         #expect(UTType.url.conforms(to: .data))
         #expect(UTType.folder.conforms(to: .directory))
@@ -2219,6 +2353,36 @@ struct CompatibilityModuleTests {
     }
 
     // MARK: - OpenURLAction custom handler
+
+    @Test("SafariServices extension model records page messages and validates active pages")
+    @MainActor func safariServicesExtensionModel() {
+        let page = SFSafariPage(properties: SFSafariPageProperties(isActive: true))
+        let tab = SFSafariTab(activePage: page)
+        let window = SFSafariWindow(activeTab: tab)
+        let handler = SFSafariExtensionHandler()
+
+        var activeTab: SFSafariTab?
+        window.getActiveTab { activeTab = $0 }
+        #expect(activeTab === tab)
+
+        var activePage: SFSafariPage?
+        tab.getActivePage { activePage = $0 }
+        #expect(activePage === page)
+
+        page.dispatchMessageToScript(withName: "ping", userInfo: ["validationID": "abc", "active": true])
+        #expect(page.dispatchedMessages.last?.name == "ping")
+        #expect(page.dispatchedMessages.last?.userInfo["validationID"] == "abc")
+        #expect(page.dispatchedMessages.last?.userInfo["active"] == "true")
+
+        var properties: SFSafariPageProperties?
+        page.getPropertiesWithCompletionHandler { properties = $0 }
+        #expect(properties?.isActive == true)
+
+        var validation: (Bool, String)?
+        handler.validateToolbarItem(in: window) { validation = ($0, $1) }
+        #expect(validation?.0 == false)
+        #expect(validation?.1 == "")
+    }
 
     @Test("OpenURLAction routes URLs through the configured handler")
     @MainActor

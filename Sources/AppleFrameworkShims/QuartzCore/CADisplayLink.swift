@@ -100,13 +100,25 @@ open class CADisplayLink: NSObject {
 
     /// The time of the most recent callback, in the `CACurrentMediaTime()`
     /// timebase. Read-only, as on Apple platforms.
-    public private(set) var timestamp: CFTimeInterval = 0
+    public var timestamp: CFTimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return _timestamp
+    }
 
     /// The interval between callbacks at the current preferred rate.
-    public private(set) var duration: CFTimeInterval = 0
+    public var duration: CFTimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return _duration
+    }
 
     /// The expected time of the next callback.
-    public private(set) var targetTimestamp: CFTimeInterval = 0
+    public var targetTimestamp: CFTimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        return _targetTimestamp
+    }
 
     // MARK: - Private state
 
@@ -118,6 +130,9 @@ open class CADisplayLink: NSObject {
 
     private var timer: DispatchSourceTimer?
     private var invalidated = false
+    private var _timestamp: CFTimeInterval = 0
+    private var _duration: CFTimeInterval = 0
+    private var _targetTimestamp: CFTimeInterval = 0
 
     /// The callback target. Apple's CADisplayLink famously RETAINS its
     /// target (which is why UIKit code conventionally interposes a weak
@@ -154,8 +169,7 @@ open class CADisplayLink: NSObject {
         // The source is always resumed immediately after creation, so it is
         // never deallocated in a suspended state (which Dispatch forbids).
         lock.lock()
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
         invalidated = true
         lock.unlock()
     }
@@ -207,8 +221,7 @@ open class CADisplayLink: NSObject {
     public func remove(from runloop: RunLoop, forMode mode: RunLoop.Mode) {
         lock.lock()
         defer { lock.unlock() }
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
     }
 
     /// Permanently stops the link, releases the retained target, and makes
@@ -218,8 +231,7 @@ open class CADisplayLink: NSObject {
     public func invalidate() {
         lock.lock()
         defer { lock.unlock() }
-        timer?.cancel()
-        timer = nil
+        cancelTimerLocked()
         invalidated = true
         target = nil
     }
@@ -235,9 +247,9 @@ open class CADisplayLink: NSObject {
         }
         let interval = currentInterval()
         let now = CACurrentMediaTime()
-        timestamp = now
-        duration = interval
-        targetTimestamp = now + interval
+        _timestamp = now
+        _duration = interval
+        _targetTimestamp = now + interval
         let target = self.target
         lock.unlock()
 
@@ -263,6 +275,15 @@ open class CADisplayLink: NSObject {
             repeating: interval,
             leeway: .milliseconds(2)
         )
+    }
+
+    /// Cancels the dispatch source and synchronously breaks the intentional
+    /// `self -> timer -> event handler -> self` keep-alive cycle.
+    private func cancelTimerLocked() {
+        guard let timer else { return }
+        timer.setEventHandler {}
+        timer.cancel()
+        self.timer = nil
     }
 
     /// The current tick interval: 1/fps. `preferredFrameRateRange`

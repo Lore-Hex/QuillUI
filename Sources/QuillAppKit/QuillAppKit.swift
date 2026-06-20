@@ -20,6 +20,9 @@
 @_exported import QuartzCore
 @_exported import CoreVideo
 @_exported import ImageIO
+@_exported import UniformTypeIdentifiers
+@_exported import CoreSpotlight
+@_exported import CoreTransferable
 import QuillKit
 import Glibc
 
@@ -45,6 +48,24 @@ public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 
 // NSStringFromRect and NSRectFromString come from Foundation through QuillFoundation.
 
+open class DistributedNotificationCenter: NSObject {
+    public static func `default`() -> DistributedNotificationCenter {
+        DistributedNotificationCenter()
+    }
+
+    open func addObserver(_ observer: Any, selector: Selector, name: Notification.Name?, object: String?) {
+        NotificationCenter.default.addObserver(observer, selector: selector, name: name, object: object)
+    }
+
+    open func removeObserver(_ observer: Any) {
+        NotificationCenter.default.removeObserver(observer)
+    }
+
+    open func post(name: Notification.Name, object: String?, userInfo: [AnyHashable: Any]? = nil) {
+        NotificationCenter.default.post(name: name, object: object, userInfo: userInfo)
+    }
+}
+
 // MARK: - NSImage / NSColor / NSFont / NSScreen
 //
 // These are typealiased to the cross-platform RS* types in
@@ -54,6 +75,9 @@ public typealias NSRectPointer = UnsafeMutablePointer<NSRect>
 public typealias NSImage = RSImage
 public typealias NSColor = RSColor
 public typealias NSFont = RSFont
+public enum NSNib {
+    public typealias Name = String
+}
 public let kUTTypeData = "public.data"
 public let kUTTypeText = "public.text"
 public let kUTTypeURL = "public.url"
@@ -81,6 +105,7 @@ public extension NSImage {
     static let addTemplateName: Name = "NSAddTemplate"
     static let removeTemplateName: Name = "NSRemoveTemplate"
     static let actionTemplateName: Name = "NSActionTemplate"
+    static let applicationIconName: Name = "NSApplicationIcon"
     // Standard status-dot image names (WireGuard's TunnelListRow status icon).
     static let statusAvailableName: Name = "NSStatusAvailable"
     static let statusNoneName: Name = "NSStatusNone"
@@ -259,7 +284,7 @@ public extension NSColor {
     static let shadowColor = NSColor()
 
     // Phase B: standard hue presets with real RGB values. NSColor.black,
-    // .white, .clear, .orange come from RSColor (QuillFoundation), so
+    // .white, .clear, .orange, .systemBlue come from RSColor (QuillFoundation), so
     // we only declare the rest here. Values match Apple's deviceRGB
     // generic colors closely enough for common drawing.
     static let red = NSColor(red: 1, green: 0, blue: 0, alpha: 1)
@@ -275,6 +300,11 @@ public extension NSColor {
     static let brown = NSColor(red: 0.6, green: 0.4, blue: 0.2, alpha: 1)
     static let systemGreen = NSColor(red: 0.204, green: 0.780, blue: 0.349, alpha: 1)
     static let systemOrange = NSColor(red: 1.0, green: 0.584, blue: 0.0, alpha: 1)
+    static let systemPurple = NSColor(red: 0.686, green: 0.322, blue: 0.871, alpha: 1)
+    static let systemTeal = NSColor(red: 0.353, green: 0.784, blue: 0.980, alpha: 1)
+    static let systemBrown = NSColor(red: 0.635, green: 0.518, blue: 0.369, alpha: 1)
+    static let systemIndigo = NSColor(red: 0.345, green: 0.337, blue: 0.839, alpha: 1)
+    static let systemPink = NSColor(red: 1.0, green: 0.176, blue: 0.333, alpha: 1)
 
     struct Name: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
         public var rawValue: String
@@ -361,16 +391,42 @@ public struct NSFontTraitMask: OptionSet, Sendable {
 }
 
 public extension NSFont {
-    static func systemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
-    static func boldSystemFont(ofSize: CGFloat) -> NSFont { NSFont() }
-    static func monospacedSystemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
-    static func monospacedDigitSystemFont(ofSize: CGFloat, weight: NSFont.Weight) -> NSFont { NSFont() }
+    static func systemFont(ofSize size: CGFloat, weight: NSFont.Weight) -> NSFont {
+        NSFont(descriptor: NSFontDescriptor(pointSize: size, symbolicTraits: weight.symbolicTraits), size: size)
+    }
+
+    static func menuFont(ofSize size: CGFloat) -> NSFont {
+        systemFont(ofSize: size > 0 ? size : systemFontSize)
+    }
+
+    static func controlContentFont(ofSize size: CGFloat) -> NSFont {
+        systemFont(ofSize: size > 0 ? size : systemFontSize)
+    }
+
+    static func boldSystemFont(ofSize size: CGFloat) -> NSFont {
+        systemFont(ofSize: size, weight: .bold)
+    }
+
+    static func monospacedSystemFont(ofSize size: CGFloat, weight: NSFont.Weight) -> NSFont {
+        let traits = weight.symbolicTraits.union(.monoSpace)
+        let descriptor = NSFontDescriptor(name: ".AppleSystemUIFontMonospaced", pointSize: size, symbolicTraits: traits)
+        return NSFont(descriptor: descriptor, size: size)
+    }
+
+    static func userFixedPitchFont(ofSize size: CGFloat) -> NSFont? {
+        monospacedSystemFont(ofSize: size > 0 ? size : systemFontSize, weight: .regular)
+    }
+
+    static func monospacedDigitSystemFont(ofSize size: CGFloat, weight: NSFont.Weight) -> NSFont {
+        monospacedSystemFont(ofSize: size, weight: weight)
+    }
+
     static var labelFontSize: CGFloat { 13 }
     static var systemFontSize: CGFloat { 13 }
     static var smallSystemFontSize: CGFloat { 11 }
 
-    var fontName: String { "System" }
-    var familyName: String? { "System" }
+    var fontName: String { fontDescriptor.name }
+    var familyName: String? { fontDescriptor.name }
 
     final class TextStyle: Hashable, Sendable {
         public static let body = TextStyle()
@@ -383,8 +439,97 @@ public extension NSFont {
         public func hash(into h: inout Hasher) {}
         public static func == (a: TextStyle, b: TextStyle) -> Bool { a === b }
     }
-    static func preferredFont(forTextStyle style: TextStyle) -> NSFont { NSFont() }
+    static func preferredFont(forTextStyle style: TextStyle) -> NSFont { systemFont(ofSize: systemFontSize) }
 }
+
+public extension NSFont.Weight {
+    var symbolicTraits: NSFontDescriptor.SymbolicTraits {
+        switch self {
+        case .bold, .heavy, .black:
+            return .bold
+        default:
+            return []
+        }
+    }
+}
+
+public typealias NSFontDescriptor = UIFontDescriptor
+
+public extension NSFontDescriptor {
+    struct AttributeName: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let name = AttributeName(rawValue: "NSFontNameAttribute")
+        public static let family = AttributeName(rawValue: "NSFontFamilyAttribute")
+        public static let face = AttributeName(rawValue: "NSFontFaceAttribute")
+        public static let size = AttributeName(rawValue: "NSFontSizeAttribute")
+        public static let traits = AttributeName(rawValue: "NSCTFontTraitsAttribute")
+        public static let featureSettings = AttributeName(rawValue: "NSCTFontFeatureSettingsAttribute")
+    }
+
+    struct TraitKey: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let symbolic = TraitKey(rawValue: "NSCTFontSymbolicTrait")
+        public static let weight = TraitKey(rawValue: "NSCTFontWeightTrait")
+        public static let width = TraitKey(rawValue: "NSCTFontProportionTrait")
+        public static let slant = TraitKey(rawValue: "NSCTFontSlantTrait")
+    }
+
+    struct FeatureKey: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let typeIdentifier = FeatureKey(rawValue: "CTFeatureTypeIdentifier")
+        public static let selectorIdentifier = FeatureKey(rawValue: "CTFeatureSelectorIdentifier")
+    }
+
+    var fontAttributes: [AttributeName: Any] {
+        [.traits: [TraitKey.symbolic: symbolicTraits]]
+    }
+
+    convenience init(fontAttributes: [AttributeName: Any] = [:]) {
+        self.init(
+            name: fontAttributes[.name] as? String ?? ".AppleSystemUIFont",
+            pointSize: fontAttributes[.size] as? CGFloat ?? 13,
+            symbolicTraits: Self.symbolicTraits(from: fontAttributes)
+        )
+    }
+
+    func addingAttributes(_ attributes: [AttributeName: Any] = [:]) -> NSFontDescriptor {
+        NSFontDescriptor(
+            name: attributes[.name] as? String ?? name,
+            pointSize: attributes[.size] as? CGFloat ?? pointSize,
+            symbolicTraits: symbolicTraits.union(Self.symbolicTraits(from: attributes))
+        )
+    }
+
+    private static func symbolicTraits(from attributes: [AttributeName: Any]) -> SymbolicTraits {
+        guard let traits = attributes[.traits] as? [TraitKey: Any] else {
+            return []
+        }
+        var result: SymbolicTraits = []
+        if let symbolic = traits[.symbolic] as? SymbolicTraits {
+            result.formUnion(symbolic)
+        }
+        if let weight = traits[.weight] as? NSFont.Weight, weight.symbolicTraits.contains(.bold) {
+            result.insert(.bold)
+        }
+        return result
+    }
+}
+
+public extension NSFontDescriptor.SymbolicTraits {
+    static let bold = NSFontDescriptor.SymbolicTraits(rawValue: 1 << 1)
+    static let italic = NSFontDescriptor.SymbolicTraits(rawValue: 1 << 0)
+    static let monoSpace = NSFontDescriptor.SymbolicTraits(rawValue: 1 << 10)
+}
+
+public let kVerticalPositionType = 10
+public let kSuperiorsSelector = 1
+public let kInferiorsSelector = 2
 
 open class NSFontManager: NSObject, @unchecked Sendable {
     public static let shared = NSFontManager()
@@ -558,6 +703,12 @@ open class NSAppearance: NSObject, @unchecked Sendable {
     ]
 }
 
+public extension NSAppearance {
+    var isDarkMode: Bool {
+        bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+}
+
 // MARK: - NSResponder / NSView / NSViewController / NSWindow
 
 // EPIC #512: Apple's NSResponder is @MainActor. The entire responder tree —
@@ -574,9 +725,13 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     /// falls through to `super.quillPerform` for inherited selectors, terminating
     /// here in a no-op. CLASS-BODY (not an extension) so the overrides are
     /// reachable through a base-class-typed reference (NSControl.sendAction casts
-    /// `target as? QuillSelectorDispatching`). See QuillSelectorDispatching
-    /// (QuillFoundation).
-    open func quillPerform(_ selector: Selector, with sender: Any?) {}
+    /// `target as? QuillSelectorDispatching`). When a selector is not handled by
+    /// a generated override, the responder-chain root forwards to `nextResponder`
+    /// so nil-target actions dispatched from views can reach their controller.
+    /// See QuillSelectorDispatching (QuillFoundation).
+    open func quillPerform(_ selector: Selector, with sender: Any?) {
+        nextResponder?.quillPerform(selector, with: sender)
+    }
 
     fileprivate weak var quillExplicitNextResponder: NSResponder?
 
@@ -590,6 +745,10 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     // nonisolated: pure storage init, so nonisolated subclass inits
     // (NSViewController/NSView lowering ergonomics) can delegate to it.
     nonisolated public override init() {}
+    @discardableResult
+    open func presentError(_ error: Error) -> Bool {
+        NSApplication.shared.presentError(error)
+    }
     open var nextResponder: NSResponder? {
         get { quillExplicitNextResponder }
         set { quillExplicitNextResponder = newValue }
@@ -622,6 +781,8 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     open func touchesMoved(with event: NSEvent) { nextResponder?.touchesMoved(with: event) }
     open func touchesEnded(with event: NSEvent) { nextResponder?.touchesEnded(with: event) }
     open func touchesCancelled(with event: NSEvent) { nextResponder?.touchesCancelled(with: event) }
+    open func scrollPageDown(_ sender: Any?) { nextResponder?.scrollPageDown(sender) }
+    open func scrollPageUp(_ sender: Any?) { nextResponder?.scrollPageUp(sender) }
     open func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { nextResponder?.draggingEntered(sender) ?? [] }
     open func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { nextResponder?.draggingUpdated(sender) ?? [] }
     open func draggingExited(_ sender: NSDraggingInfo?) { nextResponder?.draggingExited(sender) }
@@ -636,8 +797,7 @@ open class NSResponder: NSObject, QuillSelectorDispatching {
     open var acceptsFirstResponder: Bool { false }
     open func becomeFirstResponder() -> Bool { true }
     open func resignFirstResponder() -> Bool { true }
-    open func copy(_ sender: Any?) { _ = sender }
-    open func paste(_ sender: Any?) { _ = sender }
+    open func performTextFinderAction(_ sender: Any?) { nextResponder?.performTextFinderAction(sender) }
     open func responds(to aSelector: Selector!) -> Bool {
         _ = aSelector
         return false
@@ -721,6 +881,9 @@ open class NSView: NSResponder {
     /// WireGuard's LogViewController calls it on the table to keep the tail
     /// visible. Compile-stub until the Qt scroll-view backend honors it.
     open func scroll(_ point: NSPoint) { setBoundsOrigin(point) }
+    /// Nib lifecycle hook. Linux ports manually instantiate many upstream
+    /// AppKit views but still call overrides that configure outlets.
+    open func awakeFromNib() {}
     /// Hover tooltip. WireGuard sets it on detail-row buttons (ButtonRow.buttonToolTip)
     /// and table cells. Compile-stub (stored) until the Qt backend wires native tooltips.
     public var toolTip: String?
@@ -743,10 +906,21 @@ open class NSView: NSResponder {
     private var nextToolTipTag: ToolTipTag = 1
     public weak var superview: NSView?
     public weak var window: NSWindow?
+    private var quillAccessibilityLabel: String?
+    public enum BackgroundStyle: Int, Sendable {
+        case normal, emphasized, raised, lowered
+    }
+    open var backgroundStyle: BackgroundStyle = .normal
     open var isHidden: Bool = false
     open var alphaValue: CGFloat = 1
     open var isOpaque: Bool { false }
-    open var wantsLayer: Bool = false
+    open var wantsLayer: Bool = false {
+        didSet {
+            if wantsLayer && layer == nil {
+                layer = makeBackingLayer()
+            }
+        }
+    }
     open var layer: CALayer?
     open var shadow: NSShadow?
     open var focusRingType: NSFocusRingType = .default
@@ -860,6 +1034,7 @@ open class NSView: NSResponder {
         parent.quillMarkNeedsDisplay()
         viewDidMoveToSuperview()
     }
+    open func removeFromSuperviewWithoutNeedingDisplay() { removeFromSuperview() }
     open func setFrameSize(_ s: NSSize) { frame.size = s }
     open func setFrameOrigin(_ p: NSPoint) { frame.origin = p }
     open func setBoundsOrigin(_ p: NSPoint) { bounds.origin = p }
@@ -906,6 +1081,13 @@ open class NSView: NSResponder {
     open func invalidateIntrinsicContentSize() {
         needsLayout = true
         superview?.needsLayout = true
+    }
+
+    open var fittingSize: NSSize {
+        let intrinsic = intrinsicContentSize
+        let width = intrinsic.width == NSView.noIntrinsicMetric ? frame.width : intrinsic.width
+        let height = intrinsic.height == NSView.noIntrinsicMetric ? frame.height : intrinsic.height
+        return NSSize(width: max(0, ceil(width)), height: max(0, ceil(height)))
     }
 
     open func setNeedsDisplay(_ rect: NSRect) {
@@ -979,6 +1161,9 @@ open class NSView: NSResponder {
     }
 
     open func layout() {}
+    open func resizeSubviews(withOldSize oldSize: NSSize) {
+        _ = oldSize
+    }
     open func draw(_ rect: NSRect) {}
     open func displayLayer() {}
     open var wantsUpdateLayer: Bool { false }
@@ -996,6 +1181,11 @@ open class NSView: NSResponder {
         oldView.removeFromSuperview()
         insertSubview(newView, at: index)
     }
+    open func setFrameIfNotEqual(_ newFrame: NSRect) {
+        if frame != newFrame {
+            frame = newFrame
+        }
+    }
     open var isFlipped: Bool { false }
     open var canBecomeKeyView: Bool { false }
     open class var isCompatibleWithResponsiveScrolling: Bool { false }
@@ -1003,6 +1193,9 @@ open class NSView: NSResponder {
     open var inLiveResize: Bool { false }
     open func viewWillStartLiveResize() {}
     open func viewDidEndLiveResize() {}
+    open func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
+        _ = (menu, event)
+    }
     open func knowsPageRange(_ range: NSRangePointer) -> Bool {
         _ = range
         return false
@@ -1013,7 +1206,8 @@ open class NSView: NSResponder {
         return false
     }
     open func isAccessibilityElement() -> Bool { false }
-    open func accessibilityLabel() -> String? { nil }
+    open func accessibilityLabel() -> String? { quillAccessibilityLabel }
+    open func setAccessibilityLabel(_ label: String?) { quillAccessibilityLabel = label }
     open func accessibilityParent() -> Any? { superview }
     open func isMousePoint(_ point: NSPoint, in rect: NSRect) -> Bool {
         rect.contains(point)
@@ -1075,6 +1269,17 @@ open class NSView: NSResponder {
     open func removeConstraints(_ constraints: [NSLayoutConstraint]) {
         for constraint in constraints { removeConstraint(constraint) }
     }
+    public func constraintsToMakeSubViewFullSize(_ subview: NSView) -> [NSLayoutConstraint] {
+        [
+            subview.leadingAnchor.constraint(equalTo: leadingAnchor),
+            subview.trailingAnchor.constraint(equalTo: trailingAnchor),
+            subview.topAnchor.constraint(equalTo: topAnchor),
+            subview.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ]
+    }
+    public func addFullSizeConstraints(forSubview subview: NSView) {
+        NSLayoutConstraint.activate(constraintsToMakeSubViewFullSize(subview))
+    }
     public typealias ToolTipTag = Int
     open func addToolTip(_ rect: NSRect, owner: NSViewToolTipOwner, userData data: UnsafeMutableRawPointer?) -> ToolTipTag {
         _ = (rect, owner, data)
@@ -1094,6 +1299,7 @@ open class NSView: NSResponder {
     open func viewDidUnhide() {}
     open func updateTrackingAreas() {}
     open func resetCursorRects() {}
+    public internal(set) var quillCursorRects: [(rect: NSRect, cursor: NSCursor)] = []
     open func didAddSubview(_ subview: NSView) { _ = subview }
     open func willRemoveSubview(_ subview: NSView) { _ = subview }
 
@@ -1313,10 +1519,41 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     }
 }
 
+@MainActor open class NSExtensionItem: NSObject {
+    public var attachments: [NSItemProvider]?
+
+    public init(attachments: [NSItemProvider]? = nil) {
+        self.attachments = attachments
+        super.init()
+    }
+}
+
+@MainActor open class NSExtensionContext: NSObject {
+    public var inputItems: [Any] = []
+    public private(set) var completedReturningItems: [Any]?
+    public private(set) var didCompleteRequest = false
+    public private(set) var cancellationError: Error?
+
+    public override init() {
+        super.init()
+    }
+
+    open func completeRequest(returningItems: [Any]?, completionHandler: ((Bool) -> Void)? = nil) {
+        completedReturningItems = returningItems
+        didCompleteRequest = true
+        completionHandler?(true)
+    }
+
+    open func cancelRequest(withError error: Error) {
+        cancellationError = error
+    }
+}
+
 @MainActor open class NSViewController: NSResponder {
     /// The VC that presented this one (set on present; read as
     /// `presentingViewController?.dismiss(self)`). Compile stub: nil unless set.
     public weak var presentingViewController: NSViewController?
+    open var undoManager: UndoManager? = UndoManager()
     private var quillView: NSView = NSView()
     /// True once the view has been loaded (loadView has run). AppKit-faithful:
     /// accessing `.view` lazily loads it. Needed for rendering — a VC that builds
@@ -1353,14 +1590,25 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
     public var representedObject: Any?
     public var title: String?
     public weak var parent: NSViewController?
+    open var nibName: NSNib.Name? { nil }
+    public var extensionContext: NSExtensionContext?
     public var preferredContentSize: NSSize = .zero
     public var preferredMinimumSize: NSSize = .zero
     public var preferredMaximumSize: NSSize = .zero
+    public struct TransitionOptions: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let crossfade = TransitionOptions(rawValue: 1 << 0)
+        public static let slideForward = TransitionOptions(rawValue: 1 << 1)
+        public static let slideBackward = TransitionOptions(rawValue: 1 << 2)
+        public static let allowUserInteraction = TransitionOptions(rawValue: 1 << 3)
+    }
     // Designated init matches AppKit (init(nibName:bundle:) / init?(coder:)).
     // `nonisolated` so the (nonisolated, overriding NSResponder.init()) convenience
     // init below can delegate to it, and so subclasses' inits can call it from any
     // isolation. Only touches default-initialized stored properties + super.init().
     nonisolated public init(nibName: String?, bundle: Bundle?) { super.init() }
+    nonisolated public required init?(coder: NSCoder) { super.init() }
     // Convenience so a subclass's `init()` needs no `override` (issue #231; same
     // model as NSView). `override` because it overrides NSResponder's init().
     nonisolated public override convenience init() { self.init(nibName: nil, bundle: nil) }
@@ -1382,39 +1630,127 @@ open class NSTrackingArea: NSObject, @unchecked Sendable {
         parent.children.removeAll { $0 === self }
         self.parent = nil
     }
+    open func transition(
+        from fromViewController: NSViewController,
+        to toViewController: NSViewController,
+        options: TransitionOptions = [],
+        completionHandler: (() -> Void)? = nil
+    ) {
+        if fromViewController.view.superview != nil {
+            fromViewController.view.removeFromSuperview()
+        }
+        if toViewController.view.superview == nil {
+            view.addSubview(toViewController.view)
+        }
+        completionHandler?()
+    }
     public func presentAsSheet(_ vc: NSViewController) {}
     public func presentAsModalWindow(_ vc: NSViewController) {}
     public func dismiss(_ sender: Any?) {}
 }
 
+open class NSStoryboard: NSObject {
+    public struct Name: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+    }
+
+    public struct SceneIdentifier: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+    }
+
+    public let name: Name
+    public let bundle: Bundle?
+    private static var factories = [String: @MainActor () -> Any]()
+
+    public init(name: Name, bundle: Bundle?) {
+        self.name = name
+        self.bundle = bundle
+        super.init()
+    }
+
+    public static func quillRegisterController(identifier: SceneIdentifier, factory: @escaping @MainActor () -> Any) {
+        factories[identifier.rawValue] = factory
+    }
+
+    @MainActor open func instantiateController(withIdentifier identifier: SceneIdentifier) -> Any {
+        Self.factories[identifier.rawValue]?() ?? NSViewController()
+    }
+
+    @MainActor open func instantiateInitialController() -> Any? {
+        Self.factories[name.rawValue]?() ?? NSWindowController(window: NSWindow())
+    }
+}
+
 open class NSWindowController: NSResponder {
+    private var quillWindowStorage: NSWindow?
+    private var quillWindowNibName: String?
+    private var quillDidLoadWindow = false
+
     public var window: NSWindow? {
-        didSet {
-            quillUpdateWindowControllerLink(from: oldValue)
+        get {
+            quillLoadWindowIfNeeded()
+            return quillWindowStorage
         }
+        set {
+            let oldWindow = quillWindowStorage
+            quillWindowStorage = newValue
+            if newValue == nil {
+                quillDidLoadWindow = false
+            }
+            quillUpdateWindowControllerLink(from: oldWindow)
+        }
+    }
+    public var isWindowLoaded: Bool {
+        quillDidLoadWindow || quillWindowStorage != nil
     }
     public weak var document: NSDocument?
     public var contentViewController: NSViewController?
+    public var isOpen: Bool { window?.isVisible ?? false }
     public init(window: NSWindow?) {
         super.init()
-        self.window = window
+        quillWindowStorage = window
         quillUpdateWindowControllerLink(from: nil)
     }
-    public func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
-    public func close() { window?.close() }
+    public convenience init(windowNibName: String) {
+        self.init(window: nil)
+        quillWindowNibName = windowNibName
+    }
+    open func windowDidLoad() {}
+    open func invalidateRestorableState() {}
+    open func showWindow(_ sender: Any?) { window?.makeKeyAndOrderFront(sender) }
+    open func close() { window?.close() }
     public var shouldCascadeWindows: Bool = true
     public var windowFrameAutosaveName: String = ""
 
+    private func quillLoadWindowIfNeeded() {
+        guard quillWindowStorage == nil, let windowNibName = quillWindowNibName else {
+            return
+        }
+        let loadedWindow = NSWindow(contentRect: .zero, styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        loadedWindow.title = windowNibName
+        quillWindowStorage = loadedWindow
+        quillUpdateWindowControllerLink(from: nil)
+        guard !quillDidLoadWindow else { return }
+        quillDidLoadWindow = true
+        windowDidLoad()
+    }
+
     private func quillUpdateWindowControllerLink(from oldWindow: NSWindow?) {
-        guard oldWindow !== window else { return }
+        guard oldWindow !== quillWindowStorage else { return }
         if oldWindow?.windowController === self {
             oldWindow?.windowController = nil
         }
-        if let window {
-            if let existingController = window.windowController, existingController !== self {
+        if let currentWindow = quillWindowStorage {
+            if let existingController = currentWindow.windowController, existingController !== self {
                 existingController.window = nil
             }
-            window.windowController = self
+            currentWindow.windowController = self
         }
     }
 }
@@ -1428,6 +1764,7 @@ open class NSWindowController: NSResponder {
     func windowDidMiniaturize(_ notification: Notification)
     func windowDidDeminiaturize(_ notification: Notification)
     func windowShouldClose(_ sender: NSWindow) -> Bool
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager?
 }
 
 public extension NSWindowDelegate {
@@ -1439,6 +1776,7 @@ public extension NSWindowDelegate {
     func windowDidMiniaturize(_ notification: Notification) {}
     func windowDidDeminiaturize(_ notification: Notification) {}
     func windowShouldClose(_ sender: NSWindow) -> Bool { true }
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { nil }
 }
 
 open class NSWindow: NSResponder {
@@ -1479,8 +1817,11 @@ open class NSWindow: NSResponder {
     public static var allowsAutomaticWindowTabbing: Bool = true
     public static let didMoveNotification = Notification.Name("NSWindowDidMoveNotification")
     public static let didResizeNotification = Notification.Name("NSWindowDidResizeNotification")
+    public static let didBecomeMainNotification = Notification.Name("NSWindowDidBecomeMainNotification")
+    public static let didResignMainNotification = Notification.Name("NSWindowDidResignMainNotification")
     public static let didBecomeKeyNotification = Notification.Name("NSWindowDidBecomeKeyNotification")
     public static let didResignKeyNotification = Notification.Name("NSWindowDidResignKeyNotification")
+    public static let willCloseNotification = Notification.Name("NSWindowWillCloseNotification")
     public static let didExitFullScreenNotification = Notification.Name("NSWindowDidExitFullScreenNotification")
     public static let didChangeOcclusionStateNotification = Notification.Name("NSWindowDidChangeOcclusionStateNotification")
     open class func windowNumber(at point: NSPoint, belowWindowWithWindowNumber windowNumber: Int) -> Int {
@@ -1514,6 +1855,14 @@ open class NSWindow: NSResponder {
     }
 
     public var frame: NSRect = .zero
+    public var flippedOrigin: NSPoint? {
+        get { frame.origin }
+        set {
+            if let newValue {
+                frame.origin = newValue
+            }
+        }
+    }
     public var title: String = ""
     public var subtitle: String = ""
     public var contentView: NSView? = NSView() {
@@ -1528,8 +1877,14 @@ open class NSWindow: NSResponder {
     /// The sheet currently presented on this window, if any (WireGuard's AppDelegate.quit
     /// checks it before terminating). Compile-stub: nil until sheets are modelled.
     public var attachedSheet: NSWindow?
+    public var orderedIndex: Int = 0
+    public var restorationClass: NSWindowRestoration.Type?
     public weak var windowController: NSWindowController?
     public weak var delegate: NSWindowDelegate?
+    public var undoManager: UndoManager? {
+        get { delegate?.windowWillReturnUndoManager(self) ?? undoManagerStorage }
+        set { undoManagerStorage = newValue }
+    }
     public var styleMask: StyleMask = []
     public var collectionBehavior: CollectionBehavior = .default
     public var titleVisibility: TitleVisibility = .visible
@@ -1555,6 +1910,7 @@ open class NSWindow: NSResponder {
     public var alphaValue: CGFloat = 1
     public var animationBehavior: AnimationBehavior = .default
     public var toolbar: NSToolbar?
+    public var showsToolbarButton: Bool = true
     public var touchBar: NSTouchBar?
     public var toolbarStyle: ToolbarStyle = .automatic
     public var contentMinSize: NSSize = .zero
@@ -1571,6 +1927,7 @@ open class NSWindow: NSResponder {
     public var screen: NSScreen? { .main }
     open var windowNumber: Int { 0 }
     open var backingScaleFactor: CGFloat { screen?.backingScaleFactor ?? 1 }
+    open var contentLayoutRect: NSRect { contentView?.bounds ?? frame }
     open var mouseLocationOutsideOfEventStream: NSPoint { NSEvent.mouseLocation }
     open var graphicsContext: Any? { nil }
     open var occlusionState: OcclusionState { .visible }
@@ -1586,6 +1943,7 @@ open class NSWindow: NSResponder {
     private var sheetWindowStorage: [NSWindow] = []
     private var sheetCompletionHandlers: [ObjectIdentifier: (NSApplication.ModalResponse) -> Void] = [:]
     private weak var sheetParentStorage: NSWindow?
+    private var undoManagerStorage: UndoManager? = UndoManager()
 
     public struct Level: Equatable, Sendable {
         public var rawValue: Int
@@ -1649,24 +2007,58 @@ open class NSWindow: NSResponder {
         return created
     }
 
+    open func recalculateKeyViewLoop() {}
+
     /// Window hosting a view controller (WireGuard's AppDelegate manage-tunnels window).
     public convenience init(contentViewController: NSViewController) {
         self.init(contentRect: .zero, styleMask: [], backing: .buffered, defer: false)
         self.contentViewController = contentViewController
     }
 
-    open func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; isKeyWindow = true }
-    open func makeKey() { isKeyWindow = true }
-    open func makeMain() { isMainWindow = true }
+    open func makeKeyAndOrderFront(_ sender: Any?) { isVisible = true; makeKey(); makeMain() }
+    open func makeKey() {
+        guard !isKeyWindow else { return }
+        isKeyWindow = true
+        NotificationCenter.default.post(name: Self.didBecomeKeyNotification, object: self)
+        delegate?.windowDidBecomeKey(Notification(name: Self.didBecomeKeyNotification, object: self))
+    }
+    open func makeMain() {
+        guard !isMainWindow else { return }
+        isMainWindow = true
+        NotificationCenter.default.post(name: Self.didBecomeMainNotification, object: self)
+    }
     open func orderFront(_ sender: Any?) { isVisible = true }
     open func orderFrontRegardless() { isVisible = true }
-    open func orderOut(_ sender: Any?) { isVisible = false }
-    open func close() { isVisible = false }
+    open func orderOut(_ sender: Any?) {
+        isVisible = false
+        if isKeyWindow {
+            isKeyWindow = false
+            NotificationCenter.default.post(name: Self.didResignKeyNotification, object: self)
+            delegate?.windowDidResignKey(Notification(name: Self.didResignKeyNotification, object: self))
+        }
+        if isMainWindow {
+            isMainWindow = false
+            NotificationCenter.default.post(name: Self.didResignMainNotification, object: self)
+        }
+    }
+    open func close() {
+        guard delegate?.windowShouldClose(self) ?? true else { return }
+        orderOut(nil)
+        NotificationCenter.default.post(name: NSWindow.willCloseNotification, object: self)
+        delegate?.windowWillClose(Notification(name: NSWindow.willCloseNotification, object: self))
+    }
     open func performClose(_ sender: Any?) { close() }
     open func miniaturize(_ sender: Any?) { isMiniaturized = true }
     open func deminiaturize(_ sender: Any?) { isMiniaturized = false }
     open func zoom(_ sender: Any?) { isZoomed.toggle() }
-    open func toggleFullScreen(_ sender: Any?) {}
+    open func toggleFullScreen(_ sender: Any?) {
+        if styleMask.contains(.fullScreen) {
+            styleMask.remove(.fullScreen)
+            NotificationCenter.default.post(name: Self.didExitFullScreenNotification, object: self)
+        } else {
+            styleMask.insert(.fullScreen)
+        }
+    }
     open func setFrame(_ rect: NSRect, display: Bool) { self.frame = rect }
     open func setFrame(_ rect: NSRect, display: Bool, animate: Bool) { self.frame = rect }
     open func setFrameOrigin(_ p: NSPoint) { self.frame.origin = p }
@@ -1702,6 +2094,21 @@ open class NSWindow: NSResponder {
         firstResponder = responder
         return true
     }
+    open func makeFirstResponderUnlessDescendantIsFirstResponder(_ responder: NSResponder?) {
+        guard let responder else {
+            _ = makeFirstResponder(nil)
+            return
+        }
+
+        var current = firstResponder
+        while let candidate = current {
+            if candidate === responder {
+                return
+            }
+            current = candidate.nextResponder
+        }
+        _ = makeFirstResponder(responder)
+    }
     open func fieldEditor(_ createFlag: Bool, for object: Any?) -> NSText? {
         _ = (createFlag, object)
         return createFlag ? NSTextView() : nil
@@ -1723,6 +2130,10 @@ open class NSWindow: NSResponder {
     public func setFrameAutosaveName(_ name: String) -> Bool { frameAutosaveName = name; return true }
     public func saveFrame(usingName: String) {}
     public func setFrameUsingName(_ name: String) -> Bool { false }
+    public func setFrameUsingName(_ name: String, force: Bool) -> Bool {
+        _ = force
+        return setFrameUsingName(name)
+    }
     public func cascadeTopLeft(from: NSPoint) -> NSPoint { from }
     public func registerForDraggedTypes(_ types: [NSPasteboard.PasteboardType]) {}
     public func contentRect(forFrameRect r: NSRect) -> NSRect { r }
@@ -1789,6 +2200,13 @@ open class NSWindow: NSResponder {
             sheetCompletionHandlers.removeValue(forKey: key)
         }
     }
+    public func beginSheet(_ sheet: NSWindow) async -> NSApplication.ModalResponse {
+        await withCheckedContinuation { continuation in
+            beginSheet(sheet) { response in
+                continuation.resume(returning: response)
+            }
+        }
+    }
     public func endSheet(_ sheet: NSWindow, returnCode: NSApplication.ModalResponse = .OK) {
         let key = ObjectIdentifier(sheet)
         let containedSheet = sheetWindowStorage.contains { $0 === sheet }
@@ -1803,6 +2221,16 @@ open class NSWindow: NSResponder {
         }
     }
     public func setAnchorAttribute(_ a: Any?, for: Any?) {}
+    public func setFlippedOriginAdjustingForScreen(_ point: NSPoint) {
+        frame.origin = point
+    }
+    public func setPointAndSizeAdjustingForScreen(point: NSPoint, size: NSSize, minimumSize: NSSize) {
+        minSize = minimumSize
+        frame = NSRect(
+            origin: point,
+            size: NSSize(width: max(size.width, minimumSize.width), height: max(size.height, minimumSize.height))
+        )
+    }
 
     private func quillRemoveTabbedWindow(_ window: NSWindow, clearParent: Bool) {
         tabbedWindowStorage.removeAll { $0 === window }
@@ -1877,6 +2305,9 @@ open class NSCustomTouchBarItem: NSTouchBarItem {
 // is inert under -strict-concurrency=minimal).
 open class NSApplication: NSResponder, @unchecked Sendable {
     public static let shared = NSApplication()
+    public static let didBecomeActiveNotification = Notification.Name("NSApplicationDidBecomeActiveNotification")
+    public static let willBecomeActiveNotification = Notification.Name("NSApplicationWillBecomeActiveNotification")
+    public static let didResignActiveNotification = Notification.Name("NSApplicationDidResignActiveNotification")
     public weak var delegate: NSApplicationDelegate?
     public var mainMenu: NSMenu?
     public var windows: [NSWindow] = []
@@ -1886,10 +2317,17 @@ open class NSApplication: NSResponder, @unchecked Sendable {
     public var orderedDocuments: [NSDocument] = []
     public var isActive: Bool = false
     private var _activationPolicy: ActivationPolicy = .regular
-    public var applicationIconImage: NSImage?
+    private var _applicationIconImage: NSImage?
+    public var applicationIconImage: NSImage? {
+        get { _applicationIconImage ?? NSImage(named: NSImage.applicationIconName) }
+        set { _applicationIconImage = newValue }
+    }
     public var dockTile: NSDockTile = NSDockTile()
     public var presentationOptions: PresentationOptions = []
     public var currentEvent: NSEvent?
+    public var effectiveAppearance: NSAppearance = NSAppearance()
+    open var objectSpecifier: NSScriptObjectSpecifier?
+    public private(set) var quillPresentedErrors: [Error] = []
 
     public enum ActivationPolicy: Int, Sendable {
         case regular, accessory, prohibited
@@ -1929,9 +2367,25 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         public static let credits = AboutPanelOptionKey(rawValue: "Credits")
     }
     public func orderFrontStandardAboutPanel(options: [AboutPanelOptionKey: Any] = [:]) {}
-    public func activate(ignoringOtherApps: Bool = false) { isActive = true }
-    public func activate() { isActive = true }
-    public func deactivate() { isActive = false }
+    @discardableResult
+    public override func presentError(_ error: Error) -> Bool {
+        quillPresentedErrors.append(error)
+        return true
+    }
+    public func quillClearPresentedErrors() {
+        quillPresentedErrors.removeAll()
+    }
+    public func activate(ignoringOtherApps: Bool = false) {
+        guard !isActive else { return }
+        isActive = true
+        NotificationCenter.default.post(name: Self.didBecomeActiveNotification, object: self)
+    }
+    public func activate() { activate(ignoringOtherApps: false) }
+    public func deactivate() {
+        guard isActive else { return }
+        isActive = false
+        NotificationCenter.default.post(name: Self.didResignActiveNotification, object: self)
+    }
     public func hide(_ sender: Any?) {}
     public func unhide(_ sender: Any?) {}
     public func terminate(_ sender: Any?) {}
@@ -1978,7 +2432,26 @@ open class NSApplication: NSResponder, @unchecked Sendable {
         }
     }
     public func sendAction(_ a: Selector, to target: Any?, from sender: Any?) -> Bool {
-        target != nil
+        if let target {
+            (target as? QuillSelectorDispatching)?.quillPerform(a, with: sender)
+            return true
+        }
+
+        if let control = sender as? NSControl, control.nextResponder == nil {
+            return false
+        }
+
+        var responder = keyWindow?.firstResponder ?? keyWindow?.contentView ?? mainWindow?.firstResponder ?? mainWindow?.contentView
+        if responder == nil {
+            responder = sender as? NSResponder
+        }
+
+        if let current = responder {
+            current.quillPerform(a, with: sender)
+            return true
+        }
+
+        return false
     }
     public func windows(withTabIdentifier id: String) -> [NSWindow] {
         windows.filter { $0.tabbingIdentifier == id }
@@ -2528,6 +3001,42 @@ open class NSPasteboard: NSObject, @unchecked Sendable {
                 _writeClipboardString(s)
                 _writeFileBacked(type: .string, data: Data(s.utf8))
                 wroteAnyType = true
+            } else if let writer = obj as? NSPasteboardWriting {
+                let item = NSPasteboardItem()
+                var wroteItemType = false
+                for type in writer.writableTypes(for: self) {
+                    guard let propertyList = writer.pasteboardPropertyList(forType: type) else {
+                        continue
+                    }
+                    if !wroteAnyType {
+                        _prepareToReplaceContents()
+                    }
+                    if let string = propertyList as? String {
+                        item.setString(string, forType: type)
+                        if type == .string {
+                            _writeClipboardString(string)
+                        }
+                        _writeFileBacked(type: type, data: Data(string.utf8))
+                    } else if let data = propertyList as? Data {
+                        item.setData(data, forType: type)
+                        _writeFileBacked(type: type, data: data)
+                    } else if let url = propertyList as? URL {
+                        let string = url.absoluteString
+                        item.setString(string, forType: type)
+                        _writeFileBacked(type: type, data: Data(string.utf8))
+                    } else if let url = propertyList as? NSURL {
+                        let string = url.absoluteString
+                        item.setString(string, forType: type)
+                        _writeFileBacked(type: type, data: Data(string.utf8))
+                    } else {
+                        item.setPropertyList(propertyList, forType: type)
+                    }
+                    wroteItemType = true
+                    wroteAnyType = true
+                }
+                if wroteItemType {
+                    items.append(item)
+                }
             } else if let item = obj as? NSPasteboardItem {
                 items.append(item)
                 for type in item.types {
@@ -2834,7 +3343,10 @@ open class NSPasteboardItem: NSObject, @unchecked Sendable {
     }
 }
 
-public protocol NSPasteboardWriting {}
+public protocol NSPasteboardWriting {
+    func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType]
+    func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any?
+}
 public protocol NSPasteboardReading {}
 
 // MARK: - NSWorkspace
@@ -2850,6 +3362,8 @@ public protocol NSPasteboardReading {}
 
 open class NSWorkspace: NSObject, @unchecked Sendable {
     public static let shared = NSWorkspace()
+    public static let willSleepNotification = Notification.Name("NSWorkspaceWillSleepNotification")
+    public static let didWakeNotification = Notification.Name("NSWorkspaceDidWakeNotification")
     public var notificationCenter = NotificationCenter()
     public var runningApplications: [NSRunningApplication] {
         NSRunningApplication.runningApplications()
@@ -2868,6 +3382,19 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
     public func openApplication(at url: URL, configuration: OpenConfiguration, completionHandler: ((Any?, Error?) -> Void)? = nil) {
         let ok = _xdgOpen(url.path, operation: "NSWorkspace.openApplication(at:configuration:completionHandler:)")
         completionHandler?(ok ? nil : nil, ok ? nil : NSError(domain: "QuillNSWorkspace", code: 1))
+    }
+
+    public func openApplication(at url: URL, configuration: OpenConfiguration) async throws -> NSRunningApplication {
+        let ok = _xdgOpen(url.path, operation: "NSWorkspace.openApplication(at:configuration:)")
+        guard ok else {
+            throw NSError(domain: "QuillNSWorkspace", code: 1)
+        }
+        return NSRunningApplication(
+            bundleIdentifier: Bundle(url: url)?.bundleIdentifier,
+            localizedName: url.deletingPathExtension().lastPathComponent,
+            bundleURL: url,
+            isActive: configuration.activates
+        )
     }
 
     @discardableResult
@@ -2924,6 +3451,10 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
         return _placeholderIcon()
     }
 
+    public func icon(for type: Any) -> NSImage {
+        icon(forContentType: type)
+    }
+
     public func urlForApplication(toOpen: URL) -> URL? {
         guard let desktopID = _xdgMimeQueryDefault(toOpen) else {
             _recordFallback(
@@ -2957,6 +3488,8 @@ open class NSWorkspace: NSObject, @unchecked Sendable {
         public var arguments: [String] = []
         public var environment: [String: String] = [:]
         public var activates: Bool = true
+        public var requiresUniversalLinks: Bool = false
+        public var promptsUserIfNeeded: Bool = true
     }
 }
 
@@ -2977,17 +3510,23 @@ open class NSRunningApplication: NSObject, @unchecked Sendable {
     public private(set) var bundleIdentifier: String?
     public private(set) var localizedName: String?
     public private(set) var processIdentifier: pid_t
+    public private(set) var bundleURL: URL?
+    public var icon: NSImage?
+    public var isFinishedLaunching: Bool = true
+    public var isTerminated: Bool = false
     public var isActive: Bool
 
     public init(
         bundleIdentifier: String? = Bundle.main.bundleIdentifier,
         localizedName: String? = ProcessInfo.processInfo.processName,
         processIdentifier: pid_t = ProcessInfo.processInfo.processIdentifier,
+        bundleURL: URL? = nil,
         isActive: Bool = false
     ) {
         self.bundleIdentifier = bundleIdentifier
         self.localizedName = localizedName
         self.processIdentifier = processIdentifier
+        self.bundleURL = bundleURL
         self.isActive = isActive
         super.init()
     }
@@ -3178,6 +3717,14 @@ private func quillEstimatedAppKitTextRect(
 }
 
 public extension NSString {
+    func size(withAttributes attributes: [NSAttributedString.Key: Any]? = nil) -> NSSize {
+        quillEstimatedAppKitTextRect(
+            self as String,
+            proposed: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            attributes: attributes
+        ).size
+    }
+
     func boundingRect(
         with size: NSSize,
         options: NSStringDrawingOptions = [],
@@ -3188,7 +3735,6 @@ public extension NSString {
         return quillEstimatedAppKitTextRect(self as String, proposed: size, attributes: attributes)
     }
 }
-
 
 open class NSTextAttachment: NSObject {
     public var image: NSImage?
@@ -3265,6 +3811,17 @@ open class NSBezierPath: NSObject, @unchecked Sendable {
     open var elementCount: Int { elements.count }
 
     public override init() {}
+
+    public convenience init(ovalIn rect: NSRect) {
+        self.init()
+        appendOval(in: rect)
+    }
+
+    public convenience init(roundedRect rect: NSRect, xRadius: CGFloat, yRadius: CGFloat) {
+        self.init()
+        _ = (xRadius, yRadius)
+        appendRect(rect)
+    }
 
     open func move(to point: NSPoint) {
         elements.append((.moveTo, [point]))
@@ -3368,6 +3925,10 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
         addItem(item)
         return item
     }
+    public func addSeparatorIfNeeded() {
+        guard let last = items.last, !last.isSeparatorItem else { return }
+        addItem(NSMenuItem.separator())
+    }
     public func insertItem(_ i: NSMenuItem, at idx: Int) {
         i.menu = self
         items.insert(i, at: idx)
@@ -3393,6 +3954,13 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
             item.menu = nil
         }
         items.removeAll()
+    }
+    public func takeItems(from menu: NSMenu) {
+        for item in menu.items {
+            item.menu = self
+            items.append(item)
+        }
+        menu.items.removeAll()
     }
     public func indexOfItem(_ i: NSMenuItem) -> Int { items.firstIndex { $0 === i } ?? -1 }
     public func setSubmenu(_ menu: NSMenu?, for item: NSMenuItem) {
@@ -3449,6 +4017,26 @@ open class NSMenu: NSObject, QuillSelectorDispatching {
     }
 }
 
+public protocol NSValidatedUserInterfaceItem: AnyObject {
+    var action: Selector? { get }
+}
+
+public protocol NSUserInterfaceValidations: AnyObject {
+    func validateUserInterfaceItem(_ item: NSValidatedUserInterfaceItem) -> Bool
+}
+
+public protocol NSUserActivityRestoring: AnyObject {
+    func restoreUserActivityState(_ activity: NSUserActivity)
+}
+
+public protocol NSWindowRestoration {
+    @MainActor static func restoreWindow(
+        withIdentifier identifier: NSUserInterfaceItemIdentifier,
+        state: NSCoder,
+        completionHandler: @escaping (NSWindow?, Error?) -> Void
+    )
+}
+
 // Apple parity (#512).
 @preconcurrency @MainActor
 open class NSMenuItem: NSObject, QuillSelectorDispatching {
@@ -3491,10 +4079,17 @@ open class NSMenuItem: NSObject, QuillSelectorDispatching {
     // WireGuard's MainMenu/StatusMenu build separators with `NSMenuItem.separator()`
     // (the call form). Was a `static var separator` property (unused in-tree) — now a
     // func so those call sites resolve. separatorItem() kept as the legacy alias.
-    public static func separator() -> NSMenuItem { NSMenuItem() }
-    public static func separatorItem() -> NSMenuItem { NSMenuItem() }
+    public static func separator() -> NSMenuItem { _QuillSeparatorMenuItem() }
+    public static func separatorItem() -> NSMenuItem { _QuillSeparatorMenuItem() }
+    public static func rs_disableIcons() {}
     open var isSeparatorItem: Bool { false }
 }
+
+private final class _QuillSeparatorMenuItem: NSMenuItem {
+    override var isSeparatorItem: Bool { true }
+}
+
+extension NSMenuItem: NSValidatedUserInterfaceItem {}
 
 @preconcurrency @MainActor
 public protocol NSMenuDelegate: AnyObject {
@@ -3522,6 +4117,13 @@ public protocol NSMenuItemValidation: AnyObject {
 // inside redundant (harmless).
 @preconcurrency @MainActor
 open class NSToolbar: NSObject {
+    public struct Identifier: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
+        public var rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public init(stringLiteral value: String) { self.rawValue = value }
+    }
+
     public var identifier: String = ""
     public weak var delegate: NSToolbarDelegate?
     public var displayMode: DisplayMode = .default
@@ -3542,6 +4144,7 @@ open class NSToolbar: NSObject {
 
     public override init() { super.init() }
     public init(identifier: String) { super.init(); self.identifier = identifier }
+    public init(identifier: Identifier) { super.init(); self.identifier = identifier.rawValue }
     @MainActor
     public func insertItem(withItemIdentifier id: NSToolbarItem.Identifier, at idx: Int) {
         guard let item = delegate?.toolbar(self, itemForItemIdentifier: id, willBeInsertedIntoToolbar: true) else {
@@ -3550,6 +4153,12 @@ open class NSToolbar: NSObject {
         let insertionIndex = max(0, min(idx, items.count))
         items.insert(item, at: insertionIndex)
         visibleItems = items
+    }
+    public func existingItem(withIdentifier identifier: NSToolbarItem.Identifier) -> NSToolbarItem? {
+        if let item = visibleItems?.first(where: { $0.itemIdentifier == identifier }) {
+            return item
+        }
+        return items.first { $0.itemIdentifier == identifier }
     }
     public func removeItem(at idx: Int) {
         guard items.indices.contains(idx) else { return }
@@ -3562,6 +4171,9 @@ open class NSToolbar: NSObject {
     @MainActor
     public func validateVisibleItems() {
         visibleItems = items
+        for item in visibleItems ?? [] {
+            item.validate()
+        }
     }
 }
 
@@ -3570,6 +4182,7 @@ open class NSToolbar: NSObject {
 open class NSToolbarItem: NSObject {
     public struct Identifier: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
+        public init(_ rawValue: String) { self.rawValue = rawValue }
         public init(rawValue: String) { self.rawValue = rawValue }
         public static let flexibleSpace = Identifier(rawValue: "NSToolbarFlexibleSpaceItem")
         public static let space = Identifier(rawValue: "NSToolbarSpaceItem")
@@ -3597,12 +4210,42 @@ open class NSToolbarItem: NSObject {
     public var isBordered: Bool = true
     public var isNavigational: Bool = false
     public var possibleLabels: Set<String> = []
+    public var autovalidates: Bool = false
 
     public override init() { super.init() }
     public init(itemIdentifier: Identifier) { super.init(); self.itemIdentifier = itemIdentifier }
+    open func validate() {
+        guard autovalidates else { return }
+        if let validator = target as? NSUserInterfaceValidations {
+            isEnabled = validator.validateUserInterfaceItem(self)
+        }
+    }
 }
 
-open class NSTrackingSeparatorToolbarItem: NSToolbarItem {}
+extension NSToolbarItem: NSValidatedUserInterfaceItem {}
+
+open class NSTrackingSeparatorToolbarItem: NSToolbarItem {
+    public private(set) weak var splitView: NSSplitView?
+    public private(set) var dividerIndex: Int?
+
+    public init(identifier: NSToolbarItem.Identifier, splitView: NSSplitView, dividerIndex: Int) {
+        self.splitView = splitView
+        self.dividerIndex = dividerIndex
+        super.init(itemIdentifier: identifier)
+    }
+}
+open class NSMenuToolbarItem: NSToolbarItem {
+    public var menu: NSMenu?
+}
+open class NSSearchToolbarItem: NSToolbarItem {
+    public let searchField: NSSearchField
+
+    public override init(itemIdentifier: NSToolbarItem.Identifier) {
+        searchField = NSSearchField()
+        super.init(itemIdentifier: itemIdentifier)
+        view = searchField
+    }
+}
 open class NSToolbarItemGroup: NSToolbarItem {
     public var subitems: [NSToolbarItem] = []
     public var selectionMode: SelectionMode = .momentary
@@ -3709,7 +4352,7 @@ open class NSSavePanel: NSWindow {
     public var directoryURL: URL?
     public var nameFieldStringValue: String = ""
     public var nameFieldLabel: String?
-    public var allowedContentTypes: [Any] = []
+    public var allowedContentTypes: [UTType] = []
     public var allowedFileTypes: [String]?
     public var canCreateDirectories: Bool = true
     public var showsHiddenFiles: Bool = false
@@ -3718,6 +4361,7 @@ open class NSSavePanel: NSWindow {
     public var prompt: String?
     public var message: String?
     public var accessoryView: NSView?
+    public var isAccessoryViewDisclosed: Bool = false
     public var treatsFilePackagesAsDirectories: Bool = false
     public var allowsOtherFileTypes: Bool = false
     open func runModal() -> NSApplication.ModalResponse { .OK }
@@ -3734,6 +4378,8 @@ open class NSOpenPanel: NSSavePanel {
     public var canChooseDirectories: Bool = false
     public var allowsMultipleSelection: Bool = false
     public var resolvesAliases: Bool = true
+    public var canDownloadUbiquitousContents: Bool = false
+    public var canResolveUbiquitousConflicts: Bool = false
     public var urls: [URL] = []
 
     open override func runModal() -> NSApplication.ModalResponse { .cancel }
@@ -3889,9 +4535,17 @@ open class NSScroller: NSView {
 }
 
 open class NSTextField: NSControl {
+    public struct TextContentType: Equatable, Hashable, Sendable {
+        public let rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+        public static let username = TextContentType(rawValue: "username")
+        public static let password = TextContentType(rawValue: "password")
+    }
+
     public var font: NSFont?
     public var placeholderString: String?
     public var placeholderAttributedString: NSAttributedString?
+    public var contentType: TextContentType?
     public var isEditable: Bool = false
     public var isSelectable: Bool = true
     public var isBordered: Bool = false
@@ -4033,6 +4687,13 @@ open class NSTextView: NSText {
     public var textStorage: NSTextStorage? = NSTextStorage(string: "")
     public var layoutManager: NSLayoutManager? = NSLayoutManager()
     public var textContainer: NSTextContainer? = NSTextContainer()
+    open override var string: String {
+        get { textStorage?.string ?? super.string }
+        set {
+            super.string = newValue
+            textStorage?.setAttributedString(NSAttributedString(string: newValue))
+        }
+    }
     public var textContainerInset: NSSize = .zero
     open var allowsUndo: Bool = false
     open var isEditable: Bool = true
@@ -4103,6 +4764,19 @@ open class NSTextView: NSText {
         )
     }
     public func scrollRangeToVisible(_ r: NSRange) {}
+    open func scrollToEndOfDocument(_ sender: Any?) {
+        _ = sender
+        let length = textStorage?.length ?? (string as NSString).length
+        setSelectedRange(NSRange(location: length, length: 0))
+        scrollRangeToVisible(NSRange(location: length, length: 0))
+    }
+    open func characterIndexForInsertion(at point: NSPoint) -> Int {
+        let length = textStorage?.length ?? (string as NSString).length
+        guard length > 0 else { return 0 }
+        let x = max(0, point.x - textContainerInset.width)
+        let estimatedIndex = Int((x / 7.0).rounded(.down))
+        return max(0, min(estimatedIndex, length))
+    }
     open func firstRect(forCharacterRange range: NSRange, actualCharacterRange: NSRangePointer?) -> NSRect {
         actualCharacterRange?.pointee = range
         return NSRect(origin: textContainerOrigin, size: NSSize(width: 1, height: font?.pointSize ?? 14))
@@ -4179,6 +4853,14 @@ public protocol NSLayoutManagerDelegate: AnyObject {}
 public protocol NSTextStorageDelegate: AnyObject {}
 
 open class NSTextStorage: NSMutableAttributedString {
+    private struct AttributeRun {
+        var range: NSRange
+        var attributes: [NSAttributedString.Key: Any]
+    }
+
+    private var storageString: String
+    private var storageRuns: [AttributeRun]
+
     public weak var delegate: NSTextStorageDelegate?
     public var layoutManagers: [NSLayoutManager] = []
     public func addLayoutManager(_ m: NSLayoutManager) {
@@ -4203,15 +4885,284 @@ open class NSTextStorage: NSMutableAttributedString {
     }
     open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
     open func processEditing() {}
+
+    open override var string: String { storageString }
+    open override var length: Int { (storageString as NSString).length }
+
+    open override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
+        guard length > 0 else {
+            range?.pointee = NSRange(location: 0, length: 0)
+            return [:]
+        }
+        let clampedLocation = max(0, min(location, length - 1))
+        let run = storageRuns.first { NSLocationInRange(clampedLocation, $0.range) }
+        range?.pointee = run?.range ?? NSRange(location: clampedLocation, length: 1)
+        return run?.attributes ?? [:]
+    }
+
+    open override func attribute(_ attrName: NSAttributedString.Key, at location: Int, effectiveRange range: NSRangePointer?) -> Any? {
+        attributes(at: location, effectiveRange: range)[attrName]
+    }
+
+    open override func replaceCharacters(in range: NSRange, with str: String) {
+        let clampedRange = clampedStorageRange(range)
+        let replacementLength = (str as NSString).length
+        let rangeEnd = NSMaxRange(clampedRange)
+
+        storageString = (storageString as NSString).replacingCharacters(in: clampedRange, with: str)
+
+        var updatedRuns: [AttributeRun] = []
+        for run in storageRuns {
+            let runEnd = NSMaxRange(run.range)
+            if runEnd <= clampedRange.location {
+                updatedRuns.append(run)
+            } else if run.range.location >= rangeEnd {
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: run.range.location + replacementLength - clampedRange.length, length: run.range.length),
+                    attributes: run.attributes
+                ))
+            } else {
+                if run.range.location < clampedRange.location {
+                    updatedRuns.append(AttributeRun(
+                        range: NSRange(location: run.range.location, length: clampedRange.location - run.range.location),
+                        attributes: run.attributes
+                    ))
+                }
+                if runEnd > rangeEnd {
+                    updatedRuns.append(AttributeRun(
+                        range: NSRange(
+                            location: clampedRange.location + replacementLength,
+                            length: runEnd - rangeEnd
+                        ),
+                        attributes: run.attributes
+                    ))
+                }
+            }
+        }
+        if replacementLength > 0 {
+            updatedRuns.append(AttributeRun(
+                range: NSRange(location: clampedRange.location, length: replacementLength),
+                attributes: [:]
+            ))
+        }
+        storageRuns = Self.normalizedRuns(updatedRuns, length: length)
+    }
+
+    open override func append(_ attrString: NSAttributedString) {
+        insert(attrString, at: length)
+    }
+
+    open override func insert(_ attrString: NSAttributedString, at loc: Int) {
+        let insertionLength = attrString.length
+        guard insertionLength > 0 else { return }
+
+        let insertionLocation = max(0, min(loc, length))
+        storageString = (storageString as NSString).replacingCharacters(
+            in: NSRange(location: insertionLocation, length: 0),
+            with: attrString.string
+        )
+
+        var updatedRuns: [AttributeRun] = []
+        for run in storageRuns {
+            let runEnd = NSMaxRange(run.range)
+            if runEnd <= insertionLocation {
+                updatedRuns.append(run)
+            } else if run.range.location >= insertionLocation {
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: run.range.location + insertionLength, length: run.range.length),
+                    attributes: run.attributes
+                ))
+            } else {
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: run.range.location, length: insertionLocation - run.range.location),
+                    attributes: run.attributes
+                ))
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: insertionLocation + insertionLength, length: runEnd - insertionLocation),
+                    attributes: run.attributes
+                ))
+            }
+        }
+
+        for run in Self.runs(from: attrString) {
+            updatedRuns.append(AttributeRun(
+                range: NSRange(location: insertionLocation + run.range.location, length: run.range.length),
+                attributes: run.attributes
+            ))
+        }
+        storageRuns = Self.normalizedRuns(updatedRuns, length: length)
+    }
+
+    open override func deleteCharacters(in range: NSRange) {
+        replaceCharacters(in: range, with: "")
+    }
+
+    open override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        mutateAttributes(in: range) { runAttributes in
+            runAttributes = attrs ?? [:]
+        }
+    }
+
+    open override func addAttribute(_ name: NSAttributedString.Key, value: Any, range: NSRange) {
+        mutateAttributes(in: range) { runAttributes in
+            runAttributes[name] = value
+        }
+    }
+
+    open override func addAttributes(_ attrs: [NSAttributedString.Key: Any], range: NSRange) {
+        mutateAttributes(in: range) { runAttributes in
+            for (key, value) in attrs {
+                runAttributes[key] = value
+            }
+        }
+    }
+
+    open override func removeAttribute(_ name: NSAttributedString.Key, range: NSRange) {
+        mutateAttributes(in: range) { runAttributes in
+            runAttributes.removeValue(forKey: name)
+        }
+    }
+
+    open override func setAttributedString(_ attrString: NSAttributedString) {
+        storageString = attrString.string
+        storageRuns = Self.runs(from: attrString)
+    }
+
     /// corelibs NSMutableAttributedString's `init()` is NOT a designated initializer,
     /// so a custom NSTextStorage (e.g. WireGuard's ConfTextStorage) can't `override
     /// init()` against it. Declare a designated `init()` here (delegating to the
     /// corelibs designated `init(string:)`) so subclasses can override it; re-declare
     /// `init(string:)` so NSTextStorage(string:) still works; + the required NSCoding init.
-    public init() { super.init(string: "") }
-    public override init(attributedString attrStr: NSAttributedString) { super.init(attributedString: attrStr) }
-    public override init(string str: String) { super.init(string: str) }
-    public required init?(coder: NSCoder) { super.init(coder: coder) }
+    public init() {
+        storageString = ""
+        storageRuns = []
+        super.init(string: "")
+    }
+
+    public override init(attributedString attrStr: NSAttributedString) {
+        storageString = attrStr.string
+        storageRuns = Self.runs(from: attrStr)
+        super.init(string: attrStr.string)
+    }
+
+    public override init(string str: String) {
+        storageString = str
+        storageRuns = Self.normalizedRuns([], length: (str as NSString).length)
+        super.init(string: str)
+    }
+
+    public required init?(coder: NSCoder) {
+        storageString = ""
+        storageRuns = []
+        super.init(coder: coder)
+    }
+
+    private func clampedStorageRange(_ range: NSRange) -> NSRange {
+        guard length > 0 else { return NSRange(location: 0, length: 0) }
+        let location = max(0, min(range.location, length))
+        let requestedEnd = range.location > Int.max - range.length ? length : range.location + max(0, range.length)
+        let end = max(location, min(requestedEnd, length))
+        return NSRange(location: location, length: end - location)
+    }
+
+    private func mutateAttributes(in range: NSRange, _ update: ([NSAttributedString.Key: Any]) -> [NSAttributedString.Key: Any]) {
+        let clampedRange = clampedStorageRange(range)
+        guard clampedRange.length > 0 else { return }
+
+        var updatedRuns: [AttributeRun] = []
+        for run in storageRuns {
+            let intersection = NSIntersectionRange(run.range, clampedRange)
+            guard intersection.length > 0 else {
+                updatedRuns.append(run)
+                continue
+            }
+
+            if run.range.location < intersection.location {
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: run.range.location, length: intersection.location - run.range.location),
+                    attributes: run.attributes
+                ))
+            }
+
+            updatedRuns.append(AttributeRun(range: intersection, attributes: update(run.attributes)))
+
+            let intersectionEnd = NSMaxRange(intersection)
+            let runEnd = NSMaxRange(run.range)
+            if intersectionEnd < runEnd {
+                updatedRuns.append(AttributeRun(
+                    range: NSRange(location: intersectionEnd, length: runEnd - intersectionEnd),
+                    attributes: run.attributes
+                ))
+            }
+        }
+        storageRuns = Self.normalizedRuns(updatedRuns, length: length)
+    }
+
+    private func mutateAttributes(in range: NSRange, _ update: (inout [NSAttributedString.Key: Any]) -> Void) {
+        mutateAttributes(in: range) { attributes in
+            var updated = attributes
+            update(&updated)
+            return updated
+        }
+    }
+
+    private static func runs(from attrString: NSAttributedString) -> [AttributeRun] {
+        if let storage = attrString as? NSTextStorage {
+            return normalizedRuns(storage.storageRuns, length: storage.length)
+        }
+
+        let length = attrString.length
+        guard length > 0 else { return [] }
+
+        var runs: [AttributeRun] = []
+        attrString.enumerateAttributes(in: NSRange(location: 0, length: length), options: []) { attributes, range, _ in
+            runs.append(AttributeRun(range: range, attributes: attributes))
+        }
+        return normalizedRuns(runs, length: length)
+    }
+
+    private static func normalizedRuns(_ runs: [AttributeRun], length: Int) -> [AttributeRun] {
+        guard length > 0 else { return [] }
+
+        let sortedRuns = runs
+            .map { run -> AttributeRun in
+                let location = max(0, min(run.range.location, length))
+                let end = max(location, min(NSMaxRange(run.range), length))
+                return AttributeRun(
+                    range: NSRange(location: location, length: end - location),
+                    attributes: run.attributes
+                )
+            }
+            .filter { $0.range.length > 0 }
+            .sorted { $0.range.location < $1.range.location }
+
+        var normalized: [AttributeRun] = []
+        var cursor = 0
+        for run in sortedRuns {
+            if run.range.location > cursor {
+                normalized.append(AttributeRun(
+                    range: NSRange(location: cursor, length: run.range.location - cursor),
+                    attributes: [:]
+                ))
+            }
+            let start = max(run.range.location, cursor)
+            let end = NSMaxRange(run.range)
+            if end > start {
+                normalized.append(AttributeRun(
+                    range: NSRange(location: start, length: end - start),
+                    attributes: run.attributes
+                ))
+                cursor = end
+            }
+        }
+        if cursor < length {
+            normalized.append(AttributeRun(
+                range: NSRange(location: cursor, length: length - cursor),
+                attributes: [:]
+            ))
+        }
+        return normalized
+    }
 }
 
 open class NSLayoutManager: NSObject, @unchecked Sendable {
@@ -4328,7 +5279,15 @@ open class NSImageView: NSControl {
     public var contentTintColor: NSColor?
     public enum ImageScaling: UInt, Sendable { case scaleProportionallyDown, scaleAxesIndependently, scaleNone, scaleProportionallyUpOrDown }
     public enum ImageAlignment: UInt, Sendable { case alignCenter, alignTop, alignTopLeft, alignTopRight, alignLeft, alignBottom, alignBottomLeft, alignBottomRight, alignRight }
+
+    public convenience init(image: NSImage) {
+        self.init(frame: NSRect(origin: .zero, size: image.size))
+        self.image = image
+    }
 }
+
+public typealias NSImageScaling = NSImageView.ImageScaling
+public typealias NSImageAlignment = NSImageView.ImageAlignment
 
 open class NSControl: NSView {
     public static let textDidChangeNotification = Notification.Name("NSControlTextDidChangeNotification")
@@ -4385,6 +5344,7 @@ open class NSControl: NSView {
         set { applyObjectValue(newValue) }
     }
     public var formatter: Foundation.Formatter?
+    public var quillSendActionEventMask: NSEvent.EventTypeMask = .leftMouseUp
     @discardableResult
     public func sendAction(_ a: Selector?, to receiver: Any?) -> Bool {
         guard isEnabled else { return false }
@@ -4399,6 +5359,12 @@ open class NSControl: NSView {
         // target" match (returns true, per AppKit); it just performs nothing.
         (resolvedTarget as? QuillSelectorDispatching)?.quillPerform(selector, with: self)
         return true
+    }
+    @discardableResult
+    public func sendAction(on mask: NSEvent.EventTypeMask) -> Int {
+        let previousMask = quillSendActionEventMask
+        quillSendActionEventMask = mask
+        return Int(previousMask.rawValue)
     }
     public func sizeToFit() {}
     public var controlSize: ControlSize = .regular
@@ -4491,6 +5457,7 @@ open class NSButton: NSControl {
     public var image: NSImage?
     public var alternateImage: NSImage?
     public var bezelStyle: BezelStyle = .rounded
+    public var imageScaling: NSImageScaling = .scaleProportionallyDown
     public var imagePosition: ImagePosition = .imageLeft
     public var keyEquivalent: String = ""
     public var keyEquivalentModifierMask: NSEvent.ModifierFlags = []
@@ -4501,6 +5468,7 @@ open class NSButton: NSControl {
     public var imageHugsTitle: Bool = false
     public var symbolConfiguration: Any?
     public var buttonType: ButtonType = .momentaryPushIn
+    public var allowsMixedState: Bool = false
 
     public enum BezelStyle: UInt, Sendable { case rounded, regularSquare, disclosure, shadowlessSquare, circular, texturedSquare, helpButton, smallSquare, texturedRounded, roundRect, recessed, roundedDisclosure, inline }
     public enum ImagePosition: UInt, Sendable { case noImage, imageOnly, imageLeft, imageRight, imageBelow, imageAbove, imageOverlaps, imageLeading, imageTrailing }
@@ -4529,6 +5497,16 @@ open class NSButton: NSControl {
     /// backing routes a real `clicked` signal here once signal wiring lands.
     open func performClick(_ sender: Any?) {
         sendAction(action, to: target)
+    }
+    open func setNextState() {
+        switch state {
+        case .off:
+            state = .on
+        case .on:
+            state = allowsMixedState ? .mixed : .off
+        default:
+            state = .off
+        }
     }
     public func setButtonType(_ type: ButtonType) { buttonType = type }
     public static func radioButton(withTitle: String, target: Any?, action: Selector?) -> NSButton {
@@ -4591,6 +5569,47 @@ open class NSSlider: NSControl {
         self.maxValue = maxValue
         self.target = target as AnyObject?
         self.action = action
+    }
+}
+
+open class NSStepper: NSControl {
+    public var minValue: Double = 0 {
+        didSet { clampCurrentValue() }
+    }
+    public var maxValue: Double = 100 {
+        didSet { clampCurrentValue() }
+    }
+    public var increment: Double = 1
+    public var valueWraps: Bool = false
+    public var autorepeat: Bool = true
+
+    public convenience init() { self.init(frame: .zero) }
+
+    public func incrementValue() {
+        step(by: increment)
+    }
+
+    public func decrementValue() {
+        step(by: -increment)
+    }
+
+    private func step(by delta: Double) {
+        let next = doubleValue + delta
+        if valueWraps {
+            if next > maxValue {
+                doubleValue = minValue
+            } else if next < minValue {
+                doubleValue = maxValue
+            } else {
+                doubleValue = next
+            }
+        } else {
+            doubleValue = min(max(next, minValue), maxValue)
+        }
+    }
+
+    private func clampCurrentValue() {
+        doubleValue = min(max(doubleValue, minValue), maxValue)
     }
 }
 
@@ -4728,7 +5747,29 @@ extension NSLayoutConstraint {
         constant c: CGFloat
     ) {
         self.init()
-        _ = (view1, attr1, relation, view2, attr2, multiplier, c)
+        firstItem = view1 as AnyObject
+        secondItem = view2 as AnyObject?
+        firstAttribute = Self.quillAttribute(from: attr1)
+        secondAttribute = Self.quillAttribute(from: attr2)
+        _ = (relation, multiplier, c)
+    }
+
+    private static func quillAttribute(from attribute: Attribute) -> QuillLayoutAttribute {
+        switch attribute {
+        case .left: .left
+        case .right: .right
+        case .top: .top
+        case .bottom: .bottom
+        case .leading: .leading
+        case .trailing: .trailing
+        case .width: .width
+        case .height: .height
+        case .centerX: .centerX
+        case .centerY: .centerY
+        case .lastBaseline: .lastBaseline
+        case .firstBaseline: .firstBaseline
+        case .notAnAttribute: .notAnAttribute
+        }
     }
 }
 
@@ -4780,7 +5821,32 @@ open class NSPopUpButton: NSButton {
         selectItem(items[index], at: index)
         return true
     }
+    public func select(_ item: NSMenuItem?) {
+        guard let item, let items = menu?.items, let index = items.firstIndex(where: { $0 === item }) else {
+            return
+        }
+        selectItem(item, at: index)
+    }
+    public func setTitle(_ title: String) {
+        self.title = title
+        titleOfSelectedItem = title
+    }
     public func itemTitles() -> [String] { menu?.items.map(\.title) ?? [] }
+    public func indexOfItem(withRepresentedObject object: Any?) -> Int {
+        guard let items = menu?.items else { return -1 }
+        return items.firstIndex { item in
+            guard let representedObject = item.representedObject else {
+                return item.representedObject == nil && object == nil
+            }
+            if let lhs = representedObject as? AnyHashable, let rhs = object as? AnyHashable {
+                return lhs == rhs
+            }
+            if let lhs = representedObject as? AnyObject, let rhs = object as? AnyObject {
+                return lhs === rhs
+            }
+            return false
+        } ?? -1
+    }
     public func removeAllItems() {
         menu?.removeAllItems()
         clearSelection()
@@ -5056,6 +6122,7 @@ open class NSSplitViewItem: NSObject {
     public var canCollapseFromWindowResize: Bool = true
     public var isCollapsed: Bool = false
     public var allowsFullHeightLayout: Bool = false
+    public var automaticallyAdjustsSafeAreaInsets: Bool = false
     public var automaticMaximumThickness: CGFloat = -1
     public enum Behavior: Int, Sendable { case `default`, sidebar, contentList, inspector }
     public enum CollapseBehavior: Int, Sendable { case `default`, preferResizingSplitViewWithFixedSiblings, preferResizingSiblingsWithFixedSplitView, useConstraints }
@@ -5119,6 +6186,7 @@ open class NSTableView: NSControl {
     public var numberOfRows: Int = 0
     public var numberOfColumns: Int { tableColumns.count }
     public var rowSizeStyle: RowSizeStyle = .default
+    public var effectiveRowSizeStyle: RowSizeStyle { rowSizeStyle }
     public var style: Style = .automatic
     public var floatsGroupRows: Bool = false
     public var doubleAction: Selector?
@@ -5127,6 +6195,9 @@ open class NSTableView: NSControl {
     public var autosaveName: String?
     public var autosaveTableColumns: Bool = false
     public var columnAutoresizingStyle: ColumnAutoresizingStyle = .uniformColumnAutoresizingStyle
+    public var rowActionsVisible: Bool = false
+    public private(set) var localDraggingSourceOperationMask: NSDragOperation = []
+    public private(set) var externalDraggingSourceOperationMask: NSDragOperation = []
 
     private struct CellKey: Hashable {
         var column: Int
@@ -5152,6 +6223,10 @@ open class NSTableView: NSControl {
         case reverseSequentialColumnAutoresizingStyle = 3
         case lastColumnOnlyAutoresizingStyle = 4
         case firstColumnOnlyAutoresizingStyle = 5
+    }
+    public enum RowActionEdge: Int, Sendable {
+        case leading
+        case trailing
     }
 
     public func reloadData() {
@@ -5209,6 +6284,58 @@ open class NSTableView: NSControl {
     public func deselectAll(_ sender: Any?) {
         guard allowsEmptySelection else { return }
         setSelectedRowIndexes(IndexSet())
+    }
+    public func selectPreviousRow(_ sender: Any?) {
+        guard numberOfRows > 0 else { return }
+        let row = selectedRow >= 0 ? max(0, selectedRow - 1) : numberOfRows - 1
+        selectRow(row)
+        scrollRowToVisible(row)
+    }
+    public func selectNextRow(_ sender: Any?) {
+        guard numberOfRows > 0 else { return }
+        let row = selectedRow >= 0 ? min(numberOfRows - 1, selectedRow + 1) : 0
+        selectRow(row)
+        scrollRowToVisible(row)
+    }
+    public func selectRow(_ row: Int) {
+        selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+    }
+    public func selectRowAndScrollToVisible(_ row: Int) {
+        selectRow(row)
+        scrollRowToVisible(row)
+    }
+    public func scrollTo(row: Int, extraHeight: CGFloat = 0) {
+        _ = extraHeight
+        scrollRowToVisible(row)
+    }
+    public func scrollToRowIfNotVisible(_ row: Int) {
+        guard row >= 0 && row < numberOfRows else {
+            return
+        }
+        scrollRowToVisible(row)
+    }
+    public func indexesOfAvailableRows() -> IndexSet? {
+        guard numberOfRows > 0 else {
+            return nil
+        }
+        return IndexSet(integersIn: 0..<numberOfRows)
+    }
+    public func indexesOfAvailableRowsPassingTest(_ test: (Int) -> Bool) -> IndexSet? {
+        guard let indexes = indexesOfAvailableRows() else {
+            return nil
+        }
+        var matching = IndexSet()
+        for index in indexes where test(index) {
+            matching.insert(index)
+        }
+        return matching.isEmpty ? nil : matching
+    }
+    public func setDraggingSourceOperationMask(_ mask: NSDragOperation, forLocal isLocal: Bool) {
+        if isLocal {
+            localDraggingSourceOperationMask = mask
+        } else {
+            externalDraggingSourceOperationMask = mask
+        }
     }
     public func scrollRowToVisible(_ row: Int) {}
     public func rowView(atRow row: Int, makeIfNecessary: Bool) -> NSTableRowView? {
@@ -5351,6 +6478,10 @@ open class NSTableView: NSControl {
         guard start < numberOfRows else { return NSRange(location: NSNotFound, length: 0) }
         let end = min(numberOfRows, Int(ceil(rect.maxY / stride)))
         return NSRange(location: start, length: max(0, end - start))
+    }
+
+    open func drawBackground(inClipRect clipRect: NSRect) {
+        _ = clipRect
     }
 
     public func column(for view: NSView) -> Int {
@@ -5563,6 +6694,7 @@ open class NSTableView: NSControl {
         public static let slideLeft = AnimationOptions(rawValue: 0x30)
         public static let slideRight = AnimationOptions(rawValue: 0x40)
     }
+    public typealias NSTableViewAnimationOptions = AnimationOptions
     public enum DropOperation: UInt, Sendable { case on, above }
 }
 
@@ -5579,20 +6711,83 @@ public protocol QuillReusableView: AnyObject {
     init()
 }
 
+public final class UtilityTableView: NSTableView {
+    public override func drawBackground(inClipRect clipRect: NSRect) {
+        super.drawBackground(inClipRect: clipRect)
+
+        guard numberOfRows > 0 else {
+            return
+        }
+        let belowLastRowY = rect(ofRow: numberOfRows - 1).maxY
+        guard belowLastRowY < clipRect.maxY else {
+            return
+        }
+        backgroundColor.setFill()
+    }
+}
+
+open class NSSecureTextField: NSTextField {}
+
 open class NSTableHeaderView: NSView {}
+open class NSTableViewRowAction: NSObject {
+    public enum Style: Int, Sendable {
+        case regular
+        case destructive
+    }
+
+    public typealias Handler = (NSTableViewRowAction, Int) -> Void
+
+    public let style: Style
+    public var title: String
+    public var backgroundColor: NSColor?
+    public var image: NSImage?
+    private let handler: Handler
+
+    public init(style: Style, title: String, handler: @escaping Handler) {
+        self.style = style
+        self.title = title
+        self.handler = handler
+        super.init()
+    }
+
+    public func perform(row: Int) {
+        handler(self, row)
+    }
+}
+
 open class NSTableRowView: NSView {
     public var isSelected: Bool = false
     public var isEmphasized: Bool = false
     public var isGroupRowStyle: Bool = false
     open var backgroundColor: NSColor = .clear
+
+    public func view(atColumn column: Int) -> NSView? {
+        guard column >= 0 && column < subviews.count else { return nil }
+        return subviews[column]
+    }
 }
 open class NSTableCellView: NSView {
     public var textField: NSTextField?
     public var imageView: NSImageView?
     public var objectValue: Any?
     public var rowSizeStyle: NSTableView.RowSizeStyle = .default
-    public var backgroundStyle: BackgroundStyle = .normal
-    public enum BackgroundStyle: Int, Sendable { case normal, emphasized, raised, lowered }
+}
+
+open class NSGridRow: NSObject, @unchecked Sendable {
+    public var isHidden: Bool = false
+}
+
+open class NSGridView: NSView {
+    private var rowStorage: [Int: NSGridRow] = [:]
+
+    public func row(at index: Int) -> NSGridRow {
+        if let row = rowStorage[index] {
+            return row
+        }
+        let row = NSGridRow()
+        rowStorage[index] = row
+        return row
+    }
 }
 
 // Apple parity (#512).
@@ -5603,7 +6798,7 @@ open class NSTableColumn: NSObject {
     public var width: CGFloat = 100
     public var minWidth: CGFloat = 10
     public var maxWidth: CGFloat = 1000
-    public var headerCell: Any?
+    public var headerCell: NSCell = NSCell()
     public var headerToolTip: String?
     public var sortDescriptorPrototype: NSSortDescriptor?
     public var resizingMask: ResizingOptions = []
@@ -5624,6 +6819,7 @@ public protocol NSTableViewDelegate: AnyObject {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView?
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat
+    func tableView(_ tableView: NSTableView, rowActionsForRow row: Int, edge: NSTableView.RowActionEdge) -> [NSTableViewRowAction]
     func tableViewSelectionDidChange(_ notification: Notification)
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool
     func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int)
@@ -5634,6 +6830,7 @@ public extension NSTableViewDelegate {
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? { nil }
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? { nil }
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat { 0 }
+    func tableView(_ tableView: NSTableView, rowActionsForRow row: Int, edge: NSTableView.RowActionEdge) -> [NSTableViewRowAction] { [] }
     func tableViewSelectionDidChange(_ notification: Notification) {}
     func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool { true }
     func tableView(_ tableView: NSTableView, didAdd rowView: NSTableRowView, forRow row: Int) {}
@@ -5645,11 +6842,15 @@ public extension NSTableViewDelegate {
 public protocol NSTableViewDataSource: AnyObject {
     func numberOfRows(in tableView: NSTableView) -> Int
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any?
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting?
 }
 public extension NSTableViewDataSource {
     func numberOfRows(in tableView: NSTableView) -> Int { 0 }
     func tableView(_ tableView: NSTableView, objectValueFor tableColumn: NSTableColumn?, row: Int) -> Any? { nil }
+    func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> NSPasteboardWriting? { nil }
 }
+
+public let NSOutlineViewDropOnItemIndex = -1
 
 open class NSOutlineView: NSTableView {
     private enum OutlineItemKey: Hashable {
@@ -5669,6 +6870,8 @@ open class NSOutlineView: NSTableView {
     public var autoresizesOutlineColumn: Bool = true
     public var outlineTableColumn: NSTableColumn?
     public var autosaveExpandedItems: Bool = false
+    public private(set) var dropItem: Any?
+    public private(set) var dropChildIndex: Int = NSOutlineViewDropOnItemIndex
 
     private var expandedItems: Set<OutlineItemKey> = []
     private var visibleItems: [VisibleOutlineItem] = []
@@ -5775,6 +6978,41 @@ open class NSOutlineView: NSTableView {
         return -1
     }
 
+    public var selectedItems: [AnyObject] {
+        selectedRowIndexes.compactMap { row in
+            item(atRow: row) as AnyObject?
+        }
+    }
+
+    public func isGroupItem(_ item: Any) -> Bool {
+        MainActor.assumeIsolated {
+            (delegate as? NSOutlineViewDelegate)?.outlineView(self, isGroupItem: item) ?? false
+        }
+    }
+
+    public func removeItems(at indexes: IndexSet, inParent parent: Any?, withAnimation animation: NSTableView.AnimationOptions) {
+        let items = indexes.compactMap { child($0, ofItem: parent) }
+        let rows = IndexSet(items.compactMap { item in
+            let row = row(forItem: item)
+            return row >= 0 ? row : nil
+        })
+        guard !rows.isEmpty else { return }
+
+        removeRows(at: rows, withAnimation: animation)
+        for row in rows.sorted(by: >) where row >= 0 && row < visibleItems.count {
+            if let key = key(for: visibleItems[row].item) {
+                expandedItems.remove(key)
+            }
+            visibleItems.remove(at: row)
+        }
+        rebuildVisibleLookupTables()
+    }
+
+    public func setDropItem(_ item: Any?, dropChildIndex index: Int) {
+        dropItem = item
+        dropChildIndex = index
+    }
+
     public func numberOfChildren(ofItem item: Any?) -> Int {
         MainActor.assumeIsolated {
             max(0, outlineDataSource?.outlineView(self, numberOfChildrenOfItem: item) ?? 0)
@@ -5811,10 +7049,8 @@ open class NSOutlineView: NSTableView {
 
     private func rebuildVisibleItems() {
         visibleItems.removeAll()
-        rowByItem.removeAll()
-        parentByItem.removeAll()
-        levelByItem.removeAll()
         appendChildren(of: nil, level: 0)
+        rebuildVisibleLookupTables()
     }
 
     private func appendChildren(of parent: Any?, level: Int) {
@@ -5851,6 +7087,19 @@ open class NSOutlineView: NSTableView {
             }
             collapseDescendants(of: child)
         }
+    }
+
+    private func rebuildVisibleLookupTables() {
+        rowByItem.removeAll()
+        parentByItem.removeAll()
+        levelByItem.removeAll()
+        for (row, entry) in visibleItems.enumerated() {
+            guard let key = key(for: entry.item) else { continue }
+            rowByItem[key] = row
+            parentByItem[key] = entry.parent
+            levelByItem[key] = entry.level
+        }
+        numberOfRows = visibleItems.count
     }
 
     private func key(for item: Any?) -> OutlineItemKey? {
@@ -5898,12 +7147,18 @@ public protocol NSOutlineViewDataSource: NSTableViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool
     func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any?
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting?
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool
 }
 public extension NSOutlineViewDataSource {
     func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int { 0 }
     func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any { item ?? () }
     func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool { false }
     func outlineView(_ outlineView: NSOutlineView, objectValueFor tableColumn: NSTableColumn?, byItem item: Any?) -> Any? { nil }
+    func outlineView(_ outlineView: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? { nil }
+    func outlineView(_ outlineView: NSOutlineView, validateDrop info: NSDraggingInfo, proposedItem item: Any?, proposedChildIndex index: Int) -> NSDragOperation { [] }
+    func outlineView(_ outlineView: NSOutlineView, acceptDrop info: NSDraggingInfo, item: Any?, childIndex index: Int) -> Bool { false }
 }
 
 // MARK: - Document support
@@ -6027,7 +7282,7 @@ open class NSDocumentController: NSObject {
 public class NSHostingView<Content>: NSView {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init(frame: .zero) }
-    public var fittingSize: NSSize {
+    public override var fittingSize: NSSize {
         let intrinsic = intrinsicContentSize
         if intrinsic != .zero { return intrinsic }
         if frame.size != .zero { return frame.size }
@@ -6047,6 +7302,9 @@ public class NSHostingView<Content>: NSView {
 public class NSHostingController<Content>: NSViewController {
     public var rootView: Content
     public init(rootView: Content) { self.rootView = rootView; super.init(nibName: nil, bundle: nil) }
+    public required init?(coder: NSCoder) {
+        fatalError("NSHostingController(coder:) requires a rootView")
+    }
 }
 
 // NSViewRepresentable / NSViewControllerRepresentable moved to the SwiftUI
@@ -6154,6 +7412,58 @@ public extension NSNotification.Name {
     static let NSPopoverDidClose = NSNotification.Name(rawValue: "NSPopoverDidCloseNotification")
 }
 
+// MARK: - NSSharingServicePicker
+
+open class NSSharingServicePicker: NSObject {
+    public let items: [Any]
+    public weak var delegate: NSSharingServicePickerDelegate?
+    public private(set) var lastPresentationRect: NSRect?
+    public private(set) weak var lastPresentationView: NSView?
+    public private(set) var lastPresentationEdge: NSRectEdge?
+    public private(set) var hasPresented = false
+
+    public init(items: [Any]) {
+        self.items = items
+        super.init()
+    }
+
+    open func show(relativeTo positioningRect: NSRect, of positioningView: NSView, preferredEdge: NSRectEdge) {
+        lastPresentationRect = positioningRect
+        lastPresentationView = positioningView
+        lastPresentationEdge = preferredEdge
+        hasPresented = true
+    }
+}
+
+@MainActor public protocol NSSharingServicePickerDelegate: AnyObject {
+    func sharingServicePicker(
+        _ sharingServicePicker: NSSharingServicePicker,
+        sharingServicesForItems items: [Any],
+        proposedSharingServices proposedServices: [NSSharingService]
+    ) -> [NSSharingService]
+    func sharingServicePicker(
+        _ sharingServicePicker: NSSharingServicePicker,
+        delegateFor sharingService: NSSharingService
+    ) -> NSSharingServiceDelegate?
+}
+
+public extension NSSharingServicePickerDelegate {
+    func sharingServicePicker(
+        _ sharingServicePicker: NSSharingServicePicker,
+        sharingServicesForItems items: [Any],
+        proposedSharingServices proposedServices: [NSSharingService]
+    ) -> [NSSharingService] {
+        proposedServices
+    }
+
+    func sharingServicePicker(
+        _ sharingServicePicker: NSSharingServicePicker,
+        delegateFor sharingService: NSSharingService
+    ) -> NSSharingServiceDelegate? {
+        nil
+    }
+}
+
 // MARK: - NSVisualEffectView / NSGlassEffectView
 
 open class NSVisualEffectView: NSView {
@@ -6218,8 +7528,40 @@ public enum NSHapticFeedbackPerformanceTime: Int, Sendable { case `default`, now
 // MARK: - NSSharingService / NSSound / NSItemProvider helpers / NSDraggingInfo
 
 open class NSSharingService: NSObject, @unchecked Sendable {
-    public init?(named: NSSharingService.Name) {}
-    public func perform(withItems: [Any]) {}
+    public enum SharingContentScope: Int, Sendable {
+        case item
+        case partial
+        case full
+    }
+
+    public var title: String
+    public var image: NSImage?
+    public var alternateImage: NSImage?
+    public var subject: String?
+    public var menuItemTitle: String { title }
+    private let handler: (() -> Void)?
+
+    public init?(named: NSSharingService.Name) {
+        self.title = named.rawValue
+        self.handler = nil
+        super.init()
+    }
+    public init(title: String, image: NSImage, alternateImage: NSImage?, handler: @escaping () -> Void) {
+        self.title = title
+        self.image = image
+        self.alternateImage = alternateImage
+        self.handler = handler
+        super.init()
+    }
+    public override init() {
+        self.title = ""
+        self.handler = nil
+        super.init()
+    }
+    public func perform(withItems: [Any]) {
+        _ = withItems
+        handler?()
+    }
     public struct Name: RawRepresentable, Hashable, Sendable {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -6228,6 +7570,26 @@ open class NSSharingService: NSObject, @unchecked Sendable {
         public static let composeEmail = Name(rawValue: "")
     }
     public static func sharingServices(forItems: [Any]) -> [NSSharingService] { [] }
+}
+
+public protocol NSSharingServiceDelegate: AnyObject {
+    func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any])
+    func sharingService(
+        _ sharingService: NSSharingService,
+        sourceWindowForShareItems items: [Any],
+        sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>
+    ) -> NSWindow?
+}
+
+public extension NSSharingServiceDelegate {
+    func sharingService(_ sharingService: NSSharingService, willShareItems items: [Any]) {}
+    func sharingService(
+        _ sharingService: NSSharingService,
+        sourceWindowForShareItems items: [Any],
+        sharingContentScope: UnsafeMutablePointer<NSSharingService.SharingContentScope>
+    ) -> NSWindow? {
+        nil
+    }
 }
 
 open class NSSound: NSObject, @unchecked Sendable {

@@ -193,7 +193,10 @@ public extension Thread {
 
 public extension NSObject {
     var className: String {
-        String(describing: type(of: self))
+        if let scriptClassDescription = self as? NSScriptClassDescription {
+            return scriptClassDescription.quillScriptClassName
+        }
+        return String(describing: type(of: self))
     }
 
     func performSelector(onMainThread selector: Selector, with object: Any?, waitUntilDone: Bool) {

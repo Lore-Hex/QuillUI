@@ -699,7 +699,7 @@ enum AppleCompatibilitySmoke {
         panel.message = "Pick a folder"
         panel.directoryURL = directoryURL
         panel.allowedFileTypes = ["png", "jpg"]
-        panel.allowedContentTypes = ["public.png"]
+        panel.allowedContentTypes = [.png]
 
         let configurationRoundTrips =
             !panel.canChooseFiles &&
@@ -717,7 +717,7 @@ enum AppleCompatibilitySmoke {
             panel.directoryURL == directoryURL &&
             panel.allowedFileTypes == ["png", "jpg"] &&
             panel.allowedContentTypes.count == 1 &&
-            panel.allowedContentTypes.first as? String == "public.png"
+            panel.allowedContentTypes.first == .png
 
         let runModalCancelsHeadless = panel.runModal() == .cancel
         var beginResponse: NSApplication.ModalResponse?

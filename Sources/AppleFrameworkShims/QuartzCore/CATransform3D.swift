@@ -75,25 +75,52 @@ public struct CATransform3D: Equatable, Sendable {
 /// The identity transform: `[1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1]`.
 public let CATransform3DIdentity = CATransform3D.identity
 
-// MARK: - Row access (file-internal)
+// MARK: - Matrix access (file-internal)
 
-extension CATransform3D {
-    /// The matrix as four rows of `Double`, in the row-vector layout
-    /// described at the top of this file.  All internal math runs in
-    /// `Double` and converts back to `CGFloat` at the API boundary.
-    fileprivate var quartzRows: [[Double]] {
-        [[Double(m11), Double(m12), Double(m13), Double(m14)],
-         [Double(m21), Double(m22), Double(m23), Double(m24)],
-         [Double(m31), Double(m32), Double(m33), Double(m34)],
-         [Double(m41), Double(m42), Double(m43), Double(m44)]]
+private struct QuartzMatrix4x4 {
+    private var values: [Double]
+
+    init(repeating value: Double = 0) {
+        values = Array(repeating: value, count: 16)
     }
 
-    fileprivate init(quartzRows r: [[Double]]) {
-        self.init(
-            m11: CGFloat(r[0][0]), m12: CGFloat(r[0][1]), m13: CGFloat(r[0][2]), m14: CGFloat(r[0][3]),
-            m21: CGFloat(r[1][0]), m22: CGFloat(r[1][1]), m23: CGFloat(r[1][2]), m24: CGFloat(r[1][3]),
-            m31: CGFloat(r[2][0]), m32: CGFloat(r[2][1]), m33: CGFloat(r[2][2]), m34: CGFloat(r[2][3]),
-            m41: CGFloat(r[3][0]), m42: CGFloat(r[3][1]), m43: CGFloat(r[3][2]), m44: CGFloat(r[3][3]))
+    init(_ t: CATransform3D) {
+        values = [
+            Double(t.m11), Double(t.m12), Double(t.m13), Double(t.m14),
+            Double(t.m21), Double(t.m22), Double(t.m23), Double(t.m24),
+            Double(t.m31), Double(t.m32), Double(t.m33), Double(t.m34),
+            Double(t.m41), Double(t.m42), Double(t.m43), Double(t.m44),
+        ]
+    }
+
+    static var identity: QuartzMatrix4x4 {
+        QuartzMatrix4x4(CATransform3DIdentity)
+    }
+
+    subscript(row: Int, column: Int) -> Double {
+        get { values[row * 4 + column] }
+        set { values[row * 4 + column] = newValue }
+    }
+
+    var allEntriesAreFinite: Bool {
+        values.allSatisfy(\.isFinite)
+    }
+
+    var transform: CATransform3D {
+        CATransform3D(
+            m11: CGFloat(values[0]),  m12: CGFloat(values[1]),  m13: CGFloat(values[2]),  m14: CGFloat(values[3]),
+            m21: CGFloat(values[4]),  m22: CGFloat(values[5]),  m23: CGFloat(values[6]),  m24: CGFloat(values[7]),
+            m31: CGFloat(values[8]),  m32: CGFloat(values[9]),  m33: CGFloat(values[10]), m34: CGFloat(values[11]),
+            m41: CGFloat(values[12]), m42: CGFloat(values[13]), m43: CGFloat(values[14]), m44: CGFloat(values[15]))
+    }
+
+    mutating func swapRows(_ lhs: Int, _ rhs: Int) {
+        guard lhs != rhs else { return }
+        for column in 0..<4 {
+            let leftIndex = lhs * 4 + column
+            let rightIndex = rhs * 4 + column
+            values.swapAt(leftIndex, rightIndex)
+        }
     }
 }
 
@@ -189,18 +216,18 @@ public func CATransform3DRotate(_ t: CATransform3D, _ angle: CGFloat, _ x: CGFlo
 /// This is the general 4x4 matrix product; every other composition in this
 /// file funnels through it.
 public func CATransform3DConcat(_ a: CATransform3D, _ b: CATransform3D) -> CATransform3D {
-    let lhs = a.quartzRows
-    let rhs = b.quartzRows
-    var rows = [[Double]](repeating: [Double](repeating: 0, count: 4), count: 4)
+    let lhs = QuartzMatrix4x4(a)
+    let rhs = QuartzMatrix4x4(b)
+    var product = QuartzMatrix4x4()
     for i in 0..<4 {
         for j in 0..<4 {
-            rows[i][j] = lhs[i][0] * rhs[0][j]
-                       + lhs[i][1] * rhs[1][j]
-                       + lhs[i][2] * rhs[2][j]
-                       + lhs[i][3] * rhs[3][j]
+            product[i, j] = lhs[i, 0] * rhs[0, j]
+                          + lhs[i, 1] * rhs[1, j]
+                          + lhs[i, 2] * rhs[2, j]
+                          + lhs[i, 3] * rhs[3, j]
         }
     }
-    return CATransform3D(quartzRows: rows)
+    return product.transform
 }
 
 /// Inverts `t` using Gauss-Jordan elimination with partial pivoting.
@@ -208,47 +235,47 @@ public func CATransform3DConcat(_ a: CATransform3D, _ b: CATransform3D) -> CATra
 /// unchanged, matching Apple's documented behavior.  Matrices containing
 /// non-finite values also come back unchanged rather than as garbage.
 public func CATransform3DInvert(_ t: CATransform3D) -> CATransform3D {
-    var m = t.quartzRows
-    var inv = CATransform3DIdentity.quartzRows
+    var m = QuartzMatrix4x4(t)
+    var inv = QuartzMatrix4x4.identity
 
     // Non-finite entries make elimination produce garbage even when they
     // never become the pivot (Inf passes the pivot guard; an off-diagonal
     // NaN poisons rows through the elimination factors) — screen them out
     // up front so the documented return-unchanged contract actually holds.
-    guard m.allSatisfy({ row in row.allSatisfy(\.isFinite) }) else { return t }
+    guard m.allEntriesAreFinite else { return t }
 
     for column in 0..<4 {
         // Partial pivoting: bring the largest remaining entry in this
         // column onto the diagonal for numerical stability.
         var pivotRow = column
-        var pivotMagnitude = abs(m[column][column])
-        for row in (column + 1)..<4 where abs(m[row][column]) > pivotMagnitude {
-            pivotMagnitude = abs(m[row][column])
+        var pivotMagnitude = abs(m[column, column])
+        for row in (column + 1)..<4 where abs(m[row, column]) > pivotMagnitude {
+            pivotMagnitude = abs(m[row, column])
             pivotRow = row
         }
         guard pivotMagnitude > 0 else { return t } // Singular (or NaN).
 
         if pivotRow != column {
-            m.swapAt(pivotRow, column)
-            inv.swapAt(pivotRow, column)
+            m.swapRows(pivotRow, column)
+            inv.swapRows(pivotRow, column)
         }
 
-        let pivot = m[column][column]
+        let pivot = m[column, column]
         for j in 0..<4 {
-            m[column][j] /= pivot
-            inv[column][j] /= pivot
+            m[column, j] /= pivot
+            inv[column, j] /= pivot
         }
 
         for row in 0..<4 where row != column {
-            let factor = m[row][column]
+            let factor = m[row, column]
             guard factor != 0 else { continue }
             for j in 0..<4 {
-                m[row][j] -= factor * m[column][j]
-                inv[row][j] -= factor * inv[column][j]
+                m[row, j] -= factor * m[column, j]
+                inv[row, j] -= factor * inv[column, j]
             }
         }
     }
-    return CATransform3D(quartzRows: inv)
+    return inv.transform
 }
 
 // MARK: - Affine bridging
