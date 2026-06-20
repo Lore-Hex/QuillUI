@@ -250,54 +250,68 @@ quill_chat_functional_composer_click_x() {
 }
 
 quill_chat_functional_composer_click_y() {
+  quill_chat_functional_composer_click_y_candidates | head -n 1
+}
+
+quill_chat_functional_composer_click_y_candidates() {
   if [[ -n "${QUILLUI_FUNCTIONAL_COMPOSER_Y:-}" ]]; then
     printf '%s\n' "$QUILLUI_FUNCTIONAL_COMPOSER_Y"
     return
   fi
 
+  if [[ -n "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y"
+    return
+  fi
+
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 135))}"
+    local offset
+    for offset in ${QUILLUI_FUNCTIONAL_COMPOSER_Y_OFFSETS:-135 310 410 220 80}; do
+      printf '%s\n' "$((window_y + window_height - offset))"
+    done
   else
-    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 80))}"
+    printf '%s\n' "$((window_y + window_height - 80))"
   fi
 }
 
-launch_app_instance truncate
-resolve_app_window_geometry
-if [[ "${QUILLUI_FUNCTIONAL_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-  focus_x="${QUILLUI_FUNCTIONAL_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
-  focus_y="${QUILLUI_FUNCTIONAL_FOCUS_PRIME_Y:-$((window_y + 54))}"
-  quillui_functional_refocus_window
-  quillui_functional_click_at "$focus_x" "$focus_y"
-  sleep "${QUILLUI_FUNCTIONAL_FOCUS_PRIME_SLEEP:-0.5}"
-fi
+quill_chat_functional_send_attempt() {
+  local click_y="$1"
+  local attachment_x
+  local attachment_y
+  local click_x
+  local send_x
+  local send_y
 
-if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
-  attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
-  attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_composer_click_y)}"
-  quillui_functional_refocus_window
-  quillui_functional_click_at "$attachment_x" "$attachment_y"
-  sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
-fi
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
+    attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$click_y}"
+    quillui_functional_refocus_window
+    quillui_functional_click_at "$attachment_x" "$attachment_y"
+    sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
+  fi
 
-click_x="$(quill_chat_functional_composer_click_x)"
-click_y="$(quill_chat_functional_composer_click_y)"
-echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE}" >&2
-quillui_functional_refocus_window
-quillui_functional_click_at "$click_x" "$click_y"
-sleep 1
-quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
-sleep 1
-if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
-  send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
-  send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_composer_click_y)}"
+  click_x="$(quill_chat_functional_composer_click_x)"
+  echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE}" >&2
   quillui_functional_refocus_window
-  quillui_functional_click_at "$send_x" "$send_y"
-else
-  quillui_functional_xdotool key --clearmodifiers Return
-fi
+  quillui_functional_click_at "$click_x" "$click_y"
+  sleep 1
+  quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
+  sleep 1
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
+    send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$click_y}"
+    quillui_functional_refocus_window
+    quillui_functional_click_at "$send_x" "$send_y"
+  else
+    quillui_functional_xdotool key --clearmodifiers Return
+  fi
+}
 
-python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" "$FUNCTIONAL_MODE" <<'PY'
+quill_chat_functional_wait_for_completion() {
+  local deadline_seconds="$1"
+  local report_failure="${2:-1}"
+
+  python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "$deadline_seconds" "$FUNCTIONAL_MODE" "$report_failure" <<'PY'
 from __future__ import annotations
 
 import json
@@ -312,6 +326,7 @@ reply_text = sys.argv[3]
 home = Path(sys.argv[4])
 deadline_seconds = float(sys.argv[5])
 functional_mode = sys.argv[6]
+report_failure = sys.argv[7] == "1"
 require_attachment = functional_mode in {"attachment-send", "image-attachment-send"}
 database_path = home / ".quilldata" / "default.sqlite"
 
@@ -387,11 +402,36 @@ while time.time() < deadline:
         raise SystemExit(0)
     time.sleep(0.5)
 
-print(f"Functional {functional_mode} did not complete.", file=sys.stderr)
-print(f"request={last_request}", file=sys.stderr)
-print(f"persisted_messages={last_messages}", file=sys.stderr)
+if report_failure:
+    print(f"Functional {functional_mode} did not complete.", file=sys.stderr)
+    print(f"request={last_request}", file=sys.stderr)
+    print(f"persisted_messages={last_messages}", file=sys.stderr)
 raise SystemExit(1)
 PY
+}
+
+launch_app_instance truncate
+resolve_app_window_geometry
+if [[ "${QUILLUI_FUNCTIONAL_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+  focus_x="${QUILLUI_FUNCTIONAL_FOCUS_PRIME_X:-$((window_x + window_width / 2))}"
+  focus_y="${QUILLUI_FUNCTIONAL_FOCUS_PRIME_Y:-$((window_y + 54))}"
+  quillui_functional_refocus_window
+  quillui_functional_click_at "$focus_x" "$focus_y"
+  sleep "${QUILLUI_FUNCTIONAL_FOCUS_PRIME_SLEEP:-0.5}"
+fi
+
+completion_verified=0
+while IFS= read -r click_y; do
+  quill_chat_functional_send_attempt "$click_y"
+  if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
+    completion_verified=1
+    break
+  fi
+done < <(quill_chat_functional_composer_click_y_candidates)
+
+if (( completion_verified == 0 )); then
+  quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" 1
+fi
 
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 echo "Functional screenshot: $SCREENSHOT_PATH"
