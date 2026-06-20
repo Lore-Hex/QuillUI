@@ -55,6 +55,45 @@ private let deferredSignalButtonClick: @convention(c) (gpointer?) -> gboolean = 
 }
 
 @MainActor
+private final class DeferredSignalIncomingInjection {
+    let text: String
+    weak var viewController: UIViewController?
+
+    init(text: String, viewController: UIViewController?) {
+        self.text = text
+        self.viewController = viewController
+    }
+
+    func run() {
+        guard let viewController else {
+            FileHandle.standardError.write(Data("signal-ui-render: incoming injection skipped missing view controller\n".utf8))
+            return
+        }
+        Task { @MainActor in
+            #if canImport(SignalApp)
+            do {
+                let summary = try await QuillSignalRealConversationProbe.injectAcceptedIncomingMessage(text, in: viewController)
+                FileHandle.standardError.write(Data("signal-ui-render: injected incoming message summary \(summary)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("signal-ui-render: incoming injection failed error=\"\(error)\"\n".utf8))
+            }
+            #else
+            FileHandle.standardError.write(Data("signal-ui-render: incoming injection unavailable SignalApp not linked\n".utf8))
+            #endif
+        }
+    }
+}
+
+private let deferredSignalIncomingInjection: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalIncomingInjection>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
+@MainActor
 private func logSignalInputBody(in viewController: UIViewController?, label: String) {
     guard ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INPUT_BODY"] == "1" else { return }
     guard let rootView = viewController?.view else {
@@ -313,6 +352,20 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
         )).toOpaque()
         g_timeout_add(guint(delayMS), deferredSignalButtonClick, box)
         FileHandle.standardError.write(Data("signal-ui-render: scheduled send button click\n".utf8))
+    }
+
+    if let incomingText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"],
+       !incomingText.isEmpty {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_INJECT_INCOMING_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 900
+        )
+        let box = Unmanaged.passRetained(DeferredSignalIncomingInjection(
+            text: incomingText,
+            viewController: vc
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalIncomingInjection, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled incoming injection\n".utf8))
     }
 
     gtk_window_present(winPtr)

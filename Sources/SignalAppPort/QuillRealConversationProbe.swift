@@ -31,26 +31,80 @@ public enum QuillSignalRealConversationProbe {
 
     nonisolated public static func acceptedInteractionDebugSummary() throws -> String {
         try SSKEnvironment.shared.databaseStorageRef.read { tx in
-            let contactAddress = SignalServiceAddress(
-                serviceId: Aci(fromUUID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!),
-                e164: E164("+15555550112")!
-            )
-            guard let thread = TSContactThread.getWithContactAddress(contactAddress, transaction: tx) else {
-                throw QuillSignalRealConversationProbeError.missingSeedThread
-            }
-            let bodies = try String.fetchAll(
-                tx.database,
-                sql: """
-                    SELECT COALESCE(body, '')
-                    FROM \(InteractionRecord.databaseTableName)
-                    WHERE uniqueThreadId = ?
-                    ORDER BY timestamp ASC, id ASC
-                    """,
-                arguments: [thread.uniqueId],
-            )
-            let bodyList = bodies.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
-            return "count=\(bodies.count) bodies=[\(bodyList)]"
+            let thread = try acceptedThread(transaction: tx)
+            return try interactionDebugSummary(threadUniqueId: thread.uniqueId, database: tx.database)
         }
+    }
+
+    public static func injectAcceptedIncomingMessage(_ text: String, in viewController: UIViewController) async throws -> String {
+        guard let cvc = viewController as? ConversationViewController else {
+            throw QuillSignalRealConversationProbeError.unexpectedViewController(String(describing: type(of: viewController)))
+        }
+
+        let interactionUniqueId = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx throws(QuillSignalRealConversationProbeError) in
+            let thread = try acceptedThread(transaction: tx)
+            let now = UInt64(Date().timeIntervalSince1970 * 1000)
+            let message = TSIncomingMessageBuilder.withDefaultValues(
+                thread: thread,
+                timestamp: now,
+                receivedAtTimestamp: now,
+                authorAci: acceptedContactAci,
+                authorE164: acceptedContactE164,
+                messageBody: QuillSignalSeedMessageBody(text),
+                read: false,
+                serverTimestamp: now,
+                serverDeliveryTimestamp: now,
+                serverGuid: "quill-real-conversation-accepted-injected-\(UUID().uuidString)",
+                wasReceivedByUD: false,
+            )
+            .build()
+            message.anyInsert(transaction: tx)
+            return message.uniqueId
+        }
+
+        cvc.loadCoordinator.enqueueReload(
+            scrollAction: CVScrollAction(action: .bottomForNewMessage, isAnimated: false)
+        )
+
+        for _ in 0..<80 {
+            cvc.view.layoutIfNeeded()
+            if cvc.renderItems.contains(where: { $0.interactionUniqueId == interactionUniqueId }) {
+                cvc.collectionView.reloadData()
+                return try acceptedInteractionDebugSummary()
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        throw QuillSignalRealConversationProbeError.injectedMessageDidNotRender(
+            interactionUniqueId: interactionUniqueId,
+            renderItems: cvc.renderItems.count,
+        )
+    }
+
+    private nonisolated static func acceptedThread(transaction tx: DBReadTransaction) throws(QuillSignalRealConversationProbeError) -> TSContactThread {
+        let contactAddress = SignalServiceAddress(
+            serviceId: Aci(fromUUID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!),
+            e164: E164("+15555550112")!
+        )
+        guard let thread = TSContactThread.getWithContactAddress(contactAddress, transaction: tx) else {
+            throw QuillSignalRealConversationProbeError.missingSeedThread
+        }
+        return thread
+    }
+
+    private nonisolated static func interactionDebugSummary(threadUniqueId: String, database: Database) throws -> String {
+        let bodies = try String.fetchAll(
+            database,
+            sql: """
+                SELECT COALESCE(body, '')
+                FROM \(InteractionRecord.databaseTableName)
+                WHERE uniqueThreadId = ?
+                ORDER BY timestamp ASC, id ASC
+                """,
+            arguments: [threadUniqueId],
+        )
+        let bodyList = bodies.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
+        return "count=\(bodies.count) bodies=[\(bodyList)]"
     }
 
     private static func makeViewController(mode: SeedMode, width: CGFloat, height: CGFloat) async throws -> UIViewController {
@@ -225,6 +279,8 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
     case missingSeedRecipient
     case missingSeedThread
     case initialRenderDidNotProduceCells(renderItems: Int, visibleCells: Int, shouldHideContent: Bool)
+    case unexpectedViewController(String)
+    case injectedMessageDidNotRender(interactionUniqueId: String, renderItems: Int)
 
     public var description: String {
         switch self {
@@ -236,6 +292,10 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
             return "Seeded Signal contact thread could not be reloaded."
         case let .initialRenderDidNotProduceCells(renderItems, visibleCells, shouldHideContent):
             return "Real ConversationViewController did not produce visible cells after its initial load (renderItems=\(renderItems), visibleCells=\(visibleCells), shouldHideContent=\(shouldHideContent))."
+        case let .unexpectedViewController(typeName):
+            return "Expected ConversationViewController, received \(typeName)."
+        case let .injectedMessageDidNotRender(interactionUniqueId, renderItems):
+            return "Injected incoming message did not render (interactionUniqueId=\(interactionUniqueId), renderItems=\(renderItems))."
         }
     }
 }

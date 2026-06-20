@@ -115,6 +115,7 @@ struct SourceHygieneTests {
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
         let captureScript = try packageSource("scripts/signal-render-capture.sh")
         let sendSmokeScript = try packageSource("scripts/signal-render-send-smoke.sh")
+        let receiveSmokeScript = try packageSource("scripts/signal-render-receive-smoke.sh")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
         #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
@@ -145,6 +146,8 @@ struct SourceHygieneTests {
         #expect(host.contains("SIGNAL_UI_RENDER_CLICK_SEND_DELAY_MS"))
         #expect(host.contains("SIGNAL_UI_RENDER_LOG_INTERACTIONS"))
         #expect(host.contains("SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE"))
+        #expect(host.contains("SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"))
+        #expect(host.contains("QuillSignalRealConversationProbe.injectAcceptedIncomingMessage"))
         #expect(host.contains("ThreadUtil.enqueueSendQueue.enqueue(operation: {})"))
         #expect(host.contains("runGtkMainLoopCooperatively()"))
         #expect(host.contains("while g_main_context_iteration(nil, 0) != 0 {}"))
@@ -166,6 +169,9 @@ struct SourceHygieneTests {
         #expect(sendSmokeScript.contains(#"require_log_line 'signal-ui-render: after send click body=""'"#))
         #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions send queue drained"))
         #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions count=3 bodies="))
+        #expect(receiveSmokeScript.contains("SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"))
+        #expect(receiveSmokeScript.contains("signal-ui-render: scheduled incoming injection"))
+        #expect(receiveSmokeScript.contains("signal-ui-render: injected incoming message summary count=3 bodies="))
     }
 
     @Test("Signal upstream patches keep the real send pipeline database-backed")
@@ -180,6 +186,9 @@ struct SourceHygieneTests {
         #expect(upstreamFetch.contains("delegate?.updateRowId(transaction.database.lastInsertedRowID)"))
         #expect(upstreamFetch.contains("SDSRecord.sdsInsert shape changed"))
         #expect(probe.contains("acceptedInteractionDebugSummary()"))
+        #expect(probe.contains("injectAcceptedIncomingMessage"))
+        #expect(probe.contains("TSIncomingMessageBuilder.withDefaultValues"))
+        #expect(probe.contains("CVScrollAction(action: .bottomForNewMessage, isAnimated: false)"))
         #expect(summaryQuery.contains("WHERE uniqueThreadId = ?"))
         #expect(!summaryQuery.contains("WHERE threadUniqueId = ?"))
         #expect(summaryQuery.contains("ORDER BY timestamp ASC, id ASC"))
