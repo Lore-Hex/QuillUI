@@ -1558,25 +1558,47 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     nonisolated(unsafe) public static var areAnimationsEnabled: Bool = true
     public static var inheritedAnimationDuration: TimeInterval = 0
 
+    private var quillHorizontalCompressionResistancePriority: NSLayoutConstraint.Priority = .defaultHigh
+    private var quillVerticalCompressionResistancePriority: NSLayoutConstraint.Priority = .defaultHigh
+    private var quillHorizontalContentHuggingPriority: NSLayoutConstraint.Priority = .defaultLow
+    private var quillVerticalContentHuggingPriority: NSLayoutConstraint.Priority = .defaultLow
+
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
-        _ = priority
-        _ = axis
+        switch axis {
+        case .horizontal:
+            quillHorizontalCompressionResistancePriority = priority
+        case .vertical:
+            quillVerticalCompressionResistancePriority = priority
+        }
     }
 
-    /// Sibling of setContentCompressionResistancePriority above, same
-    /// posture: recorded-intent no-op — the native layout pass does not
-    /// consume hugging/compression priorities yet. (SignalUI calls this
-    /// bare from UIView subclass bodies — SelectionIndicatorView, the
-    /// autoSetDimension helpers in UIView+AutoLayout — so it must be a
-    /// class member, not a global.)
+    public func contentCompressionResistancePriority(for axis: NSLayoutConstraint.Axis) -> NSLayoutConstraint.Priority {
+        switch axis {
+        case .horizontal:
+            return quillHorizontalCompressionResistancePriority
+        case .vertical:
+            return quillVerticalCompressionResistancePriority
+        }
+    }
+
+    /// Stored faithfully so lightweight renderers can honor common UIKit
+    /// stack-row intent even before a full constraint solver exists.
     public func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
-        _ = priority
-        _ = axis
+        switch axis {
+        case .horizontal:
+            quillHorizontalContentHuggingPriority = priority
+        case .vertical:
+            quillVerticalContentHuggingPriority = priority
+        }
     }
 
     public func contentHuggingPriority(for axis: NSLayoutConstraint.Axis) -> NSLayoutConstraint.Priority {
-        _ = axis
-        return .defaultLow
+        switch axis {
+        case .horizontal:
+            return quillHorizontalContentHuggingPriority
+        case .vertical:
+            return quillVerticalContentHuggingPriority
+        }
     }
 
     public struct AnimationOptions: OptionSet, Sendable {

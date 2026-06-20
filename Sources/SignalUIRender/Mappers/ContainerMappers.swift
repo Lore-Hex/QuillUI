@@ -53,11 +53,14 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         // the "fill" family stretches children to share the run; the spacing
         // families leave them at their natural size and only tune gaps.
         let mainAxisFills: Bool
+        let mainAxisExpandsAllChildren: Bool
         switch stack.distribution {
         case .fill, .fillEqually, .fillProportionally:
             mainAxisFills = true
+            mainAxisExpandsAllChildren = stack.distribution != .fill
         case .equalSpacing, .equalCentering:
             mainAxisFills = false
+            mainAxisExpandsAllChildren = false
         }
 
         // Alignment governs the PERPENDICULAR axis (cross axis). Map UIKit's
@@ -70,6 +73,7 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             stack: stack,
             isVertical: isVertical,
             mainAxisFills: mainAxisFills,
+            mainAxisExpandsAllChildren: mainAxisExpandsAllChildren,
             crossAlign: crossAlign,
             crossFills: crossFills,
             ctx: ctx
@@ -90,6 +94,7 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         stack: UIStackView,
         isVertical: Bool,
         mainAxisFills: Bool,
+        mainAxisExpandsAllChildren: Bool,
         crossAlign: GtkAlign,
         crossFills: Bool,
         ctx: UIKitGtkRenderContext
@@ -108,7 +113,9 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             // avatar): pin the size and DON'T let the distribution stretch it
             // (otherwise a `.fill` row turns the circle into an ellipse). Auto
             // Layout views arrive at .zero and fall through to the expand logic.
-            if child.frame.width > 0, child.frame.height > 0 {
+            if child.frame.width > 0,
+               child.frame.height > 0,
+               shouldHonorArrangedSubviewFixedFrame(child) {
                 gtk_widget_set_size_request(childWidget, gint(child.frame.width), gint(child.frame.height))
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
                 gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
@@ -128,7 +135,8 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             } else {
                 // Horizontal stack: main = horizontal (bounded → may fill),
                 // cross = vertical (natural height, never vexpand).
-                if mainAxisFills {
+                if mainAxisFills,
+                   (mainAxisExpandsAllChildren || shouldExpandAlongMainAxis(child, isVertical: isVertical)) {
                     gtk_widget_set_hexpand(childWidget, 1)
                     gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
                     boxWantsHExpand = true
@@ -144,6 +152,21 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         return boxWantsHExpand
     }
 
+    private static func shouldExpandAlongMainAxis(_ child: UIView, isVertical: Bool) -> Bool {
+        let axis: NSLayoutConstraint.Axis = isVertical ? .vertical : .horizontal
+        return child.contentHuggingPriority(for: axis).rawValue <= NSLayoutConstraint.Priority.defaultLow.rawValue
+    }
+
+    private static func shouldHonorArrangedSubviewFixedFrame(_ child: UIView) -> Bool {
+        // Signal's Auto Layout pass can measure table-row labels before GTK has
+        // allocated the final row width. Keep labels flexible inside stacks so
+        // they can consume the remaining horizontal space beside fixed controls.
+        if child is UILabel {
+            return false
+        }
+        return true
+    }
+
     private static func installStackMutationBridge(
         on box: GtkWidgetPtr,
         stack: UIStackView,
@@ -154,11 +177,14 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             clearBoxChildren(box)
             let isVertical = (updatedStack.axis == .vertical)
             let mainAxisFills: Bool
+            let mainAxisExpandsAllChildren: Bool
             switch updatedStack.distribution {
             case .fill, .fillEqually, .fillProportionally:
                 mainAxisFills = true
+                mainAxisExpandsAllChildren = updatedStack.distribution != .fill
             case .equalSpacing, .equalCentering:
                 mainAxisFills = false
+                mainAxisExpandsAllChildren = false
             }
             let (crossAlign, crossFills) = crossAxisAlignment(updatedStack.alignment)
             let boxWantsHExpand = appendArrangedSubviews(
@@ -166,6 +192,7 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
                 stack: updatedStack,
                 isVertical: isVertical,
                 mainAxisFills: mainAxisFills,
+                mainAxisExpandsAllChildren: mainAxisExpandsAllChildren,
                 crossAlign: crossAlign,
                 crossFills: crossFills,
                 ctx: ctx
