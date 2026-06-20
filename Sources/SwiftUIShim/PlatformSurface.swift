@@ -1,4 +1,5 @@
 import CoreTransferable
+import Foundation
 import SwiftOpenUI
 import UIKit
 
@@ -63,10 +64,43 @@ public extension EnvironmentValues {
     }
 }
 
+private final class SwiftUIShimImageDataCache: @unchecked Sendable {
+    static let shared = SwiftUIShimImageDataCache()
+
+    private let lock = NSLock()
+    private var urlsByContent: [Data: URL] = [:]
+
+    func fileURL(for data: Data) -> URL {
+        lock.withLock {
+            if let existing = urlsByContent[data],
+               FileManager.default.fileExists(atPath: existing.path) {
+                return existing
+            }
+
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("QuillUIImages", isDirectory: true)
+            try? FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+
+            let url = directory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("png")
+            try? data.write(to: url, options: [.atomic])
+            urlsByContent[data] = url
+            return url
+        }
+    }
+}
+
 public extension Image {
     init(uiImage: UIImage) {
-        _ = uiImage
-        self.init(systemName: "photo")
+        if let data = uiImage.data, !data.isEmpty {
+            self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
+        } else {
+            self.init(systemName: "photo")
+        }
     }
 }
 

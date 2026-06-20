@@ -349,21 +349,12 @@ public extension Section {
 }
 
 public extension Image {
-    /// Linux source-compatibility inits matching SwiftUI's
-    /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
-    /// `Image` stores bitmap payloads as file-backed sources, so bridge
-    /// byte-backed `RSImage` values through `Image(data:)`. This keeps
-    /// picker/clipboard code that later renders an `Image` back to app image
-    /// bytes source-compatible with Apple SwiftUI.
+    /// Linux source-compatibility init matching SwiftUI's `Image(nsImage:)`.
+    /// SwiftOpenUI stores bitmap payloads as file-backed sources, so bridge
+    /// byte-backed `RSImage` values through `Image(data:)`. `Image(uiImage:)`
+    /// lives in the SwiftUI shadow module because upstream iOS source expects
+    /// that initializer from `import SwiftUI`.
     init(nsImage image: RSImage) {
-        if let data = image.data, !data.isEmpty {
-            self.init(data: data)
-        } else {
-            self.init(systemName: "photo")
-        }
-    }
-
-    init(uiImage image: RSImage) {
         if let data = image.data, !data.isEmpty {
             self.init(data: data)
         } else {
