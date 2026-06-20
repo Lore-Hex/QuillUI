@@ -1089,8 +1089,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("""
   else
     {
-      quill_chat_functional_static_composer_click_points
       quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
     }
 """))
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
@@ -1141,6 +1141,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("printf 'return\\nbutton\\n'"))
         #expect(functionalScript.contains("quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace"))
         #expect(functionalScript.contains("if (( should_clear_before_type == 1 )); then"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TYPE_DELAY"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP"))
         #expect(functionalScript.contains("quill_chat_functional_send_attempt \"$click_x\" \"$click_y\" \"$submit_method\""))
         #expect(functionalScript.contains("done < <(quill_chat_functional_submit_methods)"))
         #expect(functionalScript.contains("done < <(quill_chat_functional_composer_click_points)"))

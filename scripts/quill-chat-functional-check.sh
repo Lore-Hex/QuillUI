@@ -452,8 +452,8 @@ quill_chat_functional_composer_click_points() {
     }
   else
     {
-      quill_chat_functional_static_composer_click_points
       quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
     }
   fi | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
     !seen[$1 "," $2]++ {
@@ -587,8 +587,8 @@ quill_chat_functional_send_attempt() {
     quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
     sleep 0.2
   fi
-  quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
-  sleep 1
+  quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$MESSAGE_TEXT"
+  sleep "${QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP:-1.5}"
   if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
     send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
