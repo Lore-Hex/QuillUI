@@ -35,4 +35,6 @@ require_log_line "signal-ui-render: scheduled incoming injection"
 require_log_line "signal-ui-render: injected incoming message summary count=3 bodies="
 require_log_line "$text"
 
+"$ROOT/scripts/verify-backend-screenshot.py" "$output" signal-real-conversation-receive
+
 echo "Signal receive smoke passed: $output"

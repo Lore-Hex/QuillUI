@@ -116,6 +116,7 @@ struct SourceHygieneTests {
         let captureScript = try packageSource("scripts/signal-render-capture.sh")
         let sendSmokeScript = try packageSource("scripts/signal-render-send-smoke.sh")
         let receiveSmokeScript = try packageSource("scripts/signal-render-receive-smoke.sh")
+        let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
         #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
@@ -169,9 +170,18 @@ struct SourceHygieneTests {
         #expect(sendSmokeScript.contains(#"require_log_line 'signal-ui-render: after send click body=""'"#))
         #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions send queue drained"))
         #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions count=3 bodies="))
+        #expect(sendSmokeScript.contains("verify-backend-screenshot.py"))
+        #expect(sendSmokeScript.contains("signal-real-conversation-send"))
         #expect(receiveSmokeScript.contains("SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"))
         #expect(receiveSmokeScript.contains("signal-ui-render: scheduled incoming injection"))
         #expect(receiveSmokeScript.contains("signal-ui-render: injected incoming message summary count=3 bodies="))
+        #expect(receiveSmokeScript.contains("verify-backend-screenshot.py"))
+        #expect(receiveSmokeScript.contains("signal-real-conversation-receive"))
+        #expect(screenshotVerifier.contains("def validate_signal_real_conversation"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-send"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-receive"))
+        #expect(screenshotVerifier.contains("bottom_outgoing_pixels >= 2_500"))
+        #expect(screenshotVerifier.contains("bottom_incoming_pixels >= 2_500"))
     }
 
     @Test("Signal upstream patches keep the real send pipeline database-backed")

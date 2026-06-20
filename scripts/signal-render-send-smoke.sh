@@ -41,4 +41,6 @@ require_log_line "signal-ui-render: after send click interactions send queue dra
 require_log_line "signal-ui-render: after send click interactions count=3 bodies="
 require_log_line "$text"
 
+"$ROOT/scripts/verify-backend-screenshot.py" "$output" signal-real-conversation-send
+
 echo "Signal send smoke passed: $output"

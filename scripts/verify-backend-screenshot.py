@@ -4294,6 +4294,107 @@ def validate_quill_backend_interaction_sheet(image: Screenshot) -> str:
     return f"Quill backend sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
+def signal_incoming_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 215 <= red <= 242 and 215 <= green <= 242 and 215 <= blue <= 244 and max(rgb) - min(rgb) <= 14
+
+
+def signal_outgoing_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return red <= 65 and 80 <= green <= 150 and blue >= 190 and blue - red >= 145 and blue - green >= 65
+
+
+def signal_composer_border_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 188 <= red <= 230 and 188 <= green <= 230 and 188 <= blue <= 235 and max(rgb) - min(rgb) <= 14
+
+
+def validate_signal_real_conversation(image: Screenshot, variant: str = "base") -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(700 <= app_width <= 900, f"Signal conversation window width is unexpected: {app_width}px")
+    require(620 <= app_height <= 860, f"Signal conversation window height is unexpected: {app_height}px")
+
+    center_left = left + int(app_width * 0.26)
+    center_right = right - int(app_width * 0.26)
+    header_dark_pixels = dark_pixel_count(
+        image,
+        center_left,
+        top + 18,
+        center_right,
+        top + int(app_height * 0.24),
+    )
+    incoming_pixels = pixel_count(
+        image,
+        left + 8,
+        top + int(app_height * 0.30),
+        left + int(app_width * 0.82),
+        top + int(app_height * 0.52),
+        signal_incoming_bubble_pixel,
+    )
+    outgoing_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.06),
+        top + int(app_height * 0.48),
+        right - 8,
+        top + int(app_height * 0.73),
+        signal_outgoing_bubble_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        left + 45,
+        bottom - 60,
+        right - 8,
+        bottom - 4,
+        signal_composer_border_pixel,
+    )
+    bottom_incoming_pixels = pixel_count(
+        image,
+        left + 8,
+        top + int(app_height * 0.72),
+        left + int(app_width * 0.55),
+        bottom - 58,
+        signal_incoming_bubble_pixel,
+    )
+    bottom_outgoing_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.45),
+        top + int(app_height * 0.72),
+        right - 8,
+        bottom - 58,
+        signal_outgoing_bubble_pixel,
+    )
+
+    require(header_dark_pixels >= 650, f"Signal contact header was not detected: pixels={header_dark_pixels}")
+    require(incoming_pixels >= 6_000, f"Signal incoming bubble was not detected: pixels={incoming_pixels}")
+    require(outgoing_pixels >= 10_000, f"Signal outgoing bubble was not detected: pixels={outgoing_pixels}")
+    require(composer_pixels >= 750, f"Signal composer border was not detected: pixels={composer_pixels}")
+    if variant == "send":
+        require(
+            bottom_outgoing_pixels >= 2_500,
+            "Signal sent message bubble was not detected near the transcript bottom: "
+            f"pixels={bottom_outgoing_pixels}",
+        )
+    elif variant == "receive":
+        require(
+            bottom_incoming_pixels >= 2_500,
+            "Signal received message bubble was not detected near the transcript bottom: "
+            f"pixels={bottom_incoming_pixels}",
+        )
+
+    return (
+        f"Signal real conversation {variant}: "
+        f"app={app_width}x{app_height}, "
+        f"header_dark_pixels={header_dark_pixels}, "
+        f"incoming_pixels={incoming_pixels}, "
+        f"outgoing_pixels={outgoing_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"bottom_incoming_pixels={bottom_incoming_pixels}, "
+        f"bottom_outgoing_pixels={bottom_outgoing_pixels}"
+    )
+
+
 def solderscope_toolbar_pixel(rgb: tuple[int, int, int]) -> bool:
     total = sum(rgb)
     return 24 <= total <= 560 and max(rgb) - min(rgb) <= 96
@@ -4459,6 +4560,11 @@ def main() -> int:
     compact_quill_chat_dialog_product = product in {
         "quill-chat-linux-mac-reference-settings-delete-confirmation",
     }
+    signal_real_conversation_product = product in {
+        "signal-real-conversation",
+        "signal-real-conversation-send",
+        "signal-real-conversation-receive",
+    }
     solderscope_launch_product = product in {
         "quill-solderscope-launch",
         "quill-solderscope-visual",
@@ -4471,6 +4577,9 @@ def main() -> int:
     elif compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
+    elif signal_real_conversation_product:
+        minimum_width = 700
+        minimum_height = 620
     elif smoke_product:
         minimum_width = 600
         minimum_height = 560
@@ -4653,6 +4762,12 @@ def main() -> int:
         print(validate_quill_backend_interaction_banner(image))
     elif product in {"quill-gtk-interaction-smoke-sheet", "quill-qt-interaction-smoke-sheet"}:
         print(validate_quill_backend_interaction_sheet(image))
+    elif product == "signal-real-conversation":
+        print(validate_signal_real_conversation(image))
+    elif product == "signal-real-conversation-send":
+        print(validate_signal_real_conversation(image, variant="send"))
+    elif product == "signal-real-conversation-receive":
+        print(validate_signal_real_conversation(image, variant="receive"))
 
     return 0
 
