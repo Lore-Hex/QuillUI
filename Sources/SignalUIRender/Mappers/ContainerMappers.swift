@@ -175,7 +175,8 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         if hasRealFrames {
             let fixed = gtk_fixed_new()!
             let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
-            for child in subviews {
+            applyViewSize(to: fixed, from: view)
+            for child in subviewsInLayerOrder(subviews) {
                 guard let childWidget = ctx.render(child) else { continue }
                 let frame = child.frame
                 gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
@@ -191,6 +192,7 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         // single content (the initials) instead of top-left filling.
         let isBadge = view.layer.cornerRadius > 0
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        applyViewSize(to: box, from: view)
         for child in subviews {
             guard let childWidget = ctx.render(child) else { continue }
             if isBadge {
@@ -214,5 +216,37 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         }
         ctx.applyLayerStyle(box, view)
         return box
+    }
+
+    private static func applyViewSize(to widget: GtkWidgetPtr, from view: UIView) {
+        let size = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+        guard size.width > 0 || size.height > 0 else { return }
+        gtk_widget_set_size_request(
+            widget,
+            size.width > 0 ? gint(size.width) : -1,
+            size.height > 0 ? gint(size.height) : -1
+        )
+        if size.width > 0 {
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if size.height > 0 {
+            gtk_widget_set_vexpand(widget, 1)
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+    }
+
+    private static func subviewsInLayerOrder(_ subviews: [UIView]) -> [UIView] {
+        subviews
+            .enumerated()
+            .sorted { lhs, rhs in
+                let lhsZ = lhs.element.layer.zPosition
+                let rhsZ = rhs.element.layer.zPosition
+                if lhsZ == rhsZ {
+                    return lhs.offset < rhs.offset
+                }
+                return lhsZ < rhsZ
+            }
+            .map(\.element)
     }
 }

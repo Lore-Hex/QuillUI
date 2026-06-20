@@ -63,6 +63,16 @@ func dumpViewTree(_ view: UIView, depth: Int) {
     }
     var line = "\(indent)\(type(of: view)) frame=(\(safeFrameValue(f.origin.x)),\(safeFrameValue(f.origin.y)),\(safeFrameValue(f.width))x\(safeFrameValue(f.height))) subviews=\(view.subviews.count)"
     if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
+    if let imageView = view as? UIImageView {
+        if let image = imageView.image {
+            let resourceName = image.quillResourceName ?? "-"
+            let systemName = image.quillSystemSymbolName ?? "-"
+            let hasData = image.dataRepresentation() != nil
+            line += " image(resource=\"\(resourceName)\" system=\"\(systemName)\" data=\(hasData) size=\(safeFrameValue(image.size.width))x\(safeFrameValue(image.size.height)))"
+        } else {
+            line += " image=nil"
+        }
+    }
     if let renderedText = view.quillRenderedText { line += " renderedText=\"\(renderedText)\"" }
     if let tv = view as? UITableView {
         let ds = tv.dataSource
@@ -90,6 +100,7 @@ func dumpViewTree(_ view: UIView, depth: Int) {
 func installBaseCSS(windowBackground: String) {
     let css = """
     window { background-color: \(windowBackground); }
+    * { background-color: transparent; }
     box, label, viewport, scrolledwindow, separator { background-color: transparent; }
     label { color: #1C1C1E; }
     .qcard { background-color: #FFFFFF; border-radius: 10px; }

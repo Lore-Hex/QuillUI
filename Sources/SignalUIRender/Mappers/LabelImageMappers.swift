@@ -59,7 +59,7 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
         // same way (`OpaquePointer(label)`) before calling gtk_label_set_*.
         let labelPtr = OpaquePointer(widget)
 
-        let text = label.text ?? ""
+        let text = visibleText(from: label.text ?? "")
 
         // Color + font are carried by Pango markup. If we have neither a custom
         // color nor a font worth spelling out we fall back to plain text so the
@@ -142,7 +142,7 @@ public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
     public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
         let widget: GtkWidgetPtr = gtk_label_new(nil)
         let labelPtr = OpaquePointer(widget)
-        let text = view.quillRenderedText ?? ""
+        let text = visibleText(from: view.quillRenderedText ?? "")
 
         if let markup = pangoMarkup(
             for: text,
@@ -193,6 +193,70 @@ public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
     }
 }
 
+// MARK: - UITextView
+
+/// Maps `UITextView` and subclasses such as Signal's `LinkingTextView` to a
+/// wrapped label. Static text views are common in UIKit apps for attributed
+/// explanatory copy; rendering them as labels keeps prompts visible without
+/// pretending GTK editing semantics are wired yet.
+public enum UITextViewGtkMapper: UIViewGtkMapper {
+    public static func handles(_ view: UIView) -> Bool {
+        guard let textView = view as? UITextView else { return false }
+        let text = textView.attributedText?.string ?? textView.text ?? ""
+        return !text.isEmpty || textView.subviews.isEmpty
+    }
+
+    public static func make(_ view: UIView, _ ctx: UIKitGtkRenderContext) -> GtkWidgetPtr {
+        guard let textView = view as? UITextView else {
+            return gtk_label_new(nil)
+        }
+
+        let widget: GtkWidgetPtr = gtk_label_new(nil)
+        let labelPtr = OpaquePointer(widget)
+        let attributedText = textView.attributedText
+        let text = visibleText(from: attributedText?.string ?? textView.text ?? "")
+        let attributes = attributedText.flatMap { text in
+            text.length > 0 ? text.attributes(at: 0, effectiveRange: nil) : nil
+        }
+        let font = attributes?[.font] as? UIFont ?? textView.font
+        let color = attributes?[.foregroundColor] as? UIColor ?? textView.textColor
+        let alignment = (attributes?[.paragraphStyle] as? NSParagraphStyle)?.alignment ?? textView.textAlignment
+
+        if let markup = pangoMarkup(for: text, font: font, color: color) {
+            markup.withCString { gtk_label_set_markup(labelPtr, $0) }
+        } else {
+            text.withCString { gtk_label_set_text(labelPtr, $0) }
+        }
+
+        gtk_label_set_wrap(labelPtr, 1)
+        gtk_label_set_wrap_mode(labelPtr, PANGO_WRAP_WORD_CHAR)
+        gtk_label_set_lines(labelPtr, -1)
+        applyAlignment(labelPtr, alignment: alignment)
+        ctx.applyLayerStyle(widget, view)
+        return widget
+    }
+
+    private static func applyAlignment(_ labelPtr: OpaquePointer, alignment: NSTextAlignment) {
+        switch alignment {
+        case .center:
+            gtk_label_set_xalign(labelPtr, 0.5)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_CENTER)
+        case .right:
+            gtk_label_set_xalign(labelPtr, 1.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_RIGHT)
+        case .justified:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_FILL)
+        case .left, .natural:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_LEFT)
+        @unknown default:
+            gtk_label_set_xalign(labelPtr, 0.0)
+            gtk_label_set_justify(labelPtr, GTK_JUSTIFY_LEFT)
+        }
+    }
+}
+
 // MARK: - UIImageView
 
 /// Maps `UIImageView` to a `GtkPicture` (GTK4's scalable image widget — it honors
@@ -218,9 +282,15 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         if let imageView = view as? UIImageView,
            let image = imageView.image,
            let bytes = imageData(from: image),
-           !bytes.isEmpty {
-            setPaintable(picturePtr, from: bytes)
+           !bytes.isEmpty,
+           setPaintable(picturePtr, from: bytes) {
             applyContentMode(widget, picturePtr: picturePtr, contentMode: imageView.contentMode)
+        } else if let imageView = view as? UIImageView,
+                  let fallback = fallbackSymbol(for: imageView) {
+            let label = fallbackLabel(text: fallback, for: imageView)
+            ctx.applyLayerStyle(label, view)
+            applyFallbackStyle(to: label, imageView: imageView)
+            return label
         } else {
             // No loadable image: leave the picture empty but still let it shrink
             // so it doesn't force a large natural size into the layout.
@@ -239,10 +309,118 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         image.pngData() ?? image.dataRepresentation()
     }
 
+    private static func fallbackSymbol(for imageView: UIImageView) -> String? {
+        let image = imageView.image
+        let rawName = image?.quillSystemSymbolName ?? image?.quillResourceName ?? ""
+        let name = rawName.lowercased()
+        let size = imageView.bounds.size != .zero ? imageView.bounds.size : imageView.frame.size
+        let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
+
+        if isAvatar {
+            return "?"
+        }
+        if name.contains("plus") || name.contains("add") || name.contains("attachment") || name.contains("paperclip") {
+            return "+"
+        }
+        if name.contains("check") {
+            return "✓"
+        }
+        if name.contains("message_status") {
+            return name.contains("sent") ? "✓" : "•"
+        }
+        if name.contains("chevron-down") { return "⌄" }
+        if name.contains("arrow-up") || name.contains("send") || name.contains("paperplane") { return "↑" }
+        if name.contains("reply") { return "↩" }
+        if name.contains("chevron") || name.contains("arrow") || name.contains("send") || name.contains("paperplane") {
+            return "›"
+        }
+        if name.contains("mic") || name.contains("audio") || name.contains("voice") {
+            return "●"
+        }
+        if name.contains("camera") || name.contains("photo") || name.contains("image") {
+            return "▣"
+        }
+        if name.contains("keyboard") {
+            return "⌨"
+        }
+        if name.contains("sticker") || name.contains("emoji") {
+            return "☺"
+        }
+        if name == "at" || name.contains("mention") {
+            return "@"
+        }
+        if name.contains("info") || name.contains("question") {
+            return "?"
+        }
+        if name.contains("more") || name.contains("ellipsis") {
+            return "..."
+        }
+        if !name.isEmpty {
+            return "•"
+        }
+        return nil
+    }
+
+    private static func fallbackLabel(text: String, for imageView: UIImageView) -> GtkWidgetPtr {
+        let widget: GtkWidgetPtr = gtk_label_new(nil)
+        let labelPtr = OpaquePointer(widget)
+        let size = imageView.bounds.size != .zero ? imageView.bounds.size : imageView.frame.size
+        let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
+        let pointSize = isAvatar ? 24 : 15
+        let color = isAvatar ? "#5F6673" : "#6B6B70"
+        let escaped = escapeMarkup(text)
+        let markup = "<span font='Sans Bold \(pointSize)' foreground='\(color)'>\(escaped)</span>"
+        markup.withCString { gtk_label_set_markup(labelPtr, $0) }
+        gtk_label_set_xalign(labelPtr, 0.5)
+        gtk_label_set_yalign(labelPtr, 0.5)
+        gtk_label_set_justify(labelPtr, GTK_JUSTIFY_CENTER)
+        if size.width > 0 || size.height > 0 {
+            gtk_widget_set_size_request(
+                widget,
+                size.width > 0 ? gint(size.width) : -1,
+                size.height > 0 ? gint(size.height) : -1
+            )
+        }
+        gtk_widget_set_halign(widget, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(widget, GTK_ALIGN_CENTER)
+        return widget
+    }
+
+    private static func applyFallbackStyle(to widget: GtkWidgetPtr, imageView: UIImageView) {
+        let size = imageView.bounds.size != .zero ? imageView.bounds.size : imageView.frame.size
+        let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
+        var rules: [String] = []
+        if isAvatar {
+            rules.append("background-color: #E3E7EE;")
+            let radius = max(1, Int((min(size.width, size.height) / 2).rounded()))
+            rules.append("border-radius: \(radius)px;")
+        }
+        guard !rules.isEmpty else { return }
+
+        fallbackStyleCounter += 1
+        let cls = "qimagefallback\(fallbackStyleCounter)"
+        let css = ".\(cls) { \(rules.joined(separator: " ")) }"
+        let provider = gtk_css_provider_new()
+        css.withCString { gtk_css_provider_load_from_string(provider, $0) }
+        if let display = gdk_display_get_default() {
+            gtk_style_context_add_provider_for_display(
+                display,
+                OpaquePointer(provider),
+                guint(GTK_STYLE_PROVIDER_PRIORITY_APPLICATION)
+            )
+        }
+        cls.withCString { gtk_widget_add_css_class(widget, $0) }
+        g_object_unref(provider)
+    }
+
     /// Decode `bytes` (PNG/JPEG/GIF/WebP/…) into a GdkTexture and set it as the
     /// picture's paintable. GdkTexture conforms to GdkPaintable, so the same
     /// pointer is handed straight to `gtk_picture_set_paintable`.
-    private static func setPaintable(_ picturePtr: OpaquePointer, from bytes: Data) {
+    ///
+    /// Returns false for template/PDF assets that GTK's raster loader cannot
+    /// decode, letting the caller fall back to the image's preserved resource
+    /// name instead of leaving a blank widget.
+    private static func setPaintable(_ picturePtr: OpaquePointer, from bytes: Data) -> Bool {
         let texture: OpaquePointer? = bytes.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> OpaquePointer? in
             guard let base = raw.baseAddress, raw.count > 0 else { return nil }
             // g_bytes_new copies the buffer, so it is safe to free `bytes` after
@@ -262,12 +440,13 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         guard let texture else {
             // Undecodable bytes: keep the picture empty rather than crashing.
             gtk_picture_set_can_shrink(picturePtr, 1)
-            return
+            return false
         }
         defer { g_object_unref(gpointer(texture)) }
 
         // GdkTexture is-a GdkPaintable; the loader hands back the paintable.
         gtk_picture_set_paintable(picturePtr, texture)
+        return true
     }
 
     /// Translate `UIView.ContentMode` into GtkPicture's content-fit + expansion.
@@ -346,7 +525,7 @@ private func pangoMarkup(for text: String, font: UIFont?, color: UIColor?) -> St
 
 private func pangoMarkup(for text: String, pointSize: CGFloat, color: UIColor?) -> String? {
     let hex = color.flatMap(hexString(from:))
-    let fontDesc = "Sans \(Int(pointSize.rounded()))"
+    let fontDesc = "Sans \(pangoPointSize(fromUIKitPointSize: pointSize))"
     let escaped = escapeMarkup(text)
     var attrs = " font='\(fontDesc)'"
     if let hex { attrs += " foreground='\(hex)'" }
@@ -382,8 +561,12 @@ private func pangoFontDescription(from font: UIFont) -> String {
     if traits.contains(.traitBold) { tokens.append("Bold") }
     if traits.contains(.traitItalic) { tokens.append("Italic") }
 
-    tokens.append(String(Int(font.pointSize.rounded())))
+    tokens.append(String(pangoPointSize(fromUIKitPointSize: font.pointSize)))
     return tokens.joined(separator: " ")
+}
+
+private func pangoPointSize(fromUIKitPointSize pointSize: CGFloat) -> Int {
+    max(1, Int((pointSize * 0.80).rounded()))
 }
 
 /// Map a UIFont name to a Pango family. The shim's system fonts start with a dot
@@ -410,4 +593,12 @@ private func escapeMarkup(_ s: String) -> String {
         }
     }
     return out
+}
+
+private var fallbackStyleCounter = 0
+
+private func visibleText(from text: String) -> String {
+    String(text.unicodeScalars.filter { scalar in
+        !(0xE000...0xF8FF).contains(Int(scalar.value))
+    })
 }

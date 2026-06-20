@@ -4847,6 +4847,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     }
     public init?(named name: String) {
         super.init()
+        self.quillResourceName = name
         if let data = QuillResourceLookup.data(
             forResource: name,
             candidateExtensions: QuillResourceLookup.commonImageExtensions
@@ -4872,6 +4873,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     public init?(systemName: String, withConfiguration: Any? = nil) {
         super.init()
+        self.quillSystemSymbolName = systemName
         self.size = CGSize(width: 32, height: 32)
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillFoundation",
@@ -4894,6 +4896,8 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
+    public private(set) var quillResourceName: String?
+    public private(set) var quillSystemSymbolName: String?
     private var quillBackingCGImage: CGImage?
     private var quillImageScale: CGFloat = 1
     private var quillFocusContext: CGContext?
@@ -4946,6 +4950,8 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         image.size = size
         image.capInsets = capInsets
         image.resizingMode = resizingMode
+        image.quillResourceName = quillResourceName
+        image.quillSystemSymbolName = quillSystemSymbolName
         return image
     }
 

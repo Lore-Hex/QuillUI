@@ -2502,8 +2502,13 @@ struct CompatibilityModuleTests {
             Issue.record("Image(\"logo-nobg\") should resolve to a file-backed SwiftOpenUI image")
         }
 
-        #expect(NSImage(named: "logo-nobg")?.data == imageData)
-        #expect(UIImage(named: "logo-nobg")?.data == imageData)
+        let nsImage = try #require(NSImage(named: "logo-nobg"))
+        let uiImage = try #require(UIImage(named: "logo-nobg"))
+        #expect(nsImage.data == imageData)
+        #expect(uiImage.data == imageData)
+        #expect(nsImage.quillResourceName == "logo-nobg")
+        #expect(uiImage.quillResourceName == "logo-nobg")
+        #expect((uiImage.copy() as? UIImage)?.quillResourceName == "logo-nobg")
         #expect(QuillResourceLookup.path(
             forResource: "logo-nobg",
             candidateExtensions: QuillResourceLookup.commonImageExtensions
@@ -2558,7 +2563,16 @@ struct CompatibilityModuleTests {
             forResource: "message_status_sent",
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) == pdfURL.path)
-        #expect(UIImage(named: "message_status_sent")?.size == CGSize(width: 12, height: 12))
+        let image = try #require(UIImage(named: "message_status_sent"))
+        #expect(image.size == CGSize(width: 12, height: 12))
+        #expect(image.quillResourceName == "message_status_sent")
+    }
+
+    @Test("System images preserve symbol identity for render backends")
+    func systemImagesPreserveSymbolIdentityForRenderBackends() throws {
+        let image = try #require(UIImage(systemName: "paperplane.fill"))
+        #expect(image.quillSystemSymbolName == "paperplane.fill")
+        #expect((image.copy() as? UIImage)?.quillSystemSymbolName == "paperplane.fill")
     }
     #endif
 

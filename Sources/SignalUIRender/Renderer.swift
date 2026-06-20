@@ -48,6 +48,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     static let mappers: [UIViewGtkMapper.Type] = [
         UILabelGtkMapper.self,
         CustomDrawnTextGtkMapper.self,
+        UITextViewGtkMapper.self,
         UIImageViewGtkMapper.self,
         UISwitchGtkMapper.self,
         UITableViewGtkMapper.self,
@@ -108,16 +109,27 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
     static func applyLayerStyle(_ widget: GtkWidgetPtr, _ view: UIView) {
         let layer = view.layer
         var rules: [String] = []
-        if let bg = layer.backgroundColor, let hex = cgColorHex(bg) {
+        if let gradientRules = gradientLayerRules(in: layer) {
+            rules.append(contentsOf: gradientRules)
+        } else if let bg = layer.backgroundColor, let hex = cgColorHex(bg) {
             rules.append("background-color: \(hex);")
         } else if let bg = view.backgroundColor, let hex = uiColorHex(bg) {
             rules.append("background-color: \(hex);")
+        } else if view is UIVisualEffectView {
+            rules.append("background-color: rgba(255, 255, 255, 0.82);")
         }
         if layer.cornerRadius > 0 {
             rules.append("border-radius: \(Int(layer.cornerRadius))px;")
+        } else if layer.mask != nil {
+            let radius = maskedLayerCornerRadius(for: view)
+            if radius > 0 {
+                rules.append("border-radius: \(radius)px;")
+            }
         }
         if layer.borderWidth > 0, let bc = layer.borderColor, let hex = cgColorHex(bc) {
             rules.append("border: \(Int(layer.borderWidth))px solid \(hex);")
+        } else if view is UIVisualEffectView, layer.cornerRadius > 0 {
+            rules.append("border: 1px solid rgba(60, 60, 67, 0.18);")
         }
         guard !rules.isEmpty else { return }
 
@@ -201,4 +213,48 @@ func cgColorHex(_ color: CGColor) -> String? {
         return cssColor(comps[0], comps[0], comps[0], comps[1])
     }
     return nil
+}
+
+private func gradientLayerRules(in layer: CALayer) -> [String]? {
+    guard let gradient = firstGradientLayer(in: layer),
+          let colors = gradient.colors?.compactMap({ $0 as? CGColor }),
+          !colors.isEmpty else {
+        return nil
+    }
+
+    let stops = colors.compactMap(cgColorHex)
+    guard let fallback = stops.first else { return nil }
+
+    var rules = ["background-color: \(fallback);"]
+    if stops.count >= 2 {
+        let direction = gradientDirection(from: gradient)
+        rules.append("background-image: linear-gradient(\(direction), \(stops.joined(separator: ", ")));")
+    }
+    return rules
+}
+
+private func firstGradientLayer(in layer: CALayer) -> CAGradientLayer? {
+    for sublayer in layer.sublayers ?? [] {
+        if let gradient = sublayer as? CAGradientLayer,
+           gradient.colors?.isEmpty == false {
+            return gradient
+        }
+    }
+    return nil
+}
+
+private func gradientDirection(from gradient: CAGradientLayer) -> String {
+    let dx = gradient.endPoint.x - gradient.startPoint.x
+    let dy = gradient.endPoint.y - gradient.startPoint.y
+    if abs(dx) > abs(dy) {
+        return dx >= 0 ? "to right" : "to left"
+    }
+    return dy >= 0 ? "to bottom" : "to top"
+}
+
+@MainActor private func maskedLayerCornerRadius(for view: UIView) -> Int {
+    let size = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+    let shorterSide = min(size.width, size.height)
+    guard shorterSide.isFinite, shorterSide > 0 else { return 0 }
+    return Int(min(22, max(8, shorterSide / 3)).rounded())
 }
