@@ -16,6 +16,32 @@ import SignalUIRenderCore
 import Foundation
 import Dispatch
 
+@MainActor
+private final class DeferredSignalButtonClick {
+    let rootWidget: UnsafeMutableRawPointer
+    let cssClass: String
+
+    init(rootWidget: UnsafeMutableRawPointer, cssClass: String) {
+        self.rootWidget = rootWidget
+        self.cssClass = cssClass
+    }
+
+    func run() {
+        let didClick = quillSignalRenderClickButton(in: rootWidget, cssClass: cssClass)
+        let status = didClick ? "clicked send button" : "found no send button"
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+    }
+}
+
+private let deferredSignalButtonClick: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalButtonClick>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
 // MARK: - First-light demo view controller (trivial; no SignalUI dependency)
 
 @MainActor
@@ -172,6 +198,19 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
         )
         let status = didSet ? "updated first text entry" : "found no text entry"
         FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+    }
+
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_SEND"] == "1" {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_SEND_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 250
+        )
+        let box = Unmanaged.passRetained(DeferredSignalButtonClick(
+            rootWidget: UnsafeMutableRawPointer(rootWidget),
+            cssClass: "signal-uikit-button-send"
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalButtonClick, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled send button click\n".utf8))
     }
 
     gtk_window_present(winPtr)

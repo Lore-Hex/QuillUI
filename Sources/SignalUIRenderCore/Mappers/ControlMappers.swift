@@ -99,6 +99,7 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
         gtk_widget_set_sensitive(widget, (button.isEnabled && button.isUserInteractionEnabled) ? 1 : 0)
         applyButtonSize(widget, from: button)
         applyButtonStyle(widget)
+        applyButtonRoleClasses(widget, button: button)
 
         if let child = buttonContentWidget(for: button, ctx) {
             gtk_button_set_child(buttonPointer(widget), child)
@@ -221,6 +222,50 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
             )
         }
         g_object_unref(provider)
+    }
+
+    private static func applyButtonRoleClasses(_ widget: GtkWidgetPtr, button: UIButton) {
+        guard let role = buttonRole(for: button) else { return }
+        "signal-uikit-button-\(role)".withCString {
+            gtk_widget_add_css_class(widget, $0)
+        }
+    }
+
+    private static func buttonRole(for button: UIButton) -> String? {
+        let names = imageNames(in: button)
+        if names.contains(where: { name in
+            name.contains("arrow-up") || name.contains("send") || name.contains("paperplane")
+        }) {
+            return "send"
+        }
+        if names.contains(where: { name in
+            name.contains("plus") || name.contains("attachment") || name.contains("paperclip")
+        }) {
+            return "attachment"
+        }
+        if names.contains(where: { $0.contains("camera") }) {
+            return "camera"
+        }
+        if names.contains(where: { $0.contains("mic") || $0.contains("audio") || $0.contains("voice") }) {
+            return "voice"
+        }
+        return nil
+    }
+
+    private static func imageNames(in view: UIView) -> [String] {
+        var names: [String] = []
+        if let imageView = view as? UIImageView, let image = imageView.image {
+            if let resource = image.quillResourceName, !resource.isEmpty {
+                names.append(resource.lowercased())
+            }
+            if let symbol = image.quillSystemSymbolName, !symbol.isEmpty {
+                names.append(symbol.lowercased())
+            }
+        }
+        for subview in view.subviews {
+            names.append(contentsOf: imageNames(in: subview))
+        }
+        return names
     }
 
     private static func buttonPointer(_ widget: GtkWidgetPtr) -> UnsafeMutablePointer<GtkButton> {

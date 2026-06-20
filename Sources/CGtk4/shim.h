@@ -9,6 +9,14 @@ static inline void quill_signal_emit_clicked(gpointer instance) {
     g_signal_emit_by_name(instance, "clicked");
 }
 
+static inline int quill_widget_is_button(gpointer instance) {
+    return GTK_IS_BUTTON(instance) ? 1 : 0;
+}
+
+static inline int quill_widget_has_css_class(gpointer instance, const char *class_name) {
+    return gtk_widget_has_css_class(GTK_WIDGET(instance), class_name) ? 1 : 0;
+}
+
 // Non-variadic typed wrapper around g_signal_connect_data. Importing both the
 // SwiftOpenUI CGTK module and this filtered CGtk4 module can leave Swift with
 // ambiguous overload context for the raw GLib function; this keeps call sites on
