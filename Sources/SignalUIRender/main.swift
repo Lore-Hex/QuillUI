@@ -163,6 +163,17 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
     title.withCString { gtk_window_set_title(winPtr, $0) }
     gtk_window_set_default_size(winPtr, gint(width), gint(height))
     gtk_window_set_child(winPtr, rootWidget)
+
+    if let typedText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_TYPE_TEXT"],
+       !typedText.isEmpty {
+        let didSet = quillSignalRenderSetFirstTextEntry(
+            in: UnsafeMutableRawPointer(rootWidget),
+            text: typedText
+        )
+        let status = didSet ? "updated first text entry" : "found no text entry"
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+    }
+
     gtk_window_present(winPtr)
 }
 

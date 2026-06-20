@@ -109,6 +109,7 @@ struct SourceHygieneTests {
     func signalUIKitRendererMapsEditableTextViewThroughGtkEntryBridge() throws {
         let manifest = try packageSource("Package.swift")
         let renderer = try packageSource("Sources/SignalUIRenderCore/Renderer.swift")
+        let host = try packageSource("Sources/SignalUIRender/main.swift")
         let mapper = try packageSource("Sources/SignalUIRenderCore/Mappers/LabelImageMappers.swift")
         let bridge = try packageSource("Sources/SignalUIRenderCore/Mappers/TextViewEntryBridge.swift")
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
@@ -129,9 +130,14 @@ struct SourceHygieneTests {
         #expect(mapper.contains("quillSignalConnectTextViewEntrySignals"))
         #expect(bridge.contains("textView.quillReplaceCharacters("))
         #expect(bridge.contains("context.activateReturnKey()"))
+        #expect(bridge.contains("quillSignalRenderSetFirstTextEntry"))
+        #expect(bridge.contains("quill_widget_is_editable"))
         #expect(bridge.contains("quill_editable_get_text"))
         #expect(bridge.contains("quill_entry_set_placeholder_text"))
         #expect(bridge.contains("notify::has-focus"))
+        #expect(host.contains("SIGNAL_UI_RENDER_TYPE_TEXT"))
+        #expect(host.contains("quillSignalRenderSetFirstTextEntry"))
+        #expect(gtkShim.contains("static inline int quill_widget_is_editable"))
         #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
     }
 

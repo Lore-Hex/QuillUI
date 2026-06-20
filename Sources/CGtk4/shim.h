@@ -30,6 +30,9 @@ static inline gulong quill_signal_connect_data(gpointer instance,
 // can't bind to interface types directly. These helpers accept a
 // gpointer to any GtkEditable-conforming widget (GtkEntry, GtkText,
 // GtkSpinButton, GtkSearchEntry, etc.).
+static inline int quill_widget_is_editable(gpointer instance) {
+    return GTK_IS_EDITABLE(instance) ? 1 : 0;
+}
 static inline const char *quill_editable_get_text(gpointer instance) {
     return gtk_editable_get_text(GTK_EDITABLE(instance));
 }
