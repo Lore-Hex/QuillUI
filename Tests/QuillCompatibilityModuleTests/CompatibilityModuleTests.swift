@@ -289,6 +289,10 @@ struct CompatibilityModuleTests {
         return (width, height)
     }
 
+    private func referencePNGFixture() -> Data? {
+        Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")
+    }
+
     private func wavData(sampleRate: UInt32 = 8_000, channels: UInt16 = 2, frames: UInt32 = 8_000) -> Data {
         let bitsPerSample: UInt16 = 16
         let blockAlign = channels * bitsPerSample / 8
@@ -2871,9 +2875,9 @@ struct CompatibilityModuleTests {
         #expect(repeatedAnimation.repeatsForever)
         #expect(repeatedAnimation.autoreverses == false)
 
-        // ImageRenderer: Color content now produces real bytes without
-        // requiring the GTK display path. Non-Color content returns nil until
-        // a backend installs the SwiftOpenUI ImageRenderer hook.
+        // ImageRenderer: Color and file-backed Image content produce real bytes
+        // without requiring the GTK display path. Other arbitrary content
+        // returns nil until a backend installs the SwiftOpenUI renderer hook.
         let renderer = ImageRenderer(content: Text("rendered"))
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
@@ -2886,6 +2890,12 @@ struct CompatibilityModuleTests {
         #expect(Image(systemName: "photo").render() == nil)
         let fileBackedImageData = "quill-render-\(UUID().uuidString)".data(using: .utf8)!
         #expect(Image(data: fileBackedImageData).render()?.data == fileBackedImageData)
+        #if os(Linux)
+        let imageRenderer = ImageRenderer(content: Image(data: fileBackedImageData))
+        #expect(imageRenderer.nsImage?.data == fileBackedImageData)
+        #expect(imageRenderer.uiImage?.data == fileBackedImageData)
+        #expect(imageRenderer.cgImage?.data == fileBackedImageData)
+        #endif
         guard let platformImage = PlatformImage(data: Data([1, 2, 3])) else {
             Issue.record("PlatformImage(data:) should construct the RSImage-backed image container")
             return
@@ -4166,6 +4176,20 @@ struct CompatibilityModuleTests {
             properties: [.compressionFactor: 0.2]
         ))
         #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+    }
+
+    @Test("ImageRenderer preserves file-backed Image bytes for upstream render paths")
+    func imageRendererPreservesFileBackedImageBytes() throws {
+        let png = try #require(referencePNGFixture())
+
+        let renderer = ImageRenderer(content: Image(data: png))
+        #expect(renderer.nsImage?.data == png)
+        #expect(renderer.uiImage?.data == png)
+        #expect(renderer.cgImage?.data == png)
+
+        let platformImage = try #require(PlatformImage(data: png))
+        #expect(Image(nsImage: platformImage).render()?.data == png)
+        #expect(Image(uiImage: platformImage).render()?.data == png)
     }
     #endif
 

@@ -103,6 +103,13 @@ public final class OpenUIImageRenderer<Content: View> {
     }
 
     private func renderToPlatformImage() -> OpenUIPlatformImage? {
+        if let image = content as? Image,
+           case .filePath(let path) = image.source,
+           let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+           !data.isEmpty {
+            return OpenUIPlatformImage(data: data)
+        }
+
         let width = max(1, Int((proposedSize?.width ?? 256).rounded()))
         let height = max(1, Int((proposedSize?.height ?? 256).rounded()))
 

@@ -351,18 +351,24 @@ public extension Section {
 public extension Image {
     /// Linux source-compatibility inits matching SwiftUI's
     /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
-    /// `Image` doesn't have bitmap-decoding initializers yet;
-    /// fall through to the system-symbol placeholder so call
-    /// sites compile. When a real GTK decoder lands, both can
-    /// route through `image.data`. (`init(data:)` is provided
-    /// separately in `Compatibility.swift` with a temp-file
-    /// implementation.)
+    /// `Image` stores bitmap payloads as file-backed sources, so bridge
+    /// byte-backed `RSImage` values through `Image(data:)`. This keeps
+    /// picker/clipboard code that later renders an `Image` back to app image
+    /// bytes source-compatible with Apple SwiftUI.
     init(nsImage image: RSImage) {
-        self.init(systemName: "photo")
+        if let data = image.data, !data.isEmpty {
+            self.init(data: data)
+        } else {
+            self.init(systemName: "photo")
+        }
     }
 
     init(uiImage image: RSImage) {
-        self.init(systemName: "photo")
+        if let data = image.data, !data.isEmpty {
+            self.init(data: data)
+        } else {
+            self.init(systemName: "photo")
+        }
     }
 
     enum TemplateRenderingMode {
