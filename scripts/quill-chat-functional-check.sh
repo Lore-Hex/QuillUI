@@ -246,7 +246,25 @@ resolve_app_window_geometry() {
 }
 
 quill_chat_functional_composer_click_x() {
-  printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 34 / 100)))}"
+  quill_chat_functional_composer_click_x_candidates | head -n 1
+}
+
+quill_chat_functional_composer_click_x_candidates() {
+  if [[ -n "${QUILLUI_FUNCTIONAL_COMPOSER_X:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_COMPOSER_X"
+    return
+  fi
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    local ratio
+    local reference_width="${reference_window_width:-$window_width}"
+    for ratio in ${QUILLUI_FUNCTIONAL_COMPOSER_X_RATIOS:-34 50 56}; do
+      printf '%s\n' "$((window_x + (reference_width * ratio / 100)))"
+    done
+    printf '%s\n' "$((window_x + (window_width * 34 / 100)))"
+  else
+    printf '%s\n' "$((window_x + (window_width * 34 / 100)))"
+  fi
 }
 
 quill_chat_functional_composer_click_y() {
@@ -266,6 +284,10 @@ quill_chat_functional_composer_click_y_candidates() {
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     local offset
+    local reference_height="${reference_window_height:-$window_height}"
+    for offset in ${QUILLUI_FUNCTIONAL_COMPOSER_REFERENCE_Y_OFFSETS:-135 170 100 220}; do
+      printf '%s\n' "$((window_y + reference_height - offset))"
+    done
     for offset in ${QUILLUI_FUNCTIONAL_COMPOSER_Y_OFFSETS:-135 310 410 220 80}; do
       printf '%s\n' "$((window_y + window_height - offset))"
     done
@@ -274,11 +296,109 @@ quill_chat_functional_composer_click_y_candidates() {
   fi
 }
 
+quill_chat_functional_detected_composer_click_points() {
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_COMPOSER_PROBE:-$OUTPUT_DIR/quill-chat-functional-composer-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+detail_left = divider_x + 1
+detail_width = right - detail_left + 1
+
+composer = None
+for y in range(top + int(app_height * 0.86), bottom + 1):
+    candidates = [
+        segment
+        for segment in image.segments_at(
+            y,
+            detail_left,
+            right + 1,
+            module.mac_reference_composer_pixel,
+            min_width=int(detail_width * 0.55),
+        )
+        if segment.start >= detail_left + int(detail_width * 0.03)
+        and segment.end <= right - int(detail_width * 0.01)
+    ]
+    if candidates:
+        segment = max(candidates, key=lambda item: item.width)
+        if (
+            composer is None
+            or segment.width > composer[1].width
+            or (segment.width == composer[1].width and y < composer[0])
+        ):
+            composer = (y, segment)
+
+if composer is None:
+    raise SystemExit(0)
+
+composer_y, composer_segment = composer
+click_y = window_y + composer_y + 30
+candidate_x_values = [
+    composer_segment.start + 42,
+    min(composer_segment.end - 42, composer_segment.start + 300),
+    int(composer_segment.center),
+]
+
+seen: set[tuple[int, int]] = set()
+for candidate_x in candidate_x_values:
+    point = (window_x + candidate_x, click_y)
+    if point in seen:
+        continue
+    seen.add(point)
+    print(f"{point[0]} {point[1]}")
+PY
+}
+
+quill_chat_functional_composer_click_points() {
+  {
+    quill_chat_functional_detected_composer_click_points
+    local click_x
+    local click_y
+    while IFS= read -r click_y; do
+      while IFS= read -r click_x; do
+        printf '%s %s\n' "$click_x" "$click_y"
+      done < <(quill_chat_functional_composer_click_x_candidates)
+    done < <(quill_chat_functional_composer_click_y_candidates)
+  } | awk '!seen[$1 "," $2]++'
+}
+
 quill_chat_functional_send_attempt() {
-  local click_y="$1"
+  local click_x="$1"
+  local click_y="$2"
   local attachment_x
   local attachment_y
-  local click_x
   local send_x
   local send_y
 
@@ -290,7 +410,6 @@ quill_chat_functional_send_attempt() {
     sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
   fi
 
-  click_x="$(quill_chat_functional_composer_click_x)"
   echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE}" >&2
   quillui_functional_refocus_window
   quillui_functional_click_at "$click_x" "$click_y"
@@ -421,13 +540,14 @@ if [[ "${QUILLUI_FUNCTIONAL_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_m
 fi
 
 completion_verified=0
-while IFS= read -r click_y; do
-  quill_chat_functional_send_attempt "$click_y"
+while read -r click_x click_y; do
+  [[ -n "$click_x" && -n "$click_y" ]] || continue
+  quill_chat_functional_send_attempt "$click_x" "$click_y"
   if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
     completion_verified=1
     break
   fi
-done < <(quill_chat_functional_composer_click_y_candidates)
+done < <(quill_chat_functional_composer_click_points)
 
 if (( completion_verified == 0 )); then
   quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" 1
