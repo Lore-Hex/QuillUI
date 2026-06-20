@@ -410,6 +410,7 @@ products += [
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
     products.append(.library(name: "SignalUIRenderCore", targets: ["SignalUIRenderCore"]))
+    products.append(.executable(name: "signal-ui-render-core-smoke", targets: ["SignalUIRenderCoreSmoke"]))
 }
 
 if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
@@ -2914,6 +2915,36 @@ targets += [
 #endif
 
 #if os(Linux)
+targets += [
+    // Reusable UIKit→GTK renderer + mappers. Keep this free of
+    // SignalUI/SignalServiceKit/libsignal so mapper parity work can compile
+    // quickly and remain useful for non-Signal UIKit ports.
+    .target(
+        name: "SignalUIRenderCore",
+        dependencies: [
+            "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
+            .product(name: "CGTK", package: "SwiftOpenUI"),
+            .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SignalUIRenderCore",
+        swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)]
+    ),
+    .executableTarget(
+        name: "SignalUIRenderCoreSmoke",
+        dependencies: [
+            "SignalUIRenderCore", "QuillUIKit", "UIKit", "QuillFoundation",
+            .product(name: "CGTK", package: "SwiftOpenUI"),
+            .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SignalUIRenderCoreSmoke",
+        swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)],
+        linkerSettings: [
+            .unsafeFlags(gtk4LinkerFlags),
+            .unsafeFlags(gdkPixbufLinkerFlags),
+        ]
+    ),
+]
+
 // Linux-only shadow targets. Use canonical Apple framework names so
 // upstream `import SwiftUI` / `import Network` / etc. resolves to
 // these targets (SPM's swiftmodule filename follows the target name).
@@ -3044,19 +3075,6 @@ targets.append(contentsOf: [
         dependencies: ["QuillUIGtk", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke",
         swiftSettings: appSwiftSettings
-    ),
-    // Reusable UIKit→GTK renderer + mappers. Keep this free of
-    // SignalUI/SignalServiceKit/libsignal so mapper parity work can compile
-    // quickly and remain useful for non-Signal UIKit ports.
-    .target(
-        name: "SignalUIRenderCore",
-        dependencies: [
-            "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
-            .product(name: "CGTK", package: "SwiftOpenUI"),
-            .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-        ],
-        path: "Sources/SignalUIRenderCore",
-        swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)]
     ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target

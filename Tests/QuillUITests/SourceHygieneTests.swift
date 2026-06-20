@@ -114,7 +114,10 @@ struct SourceHygieneTests {
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
+        #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
+        #expect(manifest.contains("name: \"SignalUIRenderCoreSmoke\""))
         #expect(manifest.contains("path: \"Sources/SignalUIRenderCore\""))
+        #expect(manifest.contains("path: \"Sources/SignalUIRenderCoreSmoke\""))
         #expect(manifest.contains("\"QuillUIKit\", \"UIKit\", \"QuillFoundation\", \"QuartzCore\", \"CGtk4\""))
         #expect(!renderer.contains("import SignalUI"))
         #expect(!renderer.contains("as? ColorOrGradientValue"))
