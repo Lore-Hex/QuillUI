@@ -447,7 +447,7 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
 
         if isAvatar {
-            return "?"
+            return name.contains("question") ? "?" : ""
         }
         if name.contains("plus") || name.contains("add") || name.contains("attachment") || name.contains("paperclip") {
             return "+"
