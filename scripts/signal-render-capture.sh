@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+demo="${1:-real-conversation-accepted}"
+output="${2:-.qa/signal-${demo}.png}"
+log_output="${3:-${output%.png}.log}"
+width="${SIGNAL_RENDER_CAPTURE_WIDTH:-820}"
+height="${SIGNAL_RENDER_CAPTURE_HEIGHT:-780}"
+binary="${SIGNAL_RENDER_CAPTURE_BINARY:-.build/aarch64-unknown-linux-gnu/debug/signal-ui-render}"
+display_id="${SIGNAL_RENDER_CAPTURE_DISPLAY:-:99}"
+
+mkdir -p "$(dirname "$output")" "$(dirname "$log_output")"
+
+if [ ! -x "$binary" ]; then
+  echo "Signal renderer binary not found or not executable: $binary" >&2
+  echo "Build it first, for example: swift build --disable-index-store -j 1 --product signal-ui-render" >&2
+  exit 1
+fi
+
+for required in Xvfb import; do
+  if ! command -v "$required" >/dev/null 2>&1; then
+    echo "$required is required for Signal render capture" >&2
+    exit 1
+  fi
+done
+
+Xvfb "$display_id" -screen 0 "${width}x${height}x24" >"${log_output%.log}-xvfb.log" 2>&1 &
+xvfb_pid=$!
+app_pid=
+
+cleanup() {
+  if [ -n "${app_pid:-}" ]; then
+    kill "$app_pid" 2>/dev/null || true
+  fi
+  kill "$xvfb_pid" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+export DISPLAY="$display_id" GTK_A11Y=none SIGNAL_UI_RENDER_DEMO="$demo" SIGNAL_UI_RENDER_DUMP="${SIGNAL_UI_RENDER_DUMP:-1}"
+"$binary" >"$log_output" 2>&1 &
+app_pid=$!
+
+sleep "${SIGNAL_RENDER_CAPTURE_DELAY:-8}"
+import -window root "$output"
+
+kill "$app_pid" 2>/dev/null || true
+wait "$app_pid" 2>/dev/null || true
+
+echo "Captured $demo to $output"
