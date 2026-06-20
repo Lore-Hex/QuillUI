@@ -15,7 +15,6 @@ import CGTK
 import CGTKBridge
 import QuillUIKit
 import UIKit
-import SignalUI
 import QuillFoundation
 import QuartzCore
 import Foundation
@@ -261,6 +260,13 @@ private func gradientLayerRules(in layer: CALayer) -> [String]? {
     return rules
 }
 
+private enum ReflectedSignalColorOrGradient {
+    case transparent
+    case blur
+    case solidColor(UIColor)
+    case gradient(UIColor, UIColor, CGFloat)
+}
+
 private func signalColorOrGradientRules(for view: UIView) -> [String]? {
     guard String(describing: type(of: view)) == "CVColorOrGradientView" else { return nil }
     guard let value = reflectedSignalColorOrGradientValue(from: view) else { return nil }
@@ -282,20 +288,108 @@ private func signalColorOrGradientRules(for view: UIView) -> [String]? {
     }
 }
 
-private func reflectedSignalColorOrGradientValue(from view: UIView) -> ColorOrGradientValue? {
+private func reflectedSignalColorOrGradientValue(from view: UIView) -> ReflectedSignalColorOrGradient? {
     var mirror: Mirror? = Mirror(reflecting: view)
     while let currentMirror = mirror {
         for child in currentMirror.children where child.label == "value" {
-            if let value = child.value as? ColorOrGradientValue {
-                return value
-            }
-            let optionalMirror = Mirror(reflecting: child.value)
-            if optionalMirror.displayStyle == .optional,
-               let value = optionalMirror.children.first?.value as? ColorOrGradientValue {
+            if let value = parseSignalColorOrGradientValue(child.value) {
                 return value
             }
         }
         mirror = currentMirror.superclassMirror
+    }
+    return nil
+}
+
+private func parseSignalColorOrGradientValue(_ value: Any) -> ReflectedSignalColorOrGradient? {
+    let unwrapped = unwrapOptional(value) ?? value
+    let mirror = Mirror(reflecting: unwrapped)
+    guard mirror.displayStyle == .enum else { return nil }
+
+    guard let caseChild = mirror.children.first else {
+        if String(describing: unwrapped).contains("transparent") {
+            return .transparent
+        }
+        return nil
+    }
+
+    switch caseChild.label {
+    case "transparent":
+        return .transparent
+    case "blur":
+        return .blur
+    case "solidColor":
+        guard let color = firstMirroredValue(of: UIColor.self, in: caseChild.value) else { return nil }
+        return .solidColor(color)
+    case "gradient":
+        let colors = mirroredValues(of: UIColor.self, in: caseChild.value)
+        guard colors.count >= 2,
+              let angle = firstMirroredCGFloat(labeled: "angleRadians", in: caseChild.value) else {
+            return nil
+        }
+        return .gradient(colors[0], colors[1], angle)
+    default:
+        return nil
+    }
+}
+
+private func unwrapOptional(_ value: Any) -> Any? {
+    let mirror = Mirror(reflecting: value)
+    guard mirror.displayStyle == .optional else { return nil }
+    return mirror.children.first?.value
+}
+
+private func firstMirroredValue<T>(of type: T.Type, in value: Any) -> T? {
+    if let typed = value as? T { return typed }
+    if let unwrapped = unwrapOptional(value) {
+        return firstMirroredValue(of: type, in: unwrapped)
+    }
+    for child in Mirror(reflecting: value).children {
+        if let typed = firstMirroredValue(of: type, in: child.value) {
+            return typed
+        }
+    }
+    return nil
+}
+
+private func mirroredValues<T>(of type: T.Type, in value: Any) -> [T] {
+    var result: [T] = []
+    collectMirroredValues(of: type, in: value, into: &result)
+    return result
+}
+
+private func collectMirroredValues<T>(of type: T.Type, in value: Any, into result: inout [T]) {
+    if let typed = value as? T {
+        result.append(typed)
+        return
+    }
+    if let unwrapped = unwrapOptional(value) {
+        collectMirroredValues(of: type, in: unwrapped, into: &result)
+        return
+    }
+    for child in Mirror(reflecting: value).children {
+        collectMirroredValues(of: type, in: child.value, into: &result)
+    }
+}
+
+private func firstMirroredCGFloat(labeled label: String, in value: Any) -> CGFloat? {
+    if let unwrapped = unwrapOptional(value) {
+        return firstMirroredCGFloat(labeled: label, in: unwrapped)
+    }
+    for child in Mirror(reflecting: value).children {
+        guard child.label == label else { continue }
+        if let value = child.value as? CGFloat {
+            return value
+        }
+        if let value = child.value as? Double {
+            return CGFloat(value)
+        }
+        if let value = child.value as? Float {
+            return CGFloat(value)
+        }
+        if let unwrapped = unwrapOptional(child.value) {
+            return firstMirroredCGFloat(labeled: label, in: unwrapped)
+        }
     }
     return nil
 }

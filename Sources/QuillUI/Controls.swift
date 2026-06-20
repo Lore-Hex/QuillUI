@@ -1954,7 +1954,7 @@ public struct QuillChatEmptyState: View {
             linuxReferenceEmptyStateContent
                 .frame(height: referenceHeight, alignment: .top)
         } else {
-            emptyStateContent
+            linuxCompactEmptyStateContent
                 .frame(maxHeight: 980)
         }
         #else
@@ -2000,6 +2000,41 @@ public struct QuillChatEmptyState: View {
             .padding(.horizontal, 28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+
+    private var linuxCompactEmptyStateContent: some View {
+        GeometryReader { geometry in
+            let metrics = promptGridMetrics(totalWidth: Double(geometry.size.width))
+            let available = max(160, CGFloat(geometry.size.width) - 56)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                VStack(spacing: linuxCompactEmptyStateVerticalSpacing) {
+                    wordmark
+
+                    QuillPromptGrid(
+                        prompts: prompts,
+                        columns: columns,
+                        cardWidth: metrics.cardWidth,
+                        cardHeight: metrics.cardHeight,
+                        spacing: metrics.spacing,
+                        action: action
+                    )
+                    .frame(maxWidth: min(metrics.gridWidth, available), alignment: .center)
+
+                    Spacer()
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, linuxCompactTopPadding(totalHeight: Double(geometry.size.height)))
+            .padding(.horizontal, 28)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        }
+    }
+
+    private var linuxCompactEmptyStateVerticalSpacing: Int { 48 }
+
+    private func linuxCompactTopPadding(totalHeight: Double) -> Int {
+        Int(min(150, max(96, totalHeight * 0.18)).rounded())
     }
     #endif
 
