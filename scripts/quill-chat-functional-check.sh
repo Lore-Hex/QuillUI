@@ -416,6 +416,81 @@ quill_chat_functional_composer_click_points() {
   '
 }
 
+quill_chat_functional_detected_relaunch_history_click_point() {
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_PROBE:-$OUTPUT_DIR/quill-chat-functional-relaunch-history-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+sidebar_left = left + 16
+sidebar_right = max(sidebar_left + 1, divider_x - 16)
+scan_top = top + int(app_height * 0.18)
+scan_bottom = bottom - int(app_height * 0.12)
+
+rows: list[tuple[int, int]] = []
+for y in range(scan_top, scan_bottom):
+    dark_pixels = sum(
+        1
+        for x in range(sidebar_left, sidebar_right)
+        if sum(image.rgb(x, y)) < 430
+    )
+    if dark_pixels >= 12:
+        rows.append((y, dark_pixels))
+
+if not rows:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int]]] = []
+current = [rows[0]]
+for row in rows[1:]:
+    if row[0] <= current[-1][0] + 2:
+        current.append(row)
+    else:
+        groups.append(current)
+        current = [row]
+groups.append(current)
+
+group = max(groups, key=lambda item: sum(count for _, count in item))
+click_y = (group[0][0] + group[-1][0]) // 2
+sidebar_width = divider_x - left
+click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
+print(f"{window_x + click_x} {window_y + click_y}")
+PY
+}
+
 quill_chat_functional_submit_methods() {
   case "$FUNCTIONAL_MODE" in
     attachment-send|image-attachment-send)
@@ -624,12 +699,18 @@ PY
   launch_app_instance append
   resolve_app_window_geometry
 
-  history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 110))}"
-  # The Mac-reference sidebar starts with a day header, then the first saved
-  # conversation row. Click the row band rather than the header so relaunch
-  # verification actually opens the persisted transcript.
-  history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + 172))}"
-  quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
+  detected_history_point="$(quill_chat_functional_detected_relaunch_history_click_point | head -n 1 || true)"
+  if [[ -n "$detected_history_point" ]]; then
+    read -r history_x history_y <<< "$detected_history_point"
+  else
+    history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}"
+    history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + window_height / 2))}"
+  fi
+  echo "functional-check: relaunch history=${history_x},${history_y}" >&2
+  quillui_functional_refocus_window
+  quillui_functional_click_at "$history_x" "$history_y"
+  sleep 0.8
+  quillui_functional_click_at "$history_x" "$history_y"
   sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
 
   python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE:-15}" "$FUNCTIONAL_MODE" <<'PY'
