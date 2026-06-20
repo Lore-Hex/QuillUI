@@ -3,7 +3,7 @@ import CWin32
 import CWin32Bridge
 import SwiftOpenUI
 import Foundation
-#if canImport(Observation)
+#if canImport(Observation) && !os(Linux)
 import Observation
 #endif
 
@@ -195,7 +195,7 @@ public class Win32ViewHost: AnyViewHost, DependencyTrackingHost {
         // `endEnvironmentReadTracking()` after body evaluates.
         beginEnvironmentReadTracking()
 
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: HWND?
             withObservationTracking {
@@ -226,14 +226,14 @@ public class Win32ViewHost: AnyViewHost, DependencyTrackingHost {
         guard let captured = capturedEnvironment else { return }
         var env = captured
         for (typeID, object) in capturedInjectedObjects {
-            env.setObjectByID(typeID, object)
+            env.setLatestObjectByID(typeID, fallback: object)
         }
         setCurrentEnvironment(env)
     }
 
     /// Describe the body with observation tracking for @Observable support.
     public func buildDescriptorWithTracking() -> Win32DescriptorNode {
-        #if canImport(Observation)
+        #if canImport(Observation) && !os(Linux)
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: Win32DescriptorNode?
             withObservationTracking {
@@ -323,7 +323,7 @@ public class Win32ViewHost: AnyViewHost, DependencyTrackingHost {
         // Phase 6+7: track which storages are read during body evaluation
         resetOnChangeTracking()
         // ID registry not cleared — global, overwrite + liveness handles stale entries
-        beginDependencyTracking()
+        beginDependencyTracking(host: self)
         let newChild = buildBodyWithTracking(childContext)
         if let tracking = endDependencyTracking() {
             lastReadSet = tracking.readSet

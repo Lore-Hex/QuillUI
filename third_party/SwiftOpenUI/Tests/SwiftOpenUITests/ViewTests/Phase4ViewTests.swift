@@ -35,6 +35,31 @@ final class Phase4ViewTests: XCTestCase {
         XCTAssertEqual(tabView.initialTab, 1)
     }
 
+    func testTabViewSelectionResolvesAndWritesTabValues() {
+        var selected = "notifications"
+        let binding = Binding(
+            get: { selected },
+            set: { selected = $0 }
+        )
+
+        let tabView = TabView(selection: binding) {
+            Tab("Timeline", id: "timeline-tab", selectionValue: AnyHashable("timeline")) {
+                Text("Timeline")
+            }
+            Tab("Notifications", id: "notifications-tab", selectionValue: AnyHashable("notifications")) {
+                Text("Notifications")
+            }
+        }
+
+        XCTAssertEqual(tabView.selectedID, "notifications-tab")
+
+        tabView.selectionHandler?("timeline-tab")
+        XCTAssertEqual(selected, "timeline")
+
+        tabView.selectionHandler?("missing-tab")
+        XCTAssertEqual(selected, "timeline")
+    }
+
     // MARK: - Grid
 
     func testGridAutoWrap() {

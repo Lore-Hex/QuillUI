@@ -44,7 +44,9 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
+public final class UIFont: NSObject, NSSecureCoding, @unchecked Sendable {
+    public static var supportsSecureCoding: Bool { true }
+
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
@@ -60,7 +62,7 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public required init?(coder: NSCoder) {
         let decodedSize = coder.decodeDouble(forKey: "pointSize")
         self.pointSize = decodedSize == 0 ? 17 : CGFloat(decodedSize)
-        self.fontName = coder.decodeObject(forKey: "fontName") as? String ?? ".AppleSystemUIFont"
+        self.fontName = coder.decodeObject(of: NSString.self, forKey: "fontName") as String? ?? ".AppleSystemUIFont"
         self.fontDescriptor = UIFontDescriptor(name: fontName)
         super.init()
     }

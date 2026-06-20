@@ -64,6 +64,134 @@ final class LocalizationTests: XCTestCase {
         )
     }
 
+    func testTopLevelPluralVariationCatalogEntryFormatsFlattenedInterpolation() throws {
+        let catalog = try writeCatalog("""
+        {
+          "sourceLanguage": "en",
+          "strings": {
+            "status.summary.n-favorites %lld": {
+              "localizations": {
+                "en": {
+                  "variations": {
+                    "plural": {
+                      "one": {
+                        "stringUnit": {
+                          "state": "translated",
+                          "value": "%lld favorite"
+                        }
+                      },
+                      "other": {
+                        "stringUnit": {
+                          "state": "translated",
+                          "value": "%lld favorites"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        quillConfigureLocalizationForTesting(catalogURLs: [catalog])
+
+        XCTAssertEqual(
+            quillResolveLocalizedString("status.summary.n-favorites %lld", arguments: ["1"]),
+            "1 favorite"
+        )
+        XCTAssertEqual(
+            quillResolveLocalizedString("status.summary.n-favorites %lld", arguments: ["42"]),
+            "42 favorites"
+        )
+        XCTAssertEqual(
+            quillResolveLocalizedString("status.summary.n-favorites 42"),
+            "42 favorites"
+        )
+        XCTAssertEqual(
+            Text("status.summary.n-favorites 42").content,
+            "42 favorites"
+        )
+    }
+
+    func testPluralCatalogSubstitutionUsesArgNumAndArgToken() throws {
+        let catalog = try writeCatalog("""
+        {
+          "sourceLanguage": "en",
+          "strings": {
+            "design.tag.n-posts-from-n-participants %lld %lld": {
+              "localizations": {
+                "en": {
+                  "stringUnit": {
+                    "state": "translated",
+                    "value": "%#@count_posts@ posts from %#@count_participants@ participants"
+                  },
+                  "substitutions": {
+                    "count_posts": {
+                      "argNum": 1,
+                      "formatSpecifier": "lld",
+                      "variations": {
+                        "plural": {
+                          "one": {
+                            "stringUnit": {
+                              "state": "translated",
+                              "value": "%arg"
+                            }
+                          },
+                          "other": {
+                            "stringUnit": {
+                              "state": "translated",
+                              "value": "%arg"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "count_participants": {
+                      "argNum": 2,
+                      "formatSpecifier": "lld",
+                      "variations": {
+                        "plural": {
+                          "one": {
+                            "stringUnit": {
+                              "state": "translated",
+                              "value": "%arg"
+                            }
+                          },
+                          "other": {
+                            "stringUnit": {
+                              "state": "translated",
+                              "value": "%arg"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        quillConfigureLocalizationForTesting(catalogURLs: [catalog])
+
+        XCTAssertEqual(
+            quillResolveLocalizedString("design.tag.n-posts-from-n-participants %lld %lld", arguments: ["146", "45"]),
+            "146 posts from 45 participants"
+        )
+        XCTAssertEqual(
+            quillResolveLocalizedString("design.tag.n-posts-from-n-participants 146 45"),
+            "146 posts from 45 participants"
+        )
+        XCTAssertEqual(
+            Text("design.tag.n-posts-from-n-participants 146 45").content,
+            "146 posts from 45 participants"
+        )
+    }
+
     func testCatalogDoesNotFallBackToArbitraryLocale() throws {
         let catalog = try writeCatalog("""
         {

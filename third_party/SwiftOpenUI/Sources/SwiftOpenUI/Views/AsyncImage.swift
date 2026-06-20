@@ -142,8 +142,11 @@ private final class AsyncImageFileCache: @unchecked Sendable {
             return path
         }
 
+        let fileExtension = url.pathExtension
+        let filename = "swiftopenui-asyncimage-\(UUID().uuidString)"
+            + (fileExtension.isEmpty ? "" : ".\(fileExtension)")
         let file = FileManager.default.temporaryDirectory
-            .appendingPathComponent("swiftopenui-asyncimage-\(UUID().uuidString)")
+            .appendingPathComponent(filename)
         try data.write(to: file, options: [.atomic])
 
         lock.lock()

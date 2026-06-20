@@ -66,6 +66,20 @@ struct QuillUITests {
         #expect(key.arguments == ["872850", "872.9K"])
         #expect(Text(count, format: .number.notation(.compactName)).content == "872.9K")
     }
+
+    @Test("Text date style preserves distinct date and time formatting")
+    func textDateStylePreservesDistinctDateAndTimeFormatting() throws {
+        let date = Date(timeIntervalSince1970: 1_785_000_000)
+        let expectedDate = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
+        let expectedTime = DateFormatter.localizedString(from: date, dateStyle: .none, timeStyle: .short)
+
+        #expect(Text(date, style: .date).content == expectedDate)
+        #expect(Text(date, style: .time).content == expectedTime)
+        #expect(Text(date, style: .date).content != Text(date, style: .time).content)
+
+        let interpolated = "\(date, style: Text.DateStyle.time)"
+        #expect(interpolated == expectedTime)
+    }
     #endif
 
     // MARK: - QuillPromptGridLayout

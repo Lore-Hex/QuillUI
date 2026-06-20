@@ -1,5 +1,6 @@
 #if os(Linux)
 import Foundation
+import QuillFoundation
 import QuillSwiftUICompatibility
 import SwiftData
 import SwiftOpenUI
@@ -81,9 +82,9 @@ public final class ListFormatter {
 }
 
 // AttributedString exists on Linux Foundation but lacks Apple's Markdown
-// parsing initializer. Provide the missing surface so HTMLString compiles;
-// the Linux fallback is plain text (rich styling is rendered by QuillUI from
-// htmlValue/asRawText anyway, not from this AttributedString).
+// parsing initializer. Provide the missing surface so IceCubes' HTMLString
+// compiles and status text renders as display text instead of literal
+// Markdown syntax.
 public extension AttributedString {
     struct MarkdownParsingOptions {
         public enum InterpretedSyntax { case full, inlineOnly, inlineOnlyPreservingWhitespace }
@@ -97,7 +98,8 @@ public extension AttributedString {
     }
 
     init(markdown: String, options: MarkdownParsingOptions) throws {
-        self = AttributedString(stringLiteral: markdown)
+        _ = options
+        self = AttributedString(stringLiteral: HTMLText.plainText(fromMarkdown: markdown))
     }
 }
 

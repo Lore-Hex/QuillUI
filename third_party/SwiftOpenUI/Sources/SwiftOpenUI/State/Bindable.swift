@@ -48,7 +48,14 @@ public struct Bindable<Value: AnyObject> {
         let object = wrappedValue
         return Binding(
             get: { object[keyPath: keyPath] },
-            set: { object[keyPath: keyPath] = $0 },
+            set: {
+                let generation = environmentObservableObjectGeneration(object)
+                object[keyPath: keyPath] = $0
+                notifyEnvironmentObservableObjectMutation(
+                    object,
+                    ifGenerationMatches: generation
+                )
+            },
             quillUIIdentity: BindingIdentity(
                 objectIdentifier: ObjectIdentifier(object),
                 discriminator: keyPath.hashValue

@@ -16,6 +16,13 @@ public struct BindingIdentity: Hashable, CustomStringConvertible {
     public var description: String {
         "\(objectIdentifier):\(discriminator)"
     }
+
+    public func appending(discriminator component: Int) -> BindingIdentity {
+        BindingIdentity(
+            objectIdentifier: objectIdentifier,
+            discriminator: discriminator &* 31 &+ component
+        )
+    }
 }
 
 @propertyWrapper
@@ -70,7 +77,8 @@ public struct Binding<Value> {
                 var value = parentGet()
                 value[keyPath: keyPath] = newValue
                 parentSet(value)
-            }
+            },
+            quillUIIdentity: quillUIIdentity?.appending(discriminator: keyPath.hashValue)
         )
     }
 }

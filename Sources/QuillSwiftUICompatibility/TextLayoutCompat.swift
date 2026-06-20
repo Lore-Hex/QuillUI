@@ -42,7 +42,7 @@ public extension Font {
 
 public extension ToolbarItemPlacement {
     static var automatic: ToolbarItemPlacement { .primaryAction }
-    static var principal: ToolbarItemPlacement { .primaryAction }
+    static var principal: ToolbarItemPlacement { .center }
     static var navigation: ToolbarItemPlacement { .leading }
     static var navigationBarLeading: ToolbarItemPlacement { .leading }
     static var navigationBarTrailing: ToolbarItemPlacement { .trailing }

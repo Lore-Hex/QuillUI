@@ -51,6 +51,102 @@ func subscribeOpaqueObservableObject(
     subscribeToObjectWillChange(object, onChange)
 }
 
+private final class WeakViewHostReference {
+    weak var host: AnyViewHost?
+
+    init(_ host: AnyViewHost) {
+        self.host = host
+    }
+}
+
+private final class EnvironmentObservableObjectDependencyStorage: GenerationTracked {
+    private let lock = NSLock()
+    private var cancellable: AnyCancellable?
+    private var hosts: [WeakViewHostReference] = []
+    public private(set) var generation: UInt64 = 0
+
+    init<ObjectType: ObservableObject>(_ object: ObjectType) {
+        cancellable = subscribeToObjectWillChange(object) { [weak self] in
+            self?.objectDidChange()
+        }
+    }
+
+    func addHost(_ host: AnyViewHost?) {
+        guard let host else { return }
+        lock.lock()
+        hosts.removeAll { $0.host == nil }
+        if !hosts.contains(where: { $0.host === host }) {
+            hosts.append(WeakViewHostReference(host))
+        }
+        lock.unlock()
+    }
+
+    func objectDidChange() {
+        let liveHosts: [AnyViewHost]
+        lock.lock()
+        generation &+= 1
+        hosts.removeAll { $0.host == nil }
+        liveHosts = hosts.compactMap(\.host)
+        lock.unlock()
+
+        for host in liveHosts {
+            host.scheduleRebuildAfterObservableObjectMutation()
+        }
+    }
+}
+
+private final class EnvironmentObservableObjectDependencyRegistry {
+    static let shared = EnvironmentObservableObjectDependencyRegistry()
+
+    private let lock = NSLock()
+    private var storages: [ObjectIdentifier: EnvironmentObservableObjectDependencyStorage] = [:]
+
+    func storage<ObjectType: ObservableObject>(
+        for object: ObjectType
+    ) -> EnvironmentObservableObjectDependencyStorage {
+        let id = ObjectIdentifier(object)
+        lock.lock()
+        if let storage = storages[id] {
+            lock.unlock()
+            return storage
+        }
+        let storage = EnvironmentObservableObjectDependencyStorage(object)
+        storages[id] = storage
+        lock.unlock()
+        return storage
+    }
+}
+
+func recordEnvironmentObservableObjectRead(_ object: AnyObject) {
+    guard let observable = object as? any ObservableObject else { return }
+    let storage = EnvironmentObservableObjectDependencyRegistry.shared.storage(for: observable)
+    storage.addHost(currentDependencyTrackingHost())
+    recordDependencyRead(storage)
+}
+
+func wireEnvironmentObservableObjectRead(_ object: AnyObject, host: AnyViewHost?) {
+    guard let observable = object as? any ObservableObject else { return }
+    let storage = EnvironmentObservableObjectDependencyRegistry.shared.storage(for: observable)
+    storage.addHost(host)
+}
+
+func environmentObservableObjectGeneration(_ object: AnyObject) -> UInt64? {
+    guard let observable = object as? any ObservableObject else { return nil }
+    let storage = EnvironmentObservableObjectDependencyRegistry.shared.storage(for: observable)
+    return storage.generation
+}
+
+func notifyEnvironmentObservableObjectMutation(
+    _ object: AnyObject,
+    ifGenerationMatches expectedGeneration: UInt64?
+) {
+    guard let expectedGeneration,
+          let observable = object as? any ObservableObject else { return }
+    let storage = EnvironmentObservableObjectDependencyRegistry.shared.storage(for: observable)
+    guard storage.generation == expectedGeneration else { return }
+    storage.objectDidChange()
+}
+
 // MARK: - @ObservedObject
 
 /// A property wrapper that observes an external ObservableObject.
@@ -130,7 +226,7 @@ public class ObservedObjectStorage<ObjectType: ObservableObject>: AnyStateStorag
         cancellable = subscribeToObjectWillChange(object) { [weak self] in
             guard let self else { return }
             self.generation &+= 1
-            self.host?.scheduleRebuild()
+            self.host?.scheduleRebuildAfterObservableObjectMutation()
         }
     }
 
@@ -210,7 +306,7 @@ public class StateObjectStorage<ObjectType: ObservableObject>: AnyStateStorage, 
         cancellable = subscribeToObjectWillChange(existing) { [weak self] in
             guard let self else { return }
             self.generation &+= 1
-            self.host?.scheduleRebuild()
+            self.host?.scheduleRebuildAfterObservableObjectMutation()
         }
     }
 
@@ -280,7 +376,7 @@ public class EnvironmentObjectStorage<ObjectType: ObservableObject>: AnyStateSto
         cancellable = subscribeToObjectWillChange(object) { [weak self] in
             guard let self else { return }
             self.generation &+= 1
-            self.host?.scheduleRebuild()
+            self.host?.scheduleRebuildAfterObservableObjectMutation()
         }
     }
 

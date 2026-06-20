@@ -106,6 +106,29 @@ final class Phase3ViewTests: XCTestCase {
         XCTAssertEqual(image.scale.pointSize, 24)
     }
 
+    func testImageStringDescriptionUsesInlineMarker() {
+        let text = String(describing: Image(systemName: "globe"))
+        XCTAssertTrue(QuillInlineImageText.containsMarker(text))
+        XCTAssertFalse(text.contains("Image(source"))
+        XCTAssertEqual(
+            QuillInlineImageText.parse(text),
+            [.image(.init(kind: .systemName, name: "globe"))]
+        )
+    }
+
+    func testImageInterpolationInTextAvoidsDebugDescription() {
+        let text = Text("\(Image(systemName: "globe")) · Public")
+        XCTAssertTrue(QuillInlineImageText.containsMarker(text.content))
+        XCTAssertFalse(text.content.contains("Image(source"))
+        XCTAssertEqual(
+            QuillInlineImageText.parse(text.content),
+            [
+                .image(.init(kind: .systemName, name: "globe")),
+                .text(" · Public"),
+            ]
+        )
+    }
+
     // MARK: - List
 
     func testListConstruction() {

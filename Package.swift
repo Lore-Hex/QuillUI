@@ -894,8 +894,10 @@ let swiftSyntaxOSLinkDependencies: [Target.Dependency] = []
 // `import SwiftUI` is the real SDK and there is no target to depend on.
 #if os(Linux)
 let swiftUIShadowTestDependencies: [Target.Dependency] = ["SwiftUI"]
+let observationShadowTestDependencies: [Target.Dependency] = ["Observation"]
 #else
 let swiftUIShadowTestDependencies: [Target.Dependency] = []
+let observationShadowTestDependencies: [Target.Dependency] = []
 #endif
 
 // The representable GTK mount rides only in the gtk graph; the Qt mount rides
@@ -2964,7 +2966,8 @@ targets.append(contentsOf: [
     .target(
         name: "QuillSwiftUICompatibility",
         dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "CoreTransferable", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
-        path: "Sources/QuillSwiftUICompatibility"
+        path: "Sources/QuillSwiftUICompatibility",
+        swiftSettings: quillFoundationSwiftSettings
     ),
     .target(
         name: "SwiftUI",
@@ -2974,7 +2977,7 @@ targets.append(contentsOf: [
         // only — the qt graph keeps the shadow GTK-free (compile-only
         // representables there until the Qt mount exists).
         dependencies: [
-            "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
+            "QuillKit", "QuillSwiftUICompatibility", "AppKit", "UIKit", "CoreImage", "CoreTransferable", "Combine",
             "AuthenticationServices",
         ] + swiftUIShadowMountDependencies,
         path: "Sources/SwiftUIShim",
@@ -2985,7 +2988,7 @@ targets.append(contentsOf: [
             .unsafeFlags(["-strict-concurrency=minimal"]),
         ] + swiftUIShadowMountSwiftSettings
     ),
-    .target(name: "Observation", dependencies: ["QuillDataMacros"], path: "Sources/Observation"),
+    .target(name: "Observation", dependencies: ["QuillDataMacros", "Combine"], path: "Sources/Observation"),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
@@ -3884,7 +3887,7 @@ let packageTestTargets: [Target] = {
             // previously reached via the shared-build-dir leak; must be declared
             // now that the shadow carries CGtk4/QuillAppKitGTK (representable
             // GTK mount). On Apple `import SwiftUI` is the real SDK — no target.
-            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies,
+            dependencies: ["QuillUI", "QuillUIGtk", "QuillUIQt", "QuillPaintCairo", "QuillInteractionSmokeSupport", "CCairo"] + swiftUIShadowTestDependencies + observationShadowTestDependencies,
             swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
         )
     ]
@@ -3940,6 +3943,7 @@ let packageTestTargets: [Target] = {
 #if os(Linux)
 if iceCubesLinuxGraphEnabled {
     products.append(.executable(name: "icecubes-linux-app", targets: ["IceCubesLinuxApp"]))
+    products.append(.executable(name: "icecubes-seed-account", targets: ["IceCubesSeedAccount"]))
 
     targets += [
         .target(
@@ -3975,6 +3979,7 @@ if iceCubesLinuxGraphEnabled {
                 "SwiftUI",
                 "IceCubesShims",
                 "Combine",
+                "QuillKit",
                 "os",
             ],
             path: ".upstream/icecubes/Packages/NetworkClient/Sources/NetworkClient",
@@ -4095,6 +4100,18 @@ if iceCubesLinuxGraphEnabled {
                 .swiftLanguageMode(.v5),
                 .unsafeFlags(["-strict-concurrency=minimal"]),
                 .unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"]),
+                .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
+            ]
+        ),
+        .executableTarget(
+            name: "IceCubesSeedAccount",
+            dependencies: [
+                "AppAccount",
+                "Models",
+            ],
+            path: "Sources/IceCubesSeedAccount",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
                 .unsafeFlags(["-Xfrontend", "-import-module", "-Xfrontend", "IceCubesShims"])
             ]
         ),

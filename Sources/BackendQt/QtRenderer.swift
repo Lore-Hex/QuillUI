@@ -1057,6 +1057,15 @@ extension ForegroundColorView: QtRenderable {
     }
 }
 
+extension OptionalForegroundColorView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        guard let color else {
+            return qtRenderView(content)
+        }
+        return qtRenderView(content.foregroundColor(color))
+    }
+}
+
 extension FontModifiedView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let child = qtRenderView(content)

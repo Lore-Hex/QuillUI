@@ -1,4 +1,5 @@
 import XCTest
+import Foundation
 import SwiftOpenUI
 @testable import BackendGTK4
 import CGTK
@@ -167,6 +168,32 @@ final class GTK4FocusTests: XCTestCase {
                        "TextEditor top-level widget should be a GtkScrolledWindow")
         let textView = findWidgetByTypeName(in: widget, typeName: "GtkTextView")
         XCTAssertNotNil(textView, "TextEditor should contain a GtkTextView")
+    }
+
+    func testTextEditorDefersBindingWriteUntilTypingPause() throws {
+        try requireGTK()
+
+        var text = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            TextEditor(text: Binding(get: { text }, set: { text = $0 }))
+        ))
+        let textView = try XCTUnwrap(findWidgetByTypeName(in: widget, typeName: "GtkTextView"))
+        let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
+        let buffer = gtk_text_view_get_buffer(textViewPtr)!
+
+        gtk_text_buffer_set_text(buffer, "hello from linux", -1)
+        drainMainLoop(limit: 20)
+
+        XCTAssertEqual(
+            text,
+            "",
+            "TextEditor should debounce native buffer changes instead of rebuilding on each keystroke."
+        )
+
+        Thread.sleep(forTimeInterval: 0.30)
+        drainMainLoop(limit: 100)
+
+        XCTAssertEqual(text, "hello from linux")
     }
 
     // MARK: - Cursor position on GtkEditable

@@ -918,44 +918,63 @@ patch_icecubes() {
     # HTTPURLResponse, which live in the FoundationNetworking module on Linux
     # (swift-corelibs-foundation). Add a conditional `import FoundationNetworking`
     # after the first `import Foundation`; canImport is false on macOS so the
-    # Apple build is unaffected. Idempotent.
+    # Apple build is unaffected. Linux fixture-backed route smokes call through
+    # QuillURLSessionFixtures directly so matched fixture requests avoid the
+    # swift-corelibs URLProtocol task-registry cancellation trap. Idempotent.
     local dir="$UPSTREAM_DIR/icecubes/Packages/NetworkClient/Sources/NetworkClient"
     if [[ ! -d "$dir" ]]; then
         return
     fi
-    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
-    python3 - "$dir" <<'PY'
-import sys, os, glob
+	    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
+	    python3 - "$dir" <<-'PY'
+	import sys, os, glob
 
-directory = sys.argv[1]
-addition = (
-    "import Foundation\n"
-    "#if canImport(FoundationNetworking)\n"
-    "import FoundationNetworking\n"
-    "#endif"
-)
-for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
-    src = open(path).read()
-    lines = src.split("\n")
-    out = []
-    fn_done = "FoundationNetworking" in src
-    for line in lines:
-        stripped = line.strip()
-        if stripped == "import OSLog":
-            # Linux: the repo `os` shim provides Logger; there is no OSLog
-            # module, and an `@_exported import os` shim retains os_log symbols
-            # that break swift-syntax's link. Rewrite to the plain os import.
-            out.append("import os")
-        elif stripped == "import Foundation" and not fn_done:
-            out.append(addition)
-            fn_done = True
-        else:
-            out.append(line)
-    new = "\n".join(out)
-    if new != src:
-        open(path, "w").write(new)
-        print("patched", os.path.basename(path))
-PY
+	directory = sys.argv[1]
+	addition = (
+	    "import Foundation\n"
+	    "#if canImport(FoundationNetworking)\n"
+	    "import FoundationNetworking\n"
+	    "#endif"
+	)
+	for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+	    src = open(path).read()
+	    lines = src.split("\n")
+	    out = []
+	    fn_done = "FoundationNetworking" in src
+	    for line in lines:
+	        stripped = line.strip()
+	        if stripped == "import OSLog":
+	            # Linux: the repo `os` shim provides Logger; there is no OSLog
+	            # module, and an `@_exported import os` shim retains os_log symbols
+	            # that break swift-syntax's link. Rewrite to the plain os import.
+	            out.append("import os")
+	        elif stripped == "import Foundation" and not fn_done:
+	            out.append(addition)
+	            fn_done = True
+	        else:
+	            out.append(line)
+	    new = "\n".join(out)
+	    if "import QuillKit" not in new:
+	        if "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif" in new:
+	            new = new.replace(
+	                "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif",
+	                "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\nimport QuillKit",
+	                1,
+	            )
+	        else:
+	            new = new.replace("import Foundation\n", "import Foundation\nimport QuillKit\n", 1)
+	    new = new.replace(
+	        "URLSession.shared.data(for: request)",
+	        "QuillURLSessionFixtures.data(for: request, fallbackSession: URLSession.shared)",
+	    )
+	    new = new.replace(
+	        "urlSession.data(for: request)",
+	        "QuillURLSessionFixtures.data(for: request, fallbackSession: urlSession)",
+	    )
+	    if new != src:
+	        open(path, "w").write(new)
+	        print("patched", os.path.basename(path))
+	PY
 
     # Env: StreamWatcher uses URLSessionWebSocketTask (FoundationNetworking on
     # Linux); Router uses UIImage/UIApplication (UIKit — on iOS these arrive

@@ -1,4 +1,10 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+#if canImport(Dispatch)
+import Dispatch
+#endif
 #if os(Linux)
 import Glibc
 #endif
@@ -418,6 +424,8 @@ public enum QuillWorkspace {
     }
 
     private static let storage = Storage()
+    public static let openURLLogFileEnvironmentKey = "QUILLUI_OPEN_URL_LOG_FILE"
+    public static let openURLLogAssumeHandledEnvironmentKey = "QUILLUI_OPEN_URL_LOG_ASSUME_HANDLED"
 
     public static func installOpenBackend(_ backend: OpenBackend?) {
         storage.lock.withLock {
@@ -431,6 +439,11 @@ public enum QuillWorkspace {
             let didOpen = backend.open(url)
             recordOpen(url, didOpen: didOpen, backendName: backend.name)
             return didOpen
+        }
+
+        if let loggedOpen = logOpenURLIfConfigured(url), loggedOpen.assumeHandled {
+            recordOpen(url, didOpen: true, backendName: "file-log")
+            return true
         }
 
         #if os(Linux)
@@ -472,6 +485,58 @@ public enum QuillWorkspace {
         return env["DISPLAY"]?.isEmpty == false || env["WAYLAND_DISPLAY"]?.isEmpty == false
     }
     #endif
+
+    private struct LoggedOpen {
+        var assumeHandled: Bool
+    }
+
+    private static func logOpenURLIfConfigured(_ url: URL) -> LoggedOpen? {
+        let env = ProcessInfo.processInfo.environment
+        guard
+            let rawPath = env[openURLLogFileEnvironmentKey],
+            !rawPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else {
+            return nil
+        }
+
+        let logURL = URL(fileURLWithPath: rawPath)
+        do {
+            try FileManager.default.createDirectory(
+                at: logURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let line = "\(url.absoluteString)\n"
+            if FileManager.default.fileExists(atPath: logURL.path) {
+                let handle = try FileHandle(forWritingTo: logURL)
+                try handle.seekToEnd()
+                handle.write(Data(line.utf8))
+                try handle.close()
+            } else {
+                try line.write(to: logURL, atomically: true, encoding: .utf8)
+            }
+        } catch {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillKit",
+                operation: "openURL",
+                message: "URL open for \(url.absoluteString) could not be logged to \(rawPath): \(error.localizedDescription)"
+            )
+            return nil
+        }
+
+        return LoggedOpen(
+            assumeHandled: environmentFlagIsEnabled(env[openURLLogAssumeHandledEnvironmentKey])
+        )
+    }
+
+    private static func environmentFlagIsEnabled(_ rawValue: String?) -> Bool {
+        guard let rawValue else { return false }
+        switch rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "1", "true", "yes", "on":
+            return true
+        default:
+            return false
+        }
+    }
 
     private static func recordOpen(_ url: URL, didOpen: Bool, backendName: String) {
         QuillCompatibilityDiagnostics.shared.record(
@@ -2373,6 +2438,573 @@ public enum QuillUSBLauncher {
         QuillDeviceLauncher.install(label: label, subsystem: subsystem)
     }
 }
+
+#if os(Linux)
+public enum QuillURLSessionFixtures {
+    public static let fixtureFileEnvironmentKey = "QUILLUI_URLSESSION_FIXTURES_FILE"
+    public static let debugEnvironmentKey = "QUILLUI_URLSESSION_FIXTURES_DEBUG"
+    public static let responseDelayMillisecondsEnvironmentKey = "QUILLUI_URLSESSION_FIXTURE_RESPONSE_DELAY_MS"
+
+    private static let lock = NSRecursiveLock()
+    nonisolated(unsafe) private static var installed = false
+
+    public static func installIfConfigured(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        guard let path = environment[fixtureFileEnvironmentKey]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !path.isEmpty else {
+            return
+        }
+        install(fixtureFileURL: URL(fileURLWithPath: path))
+    }
+
+    public static func install(fixtureFileURL: URL) {
+        lock.withLock {
+            QuillURLSessionFixtureProtocol.configure(fixtureFileURL: fixtureFileURL)
+            if !installed {
+                _ = URLProtocol.registerClass(QuillURLSessionFixtureProtocol.self)
+                installed = true
+            }
+        }
+    }
+
+    public static func resetForTesting() {
+        lock.withLock {
+            if installed {
+                URLProtocol.unregisterClass(QuillURLSessionFixtureProtocol.self)
+                installed = false
+            }
+            QuillURLSessionFixtureProtocol.configure(fixtureFileURL: nil)
+        }
+    }
+
+    public static func data(
+        for request: URLRequest,
+        fallbackSession: URLSession = .shared
+    ) async throws -> (Data, URLResponse) {
+        if let fixtureResponse = QuillURLSessionFixtureProtocol.directResponse(for: request) {
+            return fixtureResponse
+        }
+        return try await fallbackSession.data(for: request)
+    }
+
+    public static func data(
+        from url: URL,
+        fallbackSession: URLSession = .shared
+    ) async throws -> (Data, URLResponse) {
+        try await data(for: URLRequest(url: url), fallbackSession: fallbackSession)
+    }
+}
+
+private final class QuillURLSessionFixtureProtocol: URLProtocol {
+    private let stateLock = NSLock()
+    private var stopped = false
+    private var finished = false
+
+    private struct Fixture: Sendable {
+        var method: String?
+        var host: String?
+        var path: String?
+        var pathPattern: String?
+        var pathPrefix: String?
+        var query: String?
+        var statusCode: Int
+        var headers: [String: String]
+        var body: Data
+
+        func matches(_ request: URLRequest) -> Bool {
+            guard let url = request.url else { return false }
+            if let method, method != (request.httpMethod ?? "GET").uppercased() {
+                return false
+            }
+            if let host, host != url.host {
+                return false
+            }
+            if let path, path != url.path {
+                return false
+            }
+            if let pathPattern, !Self.path(url.path, matchesPattern: pathPattern) {
+                return false
+            }
+            if let pathPrefix, !url.path.hasPrefix(pathPrefix) {
+                return false
+            }
+            if let query, query != (url.query ?? "") {
+                return false
+            }
+            return true
+        }
+
+        private static func path(_ path: String, matchesPattern pattern: String) -> Bool {
+            let pathComponents = path.split(separator: "/", omittingEmptySubsequences: false)
+            let patternComponents = pattern.split(separator: "/", omittingEmptySubsequences: false)
+            var pathIndex = 0
+            var patternIndex = 0
+
+            while patternIndex < patternComponents.count {
+                let token = patternComponents[patternIndex]
+                if token == "**" {
+                    return true
+                }
+                guard pathIndex < pathComponents.count else {
+                    return false
+                }
+                let pathComponent = pathComponents[pathIndex]
+                let isPlaceholder = token.hasPrefix("{") && token.hasSuffix("}") && token.count > 2
+                if token != "*" && !isPlaceholder && token != pathComponent {
+                    return false
+                }
+                if (token == "*" || isPlaceholder) && pathComponent.isEmpty {
+                    return false
+                }
+                pathIndex += 1
+                patternIndex += 1
+            }
+
+            return pathIndex == pathComponents.count
+        }
+    }
+
+    private final class DeliveryContext: @unchecked Sendable {
+        enum Result {
+            case failure(URLError)
+            case success(HTTPURLResponse, Fixture)
+        }
+
+        weak var owner: QuillURLSessionFixtureProtocol?
+        let result: Result
+
+        init(owner: QuillURLSessionFixtureProtocol, result: Result) {
+            self.owner = owner
+            self.result = result
+        }
+
+        func deliver() {
+            guard let owner, owner.beginDelivery(), let client = owner.client else { return }
+            switch result {
+            case .failure(let error):
+                QuillURLSessionFixtureProtocol.debugLog(
+                    "deliver \(owner.debugIdentifier) failure \(owner.request.url?.absoluteString ?? "<nil>")"
+                )
+                client.urlProtocol(owner, didFailWithError: error)
+            case .success(let response, let fixture):
+                QuillURLSessionFixtureProtocol.debugLog(
+                    "deliver \(owner.debugIdentifier) success \(owner.request.url?.absoluteString ?? "<nil>")"
+                )
+                QuillURLSessionFixtureProtocol.recordStateMutationIfNeeded(
+                    for: owner.request,
+                    fixture: fixture
+                )
+                client.urlProtocol(owner, didReceive: response, cacheStoragePolicy: .notAllowed)
+                if !fixture.body.isEmpty {
+                    client.urlProtocol(owner, didLoad: fixture.body)
+                }
+                client.urlProtocolDidFinishLoading(owner)
+            }
+        }
+    }
+
+    private static let lock = NSRecursiveLock()
+    nonisolated(unsafe) private static var fixtureFileURL: URL?
+    nonisolated(unsafe) private static var cachedFileSignature: String?
+    nonisolated(unsafe) private static var cachedFixtures: [Fixture] = []
+    nonisolated(unsafe) private static var cachedStatusBodiesByID: [String: Data] = [:]
+    private static let deliveryQueue = DispatchQueue(label: "co.lorehex.QuillURLSessionFixtures.delivery")
+
+    fileprivate static func configure(fixtureFileURL: URL?) {
+        lock.withLock {
+            self.fixtureFileURL = fixtureFileURL
+            cachedFileSignature = nil
+            cachedFixtures = []
+            cachedStatusBodiesByID = [:]
+        }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        guard URLProtocol.property(forKey: "QuillURLSessionFixtureHandled", in: request) == nil else {
+            return false
+        }
+        return fixture(matching: request) != nil
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let fixture = Self.fixture(matching: request), let url = request.url else {
+            Self.debugLog("start \(debugIdentifier) unsupported \(request.url?.absoluteString ?? "<nil>")")
+            let context = DeliveryContext(owner: self, result: .failure(URLError(.unsupportedURL)))
+            Self.scheduleDelivery { context.deliver() }
+            return
+        }
+
+        Self.debugLog("start \(debugIdentifier) \(request.httpMethod ?? "GET") \(url.absoluteString)")
+
+        var responseHeaders = fixture.headers
+        if responseHeaders["Content-Length"] == nil {
+            responseHeaders["Content-Length"] = String(fixture.body.count)
+        }
+        if responseHeaders["Content-Type"] == nil {
+            responseHeaders["Content-Type"] = "application/json"
+        }
+
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: fixture.statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: responseHeaders
+        )!
+
+        let context = DeliveryContext(owner: self, result: .success(response, fixture))
+        Self.scheduleDelivery { context.deliver() }
+    }
+
+    override func stopLoading() {
+        stateLock.withLock {
+            stopped = true
+        }
+        Self.debugLog("stop \(debugIdentifier) \(request.url?.absoluteString ?? "<nil>")")
+    }
+
+    private func beginDelivery() -> Bool {
+        let shouldDeliver = stateLock.withLock {
+            guard !stopped, !finished else { return false }
+            finished = true
+            return true
+        }
+        if !shouldDeliver {
+            Self.debugLog("skip \(debugIdentifier) stopped-or-finished \(request.url?.absoluteString ?? "<nil>")")
+        }
+        return shouldDeliver
+    }
+
+    private var debugIdentifier: String {
+        String(UInt(bitPattern: ObjectIdentifier(self)), radix: 16)
+    }
+
+    private static func scheduleDelivery(_ delivery: @escaping @Sendable () -> Void) {
+        let delay = responseDelay()
+        switch delay {
+        case .never:
+            deliveryQueue.async(execute: delivery)
+        default:
+            deliveryQueue.asyncAfter(deadline: .now() + delay, execute: delivery)
+        }
+    }
+
+    private static func responseDelay() -> DispatchTimeInterval {
+        let rawValue = ProcessInfo.processInfo.environment[
+            QuillURLSessionFixtures.responseDelayMillisecondsEnvironmentKey
+        ]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let rawValue, !rawValue.isEmpty, let milliseconds = Int(rawValue), milliseconds > 0 else {
+            return .never
+        }
+        return .milliseconds(milliseconds)
+    }
+
+    private static func fixture(matching request: URLRequest) -> Fixture? {
+        lock.withLock {
+            loadFixturesIfNeeded()
+            let match = cachedFixtures.first { $0.matches(request) }
+            debugLog("\(match == nil ? "miss" : "match") \(request.httpMethod ?? "GET") \(request.url?.absoluteString ?? "<nil>")")
+            guard let match else { return nil }
+            return fixtureApplyingStateOverlay(match, request: request)
+        }
+    }
+
+    fileprivate static func directResponse(for request: URLRequest) -> (Data, URLResponse)? {
+        guard let fixture = fixture(matching: request), let url = request.url else {
+            return nil
+        }
+
+        var responseHeaders = fixture.headers
+        if responseHeaders["Content-Length"] == nil {
+            responseHeaders["Content-Length"] = String(fixture.body.count)
+        }
+        if responseHeaders["Content-Type"] == nil {
+            responseHeaders["Content-Type"] = "application/json"
+        }
+
+        guard let response = HTTPURLResponse(
+            url: url,
+            statusCode: fixture.statusCode,
+            httpVersion: "HTTP/1.1",
+            headerFields: responseHeaders
+        ) else {
+            return nil
+        }
+
+        debugLog("direct \(request.httpMethod ?? "GET") \(url.absoluteString)")
+        recordStateMutationIfNeeded(for: request, fixture: fixture)
+        return (fixture.body, response)
+    }
+
+    private static func fixtureApplyingStateOverlay(
+        _ fixture: Fixture,
+        request: URLRequest
+    ) -> Fixture {
+        guard (request.httpMethod ?? "GET").uppercased() == "GET",
+              let url = request.url else {
+            return fixture
+        }
+
+        if let statusID = statusIDForStatusGET(url),
+           let body = cachedStatusBodiesByID[statusID] {
+            if let overlay = statusStateOverlayBody(for: fixture.body) {
+                var updated = fixture
+                updated.body = overlay.body
+                debugLog("state overlay GET \(url.absoluteString) status=\(statusID) patches=\(overlay.replacements)")
+                return updated
+            }
+
+            var updated = fixture
+            updated.body = body
+            debugLog("state overlay GET \(url.absoluteString) status=\(statusID) replacement")
+            return updated
+        }
+
+        guard let overlay = statusStateOverlayBody(for: fixture.body) else {
+            return fixture
+        }
+
+        var updated = fixture
+        updated.body = overlay.body
+        debugLog("state overlay GET \(url.absoluteString) statuses=\(overlay.replacements)")
+        return updated
+    }
+
+    private static func recordStateMutationIfNeeded(
+        for request: URLRequest,
+        fixture: Fixture
+    ) {
+        guard (request.httpMethod ?? "GET").uppercased() == "POST",
+              let url = request.url,
+              let statusID = statusIDForStatusActionPOST(url) else {
+            return
+        }
+
+        cachedStatusBodiesByID[statusID] = statusBodyForStateOverlay(from: fixture.body)
+        debugLog("state overlay POST \(url.absoluteString) status=\(statusID)")
+    }
+
+    private static func statusIDForStatusGET(_ url: URL) -> String? {
+        let components = url.path.split(separator: "/", omittingEmptySubsequences: true)
+        guard components.count == 4,
+              components[0] == "api",
+              components[1] == "v1",
+              components[2] == "statuses" else {
+            return nil
+        }
+        return String(components[3])
+    }
+
+    private static func statusIDForStatusActionPOST(_ url: URL) -> String? {
+        let components = url.path.split(separator: "/", omittingEmptySubsequences: true)
+        guard components.count == 5,
+              components[0] == "api",
+              components[1] == "v1",
+              components[2] == "statuses" else {
+            return nil
+        }
+        switch components[4] {
+        case "reblog", "unreblog", "favourite", "unfavourite", "bookmark", "unbookmark":
+            return String(components[3])
+        default:
+            return nil
+        }
+    }
+
+    private static func statusBodyForStateOverlay(from body: Data) -> Data {
+        guard let object = try? JSONSerialization.jsonObject(with: body),
+              let dictionary = object as? [String: Any] else {
+            return body
+        }
+
+        let statusObject: Any
+        if let reblog = dictionary["reblog"] as? [String: Any] {
+            statusObject = reblog
+        } else {
+            statusObject = dictionary
+        }
+        guard JSONSerialization.isValidJSONObject(statusObject),
+              let data = try? JSONSerialization.data(withJSONObject: statusObject, options: [.sortedKeys]) else {
+            return body
+        }
+        return data
+    }
+
+    private static func statusStateOverlayBody(for body: Data) -> (body: Data, replacements: Int)? {
+        guard !cachedStatusBodiesByID.isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: body) else {
+            return nil
+        }
+
+        var replacements = 0
+        let updated = applyingStatusStateOverlay(to: object, replacements: &replacements)
+        guard replacements > 0,
+              JSONSerialization.isValidJSONObject(updated),
+              let data = try? JSONSerialization.data(withJSONObject: updated, options: [.sortedKeys]) else {
+            return nil
+        }
+        return (data, replacements)
+    }
+
+    private static func applyingStatusStateOverlay(
+        to object: Any,
+        replacements: inout Int
+    ) -> Any {
+        if let array = object as? [Any] {
+            return array.map { applyingStatusStateOverlay(to: $0, replacements: &replacements) }
+        }
+
+        guard var dictionary = object as? [String: Any] else {
+            return object
+        }
+
+        if let id = dictionary["id"] as? String,
+           isStatusDictionary(dictionary),
+           let replacement = cachedStatusDictionary(for: id) {
+            mergeStatusActionState(from: replacement, into: &dictionary)
+            replacements += 1
+            return dictionary
+        }
+
+        for (key, value) in dictionary {
+            dictionary[key] = applyingStatusStateOverlay(to: value, replacements: &replacements)
+        }
+        return dictionary
+    }
+
+    private static func cachedStatusDictionary(for id: String) -> [String: Any]? {
+        guard let body = cachedStatusBodiesByID[id],
+              let object = try? JSONSerialization.jsonObject(with: body) else {
+            return nil
+        }
+        return object as? [String: Any]
+    }
+
+    private static func isStatusDictionary(_ dictionary: [String: Any]) -> Bool {
+        dictionary["reblogs_count"] != nil
+            || dictionary["favourites_count"] != nil
+            || dictionary["replies_count"] != nil
+            || dictionary["reblogged"] != nil
+            || dictionary["favourited"] != nil
+            || dictionary["bookmarked"] != nil
+            || dictionary["content"] != nil
+    }
+
+    private static func mergeStatusActionState(
+        from replacement: [String: Any],
+        into dictionary: inout [String: Any]
+    ) {
+        for key in statusActionStateKeys where replacement.keys.contains(key) {
+            dictionary[key] = replacement[key]
+        }
+    }
+
+    private static let statusActionStateKeys: Set<String> = [
+        "reblogs_count",
+        "reblogged",
+        "favourites_count",
+        "favourited",
+        "favorites_count",
+        "favorited",
+        "bookmarks_count",
+        "bookmarked",
+        "quotes_count"
+    ]
+
+    private static func loadFixturesIfNeeded() {
+        guard let fixtureFileURL else {
+            cachedFileSignature = nil
+            cachedFixtures = []
+            return
+        }
+
+        let signature = fixtureFileSignature(for: fixtureFileURL)
+        guard signature != cachedFileSignature else { return }
+
+        cachedFileSignature = signature
+        cachedFixtures = (try? loadFixtures(from: fixtureFileURL)) ?? []
+        debugLog("loaded \(cachedFixtures.count) fixtures from \(fixtureFileURL.path)")
+    }
+
+    private static func fixtureFileSignature(for url: URL) -> String {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let size = attributes?[.size] as? NSNumber
+        let modified = attributes?[.modificationDate] as? Date
+        return "\(url.path)|\(size?.int64Value ?? -1)|\(modified?.timeIntervalSince1970 ?? -1)"
+    }
+
+    private static func loadFixtures(from url: URL) throws -> [Fixture] {
+        let data = try Data(contentsOf: url)
+        let root = try JSONSerialization.jsonObject(with: data)
+        let fixtureObjects: [[String: Any]]
+        if let dictionary = root as? [String: Any],
+           let fixtures = dictionary["fixtures"] as? [[String: Any]] {
+            fixtureObjects = fixtures
+        } else if let fixtures = root as? [[String: Any]] {
+            fixtureObjects = fixtures
+        } else {
+            fixtureObjects = []
+        }
+
+        return fixtureObjects.compactMap { object in
+            let path = object["path"] as? String
+            let pathPattern = object["pathPattern"] as? String
+            let pathPrefix = object["pathPrefix"] as? String
+            guard path?.isEmpty == false
+                || pathPattern?.isEmpty == false
+                || pathPrefix?.isEmpty == false else {
+                return nil
+            }
+            let method = (object["method"] as? String)?.uppercased()
+            let host = object["host"] as? String
+            let query = object["query"] as? String
+            let statusCode = object["status"] as? Int ?? object["statusCode"] as? Int ?? 200
+            let headers = object["headers"] as? [String: String] ?? [:]
+            let body = fixtureBodyData(from: object)
+            return Fixture(
+                method: method,
+                host: host,
+                path: path,
+                pathPattern: pathPattern,
+                pathPrefix: pathPrefix,
+                query: query,
+                statusCode: statusCode,
+                headers: headers,
+                body: body
+            )
+        }
+    }
+
+    private static func fixtureBodyData(from object: [String: Any]) -> Data {
+        if let string = object["bodyString"] as? String {
+            return Data(string.utf8)
+        }
+        if let base64 = object["bodyBase64"] as? String,
+           let data = Data(base64Encoded: base64) {
+            return data
+        }
+        guard let body = object["body"] else {
+            return Data()
+        }
+        if JSONSerialization.isValidJSONObject(body),
+           let data = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys]) {
+            return data
+        }
+        return Data(String(describing: body).utf8)
+    }
+
+    private static func debugLog(_ message: String) {
+        guard ProcessInfo.processInfo.environment[QuillURLSessionFixtures.debugEnvironmentKey] == "1" else {
+            return
+        }
+        if let data = ("[QuillURLSessionFixtures] \(message)\n").data(using: .utf8) {
+            FileHandle.standardError.write(data)
+        }
+    }
+}
+#endif
 
 #if os(Linux)
 public typealias CFAllocator = AnyObject

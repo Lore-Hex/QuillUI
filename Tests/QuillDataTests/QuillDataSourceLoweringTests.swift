@@ -403,7 +403,7 @@ struct QuillDataSourceLoweringTests {
         // QuillWorkspace + QuillNotificationService.
         #expect(manifest.contains(".target(name: \"UIKit\", dependencies: uiKitShimDependencies, path: \"Sources/UIKitShim\")"))
         #expect(manifest.contains("let uiKitShimDependencies: [Target.Dependency] ="))
-        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreGraphics\"]"))
+        #expect(manifest.contains("[\"QuillFoundation\", \"QuillUIKit\", \"QuillKit\", \"CoreGraphics\", \"UserNotifications\", \"QuartzCore\", \"CoreTransferable\", \"CoreText\"]"))
         #expect(manifest.contains(".target(\n        name: \"QuillUIKit\",\n        dependencies: quillUIKitDependencies,\n        path: \"Sources/QuillUIKit\"\n    )"))
         #expect(manifest.contains("\"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\","))
         #expect(manifest.contains("var productDeclaration: Product {\n        .executable(name: product, targets: [target])\n    }"))
@@ -1463,6 +1463,48 @@ struct QuillDataSourceLoweringTests {
             return gtkRenderView(view.body)
         }
 
+        public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
+            if let multi = view as? GTKMultiChildRenderable {
+                return MainActor.assumeIsolated { multi.gtkRenderChildren() }
+            }
+            if let multi = view as? MultiChildView {
+                return multi.children.map { child in
+                    func render<C: View>(_ c: C) -> OpaquePointer { gtkRenderView(c) }
+                    return render(child)
+                }
+            }
+            return [gtkRenderView(view)]
+        }
+
+        // MARK: - View GTK extensions
+
+        extension Text: GTKRenderable, GTKDescribable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let label = gtk_label_new(content)!
+                if hasStyledRuns {
+                    gtk_swift_label_set_markup(label, pangoMarkup())
+                }
+                gtkPrepareRowTextLabel(label, text: content)
+                return opaqueFromWidget(label)
+            }
+
+            private func pangoMarkup() -> String {
+                runs.map { run in
+                    let escaped = run.text
+                        .replacingOccurrences(of: "&", with: "&amp;")
+                        .replacingOccurrences(of: "<", with: "&lt;")
+                        .replacingOccurrences(of: ">", with: "&gt;")
+                    guard let color = run.color else { return escaped }
+                    return "<span foreground='\\(color)'>\\(escaped)</span>"
+                }.joined()
+            }
+
+            public func gtkDescribeNode() -> GTK4DescriptorNode {
+                GTK4DescriptorNode(kind: .text, typeName: "Text",
+                                   props: .text(GTK4TextDescriptor(content: content)))
+            }
+        }
+
         // MARK: - GeometryReader GTK extension
 
         private class GeometryReaderContext {
@@ -1909,6 +1951,107 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        extension TabView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let stack = gtk_stack_new()!
+                gtk_swift_stack_set_transition_type(stack, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT_RIGHT)
+
+                var usedIds = Set<String>()
+                var orderedIds: [String] = []
+                for tab in tabs {
+                    var id = tab.id
+                    if usedIds.contains(id) {
+                        var suffix = 2
+                        while usedIds.contains("\\(id)-\\(suffix)") { suffix += 1 }
+                        id = "\\(id)-\\(suffix)"
+                    }
+                    usedIds.insert(id)
+                    orderedIds.append(id)
+                    let childWidget = widgetFromOpaque(gtkRenderAnyView(tab.wrapped))
+                    gtk_swift_stack_add_titled(stack, childWidget, id, tab.title)
+                }
+
+                if let tabIndex = initialTab, tabIndex >= 0, tabIndex < orderedIds.count {
+                    gtk_swift_stack_set_visible_child_name(stack, orderedIds[tabIndex])
+                }
+
+                let switcher = gtk_stack_switcher_new()!
+                gtk_swift_stack_switcher_set_stack(switcher, stack)
+
+                let vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+                gtk_box_append(boxPointer(vbox), switcher)
+                gtk_box_append(boxPointer(vbox), stack)
+                gtk_widget_set_vexpand(stack, 1)
+
+                return opaqueFromWidget(vbox)
+            }
+        }
+
+        // MARK: - Label GTK extension
+
+        extension Label: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6)!
+
+                if let iconName = systemImage {
+                    let img = gtk_image_new_from_icon_name(iconName)!
+                    gtk_box_append(boxPointer(box), img)
+                } else if let path = imagePath {
+                    let img = gtk_image_new_from_file(path)!
+                    gtk_box_append(boxPointer(box), img)
+                }
+
+                let lbl = gtk_label_new(title)!
+                gtk_box_append(boxPointer(box), lbl)
+
+                return opaqueFromWidget(box)
+            }
+        }
+
+        // MARK: - Corner Radius GTK extension
+
+        extension CornerRadiusView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                let widget = widgetFromOpaque(gtkRenderView(content))
+                return opaqueFromWidget(widget)
+            }
+        }
+
+        // MARK: - Image GTK extension
+
+        extension Image: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                switch source {
+                case .systemName(let sfName):
+                    let materialName = SFSymbolCompatibility.materialName(for: sfName)
+                        ?? SFSymbolCompatibility.missingSymbolPlaceholderName
+                    #if DEBUG
+                    if SFSymbolCompatibility.materialName(for: sfName) == nil {
+                        FileHandle.standardError.write(Data(
+                            "[SwiftOpenUI] Image(systemName: \\"\\(sfName)\\") has no Material mapping; rendering placeholder\\n".utf8
+                        ))
+                    }
+                    #endif
+                    return opaqueFromWidget(gtkRenderMaterialSymbolLabel(materialName, scale: scale))
+
+                case .filePath(let path):
+                    let picture = gtk_swift_picture_new_for_filename(path)!
+                    return opaqueFromWidget(picture)
+
+                case .materialSymbol(let name):
+                    return opaqueFromWidget(gtkRenderMaterialSymbolLabel(name, scale: scale))
+                }
+            }
+        }
+
+        /// Render a Material Symbols glyph as a GtkLabel via Pango markup.
+        private func gtkRenderMaterialSymbolLabel(
+            _ name: String,
+            scale: ImageScale
+        ) -> UnsafeMutablePointer<GtkWidget> {
+            gtk_label_new(name)!
+        }
+
         // MARK: - Gesture GTK extensions
 
         extension TapGestureView: GTKRenderable {
@@ -2078,6 +2221,17 @@ struct QuillDataSourceLoweringTests {
 
         public struct GTK4DescriptorNode {
             public let kind: GTK4DescriptorKind
+            public let props: GTK4DescriptorProps
+            public let children: [GTK4DescriptorNode]
+            public init(kind: GTK4DescriptorKind, typeName: String = "", props: GTK4DescriptorProps = .none, children: [GTK4DescriptorNode] = []) {
+                self.kind = kind
+                self.props = props
+                self.children = children
+            }
+        }
+
+        public enum GTK4DescriptorProps {
+            case none
         }
 
         public struct GTK4DescriptorPlan {
@@ -2085,6 +2239,22 @@ struct QuillDataSourceLoweringTests {
             public let newDescriptor: GTK4DescriptorNode
             public let updateIntent: GTK4DescriptorUpdateIntent
             public let children: [GTK4DescriptorPlan]
+        }
+
+        public func gtkDescribeAnyView(_ view: any View) -> GTK4DescriptorNode {
+            GTK4DescriptorNode(kind: .composite)
+        }
+
+        /// Build a GTK4-local descriptor tree without creating widgets.
+        public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
+            if let multi = view as? MultiChildView {
+                return GTK4DescriptorNode(
+                    kind: .composite,
+                    typeName: String(describing: type(of: view)),
+                    children: multi.children.map(gtkDescribeAnyView)
+                )
+            }
+            return GTK4DescriptorNode(kind: .composite)
         }
 
         public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
@@ -2449,6 +2619,21 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
+        #expect(patchedRenderer.contains("private func gtkDisplayTextContent(_ text: String) -> String"))
+        #expect(patchedRenderer.contains("text.replacingOccurrences(of: \"\\u{2E31}\", with: \"\\u{00B7}\")"))
+        #expect(patchedRenderer.contains("let displayContent = gtkDisplayTextContent(content)"))
+        #expect(patchedRenderer.contains("let label = gtk_label_new(displayContent)!"))
+        #expect(patchedRenderer.contains("gtkPrepareRowTextLabel(label, text: displayContent)"))
+        #expect(patchedRenderer.contains("let escaped = gtkDisplayTextContent(run.text)"))
+        #expect(patchedRenderer.contains("private func gtkMaterialNameForSystemImage(_ sfName: String) -> String"))
+        #expect(patchedRenderer.contains("let materialName = gtkMaterialNameForSystemImage(iconName)"))
+        #expect(patchedRenderer.contains("gtkRenderMaterialSymbolLabel(materialName, scale: .small)"))
+        #expect(patchedRenderer.contains("let materialName = gtkMaterialNameForSystemImage(sfName)"))
+        #expect(!patchedRenderer.contains("gtk_image_new_from_icon_name(iconName)"))
+        #expect(patchedRenderer.contains("private func gtkTabViewShouldShowSwitcher(_ tabs: [AnyTab]) -> Bool"))
+        #expect(patchedRenderer.contains("tabs.count > 1 && tabs.contains { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }"))
+        #expect(patchedRenderer.contains("if gtkTabViewShouldShowSwitcher(tabs) {"))
+        #expect(!patchedRenderer.contains("let vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!\n                gtk_box_append(boxPointer(vbox), switcher)"))
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))
         #expect(patchedRenderer.contains("let itemCount = expandedChildren?.count ?? items.count"))
         #expect(patchedRenderer.contains("configuration.maxColumns > 1 ? 160 : 0"))
@@ -2458,7 +2643,14 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gint(index % columns)"))
         #expect(patchedRenderer.contains("gint(index / columns)"))
         #expect(patchedRenderer.contains("let staticGrid = gtkCreateStaticLazyGridWidget"))
-        #expect(patchedRenderer.contains("for child in multi.children"))
+        #expect(patchedRenderer.contains("private func gtkLayoutChildViews(from view: any View, depth: Int = 0) -> [any View]"))
+        #expect(patchedRenderer.contains("guard let child = mirror.children.first?.value as? any View else { return [] }"))
+        #expect(patchedRenderer.contains("String(reflecting: Swift.type(of: view)).contains(\"_ConditionalView\")"))
+        #expect(patchedRenderer.contains("if let transparent = view as? any TransparentMultiChildView"))
+        #expect(patchedRenderer.contains("return transparent.children.flatMap { gtkLayoutChildViews(from: $0, depth: depth + 1) }"))
+        #expect(patchedRenderer.contains("for child in multi.children.flatMap({ gtkLayoutChildViews(from: $0) })"))
+        #expect(patchedRenderer.contains("return gtkLayoutChildViews(from: child).map { render($0) }"))
+        #expect(patchedRenderer.contains("return gtkLayoutChildViews(from: view).map { gtkRenderAnyView($0) }"))
         #expect(patchedRenderer.contains("gtkPropagateSingleChildLayoutMarkers("))
         #expect(patchedRenderer.contains("gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker)"))
         #expect(patchedRenderer.contains("gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)"))
@@ -2510,7 +2702,7 @@ struct QuillDataSourceLoweringTests {
         // Deferred renders (GeometryReader callbacks) have no rebuilding host;
         // the forced-namespace fallback keeps their subtree off the shared
         // never-reset "root" counter pool so @State survives geometry passes.
-        #expect(patchedRenderer.contains("?? gtkForcedStateIdentityNamespace"))
+        #expect(patchedRenderer.contains("gtkForcedStateIdentityNamespace\n        ?? GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace"))
         #expect(patchedRenderer.contains("private var gtkForcedStateIdentityNamespace: String?"))
         #expect(patchedRenderer.contains("func gtkClaimStateIdentityNamespace(_ kind: String) -> String"))
         #expect(patchedRenderer.contains("func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T"))
@@ -2538,7 +2730,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKScrollViewCrossAxisContext"))
         #expect(patchedRenderer.contains("gtkScrollViewCrossAxisTickCallback"))
         #expect(patchedRenderer.contains("gtkInstallScrollViewCrossAxisFill("))
-        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
+        #expect(patchedRenderer.contains("let horizontalMargins = gtk_widget_get_margin_start(context.child)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, max(gint(1), width - horizontalMargins), -1)"))
+        #expect(patchedRenderer.contains("let verticalMargins = gtk_widget_get_margin_top(context.child)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, -1, max(gint(1), height - verticalMargins))"))
         #expect(patchedRenderer.contains("private final class GTKScrollToContext"))
         #expect(patchedRenderer.contains("let targetID: AnyHashable?"))
         #expect(patchedRenderer.contains("var remainingTotalTicks: Int"))
@@ -2604,14 +2799,14 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("return mode == \"overlay\" || mode == \"in-window\" || mode == \"inline\""))
         #expect(patchedRenderer.contains("private func gtkRemoveSheetRootOverlay("))
         #expect(patchedRenderer.contains("gtkRemoveSheetRootOverlay(\n                anchor: anchor,\n                overlayKey: overlayKey,\n                activeKey: activeKey"))
-        // Presented panels live in a global registry keyed by the type-derived
+        // Presented layers live in a global registry keyed by the type-derived
         // activeKey: anchors are recreated per parent render, so per-anchor
-        // g_object data would orphan the panel after the first rebuild.
-        #expect(patchedRenderer.contains("private var gtkRootSheetPanels: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
+        // g_object data would orphan the modal surface after the first rebuild.
+        #expect(patchedRenderer.contains("private var gtkRootSheetLayers: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
         #expect(patchedRenderer.contains("private var gtkRootSheetItemIDs: [String: Int] = [:]"))
-        #expect(patchedRenderer.contains("guard let panel = gtkRootSheetPanels.removeValue(forKey: activeKey) else"))
-        #expect(patchedRenderer.contains("guard gtkRootSheetPanels[activeKey] == nil else"))
-        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
+        #expect(patchedRenderer.contains("guard let layer = gtkRootSheetLayers.removeValue(forKey: activeKey) else"))
+        #expect(patchedRenderer.contains("guard gtkRootSheetLayers[activeKey] == nil else"))
+        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetLayers[activeKey] = layer").count == 3)
         #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
         // Debounced entry->binding writes: typing must not schedule a rebuild
         // per keystroke, and button actions flush eagerly so Save reads the
@@ -2647,6 +2842,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(widget)"))
         #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(delegateWidget)"))
         #expect(patchedRenderer.contains("private func gtkCreateSheetOverlay("))
+        #expect(patchedRenderer.contains("private func gtkCreateSheetOverlayLayer("))
+        #expect(patchedRenderer.contains("applyCSSToWidget(backdrop, properties: \"background: #f8f8fb;\")"))
+        #expect(patchedRenderer.contains("gtk_overlay_set_child(OpaquePointer(layer), backdrop)"))
+        #expect(patchedRenderer.contains("gtk_overlay_add_overlay(OpaquePointer(layer), panel)"))
         #expect(patchedRenderer.contains("gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)"))
         #expect(patchedRenderer.contains("gtkRootPresentationOverlay(for: root)"))
         #expect(patchedRenderer.contains("private var gtkRootSheetOverlayStack: [OpaquePointer] = []"))
@@ -2659,6 +2858,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if let rootOverlay = gtkFallbackRootPresentationOverlay()"))
         #expect(patchedRenderer.components(separatedBy: "let rootOverlay = gtkSheetRootOverlay(for: anchor)").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkWithRootSheetOverlay(rootOverlay) {").count == 3)
+        #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: layer)").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)").count == 3)
         #expect(patchedRenderer.contains("let stringList = gtk_swift_string_list_new()!"))
@@ -2667,8 +2867,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
         #expect(patchedRenderer.contains("private func gtkAttachRootSheetOverlay("))
         #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
-        #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
-        #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(panel, to: rootOverlay)").count == 3)
+        #expect(patchedRenderer.contains("gtk_widget_insert_after(layer, overlayWidget, previousTop)"))
+        #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(layer, to: rootOverlay)").count == 3)
         #expect(patchedRenderer.contains("sheet item root present activeKey="))
         #expect(patchedRenderer.contains("sheet item root unavailable activeKey="))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
@@ -2679,7 +2879,7 @@ struct QuillDataSourceLoweringTests {
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
-        #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
+        #expect(!patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
         #expect(!patchedRenderer.contains("gtk_widget_grab_focus(widget)"))
         #expect(patchedRenderer.contains("private func gtkDisableButtonChildTargeting"))
         #expect(patchedRenderer.contains("gtkDisableButtonChildTargeting(childWidget)"))
@@ -2714,6 +2914,13 @@ struct QuillDataSourceLoweringTests {
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.
         #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
+        #expect(patchedDescriptorTree.contains("private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View]"))
+        #expect(patchedDescriptorTree.contains("guard let child = mirror.children.first?.value as? any View else { return [] }"))
+        #expect(patchedDescriptorTree.contains("String(reflecting: Swift.type(of: view)).contains(\"_ConditionalView\")"))
+        #expect(patchedDescriptorTree.contains("if let transparent = view as? any TransparentMultiChildView"))
+        #expect(patchedDescriptorTree.contains("return transparent.children.flatMap { gtkDescriptorChildViews(from: $0, depth: depth + 1) }"))
+        #expect(patchedDescriptorTree.contains("children: multi.children.flatMap { child in"))
+        #expect(patchedDescriptorTree.contains("gtkDescriptorChildViews(from: child).map(gtkDescribeAnyView)"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
         #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))
@@ -2758,8 +2965,14 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedState.contains("private var forwardedStorage: StateStorage<Value>?"))
         #expect(patchedState.contains("let forwarded = forwardedStorage"))
         #expect(patchedState.contains("forwarded.setValue(newValue)"))
+        #expect(patchedState.contains("private func scheduleObservableStateMutationRebuild()"))
+        #expect(patchedState.contains("let targetHost = forwarded?.host ?? currentHost"))
+        #expect(patchedState.contains("targetHost?.scheduleRebuildAfterObservableObjectMutation()"))
+        #expect(patchedState.contains("wireEnvironmentObservableObjectRead(objectReference, host: currentHost)"))
+        #expect(patchedState.contains("wireEnvironmentObservableObjectRead(objectReference, host: forwarded?.host)"))
+        #expect(patchedState.contains("recordEnvironmentObservableObjectRead(object as AnyObject)"))
         #expect(patchedState.contains("typed !== self"))
-        #expect(patchedState.contains("wireObservableObjectStateValueIfNeeded"))
+        #expect(patchedState.contains("wireObservableStateValue()"))
 
         let patchedIssueReporter = try String(contentsOf: issueReporter, encoding: .utf8)
         #expect(!patchedIssueReporter.contains("canImport(os)"))
@@ -2775,6 +2988,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedBackend.contains("QUILLUI_GTK_DEFAULT_WINDOW_WIDTH"))
         #expect(patchedBackend.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL"))
         #expect(patchedBackend.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR_LABEL"))
+        #expect(patchedBackend.contains("QUILLUI_BACKEND_SHOW_WINDOW_MENUBAR"))
+        #expect(patchedBackend.contains("QUILLUI_GTK_SHOW_WINDOW_MENUBAR"))
+        #expect(patchedBackend.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR"))
+        #expect(patchedBackend.contains("QUILLUI_GTK_HIDE_WINDOW_MENUBAR"))
+        #expect(patchedBackend.contains("private func gtkShouldShowWindowMenuBar() -> Bool"))
+        #expect(patchedBackend.contains("if gtkShouldShowWindowMenuBar() {"))
+        #expect(patchedBackend.contains("gtkSetupCommandShortcutsIfNeeded(winPtr: winWidget, windowID: Int(bitPattern: winPtr))"))
         #expect(patchedBackend.contains("requestedWidth ?? defaultWindowWidth ?? defaultAutomaticWindowWidth"))
         #expect(patchedBackend.contains("gtk_widget_set_size_request(\n                contentWidget"))
         #expect(patchedBackend.contains("private let gtkRootPresentationOverlayKey"))
@@ -2952,7 +3172,7 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
-        #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
+        #expect(!rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
     }
 
     private func runScript(

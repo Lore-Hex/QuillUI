@@ -353,6 +353,65 @@ def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
     return colorful_thumbnail or neutral_placeholder
 
 
+def icecubes_blank_artifact_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) >= 750 and max(rgb) - min(rgb) <= 8
+
+
+def icecubes_blank_artifact_separator_pixel(rgb: tuple[int, int, int]) -> bool:
+    return 710 <= sum(rgb) <= 735 and max(rgb) - min(rgb) <= 12
+
+
+def icecubes_sign_in_button_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 45 <= red <= 70 and 118 <= green <= 152 and 210 <= blue <= 245 and blue - red >= 145
+
+
+def icecubes_instance_info_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 225 <= red <= 248 and 225 <= green <= 248 and 225 <= blue <= 248 and max(rgb) - min(rgb) <= 18
+
+
+def icecubes_authenticated_titlebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    return 555 <= sum(rgb) <= 735 and max(rgb) - min(rgb) <= 24
+
+
+def icecubes_authenticated_content_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) >= 720 and max(rgb) - min(rgb) <= 18
+
+
+def icecubes_notification_text_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) < 520 and max(rgb) - min(rgb) <= 42
+
+
+def icecubes_authenticated_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    blue_accent = 30 <= red <= 105 and 85 <= green <= 175 and 165 <= blue <= 255 and blue - red >= 100 and blue - green >= 45
+    magenta_accent = 150 <= red <= 230 and 35 <= green <= 145 and 190 <= blue <= 255 and blue - green >= 70 and red - green >= 70
+    return blue_accent or magenta_accent
+
+
+def icecubes_fixture_media_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return (
+        55 <= red <= 110
+        and 105 <= green <= 170
+        and 190 <= blue <= 255
+        and blue >= red + 110
+        and blue >= green + 55
+    )
+
+
+def icecubes_authenticated_sidebar_surface_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    source_list_surface = (
+        232 <= red <= 248
+        and 232 <= green <= 248
+        and 232 <= blue <= 248
+        and max(rgb) - min(rgb) <= 12
+    )
+    return source_list_surface or icecubes_sidebar_selected_pixel(rgb)
+
+
 def wireguard_qt_focused_title_border_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return 115 <= red <= 180 and 130 <= green <= 190 and 165 <= blue <= 230 and blue - red >= 25
@@ -4273,6 +4332,22 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         bottom - 8,
         icecubes_media_pixel,
     )
+    top_left_blank_artifact_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        left + 52,
+        top + 98,
+        icecubes_blank_artifact_pixel,
+    )
+    top_left_blank_artifact_separators = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        left + 52,
+        top + 98,
+        icecubes_blank_artifact_separator_pixel,
+    )
 
     media_rows = 0
     in_row = False
@@ -4295,6 +4370,14 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
     require(stats_pixels >= 250, f"IceCubes suggestion stats column was not detected: pixels={stats_pixels}")
     require(media_pixels >= 22_000, f"IceCubes suggestion media rows were not detected: pixels={media_pixels}")
     require(media_rows >= 2, f"IceCubes suggestion media row count is too low: rows={media_rows}")
+    require(
+        not (
+            top_left_blank_artifact_pixels >= 800
+            and top_left_blank_artifact_separators >= 40
+        ),
+        "IceCubes Add Account has a leaked blank top-left root-content artifact: "
+        f"blank={top_left_blank_artifact_pixels}, separators={top_left_blank_artifact_separators}",
+    )
 
     return (
         "IceCubes Add Account: "
@@ -4304,7 +4387,3122 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         f"row_text_pixels={row_title_pixels}, "
         f"stats_pixels={stats_pixels}, "
         f"media_pixels={media_pixels}, "
-        f"media_rows={media_rows}"
+        f"media_rows={media_rows}, "
+        f"top_left_blank_artifact={top_left_blank_artifact_pixels}/{top_left_blank_artifact_separators}"
+    )
+
+
+def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes Add Account instance window has unexpected size: {app_width}x{app_height}",
+    )
+
+    header_text_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.33),
+        top + 8,
+        left + int(app_width * 0.67),
+        top + 44,
+    )
+    cancel_pixels = dark_pixel_count(image, left + 4, top + 8, left + 128, top + 44)
+    entry_text_pixels = dark_pixel_count(
+        image,
+        left + 48,
+        top + 200,
+        right - 48,
+        top + 236,
+    )
+    sign_in_button_pixels = pixel_count(
+        image,
+        left + 32,
+        top + 250,
+        right - 32,
+        top + 316,
+        icecubes_sign_in_button_pixel,
+    )
+    instance_info_surface_pixels = pixel_count(
+        image,
+        left + 36,
+        top + 340,
+        right - 36,
+        top + 620,
+        icecubes_instance_info_surface_pixel,
+    )
+    instance_info_text_pixels = dark_pixel_count(
+        image,
+        left + 48,
+        top + 350,
+        right - 48,
+        top + 620,
+    )
+    stale_suggestions_media_pixels = pixel_count(
+        image,
+        left + 36,
+        top + 280,
+        right - 36,
+        top + 390,
+        icecubes_media_pixel,
+    )
+    media_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        right - 4,
+        bottom - 8,
+        icecubes_media_pixel,
+    )
+    top_left_blank_artifact_pixels = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        left + 52,
+        top + 98,
+        icecubes_blank_artifact_pixel,
+    )
+    top_left_blank_artifact_separators = pixel_count(
+        image,
+        left + 4,
+        top + 52,
+        left + 52,
+        top + 98,
+        icecubes_blank_artifact_separator_pixel,
+    )
+
+    require(header_text_pixels >= 45, f"IceCubes Add Account title was not detected: pixels={header_text_pixels}")
+    require(cancel_pixels >= 30, f"IceCubes Add Account cancel action was not detected: pixels={cancel_pixels}")
+    require(entry_text_pixels >= 120, f"IceCubes typed instance text was not detected: pixels={entry_text_pixels}")
+    require(
+        sign_in_button_pixels >= 30_000,
+        f"IceCubes Sign in button was not detected after typing an instance: pixels={sign_in_button_pixels}",
+    )
+    require(
+        instance_info_surface_pixels >= 140_000,
+        f"IceCubes instance info table was not detected: pixels={instance_info_surface_pixels}",
+    )
+    require(
+        instance_info_text_pixels >= 2_500,
+        f"IceCubes instance detail text was not detected: pixels={instance_info_text_pixels}",
+    )
+    require(
+        stale_suggestions_media_pixels <= 35_000,
+        "IceCubes Add Account still appears to show the suggestions list after typing: "
+        f"media_pixels={stale_suggestions_media_pixels}",
+    )
+    require(
+        media_pixels <= 100_000,
+        f"IceCubes selected-instance screen still has too much suggestion media: pixels={media_pixels}",
+    )
+    require(
+        not (
+            top_left_blank_artifact_pixels >= 800
+            and top_left_blank_artifact_separators >= 40
+        ),
+        "IceCubes Add Account instance screen has a leaked blank top-left root-content artifact: "
+        f"blank={top_left_blank_artifact_pixels}, separators={top_left_blank_artifact_separators}",
+    )
+
+    return (
+        "IceCubes Add Account selected instance: "
+        f"app={app_width}x{app_height}, "
+        f"title_pixels={header_text_pixels}, "
+        f"cancel_pixels={cancel_pixels}, "
+        f"entry_text_pixels={entry_text_pixels}, "
+        f"sign_in_button_pixels={sign_in_button_pixels}, "
+        f"instance_info_surface_pixels={instance_info_surface_pixels}, "
+        f"instance_info_text_pixels={instance_info_text_pixels}, "
+        f"stale_suggestions_media_pixels={stale_suggestions_media_pixels}, "
+        f"media_pixels={media_pixels}, "
+        f"top_left_blank_artifact={top_left_blank_artifact_pixels}/{top_left_blank_artifact_separators}"
+    )
+
+
+def icecubes_authenticated_media_block_metrics(image: Screenshot) -> tuple[int, int, int]:
+    left, right, top, bottom = content_bounds(image)
+    media_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 95,
+        right - 20,
+        bottom - 20,
+        icecubes_fixture_media_pixel,
+    )
+    widest_segment = 0
+    first_media_y: int | None = None
+    last_media_y: int | None = None
+    for y in range(top + 100, min(bottom - 20, top + 570), 8):
+        segments = image.segments_at(
+            y,
+            left + 245,
+            right - 20,
+            icecubes_fixture_media_pixel,
+            min_width=4,
+        )
+        for segment in segments:
+            widest_segment = max(widest_segment, segment.width)
+        if segments:
+            if first_media_y is None:
+                first_media_y = y
+            last_media_y = y
+    sampled_height = 0 if first_media_y is None or last_media_y is None else last_media_y - first_media_y + 8
+    return media_pixels, widest_segment, sampled_height
+
+
+def validate_icecubes_linux_authenticated_shell(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated shell window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    timeline_menu_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.43),
+        top + 8,
+        left + int(app_width * 0.56),
+        top + 45,
+    )
+    # This guards against the ToolbarTitleMenu body being rendered into the
+    # content hierarchy. Keep the sample under the title-menu column; the feed
+    # itself legitimately contains dark status text immediately below.
+    title_menu_leak_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.43),
+        top + 52,
+        left + int(app_width * 0.56),
+        top + 88,
+    )
+    add_account_title_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.33),
+        top + 8,
+        left + int(app_width * 0.67),
+        top + 44,
+    )
+    sign_in_button_pixels = pixel_count(
+        image,
+        left + 32,
+        top + 250,
+        right - 32,
+        top + 316,
+        icecubes_sign_in_button_pixel,
+    )
+    content_surface_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.10),
+        top + 100,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    media_pixels, media_widest_segment, media_sampled_height = icecubes_authenticated_media_block_metrics(image)
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(timeline_menu_pixels >= 120, f"IceCubes authenticated Timeline menu button was not detected: pixels={timeline_menu_pixels}")
+    require(
+        title_menu_leak_pixels <= 650,
+        "IceCubes ToolbarTitleMenu appears to leak menu contents into the main content area: "
+        f"pixels={title_menu_leak_pixels}",
+    )
+    require(
+        add_account_title_pixels <= 260,
+        f"IceCubes authenticated shell still appears to show the Add Account title: pixels={add_account_title_pixels}",
+    )
+    require(
+        sign_in_button_pixels <= 1_000,
+        f"IceCubes authenticated shell still appears to show the Sign in button: pixels={sign_in_button_pixels}",
+    )
+    if media_pixels >= 40_000:
+        require(
+            media_widest_segment >= 180,
+            "IceCubes authenticated shell media attachment collapsed horizontally: "
+            f"media_pixels={media_pixels}, media_widest_segment={media_widest_segment}",
+        )
+        require(
+            media_sampled_height <= 330,
+            "IceCubes authenticated shell media attachment is using the unspecified-height fallback: "
+            f"media_pixels={media_pixels}, media_widest_segment={media_widest_segment}, "
+            f"media_sampled_height={media_sampled_height}",
+        )
+        require(
+            content_surface_pixels >= 45_000,
+            "IceCubes authenticated shell non-media content surface was not detected: "
+            f"pixels={content_surface_pixels}, media_pixels={media_pixels}",
+        )
+    else:
+        require(
+            content_surface_pixels >= 250_000,
+            f"IceCubes authenticated shell content surface was not detected: pixels={content_surface_pixels}",
+        )
+
+    return (
+        "IceCubes authenticated shell: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"timeline_menu_pixels={timeline_menu_pixels}, "
+        f"title_menu_leak_pixels={title_menu_leak_pixels}, "
+        f"add_account_title_pixels={add_account_title_pixels}, "
+        f"sign_in_button_pixels={sign_in_button_pixels}, "
+        f"content_surface_pixels={content_surface_pixels}, "
+        f"media_pixels={media_pixels}, "
+        f"media_widest_segment={media_widest_segment}, "
+        f"media_sampled_height={media_sampled_height}"
+    )
+
+
+def validate_icecubes_linux_authenticated_home_row_ready(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated home-row-ready window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    timeline_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 56,
+        left + 240,
+        top + 100,
+        icecubes_sidebar_selected_pixel,
+    )
+    timeline_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 64,
+        left + 130,
+        top + 94,
+    )
+    first_row_top_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 150,
+    )
+    first_rows_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 230,
+    )
+    placeholder_avatar_pixels = pixel_count(
+        image,
+        left + 255,
+        top + 72,
+        left + 305,
+        top + 122,
+        icecubes_placeholder_avatar_pixel,
+    )
+    media_pixels, media_widest_segment, media_sampled_height = icecubes_authenticated_media_block_metrics(image)
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated home-row-ready titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        timeline_selected_pixels >= 5_000,
+        f"IceCubes authenticated home-row-ready Timeline sidebar row was not selected: pixels={timeline_selected_pixels}",
+    )
+    require(
+        timeline_label_pixels >= 150,
+        f"IceCubes authenticated home-row-ready Timeline sidebar label was not detected: pixels={timeline_label_pixels}",
+    )
+    require(
+        first_row_top_pixels >= 1_200,
+        f"IceCubes authenticated home-row-ready first status row was not ready near the click target: pixels={first_row_top_pixels}",
+    )
+    required_first_rows_pixels = 1_500 if media_pixels >= 40_000 else 2_000
+    require(
+        first_rows_pixels >= required_first_rows_pixels,
+        "IceCubes authenticated home-row-ready timeline rows were not detected: "
+        f"pixels={first_rows_pixels}, required={required_first_rows_pixels}, media_pixels={media_pixels}",
+    )
+    require(
+        placeholder_avatar_pixels <= 900,
+        "IceCubes authenticated home-row-ready still appears to show placeholder avatars: "
+        f"pixels={placeholder_avatar_pixels}",
+    )
+    require(
+        media_pixels >= 40_000 and media_widest_segment >= 180,
+        "IceCubes authenticated home-row-ready media attachment was not rendered as a block: "
+        f"media_pixels={media_pixels}, media_widest_segment={media_widest_segment}, "
+        f"media_sampled_height={media_sampled_height}",
+    )
+    require(
+        media_sampled_height <= 330,
+        "IceCubes authenticated home-row-ready media attachment is using the unspecified-height fallback: "
+        f"media_pixels={media_pixels}, media_widest_segment={media_widest_segment}, "
+        f"media_sampled_height={media_sampled_height}",
+    )
+
+    return (
+        "IceCubes authenticated home row ready: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"timeline_selected_pixels={timeline_selected_pixels}, "
+        f"timeline_label_pixels={timeline_label_pixels}, "
+        f"first_row_top_pixels={first_row_top_pixels}, "
+        f"first_rows_pixels={first_rows_pixels}, "
+        f"placeholder_avatar_pixels={placeholder_avatar_pixels}, "
+        f"media_pixels={media_pixels}, "
+        f"media_widest_segment={media_widest_segment}, "
+        f"media_sampled_height={media_sampled_height}"
+    )
+
+
+def validate_icecubes_linux_authenticated_media_viewer(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1260 and app_height >= 620,
+        f"IceCubes authenticated media viewer window has unexpected size: {app_width}x{app_height}",
+    )
+
+    viewer_media_pixels = pixel_count(
+        image,
+        left + 60,
+        top + 60,
+        right - 60,
+        bottom - 40,
+        icecubes_fixture_media_pixel,
+    )
+    widest_segment = 0
+    for y in range(top + 70, bottom - 40, 8):
+        segments = image.segments_at(
+            y,
+            left + 60,
+            right - 60,
+            icecubes_fixture_media_pixel,
+            min_width=4,
+        )
+        for segment in segments:
+            widest_segment = max(widest_segment, segment.width)
+    stale_timeline_text_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 190,
+    )
+    stale_sidebar_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 56,
+        min(right, left + 240),
+        min(bottom, top + 100),
+        icecubes_sidebar_selected_pixel,
+    )
+
+    require(
+        viewer_media_pixels >= 175_000,
+        "IceCubes authenticated media viewer did not show a selected media surface larger than the timeline row: "
+        f"viewer_media_pixels={viewer_media_pixels}, widest_segment={widest_segment}",
+    )
+    require(
+        widest_segment >= 560,
+        "IceCubes authenticated media viewer selected media did not expand horizontally: "
+        f"viewer_media_pixels={viewer_media_pixels}, widest_segment={widest_segment}",
+    )
+    require(
+        stale_timeline_text_pixels <= 1_500 or stale_sidebar_selected_pixels <= 1_200,
+        "IceCubes authenticated media viewer capture still looks like the unchanged Timeline row: "
+        f"stale_timeline_text_pixels={stale_timeline_text_pixels}, "
+        f"stale_sidebar_selected_pixels={stale_sidebar_selected_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated media viewer: "
+        f"app={app_width}x{app_height}, "
+        f"viewer_media_pixels={viewer_media_pixels}, "
+        f"widest_segment={widest_segment}, "
+        f"stale_timeline_text_pixels={stale_timeline_text_pixels}, "
+        f"stale_sidebar_selected_pixels={stale_sidebar_selected_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_home_pagination(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Home pagination window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    timeline_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 56,
+        left + 240,
+        top + 100,
+        icecubes_sidebar_selected_pixel,
+    )
+    timeline_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 64,
+        left + 130,
+        top + 94,
+    )
+    top_home_media_pixels, top_home_media_widest_segment, _ = icecubes_authenticated_media_block_metrics(image)
+    upper_home_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 220,
+    )
+    lower_paginated_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 360,
+        right - 20,
+        bottom - 60,
+    )
+    lower_author_pixels = dark_pixel_count(
+        image,
+        left + 300,
+        top + 360,
+        right - 20,
+        bottom - 190,
+    )
+    bottom_action_pixels = dark_pixel_count(
+        image,
+        left + 260,
+        bottom - 150,
+        right - 60,
+        bottom - 55,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Home pagination titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        timeline_selected_pixels >= 5_000,
+        f"IceCubes authenticated Home pagination Timeline sidebar row was not selected: pixels={timeline_selected_pixels}",
+    )
+    require(
+        timeline_label_pixels >= 150,
+        f"IceCubes authenticated Home pagination Timeline sidebar label was not detected: pixels={timeline_label_pixels}",
+    )
+    require(
+        lower_paginated_row_pixels >= 1_200,
+        f"IceCubes authenticated Home pagination lower timeline rows were not detected: pixels={lower_paginated_row_pixels}",
+    )
+    require(
+        lower_author_pixels >= 350,
+        f"IceCubes authenticated Home pagination appended author/body text was not detected: pixels={lower_author_pixels}",
+    )
+    require(
+        bottom_action_pixels >= 180,
+        f"IceCubes authenticated Home pagination bottom action chrome was not detected: pixels={bottom_action_pixels}",
+    )
+    require(
+        top_home_media_pixels <= 120_000 or top_home_media_widest_segment <= 260 or upper_home_row_pixels <= 4_000,
+        "IceCubes authenticated Home pagination still looks pinned to the unscrolled top media row: "
+        f"top_home_media_pixels={top_home_media_pixels}, "
+        f"top_home_media_widest_segment={top_home_media_widest_segment}, "
+        f"upper_home_row_pixels={upper_home_row_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Home pagination: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"timeline_selected_pixels={timeline_selected_pixels}, "
+        f"timeline_label_pixels={timeline_label_pixels}, "
+        f"top_home_media_pixels={top_home_media_pixels}, "
+        f"top_home_media_widest_segment={top_home_media_widest_segment}, "
+        f"upper_home_row_pixels={upper_home_row_pixels}, "
+        f"lower_paginated_row_pixels={lower_paginated_row_pixels}, "
+        f"lower_author_pixels={lower_author_pixels}, "
+        f"bottom_action_pixels={bottom_action_pixels}"
+    )
+
+
+def icecubes_placeholder_avatar_pixel(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return 105 <= r <= 165 and 105 <= g <= 165 and 105 <= b <= 165 and max(rgb) - min(rgb) <= 12
+
+
+def icecubes_sidebar_selected_pixel(rgb: tuple[int, int, int]) -> bool:
+    r, g, b = rgb
+    return 218 <= r <= 235 and 228 <= g <= 245 and 238 <= b <= 255 and b >= g >= r
+
+
+def validate_icecubes_linux_authenticated_trending(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Trending window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    trending_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 104,
+        left + 240,
+        top + 154,
+        icecubes_sidebar_selected_pixel,
+    )
+    trending_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 112,
+        left + 130,
+        top + 145,
+    )
+    timeline_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 230,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Trending titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Trending compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        trending_selected_pixels >= 5_000,
+        f"IceCubes authenticated Trending sidebar row was not selected: pixels={trending_selected_pixels}",
+    )
+    require(
+        trending_label_pixels >= 150,
+        f"IceCubes authenticated Trending sidebar label was not detected: pixels={trending_label_pixels}",
+    )
+    require(
+        timeline_row_pixels >= 1_500,
+        f"IceCubes authenticated Trending timeline rows were not detected: pixels={timeline_row_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Trending: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"trending_selected_pixels={trending_selected_pixels}, "
+        f"trending_label_pixels={trending_label_pixels}, "
+        f"timeline_row_pixels={timeline_row_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_local(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Local window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    local_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 136,
+        left + 240,
+        top + 176,
+        icecubes_sidebar_selected_pixel,
+    )
+    local_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 144,
+        left + 122,
+        top + 170,
+    )
+    timeline_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 230,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Local titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Local compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        local_selected_pixels >= 5_000,
+        f"IceCubes authenticated Local sidebar row was not selected: pixels={local_selected_pixels}",
+    )
+    require(
+        local_label_pixels >= 120,
+        f"IceCubes authenticated Local sidebar label was not detected: pixels={local_label_pixels}",
+    )
+    require(
+        timeline_row_pixels >= 1_500,
+        f"IceCubes authenticated Local timeline rows were not detected: pixels={timeline_row_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Local: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"local_selected_pixels={local_selected_pixels}, "
+        f"local_label_pixels={local_label_pixels}, "
+        f"timeline_row_pixels={timeline_row_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_federated(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Federated window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    federated_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 176,
+        left + 240,
+        top + 216,
+        icecubes_sidebar_selected_pixel,
+    )
+    federated_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 184,
+        left + 145,
+        top + 210,
+    )
+    timeline_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 230,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Federated titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Federated compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        federated_selected_pixels >= 5_000,
+        f"IceCubes authenticated Federated sidebar row was not selected: pixels={federated_selected_pixels}",
+    )
+    require(
+        federated_label_pixels >= 150,
+        f"IceCubes authenticated Federated sidebar label was not detected: pixels={federated_label_pixels}",
+    )
+    require(
+        timeline_row_pixels >= 1_500,
+        f"IceCubes authenticated Federated timeline rows were not detected: pixels={timeline_row_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Federated: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"federated_selected_pixels={federated_selected_pixels}, "
+        f"federated_label_pixels={federated_label_pixels}, "
+        f"timeline_row_pixels={timeline_row_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    quick_access_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 136,
+    )
+    trending_tags_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 128,
+        right - 20,
+        top + 290,
+    )
+    suggested_accounts_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 230,
+        right - 20,
+        top + 430,
+    )
+    explore_content_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    placeholder_avatar_pixels = pixel_count(
+        image,
+        left + 255,
+        top + 72,
+        left + 305,
+        top + 122,
+        icecubes_placeholder_avatar_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Explore compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        quick_access_pixels >= 600,
+        f"IceCubes authenticated Explore quick-access buttons were not detected: pixels={quick_access_pixels}",
+    )
+    require(
+        trending_tags_pixels >= 1_000,
+        f"IceCubes authenticated Explore trending tags section was not detected: pixels={trending_tags_pixels}",
+    )
+    require(
+        suggested_accounts_pixels >= 1_400,
+        f"IceCubes authenticated Explore suggested/account or post sections were not detected: pixels={suggested_accounts_pixels}",
+    )
+    require(
+        explore_content_pixels >= 180_000,
+        f"IceCubes authenticated Explore content surface was not detected: pixels={explore_content_pixels}",
+    )
+    require(
+        placeholder_avatar_pixels <= 900,
+        "IceCubes authenticated Explore still appears to show placeholder avatars: "
+        f"pixels={placeholder_avatar_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"quick_access_pixels={quick_access_pixels}, "
+        f"trending_tags_pixels={trending_tags_pixels}, "
+        f"suggested_accounts_pixels={suggested_accounts_pixels}, "
+        f"explore_content_pixels={explore_content_pixels}, "
+        f"placeholder_avatar_pixels={placeholder_avatar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore_tags(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore Tags window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+    )
+    back_button_surface_pixels = pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    tag_row_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 58,
+        right - 20,
+        bottom - 20,
+    )
+    tag_surface_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 52,
+        right - 8,
+        bottom - 8,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    stale_quick_access_pixels = dark_pixel_count(
+        image,
+        left + 265,
+        top + 64,
+        right - 60,
+        top + 122,
+    )
+    stale_suggested_section_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 390,
+        right - 20,
+        bottom - 20,
+    )
+    timeline_avatar_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 175,
+        left + 330,
+        bottom - 16,
+        icecubes_placeholder_avatar_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore Tags titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore Tags sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore Tags sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        f"IceCubes authenticated Explore Tags back button was not detected: pixels={back_button_pixels}",
+    )
+    require(
+        back_button_surface_pixels >= 400,
+        "IceCubes authenticated Explore Tags back button surface was not detected: "
+        f"pixels={back_button_surface_pixels}",
+    )
+    require(
+        tag_row_pixels >= 500,
+        f"IceCubes authenticated Explore Tags list rows were not detected: pixels={tag_row_pixels}",
+    )
+    require(
+        tag_surface_pixels >= 170_000,
+        f"IceCubes authenticated Explore Tags content surface was not detected: pixels={tag_surface_pixels}",
+    )
+    require(
+        stale_quick_access_pixels <= 400,
+        "IceCubes authenticated Explore Tags still appears to show the root Explore quick-access row: "
+        f"pixels={stale_quick_access_pixels}",
+    )
+    require(
+        stale_suggested_section_pixels <= 250,
+        "IceCubes authenticated Explore Tags still appears to show the root Explore suggested-users section: "
+        f"pixels={stale_suggested_section_pixels}",
+    )
+    require(
+        timeline_avatar_pixels <= 1_000,
+        "IceCubes authenticated Explore Tags still appears to show timeline avatar rows: "
+        f"pixels={timeline_avatar_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore Tags: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"back_button_surface_pixels={back_button_surface_pixels}, "
+        f"tag_row_pixels={tag_row_pixels}, "
+        f"tag_surface_pixels={tag_surface_pixels}, "
+        f"stale_quick_access_pixels={stale_quick_access_pixels}, "
+        f"stale_suggested_section_pixels={stale_suggested_section_pixels}, "
+        f"timeline_avatar_pixels={timeline_avatar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore_links(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore Links window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+    )
+    back_button_surface_pixels = pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    link_row_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 58,
+        right - 20,
+        top + 230,
+    )
+    first_link_title_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 86,
+        left + 610,
+        top + 112,
+    )
+    first_link_action_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 140,
+        left + 550,
+        top + 190,
+    )
+    second_link_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 230,
+        right - 40,
+        top + 365,
+    )
+    link_surface_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 52,
+        right - 8,
+        bottom - 8,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    timeline_avatar_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 110,
+        left + 330,
+        bottom - 16,
+        icecubes_placeholder_avatar_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore Links titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore Links sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore Links sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        f"IceCubes authenticated Explore Links back button was not detected: pixels={back_button_pixels}",
+    )
+    require(
+        back_button_surface_pixels >= 400,
+        "IceCubes authenticated Explore Links back button surface was not detected: "
+        f"pixels={back_button_surface_pixels}",
+    )
+    require(
+        link_row_pixels >= 900,
+        f"IceCubes authenticated Explore Links list rows were not detected: pixels={link_row_pixels}",
+    )
+    require(
+        first_link_title_pixels >= 140,
+        f"IceCubes authenticated Explore Links first card title was not detected: pixels={first_link_title_pixels}",
+    )
+    require(
+        first_link_action_pixels >= 400,
+        f"IceCubes authenticated Explore Links first card action chip was not detected: pixels={first_link_action_pixels}",
+    )
+    require(
+        second_link_pixels >= 250,
+        f"IceCubes authenticated Explore Links second card row was not detected: pixels={second_link_pixels}",
+    )
+    require(
+        link_surface_pixels >= 170_000,
+        f"IceCubes authenticated Explore Links content surface was not detected: pixels={link_surface_pixels}",
+    )
+    require(
+        timeline_avatar_pixels <= 1_000,
+        "IceCubes authenticated Explore Links still appears to show timeline avatar rows: "
+        f"pixels={timeline_avatar_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore Links: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"back_button_surface_pixels={back_button_surface_pixels}, "
+        f"link_row_pixels={link_row_pixels}, "
+        f"first_link_title_pixels={first_link_title_pixels}, "
+        f"first_link_action_pixels={first_link_action_pixels}, "
+        f"second_link_pixels={second_link_pixels}, "
+        f"link_surface_pixels={link_surface_pixels}, "
+        f"timeline_avatar_pixels={timeline_avatar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore_posts(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore Posts window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+    )
+    back_button_surface_pixels = pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    timeline_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 330,
+    )
+    first_author_pixels = dark_pixel_count(
+        image,
+        left + 300,
+        top + 60,
+        left + 520,
+        top + 92,
+    )
+    first_body_pixels = dark_pixel_count(
+        image,
+        left + 300,
+        top + 90,
+        right - 40,
+        top + 155,
+    )
+    second_row_pixels = dark_pixel_count(
+        image,
+        left + 300,
+        top + 170,
+        right - 40,
+        top + 300,
+    )
+    action_button_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 110,
+        left + 470,
+        top + 300,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    placeholder_avatar_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 60,
+        left + 330,
+        top + 330,
+        icecubes_placeholder_avatar_pixel,
+    )
+    posts_surface_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 52,
+        right - 8,
+        bottom - 8,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore Posts titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore Posts sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore Posts sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        f"IceCubes authenticated Explore Posts back button was not detected: pixels={back_button_pixels}",
+    )
+    require(
+        back_button_surface_pixels >= 400,
+        "IceCubes authenticated Explore Posts back button surface was not detected: "
+        f"pixels={back_button_surface_pixels}",
+    )
+    require(
+        timeline_row_pixels >= 1_400,
+        f"IceCubes authenticated Explore Posts timeline rows were not detected: pixels={timeline_row_pixels}",
+    )
+    require(
+        first_author_pixels >= 120,
+        f"IceCubes authenticated Explore Posts first author was not detected: pixels={first_author_pixels}",
+    )
+    require(
+        first_body_pixels >= 500,
+        f"IceCubes authenticated Explore Posts first status body was not detected: pixels={first_body_pixels}",
+    )
+    require(
+        second_row_pixels >= 500,
+        f"IceCubes authenticated Explore Posts second row was not detected: pixels={second_row_pixels}",
+    )
+    require(
+        action_button_surface_pixels >= 2_500,
+        "IceCubes authenticated Explore Posts action controls were not detected: "
+        f"pixels={action_button_surface_pixels}",
+    )
+    require(
+        posts_surface_pixels >= 170_000,
+        f"IceCubes authenticated Explore Posts content surface was not detected: pixels={posts_surface_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore Posts: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"back_button_surface_pixels={back_button_surface_pixels}, "
+        f"timeline_row_pixels={timeline_row_pixels}, "
+        f"first_author_pixels={first_author_pixels}, "
+        f"first_body_pixels={first_body_pixels}, "
+        f"second_row_pixels={second_row_pixels}, "
+        f"action_button_surface_pixels={action_button_surface_pixels}, "
+        f"placeholder_avatar_pixels={placeholder_avatar_pixels}, "
+        f"posts_surface_pixels={posts_surface_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore_suggested_users(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore Suggested Users window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+    )
+    back_button_surface_pixels = pixel_count(
+        image,
+        left + 28,
+        top + 16,
+        left + 68,
+        top + 34,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    account_row_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 58,
+        right - 20,
+        bottom - 20,
+    )
+    account_surface_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 52,
+        right - 8,
+        bottom - 8,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    hashtag_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 58,
+        right - 20,
+        top + 190,
+    )
+    stale_placeholder_row_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 270,
+        right - 20,
+        bottom - 20,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore Suggested Users titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore Suggested Users sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore Suggested Users sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        f"IceCubes authenticated Explore Suggested Users back button was not detected: pixels={back_button_pixels}",
+    )
+    require(
+        back_button_surface_pixels >= 400,
+        "IceCubes authenticated Explore Suggested Users back button surface was not detected: "
+        f"pixels={back_button_surface_pixels}",
+    )
+    require(
+        account_row_pixels >= 1_400,
+        f"IceCubes authenticated Explore Suggested Users account rows were not detected: pixels={account_row_pixels}",
+    )
+    require(
+        account_surface_pixels >= 170_000,
+        f"IceCubes authenticated Explore Suggested Users content surface was not detected: pixels={account_surface_pixels}",
+    )
+    require(
+        hashtag_pixels >= 400,
+        f"IceCubes authenticated Explore Suggested Users top account content was not detected: pixels={hashtag_pixels}",
+    )
+    require(
+        account_row_pixels <= 8_000,
+        "IceCubes authenticated Explore Suggested Users still appears to show the generic placeholder account list: "
+        f"pixels={account_row_pixels}",
+    )
+    require(
+        stale_placeholder_row_pixels <= 800,
+        "IceCubes authenticated Explore Suggested Users lower content should be blank after the two fixture accounts; "
+        f"stale_placeholder_row_pixels={stale_placeholder_row_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore Suggested Users: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"back_button_surface_pixels={back_button_surface_pixels}, "
+        f"account_row_pixels={account_row_pixels}, "
+        f"account_surface_pixels={account_surface_pixels}, "
+        f"hashtag_pixels={hashtag_pixels}, "
+        f"stale_placeholder_row_pixels={stale_placeholder_row_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_explore_search(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Explore search window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    explore_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 256,
+        left + 240,
+        top + 296,
+        icecubes_sidebar_selected_pixel,
+    )
+    explore_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 260,
+        left + 140,
+        top + 288,
+    )
+    search_entry_surface_pixels = pixel_count(
+        image,
+        left + 260,
+        top + 54,
+        right - 24,
+        top + 92,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    search_entry_text_pixels = dark_pixel_count(
+        image,
+        left + 275,
+        top + 58,
+        left + 470,
+        top + 88,
+    )
+    scope_row_pixels = dark_pixel_count(
+        image,
+        left + 260,
+        top + 92,
+        right - 24,
+        top + 132,
+    )
+    search_result_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 136,
+        right - 20,
+        bottom - 20,
+    )
+    account_result_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 136,
+        right - 20,
+        top + 250,
+    )
+    stale_quick_access_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 136,
+        right - 40,
+        top + 178,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Explore search titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        explore_selected_pixels >= 5_000,
+        f"IceCubes authenticated Explore search sidebar row was not selected: pixels={explore_selected_pixels}",
+    )
+    require(
+        explore_label_pixels >= 120,
+        f"IceCubes authenticated Explore search sidebar label was not detected: pixels={explore_label_pixels}",
+    )
+    require(
+        search_entry_surface_pixels >= 1_000,
+        "IceCubes authenticated Explore search entry surface was not detected: "
+        f"pixels={search_entry_surface_pixels}",
+    )
+    require(
+        search_entry_text_pixels >= 20,
+        "IceCubes authenticated Explore search field does not appear to contain typed text: "
+        f"pixels={search_entry_text_pixels}",
+    )
+    require(
+        scope_row_pixels >= 80,
+        f"IceCubes authenticated Explore search scope row was not detected: pixels={scope_row_pixels}",
+    )
+    require(
+        search_result_pixels >= 1_500,
+        f"IceCubes authenticated Explore search results were not detected: pixels={search_result_pixels}",
+    )
+    require(
+        account_result_pixels >= 350,
+        f"IceCubes authenticated Explore search account result was not detected: pixels={account_result_pixels}",
+    )
+    require(
+        stale_quick_access_pixels <= 2_500,
+        "IceCubes authenticated Explore search still appears to show root Explore quick-access buttons: "
+        f"pixels={stale_quick_access_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Explore search: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"explore_selected_pixels={explore_selected_pixels}, "
+        f"explore_label_pixels={explore_label_pixels}, "
+        f"search_entry_surface_pixels={search_entry_surface_pixels}, "
+        f"search_entry_text_pixels={search_entry_text_pixels}, "
+        f"scope_row_pixels={scope_row_pixels}, "
+        f"search_result_pixels={search_result_pixels}, "
+        f"account_result_pixels={account_result_pixels}, "
+        f"stale_quick_access_pixels={stale_quick_access_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Notifications window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    notifications_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 300,
+        left + 172,
+        top + 326,
+    )
+    first_notification_header_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 55,
+        left + 520,
+        top + 90,
+    )
+    first_notification_body_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 90,
+        right - 20,
+        top + 190,
+        icecubes_notification_text_pixel,
+    )
+    second_notification_action_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 195,
+        left + int(app_width * 0.64),
+        top + 270,
+        icecubes_notification_text_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Notifications titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Notifications compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        notifications_label_pixels >= 180,
+        f"IceCubes authenticated Notifications sidebar label was not detected: pixels={notifications_label_pixels}",
+    )
+    require(
+        first_notification_header_pixels >= 300,
+        f"IceCubes authenticated Notifications first row header was not detected: pixels={first_notification_header_pixels}",
+    )
+    require(
+        400 <= first_notification_body_pixels <= 1_900,
+        f"IceCubes authenticated Notifications first row content did not look populated/compact: pixels={first_notification_body_pixels}",
+    )
+    require(
+        second_notification_action_pixels >= 1_000,
+        f"IceCubes authenticated Notifications mention row action/content text was not detected: pixels={second_notification_action_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Notifications: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"notifications_label_pixels={notifications_label_pixels}, "
+        f"first_notification_header_pixels={first_notification_header_pixels}, "
+        f"first_notification_body_pixels={first_notification_body_pixels}, "
+        f"second_notification_action_pixels={second_notification_action_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_profile(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Profile window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    profile_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 416,
+        left + 240,
+        top + 456,
+        icecubes_sidebar_selected_pixel,
+    )
+    profile_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 420,
+        left + 130,
+        top + 446,
+    )
+    account_header_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 220,
+    )
+    account_info_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 180,
+        right - 20,
+        top + 360,
+    )
+    account_content_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Profile titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Profile compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        profile_selected_pixels >= 5_000,
+        f"IceCubes authenticated Profile sidebar row was not selected: pixels={profile_selected_pixels}",
+    )
+    require(
+        profile_label_pixels >= 120,
+        f"IceCubes authenticated Profile sidebar label was not detected: pixels={profile_label_pixels}",
+    )
+    require(
+        account_header_pixels >= 300,
+        f"IceCubes authenticated Profile account header was not detected: pixels={account_header_pixels}",
+    )
+    require(
+        account_info_pixels >= 600,
+        f"IceCubes authenticated Profile account info/stats were not detected: pixels={account_info_pixels}",
+    )
+    require(
+        account_content_pixels >= 180_000,
+        f"IceCubes authenticated Profile content surface was not detected: pixels={account_content_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Profile: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"profile_selected_pixels={profile_selected_pixels}, "
+        f"profile_label_pixels={profile_label_pixels}, "
+        f"account_header_pixels={account_header_pixels}, "
+        f"account_info_pixels={account_info_pixels}, "
+        f"account_content_pixels={account_content_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_messages(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Messages window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    messages_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 376,
+        left + 240,
+        top + 416,
+        icecubes_sidebar_selected_pixel,
+    )
+    messages_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 380,
+        left + 150,
+        top + 406,
+    )
+    conversation_header_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 116,
+    )
+    conversation_body_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 88,
+        right - 20,
+        top + 180,
+    )
+    content_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Messages titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated Messages compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        messages_selected_pixels >= 5_000,
+        f"IceCubes authenticated Messages sidebar row was not selected: pixels={messages_selected_pixels}",
+    )
+    require(
+        messages_label_pixels >= 120,
+        f"IceCubes authenticated Messages sidebar label was not detected: pixels={messages_label_pixels}",
+    )
+    require(
+        conversation_header_pixels >= 300,
+        f"IceCubes authenticated Messages conversation header was not detected: pixels={conversation_header_pixels}",
+    )
+    require(
+        conversation_body_pixels >= 700,
+        f"IceCubes authenticated Messages conversation body was not detected: pixels={conversation_body_pixels}",
+    )
+    require(
+        content_surface_pixels >= 180_000,
+        f"IceCubes authenticated Messages content surface was not detected: pixels={content_surface_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Messages: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"messages_selected_pixels={messages_selected_pixels}, "
+        f"messages_label_pixels={messages_label_pixels}, "
+        f"conversation_header_pixels={conversation_header_pixels}, "
+        f"conversation_body_pixels={conversation_body_pixels}, "
+        f"content_surface_pixels={content_surface_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_messages_detail(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Messages detail window has unexpected size: {app_width}x{app_height}",
+    )
+
+    back_button_pixels = dark_pixel_count(
+        image,
+        left,
+        top,
+        left + 100,
+        top + 52,
+    )
+    messages_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 376,
+        left + 240,
+        top + 416,
+        icecubes_sidebar_selected_pixel,
+    )
+    messages_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 380,
+        left + 150,
+        top + 406,
+    )
+    detail_header_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 130,
+    )
+    composer_pixels = dark_pixel_count(
+        image,
+        left + 500,
+        bottom - 76,
+        left + 790,
+        bottom - 15,
+    )
+    content_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(
+        back_button_pixels >= 70,
+        f"IceCubes authenticated Messages detail back button was not detected: pixels={back_button_pixels}",
+    )
+    require(
+        messages_selected_pixels >= 5_000,
+        f"IceCubes authenticated Messages detail sidebar row was not selected: pixels={messages_selected_pixels}",
+    )
+    require(
+        messages_label_pixels >= 120,
+        f"IceCubes authenticated Messages detail sidebar label was not detected: pixels={messages_label_pixels}",
+    )
+    require(
+        detail_header_pixels >= 90,
+        f"IceCubes authenticated Messages detail message/date header was not detected: pixels={detail_header_pixels}",
+    )
+    require(
+        composer_pixels >= 160,
+        f"IceCubes authenticated Messages detail reply composer was not detected: pixels={composer_pixels}",
+    )
+    require(
+        content_surface_pixels >= 300_000,
+        f"IceCubes authenticated Messages detail content surface was not detected: pixels={content_surface_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Messages detail: "
+        f"app={app_width}x{app_height}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"messages_selected_pixels={messages_selected_pixels}, "
+        f"messages_label_pixels={messages_label_pixels}, "
+        f"detail_header_pixels={detail_header_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"content_surface_pixels={content_surface_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_list(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated List window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    compose_button_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.78),
+        top + 8,
+        left + int(app_width * 0.85),
+        top + 45,
+    )
+    list_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 565,
+        left + 240,
+        top + 613,
+        icecubes_sidebar_selected_pixel,
+    )
+    list_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 574,
+        left + 140,
+        top + 606,
+    )
+    timeline_row_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 260,
+    )
+    list_fixture_author_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 60,
+        left + 350,
+        top + 83,
+    )
+    list_fixture_body_pixels = dark_pixel_count(
+        image,
+        left + 330,
+        top + 84,
+        left + 650,
+        top + 110,
+    )
+    second_list_fixture_author_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 176,
+        left + 380,
+        top + 203,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated List titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(compose_button_pixels >= 60, f"IceCubes authenticated List compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        list_selected_pixels >= 5_000,
+        f"IceCubes authenticated List sidebar row was not selected: pixels={list_selected_pixels}",
+    )
+    require(
+        list_label_pixels >= 120,
+        f"IceCubes authenticated List sidebar label was not detected: pixels={list_label_pixels}",
+    )
+    require(
+        timeline_row_pixels >= 1_200,
+        f"IceCubes authenticated List timeline rows were not detected: pixels={timeline_row_pixels}",
+    )
+    require(
+        list_fixture_author_pixels >= 120,
+        f"IceCubes authenticated List first fixture author was not detected: pixels={list_fixture_author_pixels}",
+    )
+    require(
+        list_fixture_body_pixels >= 700,
+        f"IceCubes authenticated List first fixture body was not detected: pixels={list_fixture_body_pixels}",
+    )
+    require(
+        second_list_fixture_author_pixels >= 180,
+        "IceCubes authenticated List second author band was not detected: "
+        f"pixels={second_list_fixture_author_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated List: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"compose_button_pixels={compose_button_pixels}, "
+        f"list_selected_pixels={list_selected_pixels}, "
+        f"list_label_pixels={list_label_pixels}, "
+        f"timeline_row_pixels={timeline_row_pixels}, "
+        f"list_fixture_author_pixels={list_fixture_author_pixels}, "
+        f"list_fixture_body_pixels={list_fixture_body_pixels}, "
+        f"second_list_fixture_author_pixels={second_list_fixture_author_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Settings window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    settings_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 604,
+        left + 240,
+        top + 648,
+        icecubes_sidebar_selected_pixel,
+    )
+    settings_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 610,
+        left + 150,
+        top + 642,
+    )
+    settings_form_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+    )
+    first_settings_section_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        top + 180,
+    )
+    settings_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    stale_timeline_avatar_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 72,
+        left + 330,
+        bottom - 16,
+        icecubes_placeholder_avatar_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Settings titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        settings_selected_pixels >= 5_000,
+        f"IceCubes authenticated Settings sidebar row was not selected: pixels={settings_selected_pixels}",
+    )
+    require(
+        settings_label_pixels >= 120,
+        f"IceCubes authenticated Settings sidebar label was not detected: pixels={settings_label_pixels}",
+    )
+    require(
+        settings_form_pixels >= 1_800,
+        f"IceCubes authenticated Settings form rows were not detected: pixels={settings_form_pixels}",
+    )
+    require(
+        first_settings_section_pixels >= 200,
+        f"IceCubes authenticated Settings first form section was not detected: pixels={first_settings_section_pixels}",
+    )
+    require(
+        settings_surface_pixels >= 170_000,
+        f"IceCubes authenticated Settings content surface was not detected: pixels={settings_surface_pixels}",
+    )
+    require(
+        stale_timeline_avatar_pixels <= 2_200,
+        "IceCubes authenticated Settings still appears to show timeline avatar rows: "
+        f"pixels={stale_timeline_avatar_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Settings: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"settings_selected_pixels={settings_selected_pixels}, "
+        f"settings_label_pixels={settings_label_pixels}, "
+        f"settings_form_pixels={settings_form_pixels}, "
+        f"first_settings_section_pixels={first_settings_section_pixels}, "
+        f"settings_surface_pixels={settings_surface_pixels}, "
+        f"stale_timeline_avatar_pixels={stale_timeline_avatar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings_display(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Settings Display window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    settings_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 604,
+        left + 240,
+        top + 648,
+        icecubes_sidebar_selected_pixel,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 10,
+        top + 10,
+        left + 76,
+        top + 44,
+    )
+    pushed_content_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    display_control_text_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 70,
+        right - 36,
+        bottom - 28,
+    )
+    top_display_control_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 72,
+        right - 36,
+        top + 230,
+    )
+    preview_status_text_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 275,
+        right - 120,
+        top + 365,
+    )
+    lower_display_control_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 430,
+        right - 36,
+        bottom - 28,
+    )
+    slider_control_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 570,
+        right - 36,
+        top + 626,
+    )
+    display_row_segments = dark_row_segment_count(
+        image,
+        left + 270,
+        top + 70,
+        right - 36,
+        bottom - 28,
+        min_row_pixels=18,
+        min_height=5,
+    )
+    stale_settings_root_account_pixels = dark_pixel_count(
+        image,
+        left + 285,
+        top + 455,
+        left + 420,
+        top + 520,
+    )
+    stale_settings_root_logout_pixels = pixel_count(
+        image,
+        left + 275,
+        top + 575,
+        left + 430,
+        bottom - 20,
+        lambda rgb: rgb[0] >= 160 and rgb[1] <= 90 and rgb[2] <= 90,
+    )
+    stale_settings_root_visible_logout_pixels = pixel_count(
+        image,
+        left + 270,
+        top + 145,
+        right - 35,
+        top + 235,
+        lambda rgb: rgb[0] >= 160 and rgb[1] <= 100 and rgb[2] <= 100,
+    )
+    stale_settings_root_display_highlight_pixels = pixel_count(
+        image,
+        left + 275,
+        top + 458,
+        right - 35,
+        top + 502,
+        lambda rgb: (
+            200 <= rgb[0] <= 225
+            and 195 <= rgb[1] <= 220
+            and 190 <= rgb[2] <= 218
+            and max(rgb) - min(rgb) <= 18
+        ),
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Settings Display titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        settings_selected_pixels >= 5_000,
+        f"IceCubes authenticated Settings Display sidebar row was not selected: pixels={settings_selected_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        "IceCubes authenticated Settings Display navigation back button was not detected: "
+        f"pixels={back_button_pixels}",
+    )
+    require(
+        pushed_content_surface_pixels >= 160_000,
+        "IceCubes authenticated Settings Display content surface was not detected: "
+        f"pixels={pushed_content_surface_pixels}",
+    )
+    require(
+        display_control_text_pixels >= 2_200,
+        "IceCubes authenticated Settings Display controls were not detected: "
+        f"pixels={display_control_text_pixels}",
+    )
+    require(
+        top_display_control_pixels >= 550,
+        "IceCubes authenticated Settings Display top controls were not detected: "
+        f"top_pixels={top_display_control_pixels}, preview_pixels={preview_status_text_pixels}",
+    )
+    require(
+        lower_display_control_pixels >= 900,
+        "IceCubes authenticated Settings Display lower controls were not detected: "
+        f"lower_pixels={lower_display_control_pixels}, slider_pixels={slider_control_pixels}",
+    )
+    require(
+        slider_control_pixels >= 700,
+        "IceCubes authenticated Settings Display font scaling control was not detected: "
+        f"slider_pixels={slider_control_pixels}, lower_pixels={lower_display_control_pixels}",
+    )
+    require(
+        display_row_segments >= 7,
+        "IceCubes authenticated Settings Display row stack was not detected: "
+        f"segments={display_row_segments}, preview_pixels={preview_status_text_pixels}",
+    )
+    require(
+        stale_settings_root_account_pixels <= 1_400,
+        "IceCubes authenticated Settings Display still appears to show the root account row: "
+        f"pixels={stale_settings_root_account_pixels}",
+    )
+    require(
+        stale_settings_root_logout_pixels <= 1_200,
+        "IceCubes authenticated Settings Display still appears to show the root log-out row: "
+        f"pixels={stale_settings_root_logout_pixels}",
+    )
+    require(
+        stale_settings_root_visible_logout_pixels <= 80,
+        "IceCubes authenticated Settings Display still appears to show the visible root log-out row: "
+        f"pixels={stale_settings_root_visible_logout_pixels}",
+    )
+    require(
+        stale_settings_root_display_highlight_pixels <= 4_000,
+        "IceCubes authenticated Settings Display still appears to show the pressed root Display Settings row: "
+        f"pixels={stale_settings_root_display_highlight_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Settings Display: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"settings_selected_pixels={settings_selected_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"pushed_content_surface_pixels={pushed_content_surface_pixels}, "
+        f"display_control_text_pixels={display_control_text_pixels}, "
+        f"top_display_control_pixels={top_display_control_pixels}, "
+        f"preview_status_text_pixels={preview_status_text_pixels}, "
+        f"lower_display_control_pixels={lower_display_control_pixels}, "
+        f"slider_control_pixels={slider_control_pixels}, "
+        f"display_row_segments={display_row_segments}, "
+        f"stale_settings_root_account_pixels={stale_settings_root_account_pixels}, "
+        f"stale_settings_root_logout_pixels={stale_settings_root_logout_pixels}, "
+        f"stale_settings_root_visible_logout_pixels={stale_settings_root_visible_logout_pixels}, "
+        f"stale_settings_root_display_highlight_pixels={stale_settings_root_display_highlight_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings_display_font_scale(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_settings_display(image)
+    left, right, top, bottom = content_bounds(image)
+    slider_right_accent_pixels = pixel_count(
+        image,
+        left + 540,
+        top + 575,
+        left + 665,
+        top + 606,
+        icecubes_authenticated_accent_pixel,
+    )
+    slider_left_accent_pixels = pixel_count(
+        image,
+        left + 285,
+        top + 575,
+        left + 520,
+        top + 606,
+        icecubes_authenticated_accent_pixel,
+    )
+
+    require(
+        slider_right_accent_pixels >= 180,
+        "IceCubes authenticated Settings Display font-scale slider did not move right: "
+        f"right_accent_pixels={slider_right_accent_pixels}, left_accent_pixels={slider_left_accent_pixels}",
+    )
+
+    return (
+        baseline
+        + ", "
+        + f"font_scale_slider_right_accent_pixels={slider_right_accent_pixels}, "
+        + f"font_scale_slider_left_accent_pixels={slider_left_accent_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings_display_font_picker(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Settings Display font picker window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    settings_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 604,
+        left + 240,
+        top + 648,
+        icecubes_sidebar_selected_pixel,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 10,
+        top + 10,
+        left + 76,
+        top + 44,
+    )
+    font_picker_surface_pixels = pixel_count(
+        image,
+        left + 245,
+        top + 52,
+        right - 8,
+        bottom - 8,
+        icecubes_authenticated_content_surface_pixel,
+    )
+    title_text_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        left + 380,
+        top + 82,
+    )
+    caption_text_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 84,
+        left + 500,
+        top + 112,
+    )
+    system_button_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 112,
+        left + 330,
+        top + 152,
+    )
+    rounded_button_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 154,
+        left + 350,
+        top + 196,
+    )
+    inter_button_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 196,
+        left + 330,
+        top + 238,
+    )
+    atkinson_button_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 238,
+        left + 450,
+        top + 280,
+    )
+    cancel_button_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 296,
+        left + 340,
+        top + 338,
+    )
+    stale_display_form_pixels = dark_pixel_count(
+        image,
+        left + 270,
+        top + 360,
+        right - 36,
+        bottom - 28,
+    )
+    stale_slider_accent_pixels = pixel_count(
+        image,
+        left + 285,
+        top + 575,
+        left + 665,
+        top + 606,
+        icecubes_authenticated_accent_pixel,
+    )
+
+    require(
+        titlebar_pixels >= 25_000,
+        "IceCubes authenticated Settings Display font picker titlebar chrome was not detected: "
+        f"pixels={titlebar_pixels}",
+    )
+    require(
+        settings_selected_pixels >= 5_000,
+        "IceCubes authenticated Settings Display font picker sidebar row was not selected: "
+        f"pixels={settings_selected_pixels}",
+    )
+    require(
+        back_button_pixels >= 80,
+        "IceCubes authenticated Settings Display font picker back button was not detected: "
+        f"pixels={back_button_pixels}",
+    )
+    require(
+        font_picker_surface_pixels >= 240_000,
+        "IceCubes authenticated Settings Display font picker route surface was not detected: "
+        f"pixels={font_picker_surface_pixels}",
+    )
+    require(
+        title_text_pixels >= 180,
+        "IceCubes authenticated Settings Display font picker title was not detected: "
+        f"title_text_pixels={title_text_pixels}",
+    )
+    require(
+        caption_text_pixels >= 180,
+        "IceCubes authenticated Settings Display font picker explanatory text was not detected: "
+        f"caption_text_pixels={caption_text_pixels}",
+    )
+    require(
+        system_button_pixels >= 70,
+        "IceCubes authenticated Settings Display font picker System button was not detected: "
+        f"system_button_pixels={system_button_pixels}",
+    )
+    require(
+        rounded_button_pixels >= 90,
+        "IceCubes authenticated Settings Display font picker Rounded button was not detected: "
+        f"rounded_button_pixels={rounded_button_pixels}",
+    )
+    require(
+        inter_button_pixels >= 50,
+        "IceCubes authenticated Settings Display font picker Inter button was not detected: "
+        f"inter_button_pixels={inter_button_pixels}",
+    )
+    require(
+        atkinson_button_pixels >= 220,
+        "IceCubes authenticated Settings Display font picker Atkinson button was not detected: "
+        f"atkinson_button_pixels={atkinson_button_pixels}",
+    )
+    require(
+        cancel_button_pixels >= 60,
+        "IceCubes authenticated Settings Display font picker Cancel button was not detected: "
+        f"cancel_button_pixels={cancel_button_pixels}",
+    )
+    require(
+        stale_display_form_pixels <= 300,
+        "IceCubes authenticated Settings Display font picker still appears to show display form rows: "
+        f"stale_display_form_pixels={stale_display_form_pixels}",
+    )
+    require(
+        stale_slider_accent_pixels <= 40,
+        "IceCubes authenticated Settings Display font picker still appears to show the font scale slider: "
+        f"stale_slider_accent_pixels={stale_slider_accent_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Settings Display font picker: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"settings_selected_pixels={settings_selected_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"font_picker_surface_pixels={font_picker_surface_pixels}, "
+        f"title_text_pixels={title_text_pixels}, "
+        f"caption_text_pixels={caption_text_pixels}, "
+        f"system_button_pixels={system_button_pixels}, "
+        f"rounded_button_pixels={rounded_button_pixels}, "
+        f"inter_button_pixels={inter_button_pixels}, "
+        f"atkinson_button_pixels={atkinson_button_pixels}, "
+        f"cancel_button_pixels={cancel_button_pixels}, "
+        f"stale_display_form_pixels={stale_display_form_pixels}, "
+        f"stale_slider_accent_pixels={stale_slider_accent_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings_display_font_picker_selected(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_settings_display(image)
+    left, _, top, _ = content_bounds(image)
+    selected_font_text_pixels = dark_pixel_count(
+        image,
+        left + 382,
+        top + 516,
+        left + 505,
+        top + 550,
+    )
+    system_label_signature_pixels = dark_pixel_count(
+        image,
+        left + 382,
+        top + 523,
+        left + 422,
+        top + 539,
+    )
+
+    require(
+        selected_font_text_pixels >= 120,
+        "IceCubes authenticated Settings Display selected font row did not show a selected value label: "
+        f"selected_font_text_pixels={selected_font_text_pixels}",
+    )
+    require(
+        system_label_signature_pixels <= 92,
+        "IceCubes authenticated Settings Display selected font row still looks like the default System label: "
+        f"system_label_signature_pixels={system_label_signature_pixels}",
+    )
+
+    return (
+        baseline
+        + ", "
+        + f"font_picker_selected_text_pixels={selected_font_text_pixels}, "
+        + f"font_picker_system_label_signature_pixels={system_label_signature_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_settings_display_system_color(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_settings_display(image)
+    left, right, top, _ = content_bounds(image)
+    toggle_accent_pixels = pixel_count(
+        image,
+        left + 276,
+        top + 276,
+        left + 304,
+        top + 306,
+        icecubes_authenticated_accent_pixel,
+    )
+    enabled_color_row_text_pixels = dark_pixel_count(
+        image,
+        left + 275,
+        top + 374,
+        right - 36,
+        top + 446,
+    )
+
+    require(
+        toggle_accent_pixels <= 60,
+        "IceCubes authenticated Settings Display system-color toggle still appears enabled: "
+        f"toggle_accent_pixels={toggle_accent_pixels}, enabled_color_row_text_pixels={enabled_color_row_text_pixels}",
+    )
+    require(
+        enabled_color_row_text_pixels >= 240,
+        "IceCubes authenticated Settings Display color rows did not become enabled after system-color toggle: "
+        f"enabled_color_row_text_pixels={enabled_color_row_text_pixels}, toggle_accent_pixels={toggle_accent_pixels}",
+    )
+
+    return (
+        baseline
+        + ", "
+        + f"system_color_toggle_accent_pixels={toggle_accent_pixels}, "
+        + f"enabled_color_row_text_pixels={enabled_color_row_text_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: bool = False) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        320 <= app_width <= 1120 and 260 <= app_height <= 900,
+        f"IceCubes authenticated composer window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        min(bottom, top + 52),
+        icecubes_authenticated_titlebar_pixel,
+    )
+    composer_send_button_pixels = pixel_count(
+        image,
+        max(left, right - 220),
+        top + 6,
+        max(left, right - 120),
+        min(bottom, top + 52),
+        icecubes_sign_in_button_pixel,
+    )
+    composer_text_pixels = pixel_count(
+        image,
+        left + 16,
+        top + 54,
+        right - 16,
+        min(bottom, top + 190),
+        icecubes_notification_text_pixel,
+    )
+    composer_field_pixels = pixel_count(
+        image,
+        left + 16,
+        top + int(app_height * 0.22),
+        right - 16,
+        min(bottom, top + int(app_height * 0.72)),
+        icecubes_authenticated_content_surface_pixel,
+    )
+    typed_body_pixels = pixel_count(
+        image,
+        left + 48,
+        top + 64,
+        right - 48,
+        min(bottom, top + 125),
+        icecubes_notification_text_pixel,
+    )
+    stale_timeline_sidebar_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 56,
+        min(right, left + 240),
+        min(bottom, top + 100),
+        icecubes_sidebar_selected_pixel,
+    )
+
+    require(titlebar_pixels >= 5_000, f"IceCubes authenticated composer titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        composer_send_button_pixels >= 200,
+        f"IceCubes authenticated composer send toolbar button was not detected: pixels={composer_send_button_pixels}",
+    )
+    require(
+        composer_text_pixels >= 120,
+        f"IceCubes authenticated composer text/actions were not detected: pixels={composer_text_pixels}",
+    )
+    require(
+        composer_field_pixels >= 18_000,
+        f"IceCubes authenticated composer editing surface was not detected: pixels={composer_field_pixels}",
+    )
+    require(
+        stale_timeline_sidebar_pixels <= 1_200,
+        "IceCubes authenticated composer capture still appears to show the main Timeline sidebar: "
+        f"pixels={stale_timeline_sidebar_pixels}",
+    )
+    if typed:
+        require(
+            typed_body_pixels >= 90,
+            f"IceCubes authenticated composer typed text was not detected in the editor: pixels={typed_body_pixels}",
+        )
+
+    return (
+        f"IceCubes authenticated composer{' typed' if typed else ''}: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"composer_send_button_pixels={composer_send_button_pixels}, "
+        f"composer_text_pixels={composer_text_pixels}, "
+        f"composer_field_pixels={composer_field_pixels}, "
+        f"typed_body_pixels={typed_body_pixels}, "
+        f"stale_timeline_sidebar_pixels={stale_timeline_sidebar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated Status detail window has unexpected size: {app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    sidebar_pixels = pixel_count(
+        image,
+        left,
+        top + 52,
+        left + 244,
+        bottom,
+        icecubes_authenticated_sidebar_surface_pixel,
+    )
+    detail_header_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 50,
+        right - 20,
+        top + 120,
+    )
+    detail_upper_body_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 76,
+        right - 20,
+        top + 135,
+    )
+    detail_lower_body_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 116,
+        right - 20,
+        top + 250,
+    )
+    detail_top_action_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        right - 20,
+        top + 205,
+    )
+    detail_bottom_action_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        bottom - 62,
+        right - 20,
+        bottom - 4,
+    )
+    detail_action_pixels = max(detail_top_action_pixels, detail_bottom_action_pixels)
+    detail_bottom_action_count_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        bottom - 58,
+        left + 430,
+        bottom - 4,
+    )
+    detail_media_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 140,
+        right - 20,
+        bottom - 56,
+        icecubes_fixture_media_pixel,
+    )
+    detail_summary_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 245,
+        right - 20,
+        top + 355,
+    )
+    detail_body_pixels = max(detail_upper_body_pixels, detail_lower_body_pixels)
+    detail_action_count_pixels = max(detail_bottom_action_count_pixels, detail_summary_pixels)
+    detail_has_wide_media = app_width >= 900 and detail_media_pixels >= 100_000
+    detail_has_summary = detail_summary_pixels >= 350
+
+    require(titlebar_pixels >= 25_000, f"IceCubes authenticated Status detail titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(
+        sidebar_pixels >= 80_000,
+        f"IceCubes authenticated Status detail sidebar surface was not detected: pixels={sidebar_pixels}",
+    )
+    require(
+        detail_header_pixels >= 700,
+        f"IceCubes authenticated Status detail header/account text was not detected: pixels={detail_header_pixels}",
+    )
+    require(
+        # GTK/Pango rasterization on CI lands around 888 dark pixels for the
+        # fixture body while still visibly rendering the full status text.
+        detail_body_pixels >= 800,
+        f"IceCubes authenticated Status detail body text was not detected: pixels={detail_body_pixels}",
+    )
+    require(
+        detail_has_wide_media or detail_has_summary,
+        "IceCubes authenticated Status detail media attachment or summary rows were not detected: "
+        f"media_pixels={detail_media_pixels}, summary_pixels={detail_summary_pixels}, app_width={app_width}",
+    )
+    require(
+        detail_action_pixels >= 200,
+        f"IceCubes authenticated Status detail action/context area was not detected: pixels={detail_action_pixels}",
+    )
+    require(
+        detail_action_count_pixels >= 80,
+        "IceCubes authenticated Status detail action count row was not detected: "
+        f"pixels={detail_action_count_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Status detail: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"sidebar_pixels={sidebar_pixels}, "
+        f"detail_header_pixels={detail_header_pixels}, "
+        f"detail_body_pixels={detail_body_pixels}, "
+        f"detail_upper_body_pixels={detail_upper_body_pixels}, "
+        f"detail_lower_body_pixels={detail_lower_body_pixels}, "
+        f"detail_media_pixels={detail_media_pixels}, "
+        f"detail_summary_pixels={detail_summary_pixels}, "
+        f"detail_action_pixels={detail_action_pixels}, "
+        f"detail_top_action_pixels={detail_top_action_pixels}, "
+        f"detail_bottom_action_pixels={detail_bottom_action_pixels}, "
+        f"detail_action_count_pixels={detail_action_count_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screenshot) -> str:
+    base = validate_icecubes_linux_authenticated_status_detail(image)
+    left, _, top, _ = content_bounds(image)
+
+    def favorite_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+        r, g, b = rgb
+        return r >= 180 and g >= 130 and b <= 90 and r >= g and g > b
+
+    favorite_accent_pixels = pixel_count(
+        image,
+        left + 370,
+        top + 145,
+        left + 430,
+        top + 196,
+        favorite_accent_pixel,
+    )
+    favorite_summary_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 260,
+        left + 370,
+        top + 292,
+    )
+
+    require(
+        favorite_accent_pixels >= 45,
+        "IceCubes authenticated Status detail favorite action did not show the favorited accent: "
+        f"pixels={favorite_accent_pixels}",
+    )
+    require(
+        favorite_summary_pixels >= 120,
+        "IceCubes authenticated Status detail favorite action did not show the updated favorites summary: "
+        f"pixels={favorite_summary_pixels}",
+    )
+
+    return (
+        base
+        + "\nIceCubes authenticated Status detail favorite: "
+        f"favorite_accent_pixels={favorite_accent_pixels}, "
+        f"favorite_summary_pixels={favorite_summary_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot) -> str:
+    base = validate_icecubes_linux_authenticated_status_detail(image)
+    left, _, top, _ = content_bounds(image)
+
+    def boost_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+        r, g, b = rgb
+        legacy_blue = (
+            b >= 125
+            and g >= 80
+            and r <= 145
+            and b >= r + 35
+            and g >= r + 10
+        )
+        icecubes_purple = (
+            145 <= r <= 215
+            and 35 <= g <= 115
+            and 170 <= b <= 245
+            and r >= g + 55
+            and b >= g + 80
+        )
+        return legacy_blue or icecubes_purple
+
+    boost_accent_pixels = pixel_count(
+        image,
+        left + 305,
+        top + 145,
+        left + 372,
+        top + 196,
+        boost_accent_pixel,
+    )
+    boost_summary_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 306,
+        left + 350,
+        top + 338,
+    )
+
+    require(
+        boost_accent_pixels >= 35,
+        "IceCubes authenticated Status detail boost action did not show the boosted accent: "
+        f"pixels={boost_accent_pixels}",
+    )
+    require(
+        boost_summary_pixels >= 90,
+        "IceCubes authenticated Status detail boost action did not show the boost summary row: "
+        f"pixels={boost_summary_pixels}",
+    )
+
+    return (
+        base
+        + "\nIceCubes authenticated Status detail boost: "
+        f"boost_accent_pixels={boost_accent_pixels}, "
+        f"boost_summary_pixels={boost_summary_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screenshot) -> str:
+    base = validate_icecubes_linux_authenticated_status_detail(image)
+    left, _, top, _ = content_bounds(image)
+
+    def bookmark_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+        r, g, b = rgb
+        return (
+            r >= 170
+            and 45 <= g <= 170
+            and 100 <= b <= 240
+            and r >= g + 30
+            and b >= g + 15
+        )
+
+    bookmark_accent_pixels = pixel_count(
+        image,
+        left + 550,
+        top + 145,
+        left + 610,
+        top + 196,
+        bookmark_accent_pixel,
+    )
+
+    require(
+        bookmark_accent_pixels >= 30,
+        "IceCubes authenticated Status detail bookmark action did not show the bookmarked accent: "
+        f"pixels={bookmark_accent_pixels}",
+    )
+
+    return (
+        base
+        + "\nIceCubes authenticated Status detail bookmark: "
+        f"bookmark_accent_pixels={bookmark_accent_pixels}"
     )
 
 
@@ -4434,6 +7632,10 @@ def main() -> int:
     compact_quill_chat_dialog_product = product in {
         "quill-chat-linux-mac-reference-settings-delete-confirmation",
     }
+    compact_icecubes_dialog_product = product in {
+        "icecubes-linux-authenticated-composer",
+        "icecubes-linux-authenticated-composer-typed",
+    }
     solderscope_launch_product = product in {
         "quill-solderscope-launch",
         "quill-solderscope-visual",
@@ -4441,10 +7643,49 @@ def main() -> int:
     }
     icecubes_upstream_product = product in {
         "icecubes-linux-add-account",
+        "icecubes-linux-add-account-instance",
+        "icecubes-linux-authenticated-shell",
+        "icecubes-linux-authenticated-home-row-ready",
+        "icecubes-linux-authenticated-trending",
+        "icecubes-linux-authenticated-local",
+        "icecubes-linux-authenticated-federated",
+        "icecubes-linux-authenticated-explore",
+        "icecubes-linux-authenticated-explore-links",
+        "icecubes-linux-authenticated-explore-posts",
+        "icecubes-linux-authenticated-explore-tags",
+        "icecubes-linux-authenticated-explore-suggested-users",
+        "icecubes-linux-authenticated-explore-search",
+        "icecubes-linux-authenticated-notifications",
+        "icecubes-linux-authenticated-notifications-refresh",
+        "icecubes-linux-authenticated-profile",
+        "icecubes-linux-authenticated-messages",
+        "icecubes-linux-authenticated-messages-refresh",
+        "icecubes-linux-authenticated-messages-detail",
+        "icecubes-linux-authenticated-list",
+        "icecubes-linux-authenticated-settings",
+        "icecubes-linux-authenticated-settings-display",
+        "icecubes-linux-authenticated-settings-display-font-scale",
+        "icecubes-linux-authenticated-settings-display-font-picker",
+        "icecubes-linux-authenticated-settings-display-font-picker-selected",
+        "icecubes-linux-authenticated-settings-display-system-color",
+        "icecubes-linux-authenticated-composer",
+        "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-submitted",
+        "icecubes-linux-authenticated-status-detail",
+        "icecubes-linux-authenticated-status-detail-refresh",
+        "icecubes-linux-authenticated-status-detail-boost",
+        "icecubes-linux-authenticated-status-detail-favorite",
+        "icecubes-linux-authenticated-status-detail-bookmark",
+        "icecubes-linux-authenticated-media-viewer",
+        "icecubes-linux-authenticated-home-pagination",
+        "icecubes-linux-authenticated-home-refresh",
     }
     if compact_quill_chat_dialog_product:
         minimum_width = 260
         minimum_height = 140
+    elif compact_icecubes_dialog_product:
+        minimum_width = 320
+        minimum_height = 260
     elif compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
@@ -4618,6 +7859,78 @@ def main() -> int:
         print(validate_quill_solderscope_launch(image))
     elif product == "icecubes-linux-add-account":
         print(validate_icecubes_linux_add_account(image))
+    elif product == "icecubes-linux-add-account-instance":
+        print(validate_icecubes_linux_add_account_instance(image))
+    elif product == "icecubes-linux-authenticated-shell":
+        print(validate_icecubes_linux_authenticated_shell(image))
+    elif product == "icecubes-linux-authenticated-home-row-ready":
+        print(validate_icecubes_linux_authenticated_home_row_ready(image))
+    elif product == "icecubes-linux-authenticated-home-pagination":
+        print(validate_icecubes_linux_authenticated_home_pagination(image))
+    elif product == "icecubes-linux-authenticated-home-refresh":
+        print(validate_icecubes_linux_authenticated_home_row_ready(image))
+    elif product == "icecubes-linux-authenticated-trending":
+        print(validate_icecubes_linux_authenticated_trending(image))
+    elif product == "icecubes-linux-authenticated-local":
+        print(validate_icecubes_linux_authenticated_local(image))
+    elif product == "icecubes-linux-authenticated-federated":
+        print(validate_icecubes_linux_authenticated_federated(image))
+    elif product == "icecubes-linux-authenticated-explore":
+        print(validate_icecubes_linux_authenticated_explore(image))
+    elif product == "icecubes-linux-authenticated-explore-links":
+        print(validate_icecubes_linux_authenticated_explore_links(image))
+    elif product == "icecubes-linux-authenticated-explore-posts":
+        print(validate_icecubes_linux_authenticated_explore_posts(image))
+    elif product == "icecubes-linux-authenticated-explore-tags":
+        print(validate_icecubes_linux_authenticated_explore_tags(image))
+    elif product == "icecubes-linux-authenticated-explore-suggested-users":
+        print(validate_icecubes_linux_authenticated_explore_suggested_users(image))
+    elif product == "icecubes-linux-authenticated-explore-search":
+        print(validate_icecubes_linux_authenticated_explore_search(image))
+    elif product == "icecubes-linux-authenticated-notifications":
+        print(validate_icecubes_linux_authenticated_notifications(image))
+    elif product == "icecubes-linux-authenticated-notifications-refresh":
+        print(validate_icecubes_linux_authenticated_notifications(image))
+    elif product == "icecubes-linux-authenticated-profile":
+        print(validate_icecubes_linux_authenticated_profile(image))
+    elif product == "icecubes-linux-authenticated-messages":
+        print(validate_icecubes_linux_authenticated_messages(image))
+    elif product == "icecubes-linux-authenticated-messages-refresh":
+        print(validate_icecubes_linux_authenticated_messages(image))
+    elif product == "icecubes-linux-authenticated-messages-detail":
+        print(validate_icecubes_linux_authenticated_messages_detail(image))
+    elif product == "icecubes-linux-authenticated-list":
+        print(validate_icecubes_linux_authenticated_list(image))
+    elif product == "icecubes-linux-authenticated-settings":
+        print(validate_icecubes_linux_authenticated_settings(image))
+    elif product == "icecubes-linux-authenticated-settings-display":
+        print(validate_icecubes_linux_authenticated_settings_display(image))
+    elif product == "icecubes-linux-authenticated-settings-display-font-scale":
+        print(validate_icecubes_linux_authenticated_settings_display_font_scale(image))
+    elif product == "icecubes-linux-authenticated-settings-display-font-picker":
+        print(validate_icecubes_linux_authenticated_settings_display_font_picker(image))
+    elif product == "icecubes-linux-authenticated-settings-display-font-picker-selected":
+        print(validate_icecubes_linux_authenticated_settings_display_font_picker_selected(image))
+    elif product == "icecubes-linux-authenticated-settings-display-system-color":
+        print(validate_icecubes_linux_authenticated_settings_display_system_color(image))
+    elif product == "icecubes-linux-authenticated-composer":
+        print(validate_icecubes_linux_authenticated_composer(image))
+    elif product == "icecubes-linux-authenticated-composer-typed":
+        print(validate_icecubes_linux_authenticated_composer(image, typed=True))
+    elif product == "icecubes-linux-authenticated-composer-submitted":
+        print(validate_icecubes_linux_authenticated_shell(image))
+    elif product == "icecubes-linux-authenticated-status-detail":
+        print(validate_icecubes_linux_authenticated_status_detail(image))
+    elif product == "icecubes-linux-authenticated-status-detail-refresh":
+        print(validate_icecubes_linux_authenticated_status_detail(image))
+    elif product == "icecubes-linux-authenticated-status-detail-boost":
+        print(validate_icecubes_linux_authenticated_status_detail_boost(image))
+    elif product == "icecubes-linux-authenticated-status-detail-favorite":
+        print(validate_icecubes_linux_authenticated_status_detail_favorite(image))
+    elif product == "icecubes-linux-authenticated-status-detail-bookmark":
+        print(validate_icecubes_linux_authenticated_status_detail_bookmark(image))
+    elif product == "icecubes-linux-authenticated-media-viewer":
+        print(validate_icecubes_linux_authenticated_media_viewer(image))
     elif product in {
         "quill-gtk-interaction-smoke-open",
         "quill-qt-interaction-smoke-open",

@@ -116,3 +116,16 @@ public struct Image {
 // Color.accentColor stay nonisolated and remain usable as default
 // argument values in nonisolated app code (IceCubes ToastCenter).
 extension Image: View {}
+
+extension Image: CustomStringConvertible {
+    public var description: String {
+        switch source {
+        case .systemName(let name):
+            return QuillInlineImageText.marker(systemName: name)
+        case .filePath(let path):
+            return QuillInlineImageText.marker(filePath: path)
+        case .materialSymbol(let name):
+            return QuillInlineImageText.marker(materialName: name)
+        }
+    }
+}

@@ -26,7 +26,7 @@ final class LayoutTests: XCTestCase {
     }
 
     func testColorRGBInteger() {
-        let color = Color(red: 128, green: 0, blue: 255)
+        let color = Color(red8: 128, green8: 0, blue8: 255)
         XCTAssertEqual(color.red, 128.0 / 255.0, accuracy: 0.01)
         XCTAssertEqual(color.blue, 1.0, accuracy: 0.01)
     }

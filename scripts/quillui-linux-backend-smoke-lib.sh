@@ -842,8 +842,12 @@ quillui_install_linux_backend_smoke_packages() {
   done
 
   if (( ${#missing[@]} > 0 )); then
-    sudo apt-get update
-    sudo apt-get install -y "${missing[@]}"
+    local apt_prefix=()
+    if command -v sudo >/dev/null 2>&1; then
+      apt_prefix=(sudo)
+    fi
+    "${apt_prefix[@]}" apt-get update
+    "${apt_prefix[@]}" apt-get install -y "${missing[@]}"
   fi
 }
 

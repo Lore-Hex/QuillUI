@@ -648,19 +648,22 @@ public struct SharePreview<ImageValue> {
 
 public struct ShareLink<Item>: View {
     public let item: Item
+    public let labelView: AnyView
 
     public init(item: Item) {
         self.item = item
+        self.labelView = AnyView(Text("Share"))
     }
 
     public init<PreviewImage>(item: Item, preview: SharePreview<PreviewImage>) {
         self.item = item
+        self.labelView = AnyView(Text("Share"))
         _ = preview
     }
 
     public init<Label: View>(item: Item, @ViewBuilder label: () -> Label) {
         self.item = item
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
     public init<Label: View>(
@@ -670,7 +673,7 @@ public struct ShareLink<Item>: View {
     ) {
         self.item = item
         _ = subject
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
     public init<Label: View>(
@@ -682,10 +685,12 @@ public struct ShareLink<Item>: View {
         self.item = item
         _ = subject
         _ = message
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
-    public var body: some View { EmptyView() }
+    public var body: some View {
+        Button(action: {}, label: { labelView })
+    }
 }
 
 public struct ControlGroup<Content: View>: View {
@@ -850,10 +855,6 @@ private struct LocaleKey: EnvironmentKey {
     static let defaultValue = Locale.current
 }
 
-private struct DefaultMinListRowHeightKey: EnvironmentKey {
-    static let defaultValue = 44
-}
-
 public extension EnvironmentValues {
     var sizeCategory: ContentSizeCategory {
         get { self[ContentSizeCategoryKey.self] }
@@ -888,11 +889,6 @@ public extension EnvironmentValues {
     var locale: Locale {
         get { self[LocaleKey.self] }
         set { self[LocaleKey.self] = newValue }
-    }
-
-    var defaultMinListRowHeight: Int {
-        get { self[DefaultMinListRowHeightKey.self] }
-        set { self[DefaultMinListRowHeightKey.self] = newValue }
     }
 
 }
@@ -1058,60 +1054,6 @@ public struct RoundedBorderTextFieldStyle: Sendable {
 
 public struct PlainTextFieldStyle: Sendable {
     public init() {}
-}
-
-public struct LayoutSubviews: RandomAccessCollection {
-    public typealias Element = LayoutSubview
-    private let storage: [LayoutSubview]
-
-    public init(_ storage: [LayoutSubview] = []) {
-        self.storage = storage
-    }
-
-    public var startIndex: Int { storage.startIndex }
-    public var endIndex: Int { storage.endIndex }
-    public subscript(position: Int) -> LayoutSubview { storage[position] }
-}
-
-public protocol Layout: View where Body == Never {
-    typealias Subviews = LayoutSubviews
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ())
-}
-
-public extension Layout {
-    var body: Never { fatalError("Layout is a primitive view") }
-
-    func callAsFunction<Content: View>(@ViewBuilder _ content: () -> Content) -> LayoutContainer<Self, Content> {
-        LayoutContainer(layout: self, content: content())
-    }
-}
-
-public struct LayoutContainer<L: Layout, Content: View>: View {
-    public let layout: L
-    public let content: Content
-
-    public var body: some View { content }
-}
-
-public extension LayoutSubview {
-    func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize {
-        _ = proposal
-        return .zero
-    }
-
-    func place(at point: CGPoint, anchor: UnitPoint = .topLeading, proposal: ProposedViewSize) {
-        _ = point
-        _ = anchor
-        _ = proposal
-    }
-}
-
-public extension ProposedViewSize {
-    init(_ size: CGSize) {
-        self.init(width: size.width, height: size.height)
-    }
 }
 
 public struct UnevenRoundedRectangle: @preconcurrency Shape {
@@ -1315,8 +1257,7 @@ public extension Text {
     }
 
     init(_ date: Date, style: DateStyle) {
-        _ = style
-        self.init(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none))
+        self.init(quillFormatDate(date, style: style))
     }
 
     init<T>(_ key: String, _ value: T, style: DateStyle) {
@@ -1376,7 +1317,9 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
     nonisolated public var toolbarContentItems: [AnyToolbarItem] {
         let box = QuillIsolationHopBox(value: content)
         return MainActor.assumeIsolated {
-            [AnyToolbarItem(ToolbarItem(placement: .principal) { box.value })]
+            [AnyToolbarItem(ToolbarItem(placement: .principal) {
+                Menu("Timeline") { box.value }
+            })]
         }
     }
 
@@ -1387,12 +1330,22 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
 
 public extension String.StringInterpolation {
     mutating func appendInterpolation(_ date: Date, style: Text.DateStyle) {
-        _ = style
-        appendLiteral(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none))
+        appendLiteral(quillFormatDate(date, style: style))
     }
 
     mutating func appendInterpolation<T>(_ value: T, format: NumberFormatStyle) {
         appendLiteral(quillFormatNumber(value, format: format))
+    }
+}
+
+private func quillFormatDate(_ date: Date, style: Text.DateStyle) -> String {
+    switch style {
+    case .date:
+        return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
+    case .time:
+        return DateFormatter.localizedString(from: date, dateStyle: .none, timeStyle: .short)
+    case .relative, .offset, .timer:
+        return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
     }
 }
 
@@ -1514,16 +1467,6 @@ public extension Section {
     }
 }
 
-public extension Menu {
-    init<Label: View>(
-        @MenuBuilder content: () -> [MenuElement],
-        @ViewBuilder label: () -> Label
-    ) {
-        _ = label()
-        self.init("", content: content)
-    }
-}
-
 public extension TextField {
     init(_ title: String, text: Binding<String>, axis: Axis) {
         _ = axis
@@ -1564,8 +1507,6 @@ fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
 @MainActor
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
-        // Witnesses are isolated (View whole-protocol); collection runs on
-        // the backend main loop == main thread.
         let box = QuillIsolationHopBox(value: tabSource)
         return MainActor.assumeIsolated { box.value.quillCollectedTabs }
     }
@@ -1889,15 +1830,6 @@ public extension View {
         return self
     }
 
-    func navigationDestination<Destination: View>(
-        isPresented: Binding<Bool>,
-        @ViewBuilder destination: () -> Destination
-    ) -> Self {
-        _ = isPresented
-        _ = destination()
-        return self
-    }
-
     func onOpenURL(perform action: @escaping (URL) -> Void) -> Self {
         _ = action
         return self
@@ -1923,20 +1855,26 @@ public extension Tab {
         @ViewBuilder content: () -> Content,
         @ViewBuilder label: () -> Label
     ) {
-        _ = value
         _ = role
-        _ = label()
-        self.init("", id: String(describing: value), content: content)
+        self.init(
+            "",
+            id: String(describing: value),
+            selectionValue: AnyHashable(value),
+            label: label(),
+            content: content
+        )
     }
 
     func tabPlacement(_ placement: TabPlacement) -> Self {
-        _ = placement
-        return self
+        var copy = self
+        copy.placement = placement.rawValue
+        return copy
     }
 
     func badge(_ count: Int) -> Self {
-        _ = count
-        return self
+        var copy = self
+        copy.badge = count
+        return copy
     }
 }
 
@@ -2094,9 +2032,13 @@ public extension View {
         priority: TaskPriority = .userInitiated,
         _ action: @escaping () async -> Void
     ) -> TaskView<Self> {
-        _ = id
         let box = QuillTaskActionBox(action)
-        return TaskView(content: self, priority: priority, action: { await box.run() })
+        return TaskView(
+            content: self,
+            priority: priority,
+            lifecycleID: String(reflecting: id),
+            action: { await box.run() }
+        )
     }
 
     func listStyle(_ style: PlainListStyle) -> Self {
@@ -2185,11 +2127,6 @@ public extension View {
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
-        return self
-    }
-
-    func refreshable(action: @escaping () async -> Void) -> Self {
-        _ = action
         return self
     }
 
@@ -2345,11 +2282,6 @@ public extension View {
         return self
     }
 
-    @_disfavoredOverload
-    func foregroundColor(_ color: Color?) -> ForegroundColorView<Self> {
-        foregroundColor(color ?? .clear)
-    }
-
     func alignmentGuide(
         _ alignment: VerticalAlignment,
         computeValue: (ViewDimensions) -> CGFloat
@@ -2478,7 +2410,7 @@ public extension View {
     ) -> Self {
         _ = edge
         _ = allowsFullSwipe
-        _ = content()
+        _ = content
         return self
     }
 
@@ -2509,9 +2441,12 @@ public extension View {
         return self
     }
 
-    func redacted(reason: RedactionReasons) -> Self {
-        _ = reason
-        return self
+    func redacted(reason: RedactionReasons) -> EnvironmentModifierView<Self, RedactionReasons> {
+        environment(\.redactionReasons, reason)
+    }
+
+    func unredacted() -> EnvironmentModifierView<Self, RedactionReasons> {
+        environment(\.redactionReasons, [])
     }
 
     func presentationDetents(_ detents: Set<PresentationDetent>) -> Self {
@@ -2622,9 +2557,11 @@ public extension View {
         return self
     }
 
-    func containerRelativeFrame(_ axes: [Axis]) -> Self {
-        _ = axes
-        return self
+    func containerRelativeFrame(_ axes: [Axis]) -> FrameView<Self> {
+        frame(
+            maxWidth: axes.contains(where: { $0.contains(.horizontal) }) ? .infinity : nil,
+            maxHeight: axes.contains(where: { $0.contains(.vertical) }) ? .infinity : nil
+        )
     }
 
     func containerRelativeFrame(
@@ -2633,13 +2570,15 @@ public extension View {
         span: Int,
         spacing: CGFloat,
         alignment: Alignment = .center
-    ) -> Self {
-        _ = axes
+    ) -> FrameView<Self> {
         _ = count
         _ = span
         _ = spacing
-        _ = alignment
-        return self
+        return frame(
+            maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+            maxHeight: axes.contains(.vertical) ? .infinity : nil,
+            alignment: alignment
+        )
     }
 
     func scrollTargetLayout() -> Self {

@@ -16,6 +16,13 @@ private final class TrackingCounter: SwiftOpenUI.ObservableObject {
     @SwiftOpenUI.Published var count = 0
 }
 
+private final class TrackingObserverCounter: SwiftOpenUI.ObservableObject {
+    var count = 0 {
+        didSet { didSetCount += 1 }
+    }
+    var didSetCount = 0
+}
+
 final class DependencyTrackingTests: XCTestCase {
 
     // MARK: - Tracking context
@@ -39,6 +46,14 @@ final class DependencyTrackingTests: XCTestCase {
     func testNoTrackingReturnsNil() {
         let tracking = endDependencyTracking()
         XCTAssertNil(tracking)
+    }
+
+    func testTrackingRemembersCurrentHost() {
+        let host = MockViewHost()
+        beginDependencyTracking(host: host)
+        XCTAssertTrue(currentDependencyTrackingHost() === host)
+        _ = endDependencyTracking()
+        XCTAssertNil(currentDependencyTrackingHost())
     }
 
     // MARK: - isDependency
@@ -74,6 +89,81 @@ final class DependencyTrackingTests: XCTestCase {
         let tracking = endDependencyTracking()
         XCTAssertNotNil(tracking)
         XCTAssertTrue(tracking!.readSet.contains(ObjectIdentifier(storage)))
+    }
+
+    func testEnvironmentObservableObjectReadSchedulesHostOnPublishedChange() {
+        let host = MockViewHost()
+        let model = TrackingCounter()
+        var env = EnvironmentValues()
+        env.setObject(model)
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(nil) }
+
+        beginEnvironmentReadTracking()
+        beginDependencyTracking(host: host)
+        let reader = Environment(TrackingCounter.self)
+        XCTAssertTrue(reader.wrappedValue === model)
+        let tracking = endDependencyTracking()
+        _ = endEnvironmentReadTracking()
+
+        XCTAssertNotNil(tracking)
+        XCTAssertFalse(tracking!.snapshots.isEmpty)
+        host.lastInputSnapshot = tracking!.snapshots
+
+        host.rebuildCount = 0
+        model.count = 1
+
+        XCTAssertEqual(host.rebuildCount, 1)
+        XCTAssertFalse(inputsUnchanged(snapshot: host.lastInputSnapshot ?? []))
+    }
+
+    func testBindableEnvironmentObjectMutationSchedulesHostWhenObjectDoesNotPublish() {
+        let host = MockViewHost()
+        let model = TrackingObserverCounter()
+        var env = EnvironmentValues()
+        env.setObject(model)
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(nil) }
+
+        beginEnvironmentReadTracking()
+        beginDependencyTracking(host: host)
+        let reader = Environment(TrackingObserverCounter.self)
+        XCTAssertTrue(reader.wrappedValue === model)
+        let tracking = endDependencyTracking()
+        _ = endEnvironmentReadTracking()
+        host.lastInputSnapshot = tracking?.snapshots
+
+        host.rebuildCount = 0
+        Bindable(wrappedValue: reader.wrappedValue).count.wrappedValue = 1
+
+        XCTAssertEqual(model.count, 1)
+        XCTAssertEqual(model.didSetCount, 1)
+        XCTAssertEqual(host.rebuildCount, 1)
+        XCTAssertFalse(inputsUnchanged(snapshot: host.lastInputSnapshot ?? []))
+    }
+
+    func testBindableEnvironmentObjectMutationDoesNotDoubleScheduleWhenObjectPublishes() {
+        let host = MockViewHost()
+        let model = TrackingCounter()
+        var env = EnvironmentValues()
+        env.setObject(model)
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(nil) }
+
+        beginEnvironmentReadTracking()
+        beginDependencyTracking(host: host)
+        let reader = Environment(TrackingCounter.self)
+        XCTAssertTrue(reader.wrappedValue === model)
+        let tracking = endDependencyTracking()
+        _ = endEnvironmentReadTracking()
+        host.lastInputSnapshot = tracking?.snapshots
+
+        host.rebuildCount = 0
+        Bindable(wrappedValue: reader.wrappedValue).count.wrappedValue = 1
+
+        XCTAssertEqual(model.count, 1)
+        XCTAssertEqual(host.rebuildCount, 1)
+        XCTAssertFalse(inputsUnchanged(snapshot: host.lastInputSnapshot ?? []))
     }
 
     // MARK: - @State always rebuilds (no gating)

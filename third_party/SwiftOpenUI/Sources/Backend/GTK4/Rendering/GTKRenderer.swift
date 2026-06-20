@@ -11,11 +11,22 @@ let gtkSwiftDividerMarker = "gtk-swift-divider"
 /// Marker string for backend-only layout helpers that should not be
 /// considered rendered SwiftOpenUI content by snapshot capture.
 let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
+/// Marker string for SwiftUI EmptyView/absent-builder branches. Wrappers
+/// propagate this so modifiers on an absent branch do not become hittable,
+/// full-size GTK overlays.
+let gtkSwiftEmptyViewMarker = "gtk-swift-empty-view"
 /// Marker string for SwiftUI ScrollView widgets that should receive
 /// ScrollViewReader target adjustments.
 let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
 /// Marker string for vertical SwiftUI ScrollViews.
 let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
+/// Marker string for views that intentionally fill the parent's vertical
+/// proposal, rather than merely inheriting GTK vexpand from descendants.
+private let gtkSwiftVerticalFillIntentMarker = "gtk-swift-vertical-fill-intent"
+/// Marker string for `.fixedSize(horizontal: false, ...)` widgets. SwiftUI lets
+/// these views accept the parent's proposed width, so GTK must not advertise
+/// their unconstrained text width as the row's natural width.
+private let gtkSwiftHorizontallyCompressibleFixedSizeMarker = "gtk-swift-horizontal-compressible-fixed-size"
 
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -30,6 +41,30 @@ private func gtkHasLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
 private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
+}
+
+private func gtkMarkVerticalFillIntent(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtkSetLayoutMarker(widget, key: gtkSwiftVerticalFillIntentMarker)
+}
+
+private func gtkHasVerticalFillIntent(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkHasLayoutMarker(widget, key: gtkSwiftVerticalFillIntentMarker)
+}
+
+private func gtkMarkEmptyView(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtkSetLayoutMarker(widget, key: gtkSwiftEmptyViewMarker)
+    gtk_widget_set_can_target(widget, 0)
+    gtk_widget_set_size_request(widget, 0, 0)
+}
+
+private func gtkIsEmptyViewWidget(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkHasLayoutMarker(widget, key: gtkSwiftEmptyViewMarker)
+}
+
+private func gtkCreateEmptyViewWidget() -> UnsafeMutablePointer<GtkWidget> {
+    let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtkMarkEmptyView(box)
+    return box
 }
 
 private func gtkMarkSwiftUIScrollView(_ widget: UnsafeMutablePointer<GtkWidget>, hasVerticalAxis: Bool) {
@@ -54,6 +89,44 @@ private func gtkPropagateSingleChildLayoutMarkers(
     if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
         gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
     }
+    if gtkHasLayoutMarker(child, key: gtkSwiftEmptyViewMarker) {
+        gtkMarkEmptyView(wrapper)
+    }
+    if gtkHasVerticalFillIntent(child) {
+        gtkMarkVerticalFillIntent(wrapper)
+    }
+}
+
+private func gtkLayoutChildViews(from view: any View, depth: Int = 0) -> [any View] {
+    guard depth < 24 else { return [view] }
+
+    let mirror = Mirror(reflecting: view)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first?.value as? any View else { return [] }
+        return gtkLayoutChildViews(from: child, depth: depth + 1)
+    }
+
+    if mirror.displayStyle == .enum,
+       String(reflecting: Swift.type(of: view)).contains("_ConditionalView") {
+        for child in mirror.children {
+            if let nested = child.value as? any View {
+                return gtkLayoutChildViews(from: nested, depth: depth + 1)
+            }
+        }
+        return []
+    }
+
+    if let keyedRows = view as? GTKKeyedListRowProducer {
+        return keyedRows.gtkKeyedListRows(depth: depth + 1).flatMap {
+            gtkLayoutChildViews(from: $0, depth: depth + 1)
+        }
+    }
+
+    if let transparent = view as? any TransparentMultiChildView {
+        return transparent.children.flatMap { gtkLayoutChildViews(from: $0, depth: depth + 1) }
+    }
+
+    return [view]
 }
 
 private func gtkVStackSpacing(_ spacing: Int) -> Int {
@@ -82,12 +155,16 @@ private let gtkScrollViewCrossAxisTickCallback: GtkTickCallback = { widget, _, u
 
     if context.fillWidth, width > 1, width != context.lastWidth {
         context.lastWidth = width
-        gtk_widget_set_size_request(context.child, width, -1)
+        let horizontalMargins = gtk_widget_get_margin_start(context.child)
+            + gtk_widget_get_margin_end(context.child)
+        gtk_widget_set_size_request(context.child, max(gint(1), width - horizontalMargins), -1)
         gtk_widget_queue_resize(context.child)
     }
     if context.fillHeight, height > 1, height != context.lastHeight {
         context.lastHeight = height
-        gtk_widget_set_size_request(context.child, -1, height)
+        let verticalMargins = gtk_widget_get_margin_top(context.child)
+            + gtk_widget_get_margin_bottom(context.child)
+        gtk_widget_set_size_request(context.child, -1, max(gint(1), height - verticalMargins))
         gtk_widget_queue_resize(context.child)
     }
 
@@ -112,6 +189,199 @@ private func gtkInstallScrollViewCrossAxisFill(
         gtkScrollViewCrossAxisTickCallback,
         contextPtr,
         { userData in Unmanaged<GTKScrollViewCrossAxisContext>.fromOpaque(userData!).release() }
+    )
+}
+
+private final class GTKRowWidthContext {
+    let child: UnsafeMutablePointer<GtkWidget>
+    var lastWidth: gint = -1
+    var lastHeight: gint = -1
+
+    init(child: UnsafeMutablePointer<GtkWidget>) {
+        self.child = child
+    }
+}
+
+private func gtkResolveRowWidth(
+    widget: UnsafeMutablePointer<GtkWidget>,
+    context: GTKRowWidthContext
+) {
+    let width = gtk_widget_get_width(widget)
+    guard width > 1, width != context.lastWidth else { return }
+
+    context.lastWidth = width
+    let horizontalMargins = gtk_widget_get_margin_start(context.child)
+        + gtk_widget_get_margin_end(context.child)
+    let childWidth = max(gint(1), width - horizontalMargins)
+    gtkUpdateWrappingRowLabelWidths(context.child, forWidth: childWidth)
+    var minimumHeight: gint = 0
+    var naturalHeight: gint = 0
+    gtk_widget_measure(
+        context.child,
+        GTK_ORIENTATION_VERTICAL,
+        childWidth,
+        &minimumHeight,
+        &naturalHeight,
+        nil,
+        nil
+    )
+    gtkListDebugLog(
+        "row-width widget=\(String(cString: g_type_name(gtk_swift_get_widget_type(widget)))) child=\(String(cString: g_type_name(gtk_swift_get_widget_type(context.child)))) width=\(width) childWidth=\(childWidth) measured=\(minimumHeight)x\(naturalHeight)"
+    )
+    gtkDebugCollapsedRowTree(
+        root: context.child,
+        proposedWidth: childWidth,
+        measuredHeight: max(minimumHeight, naturalHeight)
+    )
+    let height = max(gint(1), minimumHeight, naturalHeight)
+    context.lastHeight = height
+    gtk_widget_set_size_request(context.child, childWidth, height)
+    gtk_widget_queue_resize(context.child)
+    gtk_widget_queue_resize(widget)
+}
+
+private let gtkRowWidthTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 0 }
+    let context = Unmanaged<GTKRowWidthContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkResolveRowWidth(widget: widget, context: context)
+    return 1
+}
+
+private let gtkRowWidthNotifyCallback: @convention(c) (
+    gpointer?,
+    gpointer?,
+    gpointer?
+) -> Void = { object, _, userData in
+    guard let object, let userData else { return }
+    let widget = object.assumingMemoryBound(to: GtkWidget.self)
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let context = Unmanaged<GTKRowWidthContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkResolveRowWidth(widget: widget, context: context)
+}
+
+private func gtkInstallRowWidthFill(
+    on row: UnsafeMutablePointer<GtkWidget>,
+    child: UnsafeMutablePointer<GtkWidget>
+) {
+    let context = GTKRowWidthContext(child: child)
+    let contextPtr = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        row,
+        gtkRowWidthTickCallback,
+        contextPtr,
+        { userData in Unmanaged<GTKRowWidthContext>.fromOpaque(userData!).release() }
+    )
+    g_signal_connect_data(
+        gpointer(row),
+        "notify::width",
+        unsafeBitCast(gtkRowWidthNotifyCallback, to: GCallback.self),
+        contextPtr,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+}
+
+private func gtkDebugCollapsedRowTree(
+    root: UnsafeMutablePointer<GtkWidget>,
+    proposedWidth: gint,
+    measuredHeight: gint
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_LIST_TREE"] == "1" else {
+        return
+    }
+    guard measuredHeight <= gtkComplexListRowMinimumHeight else { return }
+
+    var lines: [String] = []
+    gtkCollectDebugRowTreeLines(
+        node: root,
+        root: root,
+        proposedWidth: proposedWidth,
+        depth: 0,
+        lines: &lines
+    )
+    gtkListDebugLog("collapsed-row-tree\n\(lines.joined(separator: "\n"))")
+}
+
+private func gtkCollectDebugRowTreeLines(
+    node: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    proposedWidth: gint,
+    depth: Int,
+    lines: inout [String]
+) {
+    guard depth < 8, lines.count < 120 else { return }
+
+    var minW: gint = 0
+    var natW: gint = 0
+    var minH: gint = 0
+    var natH: gint = 0
+    gtk_widget_measure(node, GTK_ORIENTATION_HORIZONTAL, -1, &minW, &natW, nil, nil)
+    gtk_widget_measure(node, GTK_ORIENTATION_VERTICAL, proposedWidth, &minH, &natH, nil, nil)
+    var rootX = 0.0
+    var rootY = 0.0
+    _ = gtk_widget_translate_coordinates(node, root, 0, 0, &rootX, &rootY)
+    let indent = String(repeating: "  ", count: depth)
+    lines.append(
+        "\(indent)\(String(cString: g_type_name(gtk_swift_get_widget_type(node)))) alloc=\(gtk_widget_get_width(node))x\(gtk_widget_get_height(node)) origin=\(Int(rootX)),\(Int(rootY)) nat=\(natW)x\(natH) min=\(minW)x\(minH) hex=\(gtk_widget_get_hexpand(node)) vex=\(gtk_widget_get_vexpand(node)) margins=\(gtk_widget_get_margin_start(node)),\(gtk_widget_get_margin_top(node)),\(gtk_widget_get_margin_end(node)),\(gtk_widget_get_margin_bottom(node))"
+    )
+
+    var child = gtk_widget_get_first_child(node)
+    while let current = child {
+        gtkCollectDebugRowTreeLines(
+            node: current,
+            root: root,
+            proposedWidth: proposedWidth,
+            depth: depth + 1,
+            lines: &lines
+        )
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private final class GTKWidthResolvedHeightContext {
+    var lastWidth: gint = -1
+    var lastHeight: gint = -1
+}
+
+private let gtkWidthResolvedHeightTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 0 }
+    let context = Unmanaged<GTKWidthResolvedHeightContext>.fromOpaque(userData).takeUnretainedValue()
+    let width = gtk_widget_get_width(widget)
+    guard width > 1, width != context.lastWidth else { return 1 }
+
+    context.lastWidth = width
+    var minimumHeight: gint = 0
+    var naturalHeight: gint = 0
+    gtk_widget_measure(
+        widget,
+        GTK_ORIENTATION_VERTICAL,
+        width,
+        &minimumHeight,
+        &naturalHeight,
+        nil,
+        nil
+    )
+    let resolvedHeight = max(gint(1), minimumHeight, naturalHeight)
+    guard resolvedHeight != context.lastHeight else { return 1 }
+
+    context.lastHeight = resolvedHeight
+    let requestedWidth: gint = gtkHasLayoutMarker(
+        widget,
+        key: gtkSwiftHorizontallyCompressibleFixedSizeMarker
+    ) ? 1 : -1
+    gtk_widget_set_size_request(widget, requestedWidth, resolvedHeight)
+    gtk_widget_queue_resize(widget)
+    return 1
+}
+
+private func gtkInstallWidthResolvedHeight(on widget: UnsafeMutablePointer<GtkWidget>) {
+    let context = GTKWidthResolvedHeightContext()
+    let contextPtr = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkWidthResolvedHeightTickCallback,
+        contextPtr,
+        { userData in Unmanaged<GTKWidthResolvedHeightContext>.fromOpaque(userData!).release() }
     )
 }
 
@@ -234,8 +504,8 @@ private var gtkStateTypeCounters: [String: [String: Int]] = [:]
 private var gtkForcedStateIdentityNamespace: String?
 
 private func gtkStateIdentityNamespace() -> String {
-    GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace
-        ?? gtkForcedStateIdentityNamespace
+    gtkForcedStateIdentityNamespace
+        ?? GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace
         ?? "root"
 }
 
@@ -282,17 +552,32 @@ func gtkClaimStateIdentityNamespace(_ kind: String) -> String {
     return "\(namespace)::\(marker)#\(index)"
 }
 
+private func gtkForEachStateIdentityComponent<ID: Hashable>(for id: ID) -> String {
+    "ForEach[\(String(reflecting: AnyHashable(id)))]"
+}
+
+private func gtkWithStateIdentityNamespaceComponent<T>(_ component: String, _ body: () -> T) -> T {
+    let previous = gtkForcedStateIdentityNamespace
+    let namespace = "\(gtkStateIdentityNamespace())::\(component)"
+    gtkForcedStateIdentityNamespace = namespace
+    gtkStateTypeCounters[namespace] = [:]
+    gtkMountTypeCounters[namespace] = [:]
+    defer { gtkForcedStateIdentityNamespace = previous }
+    return body()
+}
+
 /// Runs a deferred render under a captured namespace, starting a fresh
 /// counter pass for it so keys inside the subtree are stable per render.
 func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T {
     let previous = gtkForcedStateIdentityNamespace
     gtkForcedStateIdentityNamespace = namespace
     gtkStateTypeCounters[namespace] = [:]
+    gtkMountTypeCounters[namespace] = [:]
     defer { gtkForcedStateIdentityNamespace = previous }
     return body()
 }
 
-private func gtkStateCacheKey<V>(for view: V) -> String {
+private func gtkNextStateIdentityKey<V>(for view: V) -> String {
     let namespace = gtkStateIdentityNamespace()
     let typeName = String(reflecting: type(of: view))
     var counters = gtkStateTypeCounters[namespace] ?? [:]
@@ -300,6 +585,10 @@ private func gtkStateCacheKey<V>(for view: V) -> String {
     counters[typeName] = index + 1
     gtkStateTypeCounters[namespace] = counters
     return "\(namespace)::\(typeName)#\(index)"
+}
+
+private func gtkStateCacheKey<V>(for view: V) -> String {
+    gtkNextStateIdentityKey(for: view)
 }
 
 private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
@@ -329,6 +618,86 @@ private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
     gtkStateCache[key] = providers.map { $0.anyStorage }
 }
 
+private func gtkRestoreAndInstallInlineState<V>(_ view: V, host: AnyViewHost?) -> String {
+    let key = gtkStateCacheKey(for: view)
+    let mirror = Mirror(reflecting: view)
+    let providers = mirror.children.compactMap { $0.value as? AnyStateStorageProvider }
+
+    if !providers.isEmpty {
+        gtkDebugLog("inline state install type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
+        if let cached = gtkStateCache[key], cached.count == providers.count {
+            for (provider, old) in zip(providers, cached) {
+                provider.anyStorage.restoreValue(from: old)
+                old.forwardMutations(to: provider.anyStorage)
+            }
+        }
+        gtkStateCache[key] = providers.map { $0.anyStorage }
+    }
+
+    if let host {
+        installState(view, host: host)
+    }
+
+    return key
+}
+
+private struct GTKStateNamespaceView<Content: View>: View {
+    typealias Body = Never
+
+    let component: String
+    let content: Content
+
+    var body: Never { fatalError("GTKStateNamespaceView is a primitive view") }
+}
+
+private protocol GTKStateNamespaceActionProvider {
+    var gtkStateNamespaceComponent: String { get }
+    var gtkStateNamespaceContent: any View { get }
+}
+
+extension GTKStateNamespaceView: GTKStateNamespaceActionProvider {
+    fileprivate var gtkStateNamespaceComponent: String { component }
+    fileprivate var gtkStateNamespaceContent: any View { content }
+}
+
+private protocol GTKBackgroundActionProvider {
+    var gtkPrimaryActionBackground: any View { get }
+    var gtkPrimaryActionContent: any View { get }
+}
+
+extension BackgroundView: GTKBackgroundActionProvider {
+    fileprivate var gtkPrimaryActionBackground: any View { background }
+    fileprivate var gtkPrimaryActionContent: any View { content }
+}
+
+private protocol GTKOverlayActionProvider {
+    var gtkPrimaryActionContent: any View { get }
+    var gtkPrimaryActionOverlay: any View { get }
+}
+
+extension OverlayView: GTKOverlayActionProvider {
+    fileprivate var gtkPrimaryActionContent: any View { content }
+    fileprivate var gtkPrimaryActionOverlay: any View { overlay }
+}
+
+extension GTKStateNamespaceView: GTKRenderable, GTKDescribable {
+    func gtkCreateWidget() -> OpaquePointer {
+        gtkWithStateIdentityNamespaceComponent(component) {
+            gtkRenderView(content)
+        }
+    }
+
+    func gtkDescribeNode() -> GTK4DescriptorNode {
+        gtkWithStateIdentityNamespaceComponent(component) {
+            GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStateNamespaceView<\(component)>",
+                children: [gtkDescribeView(content)]
+            )
+        }
+    }
+}
+
 // MARK: - Rendering dispatch
 
 /// Render any SwiftOpenUI View into a GTK widget pointer.
@@ -339,26 +708,33 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return MainActor.assumeIsolated { renderable.gtkCreateWidget() }
     }
 
-    // MultiChildView (TupleView4-12, Group, ForEach, etc.) — render children
+    // Transparent multi-child views (ViewList, TupleView, Group, ForEach, etc.)
+    // render their children directly. Layout containers that also expose
+    // children for introspection (HStack/VStack/ZStack/GridRow) must keep their
+    // own renderer; flattening them changes their layout semantics.
     // into a vertical box.  This must come before the reactive/body checks
     // because these types have Body = Never.
-    if let multi = view as? MultiChildView {
+    if let multi = view as? any TransparentMultiChildView {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         var needsHExpand = false
         var needsVExpand = false
         var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
-        for child in multi.children {
+        for child in multi.children.flatMap({ gtkLayoutChildViews(from: $0) }) {
             let widget = widgetFromOpaque(gtkRenderAnyView(child))
+            if gtkIsEmptyViewWidget(widget) { continue }
             renderedChildren.append(widget)
             if gtk_widget_get_hexpand(widget) != 0 {
                 needsHExpand = true
                 gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
             }
-            if gtk_widget_get_vexpand(widget) != 0 {
-                needsVExpand = true
-                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
-            }
-            gtk_box_append(boxPointer(box), widget)
+        if gtk_widget_get_vexpand(widget) != 0 {
+            needsVExpand = true
+            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        }
+        gtk_box_append(boxPointer(box), widget)
+        }
+        if renderedChildren.isEmpty {
+            return opaqueFromWidget(gtkCreateEmptyViewWidget())
         }
         gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)
         if needsHExpand { gtk_widget_set_hexpand(box, 1) }
@@ -371,10 +747,14 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return gtkRenderStatefulView(view)
     }
 
-    // Stateless composite view — recurse through body. View.body is
-    // @MainActor (Apple semantics); the GTK renderer runs on the GTK main
-    // loop == main thread, so the hop is sound.
-    return MainActor.assumeIsolated { gtkRenderView(view.body) }
+    // Stateless composite view — recurse through body under its own namespace.
+    // Stateful descendants must keep the same structural key whether their
+    // ancestors are rendered from a fresh existential path (e.g. TabView pages)
+    // or from a ViewHost rebuild.
+    let namespace = gtkNextStateIdentityKey(for: view)
+    return gtkWithForcedStateIdentityNamespace(namespace) {
+        MainActor.assumeIsolated { gtkRenderView(view.body) }
+    }
 }
 
 /// Render children from a view.
@@ -382,13 +762,19 @@ public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? GTKMultiChildRenderable {
         return MainActor.assumeIsolated { multi.gtkRenderChildren() }
     }
-    if let multi = view as? MultiChildView {
-        return multi.children.map { child in
+    if let keyedRows = view as? GTKKeyedListRowProducer {
+        return keyedRows.gtkKeyedListRows(depth: 0).flatMap { child in
             func render<C: View>(_ c: C) -> OpaquePointer { gtkRenderView(c) }
-            return render(child)
+            return gtkLayoutChildViews(from: child).map { render($0) }
         }
     }
-    return [gtkRenderView(view)]
+    if let multi = view as? any TransparentMultiChildView {
+        return multi.children.flatMap { child in
+            func render<C: View>(_ c: C) -> OpaquePointer { gtkRenderView(c) }
+            return gtkLayoutChildViews(from: child).map { render($0) }
+        }
+    }
+    return gtkLayoutChildViews(from: view).map { gtkRenderAnyView($0) }
 }
 
 /// Render an existential (any View).
@@ -402,8 +788,24 @@ private struct GTKLayoutMeasureContext: LayoutMeasureContext {
 
     func measure(_ subview: LayoutSubview, proposal: ProposedViewSize) -> LayoutMeasurement {
         let widget = widgets[subview.index]
+        let widthProposal: gint = if let width = proposal.width, width.isFinite {
+            gtkPixelSize(width)
+        } else {
+            -1
+        }
+        let heightProposal: gint = if let height = proposal.height, height.isFinite {
+            gtkPixelSize(height)
+        } else {
+            -1
+        }
+        var widthMin: gint = 0
+        var widthNat: gint = 0
+        var heightMin: gint = 0
+        var heightNat: gint = 0
+        gtk_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, heightProposal, &widthMin, &widthNat, nil, nil)
+        gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, widthProposal, &heightMin, &heightNat, nil, nil)
         return LayoutMeasurement(
-            size: gtkMeasureWidgetNaturalSize(widget),
+            size: ViewSize(width: Double(max(widthMin, widthNat)), height: Double(max(heightMin, heightNat))),
             expandsToFillWidth: gtk_widget_get_hexpand(widget) != 0,
             expandsToFillHeight: gtk_widget_get_vexpand(widget) != 0
         )
@@ -478,17 +880,64 @@ func bindTaskActionToCurrentEnvironment(
     }
 }
 
+private func gtkDisplayTextContent(_ text: String) -> String {
+    // U+2E31 is a valid word-separator middle dot used by some SwiftUI apps,
+    // but common Linux GTK font stacks render it as tofu. U+00B7 preserves the
+    // visual intent and is broadly available.
+    text.replacingOccurrences(of: "\u{2E31}", with: "\u{00B7}")
+}
+
+private func gtkPangoMarkup(for text: String, foregroundColor: Color? = nil) -> String {
+    let displayText = gtkDisplayTextContent(text)
+    func span(_ markup: String, color: Color?) -> String {
+        guard let color else { return markup }
+        return "<span foreground=\"\(gtkPangoColorHex(color))\">\(markup)</span>"
+    }
+
+    guard QuillInlineImageText.containsMarker(displayText) else {
+        return span(gtkEscapeMarkup(displayText), color: foregroundColor)
+    }
+
+    return QuillInlineImageText.parse(displayText).map { segment in
+        switch segment {
+        case .text(let text):
+            return span(gtkEscapeMarkup(text), color: foregroundColor)
+        case .image(let token):
+            guard let materialName = gtkMaterialNameForInlineImage(token) else {
+                return ""
+            }
+            let familyName = gtkEscapeMarkup(MaterialSymbolsRoundedFamilyName)
+            let escapedName = gtkEscapeMarkup(materialName)
+            return span(
+                "<span font_family=\"\(familyName)\">\(escapedName)</span>",
+                color: foregroundColor
+            )
+        }
+    }.joined()
+}
+
+private func gtkMaterialNameForInlineImage(_ token: QuillInlineImageText.Token) -> String? {
+    switch token.kind {
+    case .systemName:
+        return gtkMaterialNameForSystemImage(token.name)
+    case .material:
+        return token.name
+    case .filePath:
+        return nil
+    }
+}
+
 // MARK: - View GTK extensions
 
 extension Text: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
-        // Plain Text keeps the original gtk_label_new(content) fast path
-        // verbatim; colored / multi-run Text additionally overrides it with
-        // Pango markup, so plain text rendering is byte-for-byte unchanged.
-        let label = gtk_label_new(content)!
-        if hasStyledRuns {
-            gtk_swift_label_set_markup(label, pangoMarkup())
+        let displayContent = gtkDisplayTextContent(content)
+        let label = gtk_label_new(displayContent)!
+        let inheritedForeground = gtkCurrentForegroundColorIfSet()
+        if hasStyledRuns || QuillInlineImageText.containsMarker(content) || inheritedForeground != nil {
+            gtk_swift_label_set_markup(label, pangoMarkup(defaultColor: inheritedForeground))
         }
+        gtkPrepareRowTextLabel(label, text: displayContent)
         gtk_swift_label_set_xalign(label, 0)
         gtk_swift_label_set_yalign(label, 0.5)
         // SwiftUI Text wraps to intrinsic size — prevent GTK expansion.
@@ -500,16 +949,10 @@ extension Text: GTKRenderable, GTKDescribable {
 
     /// Pango markup for styled runs: each colored run becomes a
     /// `<span foreground='#RRGGBB'>…</span>`; plain runs pass through escaped.
-    private func pangoMarkup() -> String {
+    private func pangoMarkup(defaultColor: Color? = nil) -> String {
         runs.map { run in
-            let escaped = run.text
-                .replacingOccurrences(of: "&", with: "&amp;")
-                .replacingOccurrences(of: "<", with: "&lt;")
-                .replacingOccurrences(of: ">", with: "&gt;")
-            guard let color = run.color else { return escaped }
-            let hex = String(format: "#%02X%02X%02X",
-                             Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255))
-            return "<span foreground='\(hex)'>\(escaped)</span>"
+            let color = run.color ?? defaultColor
+            return gtkPangoMarkup(for: run.text, foregroundColor: color)
         }.joined()
     }
 
@@ -521,7 +964,7 @@ extension Text: GTKRenderable, GTKDescribable {
 
 extension EmptyView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        opaqueFromWidget(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!)
+        opaqueFromWidget(gtkCreateEmptyViewWidget())
     }
 }
 
@@ -799,6 +1242,7 @@ extension Color: GTKRenderable, GTKDescribable {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(box, 1)
         gtk_widget_set_vexpand(box, 1)
+        gtkMarkVerticalFillIntent(box)
         let css = String(format: "background-color: rgba(%d, %d, %d, %.3f);",
                          Int(red * 255), Int(green * 255), Int(blue * 255), alpha)
         applyCSSToWidget(box, properties: css)
@@ -822,6 +1266,36 @@ private func gtkDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWi
     }
 }
 
+private let gtkSwiftMenuOwnerButtonKey = "gtk-swift-menu-owner-button"
+
+private func gtkMarkMenuOwner(
+    under widget: UnsafeMutablePointer<GtkWidget>,
+    menuButton: UnsafeMutablePointer<GtkWidget>,
+    depth: Int = 0
+) {
+    guard depth < 160, gtk_swift_is_widget(widget) != 0 else { return }
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(object, gtkSwiftMenuOwnerButtonKey, gpointer(menuButton))
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkMarkMenuOwner(under: current, menuButton: menuButton, depth: depth + 1)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkMenuOwnerButton(
+    for widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let raw = g_object_get_data(object, gtkSwiftMenuOwnerButtonKey) else {
+        return nil
+    }
+    let owner = raw.assumingMemoryBound(to: GtkWidget.self)
+    guard gtk_swift_is_widget(owner) != 0 else { return nil }
+    return owner
+}
+
 private func gtkDebugLog(_ message: String) {
     guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
         return
@@ -831,8 +1305,17 @@ private func gtkDebugLog(_ message: String) {
     }
 }
 
+private func gtkDebugGeometryLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_GEOMETRY"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK Geometry] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 private final class GTKButtonActionBox {
-    let action: () -> Void
+    var action: () -> Void
     var lastActivationTime: TimeInterval = 0
 
     init(_ action: @escaping () -> Void) {
@@ -940,13 +1423,501 @@ func gtkTestSetCustomButtonStylePressed(_ widget: UnsafeMutablePointer<GtkWidget
 
 /// Debug-only: tags a button activation source with the widget's root-frame
 /// so QUILLUI_GTK_DEBUG_ACTIONS logs identify WHICH button fired.
+private func gtkDebugButtonAncestorChain(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 18 {
+        var rootX = 0.0
+        var rootY = 0.0
+        _ = gtk_widget_translate_coordinates(node, root, 0, 0, &rootX, &rootY)
+        var minimumWidth: gint = 0
+        var naturalWidth: gint = 0
+        gtk_swift_widget_measure(node, GTK_ORIENTATION_HORIZONTAL, -1, &minimumWidth, &naturalWidth)
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(node)))
+        gtkDebugLog(
+            "button ancestor[\(depth)] \(typeName) @\(Int(rootX)),\(Int(rootY)) \(gtk_widget_get_width(node))x\(gtk_widget_get_height(node)) naturalW=\(naturalWidth) minW=\(minimumWidth) hexpand=\(gtk_widget_get_hexpand(node)) halign=\(gtk_widget_get_halign(node).rawValue)"
+        )
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+}
+
 private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String {
     guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return source }
     guard gtk_swift_is_widget(widget) != 0, let root = gtk_swift_widget_root_widget(widget) else { return source }
     var rootX = 0.0
     var rootY = 0.0
     guard gtk_widget_translate_coordinates(widget, root, 0, 0, &rootX, &rootY) != 0 else { return source }
+    if source.hasPrefix("root-legacy@") {
+        gtkDebugButtonAncestorChain(widget)
+    }
     return "\(source)@\(Int(rootX)),\(Int(rootY)) \(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
+}
+
+private func gtkWidgetCumulativeOffset(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>
+) -> (x: Double, y: Double) {
+    var offsetX = 0.0
+    var offsetY = 0.0
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 64 {
+        offsetX += getWidgetDouble(node, key: gtkSwiftOffsetXKey) ?? 0
+        offsetY += getWidgetDouble(node, key: gtkSwiftOffsetYKey) ?? 0
+        if node == root { break }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+    return (offsetX, offsetY)
+}
+
+private func gtkWidgetVisuallyContainsRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    guard let frame = gtkWidgetVisualFrameInRoot(widget, root: root) else { return false }
+    let localX = x - frame.x
+    let localY = y - frame.y
+    return localX >= 0 && localX < frame.width && localY >= 0 && localY < frame.height
+}
+
+private func gtkWidgetOrDescendantVisuallyContainsRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> Bool {
+    guard depth < 96 else { return false }
+    guard gtk_widget_get_visible(widget) != 0 else { return false }
+    if gtkWidgetVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return true
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if gtkWidgetOrDescendantVisuallyContainsRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return false
+}
+
+private func gtkWidgetVisualFrameInRoot(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>
+) -> (x: Double, y: Double, width: Double, height: Double)? {
+    let offset = gtkWidgetCumulativeOffset(widget, root: root)
+
+    var boundsX = 0.0
+    var boundsY = 0.0
+    var boundsWidth = 0.0
+    var boundsHeight = 0.0
+    if gtk_swift_widget_compute_bounds(
+        widget,
+        root,
+        &boundsX,
+        &boundsY,
+        &boundsWidth,
+        &boundsHeight
+    ) != 0,
+       boundsWidth > 0,
+       boundsHeight > 0 {
+        return (
+            boundsX + offset.x,
+            boundsY + offset.y,
+            boundsWidth,
+            boundsHeight
+        )
+    }
+
+    let width = Double(gtk_widget_get_width(widget))
+    let height = Double(gtk_widget_get_height(widget))
+    guard width > 0, height > 0 else { return nil }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_swift_widget_compute_point(widget, root, 0, 0, &rootX, &rootY) != 0 else {
+        return nil
+    }
+    return (rootX + offset.x, rootY + offset.y, width, height)
+}
+
+private func gtkDebugVisualFrameDescription(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>
+) -> String {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return "" }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    let state = "visible=\(gtk_widget_get_visible(widget)) mapped=\(gtk_widget_get_mapped(widget))"
+    guard let frame = gtkWidgetVisualFrameInRoot(widget, root: root) else {
+        return "type=\(typeName) frame=nil \(state) size=\(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
+    }
+    return "type=\(typeName) frame=\(Int(frame.x)),\(Int(frame.y)) \(Int(frame.width))x\(Int(frame.height)) \(state)"
+}
+
+private func gtkWidgetTreeContainsVisualButtonAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> Bool {
+    guard depth < 96 else { return false }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return false }
+    if let menuButton = gtkMenuOwnerButton(for: widget),
+       gtk_widget_get_visible(menuButton) != 0,
+       gtk_widget_get_sensitive(menuButton) != 0,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        gtkDebugLog("visual button hit menu owner root@\(Int(x)),\(Int(y))")
+        return true
+    }
+    let isButton = gtk_swift_widget_is_button(widget) != 0
+    if isButton {
+        guard let frame = gtkWidgetVisualFrameInRoot(widget, root: root),
+              frame.width >= 1,
+              frame.height >= 1 else {
+            gtkDebugVisualButtonCandidate(widget, root: root, x: x, y: y, isHit: false, frame: nil)
+            return false
+        }
+        let localX = x - frame.x
+        let localY = y - frame.y
+        let isHit = localX >= 0 && localX < frame.width && localY >= 0 && localY < frame.height
+        gtkDebugVisualButtonCandidate(widget, root: root, x: x, y: y, isHit: isHit, frame: frame)
+        if isHit {
+            return true
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if gtkWidgetTreeContainsVisualButtonAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return false
+}
+
+private func gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 96 else { return nil }
+    if let menuButton = gtkMenuOwnerButton(for: widget),
+       gtk_widget_get_visible(menuButton) != 0,
+       gtk_widget_get_sensitive(menuButton) != 0,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        gtkDebugLog("visual menu owner hit root@\(Int(x)),\(Int(y))")
+        return menuButton
+    }
+    if gtk_swift_widget_is_menu_button(widget) != 0,
+       gtk_widget_get_visible(widget) != 0,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private final class GTKMenuPopupRootPointContext {
+    let root: UnsafeMutablePointer<GtkWidget>
+    let x: Double
+    let y: Double
+    let source: String
+
+    init(root: UnsafeMutablePointer<GtkWidget>, x: Double, y: Double, source: String) {
+        self.root = root
+        self.x = x
+        self.y = y
+        self.source = source
+    }
+}
+
+private func gtkScheduleVisualMenuButtonPopup(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    let context = Unmanaged.passRetained(
+        GTKMenuPopupRootPointContext(root: root, x: x, y: y, source: source)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKMenuPopupRootPointContext>
+            .fromOpaque(userData)
+            .takeRetainedValue()
+        let menuButton = gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
+            context.root,
+            root: context.root,
+            x: context.x,
+            y: context.y
+        ) ?? gtk_swift_root_point_pick_menu_button(context.root, context.x, context.y)
+        guard let menuButton else {
+            gtkDebugLog("list row tap missed visual menu button \(context.source)")
+            return 0
+        }
+        if gtkOpenMenuOverlay(menuButton: menuButton, root: context.root, source: context.source) {
+            return 0
+        }
+        let visible = gtk_swift_menu_button_popup_if_closed(menuButton) != 0
+        gtkDebugLog("list row tap opened visual menu button \(context.source) visible=\(visible)")
+        return 0
+    }, context)
+}
+
+private func gtkDebugVisualButtonCandidate(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    isHit: Bool,
+    frame: (x: Double, y: Double, width: Double, height: Double)?
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    guard isHit || frame != nil else { return }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    let frameText: String
+    if let frame {
+        frameText = "\(Int(frame.x)),\(Int(frame.y)) \(Int(frame.width))x\(Int(frame.height))"
+    } else {
+        var rootX = 0.0
+        var rootY = 0.0
+        _ = gtk_widget_translate_coordinates(widget, root, 0, 0, &rootX, &rootY)
+        let offset = gtkWidgetCumulativeOffset(widget, root: root)
+        frameText = "\(Int(rootX + offset.x)),\(Int(rootY + offset.y)) \(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
+    }
+    gtkDebugLog(
+        "visual button candidate hit=\(isHit) point=\(Int(x)),\(Int(y)) type=\(typeName) frame=\(frameText)"
+    )
+}
+
+private func gtkOpenVisualMenuButtonAtWidgetPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return false }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(widget, root, x, y, &rootX, &rootY) != 0 else {
+        return false
+    }
+    return gtkOpenVisualMenuButtonAtRootPoint(root: root, x: rootX, y: rootY, source: source)
+}
+
+private func gtkRootTreeContainsVisualButtonAtWidgetPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return false }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(widget, root, x, y, &rootX, &rootY) != 0 else {
+        return false
+    }
+    return gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: rootX, y: rootY)
+}
+
+private func gtkWidgetTreeContainsVisualTapActionAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> Bool {
+    guard depth < 160 else { return false }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return false }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if gtkWidgetTreeContainsVisualTapActionAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    guard gtk_swift_widget_is_button(widget) == 0,
+          gtk_swift_widget_is_menu_button(widget) == 0,
+          gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
+          let actionData = g_object_get_data(
+              UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+              gtkTapGestureActionDataKey
+          )
+    else {
+        return false
+    }
+
+    let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
+    return box.requiredCount == 1
+}
+
+private func gtkRootTreeContainsVisualTapActionAtWidgetPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return false }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(widget, root, x, y, &rootX, &rootY) != 0 else {
+        return false
+    }
+    return gtkWidgetTreeContainsVisualTapActionAtRootPoint(root, root: root, x: rootX, y: rootY)
+}
+
+func gtkTestWidgetVisuallyContainsRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkWidgetVisuallyContainsRootPoint(widget, root: root, x: x, y: y)
+}
+
+func gtkTestWidgetTreeContainsVisualButtonAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkWidgetTreeContainsVisualButtonAtRootPoint(widget, root: root, x: x, y: y)
+}
+
+func gtkTestWidgetTreeContainsVisualTapActionAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkWidgetTreeContainsVisualTapActionAtRootPoint(widget, root: root, x: x, y: y)
+}
+
+func gtkTestPreferredTapActionMatchesWidgetTapData(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    guard let widgetBox = gtkTapGestureActionBox(from: widget),
+          let preferredBox = gtkPreferredTapGestureActionBoxAtRootPoint(root: root, x: x, y: y)
+    else {
+        return false
+    }
+    return widgetBox === preferredBox
+}
+
+func gtkTestFindVisualMenuButtonAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkWidgetTreeFindVisualMenuButtonAtRootPoint(widget, root: root, x: x, y: y)
+}
+
+func gtkTestMenuOwnerButton(
+    for widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkMenuOwnerButton(for: widget)
+}
+
+func gtkSetButtonAction(slotID: Int, action: @escaping () -> Void) -> Bool {
+    guard let widget = gtkWidgetFromSlotID(slotID) else { return false }
+    guard gtk_swift_is_widget(widget) != 0 else { return false }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let raw = g_object_get_data(gobject, gtkSwiftButtonActionBoxDataKey) else {
+        return false
+    }
+    let box = Unmanaged<GTKButtonActionBox>.fromOpaque(raw).takeUnretainedValue()
+    box.action = action
+    return true
+}
+
+func gtkTestSetButtonAction(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    action: @escaping () -> Void
+) -> Bool {
+    gtkSetButtonAction(slotID: gtkNativeSlotID(for: widget), action: action)
+}
+
+func gtkTestActivateButton(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    guard gtk_swift_is_widget(widget) != 0 else { return false }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let raw = g_object_get_data(gobject, gtkSwiftButtonActionBoxDataKey) else {
+        return false
+    }
+    let box = Unmanaged<GTKButtonActionBox>.fromOpaque(raw).takeUnretainedValue()
+    gtkScheduleButtonAction(box, source: "test")
+    return true
+}
+
+func gtkTestActivateCollapsedListRowControlAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkActivateCollapsedListRowControlAtRootPoint(root: root, x: x, y: y, source: "test")
+}
+
+func gtkTestDismissActiveMenuOverlay() {
+    gtkDismissActiveMenuOverlay()
+}
+
+func gtkTestHasActiveMenuOverlay() -> Bool {
+    gtkActiveMenuOverlayState != nil
+}
+
+func gtkTestActiveMenuOverlayLayerTypeName() -> String? {
+    guard let layer = gtkActiveMenuOverlayLayer else { return nil }
+    return String(cString: g_type_name(gtk_swift_get_widget_type(layer)))
 }
 
 private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
@@ -987,9 +1958,14 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
-            guard isTopmost else { return 0 }
-            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\(Int(x)),\(Int(y))", widget: context.widget))
+            let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
+            guard isTopmost || isVisualHit else { return 0 }
+            let source = isTopmost ? "root-legacy" : "root-visual"
+            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("\(source)@\(Int(x)),\(Int(y))", widget: context.widget))
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
@@ -1001,12 +1977,11 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
 
 extension Button: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        // Opaque stable leaf — Button action closures are captured at widget
-        // creation and do not need descriptor-level mutation.  Declaring a
-        // dedicated kind prevents the narrow-mutation guard from rejecting
-        // the entire tree when a Button appears alongside mutable nodes
-        // (Canvas, Text, Slider, etc.).
-        GTK4DescriptorNode(kind: .button, typeName: "Button")
+        gtkCollectButtonPayload(GTK4ButtonPayload(action: bindActionToCurrentEnvironment(action)))
+        // Opaque stable leaf. The descriptor payload collector captures the
+        // current action closure and the host refreshes reused GtkButtons
+        // during narrow mutation, so model-dependent actions do not go stale.
+        return GTK4DescriptorNode(kind: .button, typeName: "Button")
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
@@ -1164,6 +2139,11 @@ extension Button: GTKRenderable, GTKDescribable {
 
         let boundAction = bindActionToCurrentEnvironment(action)
         let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        g_object_set_data(
+            UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
+            gtkSwiftButtonActionBoxDataKey,
+            buttonActionBox
+        )
         let buttonRootEventContext = Unmanaged.passRetained(
             GTKButtonRootEventContext(
                 widget: button,
@@ -1177,6 +2157,18 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 gtkInstallButtonRootEventFallback(context)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            buttonRootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(button),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                context.removeController()
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -1560,8 +2552,13 @@ extension VStack: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let effectiveSpacing = gtkVStackSpacing(spacing)
-        let children = gtkRenderChildren(content).map(widgetFromOpaque)
-        if gtkCanUseSharedVStackLayout(children) {
+        let children = gtkRenderChildren(content)
+            .map(widgetFromOpaque)
+            .filter { !gtkIsEmptyViewWidget($0) }
+        if children.isEmpty {
+            return opaqueFromWidget(gtkCreateEmptyViewWidget())
+        }
+        if !gtkIsRenderingRowContent, gtkCanUseSharedVStackLayout(children) {
             return gtkRenderSharedVStack(children, spacing: effectiveSpacing, alignment: alignment)
         }
 
@@ -1665,8 +2662,24 @@ extension HStack: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let effectiveSpacing = resolveStackSpacing(spacing)
-        let children = gtkRenderChildren(content).map(widgetFromOpaque)
-        if gtkCanUseSharedHStackLayout(children) {
+        let childViews: [any View]
+        if let multi = content as? MultiChildView {
+            childViews = multi.children.flatMap { gtkLayoutChildViews(from: $0) }
+        } else {
+            childViews = gtkLayoutChildViews(from: content)
+        }
+        let children = gtkRenderChildren(content)
+            .map(widgetFromOpaque)
+            .filter { !gtkIsEmptyViewWidget($0) }
+        if children.isEmpty {
+            return opaqueFromWidget(gtkCreateEmptyViewWidget())
+        }
+        gtkDebugRowHStack(
+            contentType: String(reflecting: Swift.type(of: content)),
+            childViews: childViews,
+            widgets: children
+        )
+        if !gtkIsRenderingRowContent, gtkCanUseSharedHStackLayout(children) {
             return gtkRenderSharedHStack(children, spacing: effectiveSpacing, alignment: alignment)
         }
 
@@ -1753,7 +2766,12 @@ private func gtkRenderFallbackHStack(
             gtk_widget_set_hexpand(widget, 0)
             gtk_widget_set_vexpand(widget, 1)
         }
-        if gtk_widget_get_hexpand(widget) != 0 { needsHExpand = true; gtk_widget_set_halign(widget, GTK_ALIGN_FILL) }
+        if gtk_widget_get_hexpand(widget) != 0 {
+            needsHExpand = true
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        } else {
+            gtk_widget_set_halign(widget, GTK_ALIGN_START)
+        }
         if gtk_widget_get_vexpand(widget) != 0 {
             needsVExpand = true
             gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
@@ -1765,6 +2783,35 @@ private func gtkRenderFallbackHStack(
     if needsHExpand { gtk_widget_set_hexpand(box, 1) }
     if needsVExpand { gtk_widget_set_vexpand(box, 1) }
     return opaqueFromWidget(box)
+}
+
+private func gtkDebugRowHStack(
+    contentType: String,
+    childViews: [any View],
+    widgets: [UnsafeMutablePointer<GtkWidget>]
+) {
+    let debugHStacks = ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_HSTACK"]
+    guard debugHStacks == "1" || debugHStacks == "all" else {
+        return
+    }
+    let viewTypes = childViews.map { String(reflecting: Swift.type(of: $0)) }.joined(separator: ", ")
+    guard debugHStacks == "all"
+            || viewTypes.contains("StatusActionButton")
+            || viewTypes.contains("ShareLink")
+            || viewTypes.contains("StatusRowActionsView")
+            || viewTypes.contains("Menu") else {
+        return
+    }
+    let widgetInfo = widgets.enumerated().map { index, widget -> String in
+        var minW: gint = 0
+        var natW: gint = 0
+        var minH: gint = 0
+        var natH: gint = 0
+        gtk_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &minW, &natW, nil, nil)
+        gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &minH, &natH, nil, nil)
+        return "#\(index):hex=\(gtk_widget_get_hexpand(widget)) vex=\(gtk_widget_get_vexpand(widget)) nat=\(natW)x\(natH)"
+    }.joined(separator: "; ")
+    gtkListDebugLog("hstack content=\(contentType) views=[\(viewTypes)] widgets=[\(widgetInfo)]")
 }
 
 extension ZStack: GTKRenderable, GTKDescribable {
@@ -1783,8 +2830,13 @@ extension ZStack: GTKRenderable, GTKDescribable {
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
-        let children = gtkRenderChildren(content).map(widgetFromOpaque)
-        if gtkCanUseSharedZStackLayout(children) {
+        let children = gtkRenderChildren(content)
+            .map(widgetFromOpaque)
+            .filter { !gtkIsEmptyViewWidget($0) }
+        if children.isEmpty {
+            return opaqueFromWidget(gtkCreateEmptyViewWidget())
+        }
+        if !gtkIsRenderingRowContent, gtkCanUseSharedZStackLayout(children) {
             return gtkRenderSharedZStack(children, alignment: alignment)
         }
 
@@ -1851,14 +2903,20 @@ private func gtkRenderFallbackZStack(
             }
             first = false
         } else {
+            let overlayWantsVerticalFill =
+                gtk_widget_get_vexpand(widget) != 0 && gtkHasVerticalFillIntent(widget)
             // Align non-expanding overlays according to the ZStack alignment.
             if gtk_widget_get_hexpand(widget) == 0 {
                 gtk_widget_set_halign(widget, hAlign)
             }
-            if gtk_widget_get_vexpand(widget) == 0 {
+            if overlayWantsVerticalFill {
+                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+            } else {
+                gtk_widget_set_vexpand(widget, 0)
                 gtk_widget_set_valign(widget, vAlign)
             }
             gtk_overlay_add_overlay(OpaquePointer(overlay), widget)
+            gtk_swift_overlay_set_measure_overlay(overlay, widget, 1)
         }
     }
     return opaqueFromWidget(overlay)
@@ -1872,6 +2930,7 @@ extension Group: GTKRenderable {
         var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
         for child in gtkRenderChildren(content) {
             let widget = widgetFromOpaque(child)
+            if gtkIsEmptyViewWidget(widget) { continue }
             renderedChildren.append(widget)
             if gtk_widget_get_hexpand(widget) != 0 {
                 needsHExpand = true
@@ -1883,6 +2942,9 @@ extension Group: GTKRenderable {
             }
             gtk_box_append(boxPointer(box), widget)
         }
+        if renderedChildren.isEmpty {
+            return opaqueFromWidget(gtkCreateEmptyViewWidget())
+        }
         gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)
         if needsHExpand { gtk_widget_set_hexpand(box, 1) }
         if needsVExpand { gtk_widget_set_vexpand(box, 1) }
@@ -1890,14 +2952,33 @@ extension Group: GTKRenderable {
     }
 }
 
-extension ForEach: GTKRenderable {
+extension ForEach: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: String(describing: type(of: self)),
+            children: data.map { item in
+                gtkWithStateIdentityNamespaceComponent(
+                    gtkForEachStateIdentityComponent(for: item[keyPath: id])
+                ) {
+                    gtkDescribeView(content(item))
+                }
+            }
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         var needsHExpand = false
         var needsVExpand = false
         for item in data {
-            let childView = content(item)
-            let widget = widgetFromOpaque(gtkRenderView(childView))
+            let widget = widgetFromOpaque(
+                gtkWithStateIdentityNamespaceComponent(
+                    gtkForEachStateIdentityComponent(for: item[keyPath: id])
+                ) {
+                    gtkRenderView(content(item))
+                }
+            )
             // SwiftUI lays repeated vertical rows against the parent's
             // proposed width. This keeps ScrollView/List rows from collapsing
             // to their natural text width and then being centered.
@@ -1935,7 +3016,7 @@ extension Optional: GTKRenderable where Wrapped: View {
     public func gtkCreateWidget() -> OpaquePointer {
         switch self {
         case .some(let view): return gtkRenderView(view)
-        case .none: return opaqueFromWidget(gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!)
+        case .none: return opaqueFromWidget(gtkCreateEmptyViewWidget())
         }
     }
 }
@@ -1953,6 +3034,9 @@ extension PaddedView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let child = widgetFromOpaque(gtkRenderView(content))
+        if gtkIsEmptyViewWidget(child) {
+            return opaqueFromWidget(child)
+        }
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         // Use GTK widget margins (not CSS padding) for the spacing. CSS
         // padding-X in GTK4 interacts poorly with hexpand-distributed
@@ -1977,6 +3061,7 @@ extension PaddedView: GTKRenderable, GTKDescribable {
             gtk_widget_set_vexpand(wrapper, 1)
             gtk_widget_set_valign(child, GTK_ALIGN_FILL)
         }
+        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
         gtkMarkHostedNodeKind(wrapper, kind: .padding)
         gtk_box_append(boxPointer(wrapper), child)
         return opaqueFromWidget(wrapper)
@@ -1997,6 +3082,9 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let child = widgetFromOpaque(gtkRenderView(content))
+        if gtkIsEmptyViewWidget(child) {
+            return opaqueFromWidget(child)
+        }
         let childExpH = gtk_widget_get_hexpand(child) != 0
         let childExpV = gtk_widget_get_vexpand(child) != 0
 
@@ -2114,6 +3202,7 @@ extension FrameView: GTKRenderable, GTKDescribable {
         }
         if maxHeight != nil {
             gtk_widget_set_vexpand(wrapper, 1)
+            gtkMarkVerticalFillIntent(wrapper)
         }
         // Propagate child expand flags to wrapper when the frame doesn't
         // constrain that axis.  Without this, a Spacer inside an HStack
@@ -2123,6 +3212,9 @@ extension FrameView: GTKRenderable, GTKDescribable {
         }
         if height == nil && maxHeight == nil && gtk_widget_get_vexpand(child) != 0 {
             gtk_widget_set_vexpand(wrapper, 1)
+            if gtkHasVerticalFillIntent(child) {
+                gtkMarkVerticalFillIntent(wrapper)
+            }
         }
         gtk_box_append(boxPointer(slot), child)
         gtk_swift_fixed_put(
@@ -2180,7 +3272,7 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
         let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
-        if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
+        if widthMayGrowWithParent && !heightMayGrowWithParent {
             return gtkFrameFlexibleWidthFixedHeightClip(
                 child: child,
                 height: gtkPixelSize(layout.containerSize.height)
@@ -2204,6 +3296,9 @@ extension FrameView: GTKRenderable, GTKDescribable {
         }
         if heightMayGrowWithParent {
             gtk_widget_set_vexpand(wrapper, 1)
+            if maxHeight != nil || gtkHasVerticalFillIntent(child) {
+                gtkMarkVerticalFillIntent(wrapper)
+            }
         } else {
             // Explicit 0: alignment spacers inside the wrapper have
             // vexpand=1 for internal vertical centering. Without an
@@ -2356,12 +3451,18 @@ extension FrameView: GTKRenderable, GTKDescribable {
             let hexp: gint = (maxWidth != nil) ? 1 : 0
             gtk_widget_set_hexpand(wrapper, hexp)
             gtk_widget_set_vexpand(wrapper, 1)
+            if maxHeight != nil || gtkHasVerticalFillIntent(child) {
+                gtkMarkVerticalFillIntent(wrapper)
+            }
         } else {
             // Height constrained, width flexible
             gtk_widget_set_size_request(wrapper, -1, gtkPixelSize(layout.containerSize.height))
             let vexp: gint = (maxHeight != nil) ? 1 : 0
             gtk_widget_set_hexpand(wrapper, 1)
             gtk_widget_set_vexpand(wrapper, vexp)
+            if maxHeight != nil {
+                gtkMarkVerticalFillIntent(wrapper)
+            }
         }
 
         gtk_widget_set_halign(child, GTK_ALIGN_FILL)
@@ -2402,6 +3503,22 @@ extension ForegroundColorView: GTKRenderable, GTKDescribable {
     }
 }
 
+extension OptionalForegroundColorView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        guard let color else {
+            return gtkDescribeView(content)
+        }
+        return content.foregroundColor(color).gtkDescribeNode()
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        guard let color else {
+            return gtkRenderView(content)
+        }
+        return content.foregroundColor(color).gtkCreateWidget()
+    }
+}
+
 extension BackgroundView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         if let color = background as? Color {
@@ -2428,9 +3545,12 @@ extension BackgroundView: GTKRenderable, GTKDescribable {
         })
     }
 
-    public func gtkCreateWidget() -> OpaquePointer {
-        if let color = background as? Color {
-            let widget = widgetFromOpaque(gtkRenderView(content))
+	    public func gtkCreateWidget() -> OpaquePointer {
+	        if let color = background as? Color {
+	            let widget = widgetFromOpaque(gtkRenderView(content))
+	            if gtkIsEmptyViewWidget(widget) {
+	                return opaqueFromWidget(widget)
+            }
             applyCSSToWidget(widget, properties: "background-color: \(color.hex);")
             return opaqueFromWidget(widget)
         }
@@ -2439,10 +3559,29 @@ extension BackgroundView: GTKRenderable, GTKDescribable {
             return gtkRenderBackground(content: content, background: background, alignment: alignment)
         }
 
-        return gtkRenderView(ZStack(alignment: alignment) {
-            self.background
-            content
-        })
+	        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+	        if gtkIsEmptyViewWidget(contentWidget) {
+	            return opaqueFromWidget(contentWidget)
+	        }
+        let backgroundTapActionBox = gtkPrimaryTapAction(inAny: background).map {
+            GTKTapGestureActionBox(
+                requiredCount: 1,
+                action: $0,
+                source: String(reflecting: Swift.type(of: background))
+            )
+        }
+	        if let backgroundTapActionBox {
+	            gtkAttachTapGestureActionData(to: contentWidget, box: backgroundTapActionBox)
+	        }
+	        let fallback = gtkRenderFallbackBackground(
+	            contentWidget: contentWidget,
+	            background: background,
+	            alignment: alignment
+	        )
+	        if let backgroundTapActionBox {
+	            gtkAttachTapGestureActionData(to: widgetFromOpaque(fallback), box: backgroundTapActionBox)
+	        }
+	        return fallback
     }
 }
 
@@ -2458,6 +3597,9 @@ private func gtkRenderBackground<Content: View, Background: View>(
     alignment: Alignment
 ) -> OpaquePointer {
     let contentWidget = widgetFromOpaque(gtkRenderView(content))
+    if gtkIsEmptyViewWidget(contentWidget) {
+        return opaqueFromWidget(contentWidget)
+    }
 
     if let rounded = background as? FilledShape<RoundedRectangle> {
         return gtkRenderFilledShapeBackground(
@@ -2483,10 +3625,23 @@ private func gtkRenderBackground<Content: View, Background: View>(
         )
     }
 
-    return gtkRenderView(ZStack(alignment: alignment) {
-        background
-        content
-    })
+    return gtkRenderFallbackBackground(
+        contentWidget: contentWidget,
+        background: background,
+        alignment: alignment
+    )
+}
+
+private func gtkRenderFallbackBackground<Background: View>(
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    background: Background,
+    alignment: Alignment
+) -> OpaquePointer {
+    let backgroundWidget = widgetFromOpaque(gtkRenderView(background))
+    if gtkIsEmptyViewWidget(backgroundWidget) {
+        return opaqueFromWidget(contentWidget)
+    }
+    return gtkRenderFallbackZStack([backgroundWidget, contentWidget], alignment: alignment)
 }
 
 private func gtkRenderFilledShapeBackground(
@@ -2503,6 +3658,7 @@ private func gtkRenderFilledShapeBackground(
         gtk_widget_set_vexpand(wrapper, 1)
         gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
     }
+    gtkPropagateSingleChildLayoutMarkers(from: [contentWidget], to: wrapper)
 
     let css: String
     if cornerRadius > 0 {
@@ -2551,11 +3707,18 @@ extension FontModifiedView: GTKRenderable, GTKDescribable {
         case .footnote:    css = "font-size: 10px;"
         case .caption:     css = "font-size: 12px;"
         case .caption2:    css = "font-size: 10px; font-weight: bold;"
-        case .custom(let size, _, _): css = "font-size: \(Int(size))px;"
+        case .custom(let size, _, _): css = "font-size: \(gtkCSSFontSizePixels(forApplePointSize: size))px;"
         }
         applyCSSToWidget(widget, properties: css)
         return opaqueFromWidget(widget)
     }
+}
+
+private func gtkCSSFontSizePixels(forApplePointSize pointSize: Double) -> Int {
+    if pointSize < 14 {
+        return max(1, Int(pointSize.rounded()))
+    }
+    return max(1, Int((pointSize * 0.875).rounded()))
 }
 
 extension BorderView: GTKRenderable, GTKDescribable {
@@ -2734,9 +3897,9 @@ extension FullScreenCoverView: GTKRenderable {
             let binding = isPresented
             let dismiss = onDismiss
             var env = getCurrentEnvironment()
-            env.dismiss = DismissAction {
+            env.dismiss = DismissAction(handler: {
                 binding.wrappedValue = false
-            }
+            }, debugName: "gtk fullScreenCover")
             let prevEnv = getCurrentEnvironment()
             setCurrentEnvironment(env)
             let coverWidget = widgetFromOpaque(gtkRenderView(coverContent))
@@ -3196,26 +4359,52 @@ private func gtkApplyOrScheduleScrollTo(
     gtkScheduleScrollTo(id: id, widget, anchor: anchor)
 }
 
-extension IdView: GTKRenderable {
+private func gtkExplicitIdentityComponent<ID: Hashable>(for id: ID) -> String {
+    "Id[\(String(reflecting: AnyHashable(id)))]"
+}
+
+extension IdView: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
-        let widget = widgetFromOpaque(gtkRenderView(content))
-        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_box_append(boxPointer(wrapper), widget)
-        gtkPropagateSingleChildLayoutMarkers(from: [widget], to: wrapper)
-        if gtk_widget_get_hexpand(widget) != 0 {
-            gtk_widget_set_hexpand(wrapper, 1)
-            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        gtkWithStateIdentityNamespaceComponent(gtkExplicitIdentityComponent(for: id)) {
+            let widget = widgetFromOpaque(gtkRenderView(content))
+            let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+            gtk_box_append(boxPointer(wrapper), widget)
+            gtkPropagateSingleChildLayoutMarkers(from: [widget], to: wrapper)
+            if gtk_widget_get_hexpand(widget) != 0 {
+                gtk_widget_set_hexpand(wrapper, 1)
+                gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+            }
+            if gtk_widget_get_vexpand(widget) != 0 {
+                gtk_widget_set_vexpand(wrapper, 1)
+                gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+            }
+            gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)
+            return opaqueFromWidget(wrapper)
         }
-        if gtk_widget_get_vexpand(widget) != 0 {
-            gtk_widget_set_vexpand(wrapper, 1)
-            gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+    }
+
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let component = gtkExplicitIdentityComponent(for: id)
+        return gtkWithStateIdentityNamespaceComponent(component) {
+            GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "IdView<\(component)>",
+                children: [gtkDescribeView(content)]
+            )
         }
-        gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)
-        return opaqueFromWidget(wrapper)
     }
 }
 
-extension ScrollViewReader: GTKRenderable {
+extension ScrollViewReader: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let proxy = ScrollViewProxy()
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "ScrollViewReader",
+            children: [gtkDescribeView(content(proxy))]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var proxy = ScrollViewProxy()
         proxy.scrollToAction = { anyID, anchor in
@@ -3328,23 +4517,46 @@ extension LayoutPriorityView: GTKRenderable {
 
 extension FixedSizeView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        let widget = widgetFromOpaque(gtkRenderView(content))
+        let child = widgetFromOpaque(gtkRenderView(content))
+        var widget = child
         // Lock the widget to its natural size so containers cannot shrink it.
         // Measure horizontal first, then measure vertical with the resolved
         // width so wrapping content gets the correct height.
         var reqW: gint = -1
         var reqH: gint = -1
         if horizontal {
-            gtk_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, nil, &reqW, nil, nil)
+            gtk_widget_measure(child, GTK_ORIENTATION_HORIZONTAL, -1, nil, &reqW, nil, nil)
         }
         if vertical {
-            // Measure height with the horizontal natural size (or -1 if not
-            // fixed horizontally) so wrapping text gets the right height.
-            let forWidth: gint = horizontal ? reqW : -1
-            gtk_widget_measure(widget, GTK_ORIENTATION_VERTICAL, forWidth, nil, &reqH, nil, nil)
+            if horizontal {
+                // Fully fixed content can be measured at its natural width.
+                gtk_widget_measure(child, GTK_ORIENTATION_VERTICAL, reqW, nil, &reqH, nil, nil)
+            } else {
+                // SwiftUI's fixedSize(horizontal: false, vertical: true)
+                // fixes vertical growth after the parent proposes a width.
+                // Measuring at -1 here treats wrapped labels as one long
+                // line, which clamps rows such as IceCubes status cells to a
+                // single-line height. Resolve the fixed height once GTK has
+                // allocated a concrete width to the widget.
+                reqH = -1
+            }
+        }
+        if !horizontal {
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+            widget = gtk_swift_width_clamp_new(child)!
+            gtkSetLayoutMarker(widget, key: gtkSwiftHorizontallyCompressibleFixedSizeMarker)
+            reqW = 1
         }
         if reqW >= 0 || reqH >= 0 {
             gtk_widget_set_size_request(widget, reqW, reqH)
+        }
+        if !horizontal {
+            gtk_widget_set_hexpand(widget, 1)
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        }
+        if vertical && !horizontal {
+            gtkInstallWidthResolvedHeight(on: widget)
         }
         return opaqueFromWidget(widget)
     }
@@ -3410,14 +4622,22 @@ extension ContextMenuView: GTKRenderable {
 
 extension OnChangeView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        onChangeCheckAndFire(value: value, action: action)
+        onChangeCheckAndFire(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            action: action
+        )
         return gtkRenderView(content)
     }
 }
 
 extension OnChangeTwoArgView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        onChangeCheckAndFireTwoArg(value: value, action: action)
+        onChangeCheckAndFireTwoArg(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            action: action
+        )
         return gtkRenderView(content)
     }
 }
@@ -3440,6 +4660,7 @@ extension HiddenView: GTKRenderable {
         gtk_widget_set_can_target(wrapper, 0)
         gtk_widget_set_can_focus(wrapper, 0)
         gtk_widget_set_sensitive(wrapper, 0)
+        gtkPropagateSingleChildLayoutMarkers(from: [inner], to: wrapper)
         // Propagate expand flags from content
         gtk_widget_set_hexpand(wrapper, gtk_widget_get_hexpand(inner))
         gtk_widget_set_vexpand(wrapper, gtk_widget_get_vexpand(inner))
@@ -3489,6 +4710,7 @@ extension CustomButtonStyleModifier: GTKRenderable, GTKDescribable {
         GTK4DescriptorNode(
             kind: .composite,
             typeName: "CustomButtonStyleModifier",
+            props: .text(GTK4TextDescriptor(content: style.invalidationToken)),
             children: [gtkDescribeView(content)]
         )
     }
@@ -3548,6 +4770,447 @@ private class TapClosureBox {
     }
 }
 
+private final class GTKTapGestureActionBox {
+    let requiredCount: Int
+    let action: () -> Void
+    let source: String
+    var lastActivationTime: TimeInterval = 0
+
+    init(requiredCount: Int, action: @escaping () -> Void, source: String) {
+        self.requiredCount = requiredCount
+        self.action = action
+        self.source = source
+    }
+}
+
+private let gtkTapGestureActionDataKey = "gtk-swift-tap-gesture-action"
+private let gtkTapGestureGlobalDispatcherDataKey = "gtk-swift-tap-gesture-global-dispatcher"
+
+private final class GTKTapGestureRootEventContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let box: GTKTapGestureActionBox
+    let source: String
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKTapGestureActionBox, source: String) {
+        self.widget = widget
+        self.box = box
+        self.source = source
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private final class GTKTapGestureGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
+private func gtkScheduleTapGestureAction(_ box: GTKTapGestureActionBox, source: String) {
+    gtkFlushPendingTextBindingUpdate()
+    let now = Date().timeIntervalSinceReferenceDate
+    if now - box.lastActivationTime < 0.08 {
+        gtkDebugLog("tap gesture duplicate \(source)")
+        return
+    }
+    box.lastActivationTime = now
+    gtkDebugLog("tap gesture pressed \(source)")
+    let context = Unmanaged.passRetained(GTKTapGestureIdleActionContext(box: box, source: source)).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKTapGestureIdleActionContext>.fromOpaque(userData).takeRetainedValue()
+        gtkDebugLog("tap gesture action \(context.source)")
+        context.box.action()
+        return 0
+    }, context)
+}
+
+private final class GTKTapGestureIdleActionContext {
+    let box: GTKTapGestureActionBox
+    let source: String
+
+    init(box: GTKTapGestureActionBox, source: String) {
+        self.box = box
+        self.source = source
+    }
+}
+
+private func gtkVisualTapActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualTapActionWidgetAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    guard gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
+          let actionData = g_object_get_data(
+              UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+              gtkTapGestureActionDataKey
+          )
+    else {
+        return nil
+    }
+    let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
+    return box.requiredCount == 1 ? widget : nil
+}
+
+private func gtkTapGestureActionBox(
+    from widget: UnsafeMutablePointer<GtkWidget>
+) -> GTKTapGestureActionBox? {
+    guard let actionData = g_object_get_data(
+        UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+        gtkTapGestureActionDataKey
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
+}
+
+private func gtkPickedTapActionWidgetAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    while let widget = current, depth < 96 {
+        if gtk_swift_widget_is_button(widget) == 0,
+           gtk_swift_widget_is_menu_button(widget) == 0,
+           let actionData = g_object_get_data(
+               UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+               gtkTapGestureActionDataKey
+           ) {
+            let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            if box.requiredCount == 1 {
+                return widget
+            }
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return nil
+}
+
+private func gtkPreferredTapGestureActionBoxAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> GTKTapGestureActionBox? {
+    if let widget = gtkPickedTapActionWidgetAtRootPoint(root: root, x: x, y: y),
+       let box = gtkTapGestureActionBox(from: widget) {
+        return box
+    }
+    if let widget = gtkVisualTapActionWidgetAtRootPoint(root, root: root, x: x, y: y),
+       let box = gtkTapGestureActionBox(from: widget) {
+        return box
+    }
+    return nil
+}
+
+private func gtkPointPrefersDifferentTapGestureAction(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    current box: GTKTapGestureActionBox
+) -> Bool {
+    guard let preferred = gtkPreferredTapGestureActionBoxAtRootPoint(root: root, x: x, y: y) else {
+        return false
+    }
+    if gtkTapGestureBoxIsLayoutBackground(preferred), !gtkTapGestureBoxIsLayoutBackground(box) {
+        return false
+    }
+    return preferred !== box
+}
+
+private func gtkTapGestureBoxIsLayoutBackground(_ box: GTKTapGestureActionBox) -> Bool {
+    box.source == "SwiftOpenUI.Color"
+        || box.source.hasPrefix("SwiftOpenUI.FilledShape<")
+}
+
+private func gtkDebugPickedWidgetChain(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    guard current != nil else {
+        gtkDebugLog("\(source) picked-chain root@\(Int(x)),\(Int(y)) empty")
+        return
+    }
+
+    var depth = 0
+    while let widget = current, depth < 24 {
+        let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+        let hasTap = g_object_get_data(object, gtkTapGestureActionDataKey) != nil
+        let hasRow = g_object_get_data(object, gtkListRowTapActionDataKey) != nil
+        gtkDebugLog(
+            "\(source) picked-chain[\(depth)] type=\(typeName) "
+            + "tap=\(hasTap ? 1 : 0) row=\(hasRow ? 1 : 0) "
+            + "isRow=\(gtk_swift_widget_is_list_box_row(widget)) "
+            + "isButton=\(gtk_swift_widget_is_button(widget)) "
+            + gtkDebugVisualFrameDescription(widget, root: root)
+        )
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+}
+
+private func gtkAttachTapGestureActionData(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    box: GTKTapGestureActionBox,
+    depth: Int = 0
+) {
+    guard depth < 160 else { return }
+    guard gtk_swift_widget_is_button(widget) == 0,
+          gtk_swift_widget_is_menu_button(widget) == 0
+    else {
+        return
+    }
+
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if g_object_get_data(object, gtkTapGestureActionDataKey) == nil {
+        g_object_set_data_full(
+            object,
+            gtkTapGestureActionDataKey,
+            Unmanaged.passRetained(box).toOpaque(),
+            { userData in
+                guard let userData else { return }
+                Unmanaged<GTKTapGestureActionBox>.fromOpaque(userData).release()
+            }
+        )
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkAttachTapGestureActionData(to: current, box: box, depth: depth + 1)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkInstallGlobalTapGestureRootDispatcher(for widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkTapGestureGlobalDispatcherDataKey) == nil else { return }
+
+    let dispatcher = GTKTapGestureGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkTapGestureGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKTapGestureGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("tap gesture global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let dispatcher = Unmanaged<GTKTapGestureGlobalRootDispatcher>.fromOpaque(userData).takeUnretainedValue()
+            let root = dispatcher.root
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "tap-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+
+            if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "tap-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+            guard gtk_swift_root_point_picks_button(root, rootX, rootY) == 0 else {
+                gtkDebugLog("tap gesture global dispatch skipped button root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+                gtkDebugLog("tap gesture global dispatch skipped visual button root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+
+            var widget = gtkPickedTapActionWidgetAtRootPoint(root: root, x: rootX, y: rootY)
+            if widget != nil {
+                gtkDebugLog("tap gesture global dispatch picked fallback root@\(Int(rootX)),\(Int(rootY))")
+            } else {
+                widget = gtkVisualTapActionWidgetAtRootPoint(root, root: root, x: rootX, y: rootY)
+            }
+            guard let widget,
+                  let actionData = g_object_get_data(
+                      UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+                      gtkTapGestureActionDataKey
+                  )
+            else {
+                gtkDebugPickedWidgetChain(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "tap gesture global dispatch"
+                )
+                gtkDebugLog("tap gesture global dispatch miss root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkScheduleTapGestureAction(box, source: "root-dispatch@\(Int(rootX)),\(Int(rootY))")
+            return 1
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkInstallTapGestureRootEventFallback(_ context: GTKTapGestureRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    gtkDebugLog("tap gesture root fallback installed \(context.source)")
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard context.box.requiredCount == 1, let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                source: "tap-root@\(Int(x)),\(Int(y))"
+            ) {
+                return 1
+            }
+
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+            let isVisualHit = gtkWidgetOrDescendantVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
+            guard isTopmost || isVisualHit else {
+                gtkDebugLog(
+                    "tap gesture miss root@\(Int(x)),\(Int(y)) \(context.source) "
+                    + gtkDebugVisualFrameDescription(context.widget, root: root)
+                )
+                return 0
+            }
+
+            let source = isTopmost ? "root" : "root-visual"
+            if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                source: "tap-\(source)@\(Int(x)),\(Int(y))"
+            ) {
+                return 1
+            }
+            guard gtk_swift_root_point_picks_button(root, x, y) == 0 else {
+                gtkDebugLog("tap gesture skipped button \(source)@\(Int(x)),\(Int(y))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: x, y: y) else {
+                gtkDebugLog("tap gesture skipped visual button \(source)@\(Int(x)),\(Int(y))")
+                return 0
+            }
+            guard !gtkPointPrefersDifferentTapGestureAction(root: root, x: x, y: y, current: context.box) else {
+                gtkDebugLog("tap gesture skipped deeper visual tap \(source)@\(Int(x)),\(Int(y)) \(context.source)")
+                return 0
+            }
+            gtkScheduleTapGestureAction(context.box, source: "\(source)@\(Int(x)),\(Int(y)) \(context.source)")
+            return 1
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkTapGestureRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallTapGestureRootEventFallback(context)
+    gtkInstallGlobalTapGestureRootDispatcher(for: context.widget)
+    return context.controller == nil ? 1 : 0
+}
+
+private protocol GTKPrimaryTapActionProvider {
+    var gtkTapGestureCount: Int { get }
+    var gtkTapGestureAction: () -> Void { get }
+}
+
+extension TapGestureView: GTKPrimaryTapActionProvider {
+    fileprivate var gtkTapGestureCount: Int { count }
+    fileprivate var gtkTapGestureAction: () -> Void { action }
+}
+
 extension TapGestureView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         // Transparent wrapper: describe content so sibling Canvas nodes
@@ -3562,23 +5225,106 @@ extension TapGestureView: GTKRenderable, GTKDescribable {
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
-        let widget = widgetFromOpaque(gtkRenderView(content))
+        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        if gtkIsEmptyViewWidget(contentWidget) {
+            return opaqueFromWidget(contentWidget)
+        }
+
+        let widget = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_can_target(widget, 1)
+        gtk_widget_set_hexpand(widget, gtk_widget_get_hexpand(contentWidget))
+        gtk_widget_set_vexpand(widget, gtk_widget_get_vexpand(contentWidget))
+        gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+        gtk_box_append(boxPointer(widget), contentWidget)
+        gtkPropagateSingleChildLayoutMarkers(from: [contentWidget], to: widget)
+
         let gesture = gtk_gesture_click_new()!
 
         let boundAction = bindActionToCurrentEnvironment(action)
-        let box = Unmanaged.passRetained(TapClosureBox(count: count, action: boundAction)).toOpaque()
+        let actionBoxObject = GTKTapGestureActionBox(
+            requiredCount: count,
+            action: boundAction,
+            source: String(reflecting: Swift.type(of: content))
+        )
+        let box = Unmanaged.passRetained(actionBoxObject).toOpaque()
+        gtkAttachTapGestureActionData(to: widget, box: actionBoxObject)
+        let rootContextObject = GTKTapGestureRootEventContext(
+            widget: widget,
+            box: actionBoxObject,
+            source: String(reflecting: Swift.type(of: content))
+        )
+        let rootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+        g_signal_connect_data(
+            gpointer(widget),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallTapGestureRootEventFallback(context)
+                gtkInstallGlobalTapGestureRootDispatcher(for: context.widget)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(widget),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        let tickRootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+        _ = gtk_widget_add_tick_callback(
+            widget,
+            gtkTapGestureRootInstallTickCallback,
+            tickRootEventContext,
+            { userData in
+                guard let userData else { return }
+                Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).release()
+            }
+        )
+        g_signal_connect_data(
+            gpointer(widget),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKTapGestureRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
         g_signal_connect_data(
             gpointer(gesture),
             "pressed",
-            unsafeBitCast({ (_: gpointer?, nPress: gint, _: gdouble, _: gdouble, userData: gpointer?) in
-                let box = Unmanaged<TapClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+            unsafeBitCast({ (gesture: gpointer?, nPress: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+                let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(userData!).takeUnretainedValue()
                 if Int(nPress) == box.requiredCount {
-                    box.action()
+                    if let gesture,
+                       let widget = gtk_swift_event_controller_widget(gesture),
+                       let root = gtk_swift_widget_root_widget(widget) {
+                        var rootX = 0.0
+                        var rootY = 0.0
+                        if gtk_widget_translate_coordinates(widget, root, x, y, &rootX, &rootY) != 0,
+                           gtkPointPrefersDifferentTapGestureAction(root: root, x: rootX, y: rootY, current: box) {
+                            gtkDebugLog("tap gesture skipped deeper visual tap gesture@\(Int(rootX)),\(Int(rootY))")
+                            return
+                        }
+                    }
+                    gtkScheduleTapGestureAction(box, source: "gesture")
                 }
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             box,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<TapClosureBox>.fromOpaque(userData!).release()
+                Unmanaged<GTKTapGestureActionBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
         )
@@ -3903,69 +5649,109 @@ private let gtkStandaloneTaskBoxKey = "gtk-swift-standalone-task-box"
 
 private final class GTKStandaloneTaskBox {
     let priority: TaskPriority
+    let lifecycleID: String?
     let action: @Sendable () async -> Void
     var task: Task<Void, Never>?
 
-    init(priority: TaskPriority, action: @escaping @Sendable () async -> Void) {
+    init(
+        priority: TaskPriority,
+        lifecycleID: String?,
+        action: @escaping @Sendable () async -> Void
+    ) {
         self.priority = priority
+        self.lifecycleID = lifecycleID
         self.action = action
     }
 
     func start() {
         guard task == nil else { return }
         let action = action
+        gtkDebugLog("standalone task start lifecycleID=\(lifecycleID ?? "<none>")")
         task = Task(priority: priority) {
             await action()
         }
     }
 
     func cancel() {
+        if task != nil {
+            gtkDebugLog("standalone task cancel lifecycleID=\(lifecycleID ?? "<none>")")
+        }
         task?.cancel()
         task = nil
+    }
+}
+
+private final class GTKStandaloneTaskGroup {
+    var boxes: [GTKStandaloneTaskBox] = []
+    var mapHandlerID: gulong = 0
+    var unmapHandlerID: gulong = 0
+
+    func append(_ box: GTKStandaloneTaskBox, to widget: UnsafeMutablePointer<GtkWidget>) {
+        boxes.append(box)
+        if gtk_widget_get_mapped(widget) != 0 {
+            box.start()
+        }
+    }
+
+    func startAll() {
+        boxes.forEach { $0.start() }
+    }
+
+    func cancelAll() {
+        boxes.forEach { $0.cancel() }
     }
 }
 
 private func gtkAttachStandaloneTaskLifecycle(
     to widget: UnsafeMutablePointer<GtkWidget>,
     priority: TaskPriority,
+    lifecycleID: String?,
     action: @escaping @Sendable () async -> Void
 ) {
-    let box = Unmanaged.passRetained(
-        GTKStandaloneTaskBox(priority: priority, action: action)
-    ).toOpaque()
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
-    g_object_set_data_full(
-        gobject,
-        gtkStandaloneTaskBoxKey,
-        box,
-        { userData in
-            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeRetainedValue()
-            box.cancel()
-        }
-    )
+    let group: GTKStandaloneTaskGroup
+    if let existing = g_object_get_data(gobject, gtkStandaloneTaskBoxKey) {
+        group = Unmanaged<GTKStandaloneTaskGroup>.fromOpaque(existing).takeUnretainedValue()
+    } else {
+        let newGroup = GTKStandaloneTaskGroup()
+        let groupPointer = Unmanaged.passRetained(newGroup).toOpaque()
+        g_object_set_data_full(
+            gobject,
+            gtkStandaloneTaskBoxKey,
+            groupPointer,
+            { userData in
+                let group = Unmanaged<GTKStandaloneTaskGroup>.fromOpaque(userData!).takeRetainedValue()
+                group.cancelAll()
+            }
+        )
+        newGroup.mapHandlerID = g_signal_connect_data(
+            gpointer(widget),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let group = Unmanaged<GTKStandaloneTaskGroup>.fromOpaque(userData!).takeUnretainedValue()
+                group.startAll()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            groupPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        newGroup.unmapHandlerID = g_signal_connect_data(
+            gpointer(widget),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                let group = Unmanaged<GTKStandaloneTaskGroup>.fromOpaque(userData!).takeUnretainedValue()
+                group.cancelAll()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            groupPointer,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        group = newGroup
+    }
 
-    g_signal_connect_data(
-        gpointer(widget),
-        "map",
-        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
-            box.start()
-        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-        box,
-        nil,
-        GConnectFlags(rawValue: 0)
-    )
-    g_signal_connect_data(
-        gpointer(widget),
-        "unmap",
-        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-            let box = Unmanaged<GTKStandaloneTaskBox>.fromOpaque(userData!).takeUnretainedValue()
-            box.cancel()
-        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-        box,
-        nil,
-        GConnectFlags(rawValue: 0)
-    )
+    let taskBox = GTKStandaloneTaskBox(priority: priority, lifecycleID: lifecycleID, action: action)
+    gtkDebugLog("standalone task attach index=\(group.boxes.count) lifecycleID=\(lifecycleID ?? "<none>") mapped=\(gtk_widget_get_mapped(widget))")
+    group.append(taskBox, to: widget)
 }
 
 private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: UnsafeMutablePointer<GtkWidget>) {
@@ -3989,6 +5775,7 @@ extension TaskView: GTKRenderable, GTKDescribable {
         gtkCollectTaskPayload(
             GTK4TaskPayload(
                 priority: priority,
+                lifecycleID: lifecycleID,
                 action: bindTaskActionToCurrentEnvironment(action)
             )
         )
@@ -4009,6 +5796,7 @@ extension TaskView: GTKRenderable, GTKDescribable {
             gtkAttachStandaloneTaskLifecycle(
                 to: widget,
                 priority: priority,
+                lifecycleID: lifecycleID,
                 action: bindTaskActionToCurrentEnvironment(action)
             )
         }
@@ -4050,8 +5838,6 @@ extension OnAppearView: GTKRenderable, GTKDescribable {
                 },
                 GConnectFlags(rawValue: 0)
             )
-        } else {
-            gtkScheduleOnAppear(boundAction, on: widget)
         }
 
         return opaqueFromWidget(widget)
@@ -4310,6 +6096,73 @@ private func gtkSheetDefaultHeight() -> gint {
     return gint(height)
 }
 
+private let gtkSheetOverlayHorizontalMargins: gint = 32
+private let gtkSheetOverlayVerticalMargins: gint = 32
+
+private final class GTKSheetPanelSizeContext {
+    let preferredWidth: gint
+    let preferredHeight: gint
+    var lastWidth: gint = -1
+    var lastHeight: gint = -1
+
+    init(preferredWidth: gint, preferredHeight: gint) {
+        self.preferredWidth = preferredWidth
+        self.preferredHeight = preferredHeight
+    }
+}
+
+private func gtkClampedSheetPanelDimension(
+    preferred: gint,
+    hostSize: gint,
+    margins: gint
+) -> gint {
+    guard hostSize > 1 else { return preferred }
+    return min(preferred, max(gint(1), hostSize - margins))
+}
+
+private let gtkSheetPanelSizeTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let panel = widget, let userData else { return 0 }
+    let context = Unmanaged<GTKSheetPanelSizeContext>.fromOpaque(userData).takeUnretainedValue()
+    let host = gtk_widget_get_parent(panel)
+    let hostWidth = host.map { gtk_widget_get_width($0) } ?? gtk_widget_get_width(panel)
+    let hostHeight = host.map { gtk_widget_get_height($0) } ?? gtk_widget_get_height(panel)
+    let nextWidth = gtkClampedSheetPanelDimension(
+        preferred: context.preferredWidth,
+        hostSize: hostWidth,
+        margins: gtkSheetOverlayHorizontalMargins
+    )
+    let nextHeight = gtkClampedSheetPanelDimension(
+        preferred: context.preferredHeight,
+        hostSize: hostHeight,
+        margins: gtkSheetOverlayVerticalMargins
+    )
+    guard nextWidth != context.lastWidth || nextHeight != context.lastHeight else { return 1 }
+
+    context.lastWidth = nextWidth
+    context.lastHeight = nextHeight
+    gtk_widget_set_size_request(panel, nextWidth, nextHeight)
+    gtk_widget_queue_resize(panel)
+    return 1
+}
+
+private func gtkInstallSheetPanelOverlaySizeClamp(
+    on panel: UnsafeMutablePointer<GtkWidget>,
+    preferredWidth: gint,
+    preferredHeight: gint
+) {
+    let context = GTKSheetPanelSizeContext(
+        preferredWidth: preferredWidth,
+        preferredHeight: preferredHeight
+    )
+    let contextPtr = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        panel,
+        gtkSheetPanelSizeTickCallback,
+        contextPtr,
+        { userData in Unmanaged<GTKSheetPanelSizeContext>.fromOpaque(userData!).release() }
+    )
+}
+
 private func gtkSheetPresentationMode() -> String {
     return (ProcessInfo.processInfo.environment["QUILLUI_BACKEND_SHEET_PRESENTATION"]
         ?? ProcessInfo.processInfo.environment["QUILLUI_GTK_SHEET_PRESENTATION"]
@@ -4330,12 +6183,12 @@ private func gtkShouldRenderSheetInWindow() -> Bool {
 
 private var gtkRootSheetOverlayStack: [OpaquePointer] = []
 
-// Presented root-overlay sheet panels, keyed by the type-derived activeKey.
+// Presented root-overlay sheet layers, keyed by the type-derived activeKey.
 // Anchors (GTKViewHost containers) are recreated on every parent render, so
-// per-anchor g_object data is lost after the first rebuild — a panel tracked
+// per-anchor g_object data is lost after the first rebuild — a layer tracked
 // there could never be dismissed (or deduplicated) again. The activeKey is
 // stable across hosts, so a global registry survives parent rebuilds.
-private var gtkRootSheetPanels: [String: UnsafeMutablePointer<GtkWidget>] = [:]
+private var gtkRootSheetLayers: [String: UnsafeMutablePointer<GtkWidget>] = [:]
 private var gtkRootSheetItemIDs: [String: Int] = [:]
 
 private func gtkCurrentRootSheetOverlay() -> OpaquePointer? {
@@ -4383,12 +6236,9 @@ private func gtkRemoveSheetRootOverlay(
     itemIDKey: String? = nil,
     onDismiss: (() -> Void)? = nil
 ) {
-    guard let panel = gtkRootSheetPanels.removeValue(forKey: activeKey) else {
+    guard gtkRemoveRootSheetLayer(activeKey: activeKey) else {
         return
     }
-    gtkRootSheetItemIDs[activeKey] = nil
-    gtkDebugLog("sheet root dismiss activeKey=\(activeKey)")
-    gtk_widget_unparent(panel)
     // Clear any legacy per-anchor markers so a same-anchor re-render starts clean.
     let gobject = UnsafeMutableRawPointer(anchor).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, overlayKey, nil)
@@ -4399,11 +6249,43 @@ private func gtkRemoveSheetRootOverlay(
     onDismiss?()
 }
 
+@discardableResult
+private func gtkRemoveRootSheetLayer(
+    activeKey: String,
+    fallbackLayer: UnsafeMutablePointer<GtkWidget>? = nil
+) -> Bool {
+    let layer: UnsafeMutablePointer<GtkWidget>
+    let usedFallback: Bool
+    if let registeredLayer = gtkRootSheetLayers.removeValue(forKey: activeKey) {
+        layer = registeredLayer
+        usedFallback = false
+    } else if let fallbackLayer,
+              gtk_swift_is_widget(fallbackLayer) != 0,
+              gtk_widget_get_parent(fallbackLayer) != nil {
+        layer = fallbackLayer
+        usedFallback = true
+    } else {
+        gtkDebugLog("sheet root dismiss miss activeKey=\(activeKey)")
+        return false
+    }
+    gtkRootSheetItemIDs[activeKey] = nil
+    gtkDebugLog("sheet root dismiss activeKey=\(activeKey) fallback=\(usedFallback)")
+    gtk_widget_unparent(layer)
+    return true
+}
+
 private func gtkCreateSheetOverlayPanel(
     sheetWidget: UnsafeMutablePointer<GtkWidget>
 ) -> UnsafeMutablePointer<GtkWidget> {
     let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-    gtk_widget_set_size_request(panel, gtkSheetDefaultWidth(), gtkSheetDefaultHeight())
+    let preferredWidth = gtkSheetDefaultWidth()
+    let preferredHeight = gtkSheetDefaultHeight()
+    gtk_widget_set_size_request(panel, preferredWidth, preferredHeight)
+    gtkInstallSheetPanelOverlaySizeClamp(
+        on: panel,
+        preferredWidth: preferredWidth,
+        preferredHeight: preferredHeight
+    )
     gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
     gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
     applyCSSToWidget(
@@ -4421,15 +6303,37 @@ private func gtkCreateSheetOverlayPanel(
     return panel
 }
 
+private func gtkCreateSheetOverlayLayer(
+    panel: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let layer = gtk_overlay_new()!
+    gtk_widget_set_hexpand(layer, 1)
+    gtk_widget_set_vexpand(layer, 1)
+    gtk_widget_set_halign(layer, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(layer, GTK_ALIGN_FILL)
+
+    let backdrop = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_hexpand(backdrop, 1)
+    gtk_widget_set_vexpand(backdrop, 1)
+    gtk_widget_set_halign(backdrop, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(backdrop, GTK_ALIGN_FILL)
+    gtk_widget_set_can_target(backdrop, 1)
+    applyCSSToWidget(backdrop, properties: "background: #f8f8fb;")
+
+    gtk_overlay_set_child(OpaquePointer(layer), backdrop)
+    gtk_overlay_add_overlay(OpaquePointer(layer), panel)
+    return layer
+}
+
 private func gtkAttachRootSheetOverlay(
-    _ panel: UnsafeMutablePointer<GtkWidget>,
+    _ layer: UnsafeMutablePointer<GtkWidget>,
     to rootOverlay: OpaquePointer
 ) {
     let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
     let previousTop = gtk_widget_get_last_child(overlayWidget)
-    gtk_overlay_add_overlay(rootOverlay, panel)
-    if let previousTop, previousTop != panel {
-        gtk_widget_insert_after(panel, overlayWidget, previousTop)
+    gtk_overlay_add_overlay(rootOverlay, layer)
+    if let previousTop, previousTop != layer {
+        gtk_widget_insert_after(layer, overlayWidget, previousTop)
     }
 }
 
@@ -4503,7 +6407,8 @@ private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidge
     gtk_widget_set_focusable(widget, 1)
     let grabbed = gtk_swift_root_grab_focus(widget)
     gtkDebugLog("sheet focus widget grab=\(grabbed) target=\(gtkButtonDebugSource("editable", widget: widget))")
-    if let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
+    if gtk_swift_widget_is_editable(widget) != 0,
+       let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
         let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
         gtk_widget_set_can_target(delegateWidget, 1)
         gtk_widget_set_focusable(delegateWidget, 1)
@@ -4626,7 +6531,8 @@ private func gtkCreateSheetOverlay(
     gtk_overlay_set_child(OpaquePointer(overlay), contentWidget)
 
     let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
-    gtk_overlay_add_overlay(OpaquePointer(overlay), panel)
+    let layer = gtkCreateSheetOverlayLayer(panel: panel)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), layer)
     return overlay
 }
 
@@ -4733,25 +6639,18 @@ extension SheetModifierView: GTKRenderable {
             let sheetView = sheetContent()
             let binding = isPresented
             let userOnDismiss = onDismiss
-            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             let dismissAction: () -> Void
-            if let config = dismissalConfig {
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        binding.wrappedValue = false
-                        lifecycleScope.runDisappearActions()
-                        userOnDismiss?()
-                    }
+            dismissAction = {
+                gtkScheduleSheetDismissal {
+                    binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool window")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -4764,30 +6663,26 @@ extension SheetModifierView: GTKRenderable {
 
         if gtkShouldRenderSheetInRootOverlay(),
            let rootOverlay = gtkSheetRootOverlay(for: anchor) {
-            guard gtkRootSheetPanels[activeKey] == nil else {
+            guard gtkRootSheetLayers[activeKey] == nil else {
                 return opaqueFromWidget(widget)
             }
             let sheetView = sheetContent()
             let binding = isPresented
             let userOnDismiss = onDismiss
-            let dismissalConfig = gtkExtractDismissalConfig(from: sheetView)
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            var presentedLayer: UnsafeMutablePointer<GtkWidget>?
             let dismissAction: () -> Void
-            if let config = dismissalConfig {
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        binding.wrappedValue = false
-                        lifecycleScope.runDisappearActions()
-                    }
+            dismissAction = {
+                gtkScheduleSheetDismissal {
+                    binding.wrappedValue = false
+                    lifecycleScope.runDisappearActions()
+                    _ = gtkRemoveRootSheetLayer(activeKey: activeKey, fallbackLayer: presentedLayer)
+                    userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool root overlay")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -4798,10 +6693,13 @@ extension SheetModifierView: GTKRenderable {
             )
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let layer = gtkCreateSheetOverlayLayer(panel: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
-            gtkRootSheetPanels[activeKey] = panel
-            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
+            presentedLayer = layer
+            gtkRootSheetLayers[activeKey] = layer
+            gtkAttachRootSheetOverlay(layer, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
 
@@ -4869,21 +6767,12 @@ extension SheetModifierView: GTKRenderable {
             // Inject dismiss action into environment
             let previous = getCurrentEnvironment()
             var env = previous
-            let dismissAction: () -> Void
-            if let config = info.dismissalConfig {
-                // Dismiss action shows confirmation instead of destroying
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                    gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        gtk_window_destroy(dialogWin)
-                    }
+            let dismissAction: () -> Void = {
+                gtkScheduleSheetDismissal {
+                    gtk_window_destroy(dialogWin)
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool dialog")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -5007,25 +6896,18 @@ extension ItemSheetModifierView: GTKRenderable {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
-            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
             let dismissAction: () -> Void
-            if let config = itemDismissalConfig {
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        itemBinding.wrappedValue = nil
-                        lifecycleScope.runDisappearActions()
-                        userOnDismiss?()
-                    }
+            dismissAction = {
+                gtkScheduleSheetDismissal {
+                    itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
+                    userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item window")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -5040,7 +6922,7 @@ extension ItemSheetModifierView: GTKRenderable {
            let rootOverlay = gtkSheetRootOverlay(for: anchor) {
             let currentIdHash = currentItem.id.hashValue
             gtkDebugLog("sheet item root present activeKey=\(activeKey) itemID=\(currentIdHash)")
-            if gtkRootSheetPanels[activeKey] != nil {
+            if gtkRootSheetLayers[activeKey] != nil {
                 if gtkRootSheetItemIDs[activeKey] == currentIdHash {
                     return opaqueFromWidget(widget)
                 }
@@ -5056,24 +6938,20 @@ extension ItemSheetModifierView: GTKRenderable {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
-            let itemDismissalConfig = gtkExtractDismissalConfig(from: sheetBuilder(currentItem))
             let lifecycleScope = GTKSheetLifecycleScope()
             let previous = getCurrentEnvironment()
             var env = previous
+            var presentedLayer: UnsafeMutablePointer<GtkWidget>?
             let dismissAction: () -> Void
-            if let config = itemDismissalConfig {
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        itemBinding.wrappedValue = nil
-                        lifecycleScope.runDisappearActions()
-                    }
+            dismissAction = {
+                gtkScheduleSheetDismissal {
+                    itemBinding.wrappedValue = nil
+                    lifecycleScope.runDisappearActions()
+                    _ = gtkRemoveRootSheetLayer(activeKey: activeKey, fallbackLayer: presentedLayer)
+                    userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item root overlay")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -5084,10 +6962,13 @@ extension ItemSheetModifierView: GTKRenderable {
             )
             setCurrentEnvironment(previous)
             let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let layer = gtkCreateSheetOverlayLayer(panel: panel)
+            gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)
-            gtkRootSheetPanels[activeKey] = panel
-            gtkAttachRootSheetOverlay(panel, to: rootOverlay)
+            presentedLayer = layer
+            gtkRootSheetLayers[activeKey] = layer
+            gtkAttachRootSheetOverlay(layer, to: rootOverlay)
             return opaqueFromWidget(widget)
         }
         gtkDebugLog("sheet item root unavailable activeKey=\(activeKey)")
@@ -5170,20 +7051,12 @@ extension ItemSheetModifierView: GTKRenderable {
 
             let previous = getCurrentEnvironment()
             var env = previous
-            let dismissAction: () -> Void
-            if let config = info.dismissalConfig {
-                dismissAction = {
-                    config.isPresented.wrappedValue = true
-                    gtkPresentConfirmationDialog(config: config, transientFor: dialogWin, onActualDismiss: info.onDismiss)
-                }
-            } else {
-                dismissAction = {
-                    gtkScheduleSheetDismissal {
-                        gtk_window_destroy(dialogWin)
-                    }
+            let dismissAction: () -> Void = {
+                gtkScheduleSheetDismissal {
+                    gtk_window_destroy(dialogWin)
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction)
+            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item dialog")
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -5508,9 +7381,7 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         let binding = text
         let buffer = gtk_text_view_get_buffer(textViewPtr)!
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            if newText != binding.wrappedValue {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(buffer),
@@ -5616,20 +7487,38 @@ extension Stepper: GTKRenderable {
 
 // MARK: - Label GTK extension
 
+private func gtkMaterialNameForSystemImage(_ sfName: String) -> String {
+    if let materialName = SFSymbolCompatibility.materialName(for: sfName) {
+        return materialName
+    }
+    #if DEBUG
+    FileHandle.standardError.write(Data(
+        "[SwiftOpenUI] system image \"\(sfName)\" has no Material mapping; rendering placeholder\n".utf8
+    ))
+    #endif
+    return SFSymbolCompatibility.missingSymbolPlaceholderName
+}
+
 extension Label: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6)!
 
-        if let iconName = systemImage {
-            let img = gtk_image_new_from_icon_name(iconName)!
-            gtk_box_append(boxPointer(box), img)
+        if let iconView {
+            gtk_box_append(boxPointer(box), widgetFromOpaque(gtkRenderView(iconView)))
+        } else if let iconName = systemImage {
+            let materialName = gtkMaterialNameForSystemImage(iconName)
+            gtk_box_append(boxPointer(box), gtkRenderMaterialSymbolLabel(materialName, scale: .small))
         } else if let path = imagePath {
             let img = gtk_image_new_from_file(path)!
             gtk_box_append(boxPointer(box), img)
         }
 
-        let lbl = gtk_label_new(title)!
-        gtk_box_append(boxPointer(box), lbl)
+        if let titleView, !(titleView is Text) {
+            gtk_box_append(boxPointer(box), widgetFromOpaque(gtkRenderView(titleView)))
+        } else {
+            let lbl = gtk_label_new(title)!
+            gtk_box_append(boxPointer(box), lbl)
+        }
 
         return opaqueFromWidget(box)
     }
@@ -5640,6 +7529,9 @@ extension Label: GTKRenderable {
 extension CornerRadiusView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
+        if gtkIsEmptyViewWidget(widget) {
+            return opaqueFromWidget(widget)
+        }
         applyCSSToWidget(widget, properties: "border-radius: \(Int(radius))px;")
         return opaqueFromWidget(widget)
     }
@@ -5685,8 +7577,7 @@ extension HelpView: GTKRenderable {
 extension ClippedView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let inner = widgetFromOpaque(gtkRenderView(content))
-        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_box_append(boxPointer(wrapper), inner)
+        let wrapper = gtk_swift_width_clamp_new(inner)!
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
         if gtk_widget_get_hexpand(inner) != 0 {
             gtk_widget_set_hexpand(wrapper, 1)
@@ -5696,6 +7587,7 @@ extension ClippedView: GTKRenderable {
             gtk_widget_set_vexpand(wrapper, 1)
             gtk_widget_set_valign(inner, GTK_ALIGN_FILL)
         }
+        gtkPropagateSingleChildLayoutMarkers(from: [inner], to: wrapper)
         return opaqueFromWidget(wrapper)
     }
 }
@@ -5714,6 +7606,7 @@ extension ClipShapeView: GTKRenderable {
             gtk_widget_set_vexpand(wrapper, 1)
             gtk_widget_set_valign(inner, GTK_ALIGN_FILL)
         }
+        gtkPropagateSingleChildLayoutMarkers(from: [inner], to: wrapper)
 
         // Map shape type to CSS border-radius for clipping.
         let css: String
@@ -5790,9 +7683,17 @@ extension StrokedShape: GTKDecorativeOverlay {}
 
 extension OverlayView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        let container = gtk_overlay_new()!
-
         let baseWidget = widgetFromOpaque(gtkRenderView(content))
+        if gtkIsEmptyViewWidget(baseWidget) {
+            return opaqueFromWidget(baseWidget)
+        }
+
+        let overlayWidget = widgetFromOpaque(gtkRenderView(overlay))
+        if gtkIsEmptyViewWidget(overlayWidget) {
+            return opaqueFromWidget(baseWidget)
+        }
+
+        let container = gtk_overlay_new()!
         gtk_overlay_set_child(OpaquePointer(container), baseWidget)
 
         if gtk_widget_get_hexpand(baseWidget) != 0 {
@@ -5804,7 +7705,6 @@ extension OverlayView: GTKRenderable {
             gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)
         }
 
-        let overlayWidget = widgetFromOpaque(gtkRenderView(overlay))
         let (hAlign, vAlign) = gtkAlignFromAlignment(alignment)
         // Respect the overlay widget's own expansion intent. A Shape (or any
         // view with hexpand/vexpand set via .frame(maxWidth: .infinity)) wants
@@ -5815,9 +7715,13 @@ extension OverlayView: GTKRenderable {
         // its content fills" semantics; explicit alignment still governs
         // non-filling overlays like Text or Image.
         let overlayWantsHExpand = gtk_widget_get_hexpand(overlayWidget) != 0
-        let overlayWantsVExpand = gtk_widget_get_vexpand(overlayWidget) != 0
+        let overlayWantsVExpand =
+            gtk_widget_get_vexpand(overlayWidget) != 0 && gtkHasVerticalFillIntent(overlayWidget)
         gtk_widget_set_halign(overlayWidget, overlayWantsHExpand ? GTK_ALIGN_FILL : hAlign)
         gtk_widget_set_valign(overlayWidget, overlayWantsVExpand ? GTK_ALIGN_FILL : vAlign)
+        if !overlayWantsVExpand {
+            gtk_widget_set_vexpand(overlayWidget, 0)
+        }
         if overlay is GTKDecorativeOverlay {
             gtk_widget_set_can_target(overlayWidget, 0)
         }
@@ -6076,6 +7980,156 @@ extension Slider: GTKRenderable, GTKDescribable {
 
 // MARK: - ScrollView GTK extension
 
+private let gtkRefreshActionDataKey = "gtk-swift-refresh-action-box"
+private let gtkRefreshOverscrollAttachedKey = "gtk-swift-refresh-overscroll-attached"
+
+private func gtkRefreshDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_REFRESHABLE"] == "1" else { return }
+    if let data = ("[QuillUI GTK Refreshable] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private final class GTKRefreshActionBox {
+    let action: @Sendable () async -> Void
+    private var activeTask: Task<Void, Never>?
+
+    init(action: @escaping @Sendable () async -> Void) {
+        self.action = action
+    }
+
+    deinit {
+        activeTask?.cancel()
+    }
+
+    func trigger(source: String) {
+        guard activeTask == nil else {
+            gtkRefreshDebugLog("ignored overlapping refresh source=\(source)")
+            return
+        }
+
+        gtkRefreshDebugLog("trigger source=\(source)")
+        gtkFlushPendingTextBindingUpdate()
+        let action = action
+        activeTask = Task { @MainActor [weak self] in
+            await action()
+            self?.activeTask = nil
+            gtkRefreshDebugLog("completed source=\(source)")
+        }
+    }
+}
+
+private func gtkWidgetTypeName(_ widget: UnsafeMutablePointer<GtkWidget>) -> String {
+    String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+}
+
+private func gtkIsScrolledWindowWidget(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkWidgetTypeName(widget) == "GtkScrolledWindow"
+}
+
+private func gtkAttachRefreshOverscrollHandler(
+    to scrolled: UnsafeMutablePointer<GtkWidget>,
+    actionBox: GTKRefreshActionBox
+) {
+    let gobject = UnsafeMutableRawPointer(scrolled).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(gobject, gtkRefreshOverscrollAttachedKey) == nil else {
+        return
+    }
+    g_object_set_data(gobject, gtkRefreshOverscrollAttachedKey, UnsafeMutableRawPointer(bitPattern: 1))
+
+    let pointer = Unmanaged.passUnretained(actionBox).toOpaque()
+    g_signal_connect_data(
+        gpointer(scrolled),
+        "edge-overshot",
+        unsafeBitCast({ (_: gpointer?, position: GtkPositionType, userData: gpointer?) in
+            guard position == GTK_POS_TOP, let userData else { return }
+            let box = Unmanaged<GTKRefreshActionBox>.fromOpaque(userData).takeUnretainedValue()
+            box.trigger(source: "edge-overshot")
+        } as @convention(c) (gpointer?, GtkPositionType, gpointer?) -> Void, to: GCallback.self),
+        pointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtkRefreshDebugLog("attached overscroll handler")
+}
+
+private func gtkAttachRefreshHandlersInTree(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    actionBox: GTKRefreshActionBox
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    if gtkIsScrolledWindowWidget(widget) {
+        gtkAttachRefreshOverscrollHandler(to: widget, actionBox: actionBox)
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkAttachRefreshHandlersInTree(current, actionBox: actionBox)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkAttachRefreshAction(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    action: @escaping @Sendable () async -> Void
+) {
+    let actionBox = GTKRefreshActionBox(action: action)
+    let actionBoxPointer = Unmanaged.passRetained(actionBox).toOpaque()
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        gobject,
+        gtkRefreshActionDataKey,
+        actionBoxPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKRefreshActionBox>.fromOpaque(userData).release()
+        }
+    )
+
+    let windowID = getCurrentEnvironment().windowID
+    let registrationID = KeyboardShortcutRegistry.shared.register(
+        KeyboardShortcut(KeyEquivalent("r"), modifiers: .command),
+        windowID: windowID
+    ) {
+        actionBox.trigger(source: "keyboard")
+    }
+    let unregisterBox = Unmanaged.passRetained(ClosureBox {
+        KeyboardShortcutRegistry.shared.unregister(id: registrationID)
+    }).toOpaque()
+    g_signal_connect_data(
+        gpointer(widget),
+        "destroy",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        unregisterBox,
+        { (data: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+            if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtkAttachRefreshHandlersInTree(widget, actionBox: actionBox)
+    gtkRefreshDebugLog("attached refresh action windowID=\(windowID)")
+}
+
+extension RefreshableView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "RefreshableView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        gtkAttachRefreshAction(to: widget, action: action)
+        return opaqueFromWidget(widget)
+    }
+}
+
 extension ScrollView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         // Transparent wrapper: describe content so child Canvas nodes
@@ -6093,8 +8147,9 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         gtkMarkSwiftUIScrollView(scrolled, hasVerticalAxis: axes.contains(.vertical))
         let scrolledOp = OpaquePointer(scrolled)
 
-        let hPolicy: GtkPolicyType = axes.contains(.horizontal) ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER
-        let vPolicy: GtkPolicyType = axes.contains(.vertical) ? GTK_POLICY_AUTOMATIC : GTK_POLICY_NEVER
+        let visibleScrollPolicy: GtkPolicyType = showsIndicators ? GTK_POLICY_AUTOMATIC : GTK_POLICY_EXTERNAL
+        let hPolicy: GtkPolicyType = axes.contains(.horizontal) ? visibleScrollPolicy : GTK_POLICY_NEVER
+        let vPolicy: GtkPolicyType = axes.contains(.vertical) ? visibleScrollPolicy : GTK_POLICY_NEVER
         gtk_scrolled_window_set_policy(scrolledOp, hPolicy, vPolicy)
 
         // Prevent GTK from allocating the child's full natural size
@@ -6107,6 +8162,7 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         }
 
         let child = widgetFromOpaque(gtkRenderView(content))
+        let childWantsVerticalFill = gtkHasVerticalFillIntent(child)
         if axes.contains(.vertical) {
             gtk_widget_set_vexpand(child, 0)
         }
@@ -6122,8 +8178,13 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             gtk_widget_set_halign(child, GTK_ALIGN_FILL)
         }
         if axes.contains(.horizontal) && !axes.contains(.vertical) {
-            gtk_widget_set_vexpand(child, 1)
-            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+            // A horizontal-only SwiftUI ScrollView has the natural height of
+            // its content. If it advertises vertical expansion, fixed-height
+            // rows such as IceCubes' status summary buttons allocate the
+            // scroller as the row's fill child and clip neighboring labels.
+            // Keep explicit container-relative/full-height pagers fillable.
+            gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
+            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
         gtkInstallScrollViewCrossAxisFill(
@@ -6132,14 +8193,13 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
             fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
         )
-        gtkInstallScrollViewCrossAxisFill(
-            on: scrolled,
-            child: child,
-            fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
-        )
 
-        gtk_widget_set_vexpand(scrolled, 1)
+        let scrollerWantsVerticalFill = axes.contains(.vertical)
+            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)
+        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
+        if scrollerWantsVerticalFill {
+            gtkMarkVerticalFillIntent(scrolled)
+        }
         gtk_widget_set_hexpand(scrolled, 1)
 
         return opaqueFromWidget(scrolled)
@@ -6164,15 +8224,7 @@ extension Image: GTKRenderable {
             // will now see the placeholder; it should switch to a real
             // SF name or use `Image(material:)` for direct Material
             // names.
-            let materialName = SFSymbolCompatibility.materialName(for: sfName)
-                ?? SFSymbolCompatibility.missingSymbolPlaceholderName
-            #if DEBUG
-            if SFSymbolCompatibility.materialName(for: sfName) == nil {
-                FileHandle.standardError.write(Data(
-                    "[SwiftOpenUI] Image(systemName: \"\(sfName)\") has no Material mapping; rendering placeholder\n".utf8
-                ))
-            }
-            #endif
+            let materialName = gtkMaterialNameForSystemImage(sfName)
             return opaqueFromWidget(gtkRenderMaterialSymbolLabel(materialName, scale: scale))
 
         case .filePath(let path):
@@ -6188,6 +8240,7 @@ extension Image: GTKRenderable {
                 gtk_swift_picture_set_can_shrink(picture, 1)
                 gtk_widget_set_hexpand(picture, 1)
                 gtk_widget_set_vexpand(picture, 1)
+                gtkMarkVerticalFillIntent(picture)
                 gtk_widget_set_halign(picture, GTK_ALIGN_FILL)
                 gtk_widget_set_valign(picture, GTK_ALIGN_FILL)
             } else {
@@ -6213,23 +8266,45 @@ extension Image: GTKRenderable {
 /// substitute the literal name ("search", "folder_open", ...) into the
 /// icon glyph during text shaping.
 ///
-/// Pango's font_size attribute uses thousandths of a point, hence
-/// `scale.pointSize * 1000`. The widget is clamped to a point-size box
-/// for consistency with the other `gtk_image`-based Image cases.
+/// Pango's font_size attribute uses thousandths of a point. Material
+/// Symbols' Linux line metrics run taller than SF Symbols; keep the
+/// requested box at `ImageScale.pointSize`, but draw medium/large glyphs
+/// slightly smaller so system icons do not inflate 20pt SwiftUI rows.
 private func gtkRenderMaterialSymbolLabel(
     _ name: String,
     scale: ImageScale
 ) -> UnsafeMutablePointer<GtkWidget> {
     let label = gtk_label_new(nil)!
     let familyName = gtkEscapeMarkup(MaterialSymbolsRoundedFamilyName)
-    let escapedName = gtkEscapeMarkup(name)
+    let codepoint = MaterialSymbolsCodepoints.codepoint(for: name)
+        ?? MaterialSymbolsCodepoints.missingGlyphCodepoint
+    let glyph = Unicode.Scalar(codepoint).map(String.init) ?? "?"
+    let escapedGlyph = gtkEscapeMarkup(glyph)
+    let glyphPointSize = gtkMaterialSymbolGlyphPointSize(for: scale)
+    let foreground = gtkPangoColorHex(gtkGetCurrentForegroundColor())
     let markup = """
-        <span font_family="\(familyName)" font_size="\(scale.pointSize * 1000)">\(escapedName)</span>
+        <span font_family="\(familyName)" font_size="\(glyphPointSize * 1000)" foreground="\(foreground)">\(escapedGlyph)</span>
         """
     gtk_swift_label_set_markup(label, markup)
     let px = gint(scale.pointSize)
     gtk_widget_set_size_request(label, px, px)
     return label
+}
+
+private func gtkPangoColorHex(_ color: Color) -> String {
+    let r = Int(min(max(color.red, 0), 1) * 255)
+    let g = Int(min(max(color.green, 0), 1) * 255)
+    let b = Int(min(max(color.blue, 0), 1) * 255)
+    return String(format: "#%02X%02X%02X", r, g, b)
+}
+
+private func gtkMaterialSymbolGlyphPointSize(for scale: ImageScale) -> Int {
+    switch scale {
+    case .small:
+        return scale.pointSize
+    case .medium, .large:
+        return max(1, Int((Double(scale.pointSize) * 0.8).rounded()))
+    }
 }
 
 /// Material Symbols Rounded font family name, resolved via SwiftOpenUISymbols.
@@ -6267,12 +8342,406 @@ private struct GTKRowMetadata {
 }
 
 private let gtkDefaultRowInsets = EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
+private let gtkListRowLifecycleDataKey = "gtk-swift-list-row-lifecycle-box"
 
-private func gtkDirectChildViews<V: View>(of view: V) -> [any View] {
-    if let multi = view as? MultiChildView {
-        return multi.children
+private func gtkListDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_LIST"] == "1" else { return }
+    if let data = ("[QuillUI GTK List] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private protocol GTKListRowWrapper {
+    func gtkFlattenedListRows(depth: Int) -> [any View]
+}
+
+private protocol GTKKeyedListRowProducer {
+    func gtkKeyedListRows(depth: Int) -> [any View]
+}
+
+private struct GTKListRowActiveTask {
+    let lifecycleID: String?
+    let task: Task<Void, Never>
+}
+
+private final class GTKListRowLifecycleBox {
+    let source: String
+    let onAppearPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload]
+    let taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload]
+    private var isVisible = false
+    private var activeTasksByIdentity: [GTK4DescriptorIdentity: GTKListRowActiveTask] = [:]
+
+    init(
+        source: String,
+        onAppearPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4OnAppearPayload],
+        taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload]
+    ) {
+        self.source = source
+        self.onAppearPayloadsByIdentity = onAppearPayloadsByIdentity
+        self.taskPayloadsByIdentity = taskPayloadsByIdentity
+    }
+
+    deinit {
+        cancelActiveTasks()
+    }
+
+    func setVisible(_ visible: Bool) {
+        if visible {
+            guard !isVisible else { return }
+            isVisible = true
+            gtkListDebugLog(
+                "row lifecycle visible source=\(source) onAppear=\(onAppearPayloadsByIdentity.count) tasks=\(taskPayloadsByIdentity.count)"
+            )
+            onAppearPayloadsByIdentity.values.forEach { $0.action() }
+            for (identity, payload) in taskPayloadsByIdentity {
+                startTask(identity: identity, payload: payload)
+            }
+        } else if isVisible {
+            gtkListDebugLog("row lifecycle hidden source=\(source)")
+            isVisible = false
+            cancelActiveTasks()
+        }
+    }
+
+    private func startTask(identity: GTK4DescriptorIdentity, payload: GTK4TaskPayload) {
+        if activeTasksByIdentity[identity]?.lifecycleID == payload.lifecycleID {
+            return
+        }
+        activeTasksByIdentity[identity]?.task.cancel()
+        let action = payload.action
+        activeTasksByIdentity[identity] = GTKListRowActiveTask(
+            lifecycleID: payload.lifecycleID,
+            task: Task(priority: payload.priority) {
+                await action()
+            }
+        )
+    }
+
+    private func cancelActiveTasks() {
+        activeTasksByIdentity.values.forEach { $0.task.cancel() }
+        activeTasksByIdentity.removeAll()
+    }
+}
+
+private final class GTKListViewportLifecycleController {
+    let scrolled: UnsafeMutablePointer<GtkWidget>
+    let listBox: UnsafeMutablePointer<GtkWidget>
+
+    init(scrolled: UnsafeMutablePointer<GtkWidget>, listBox: UnsafeMutablePointer<GtkWidget>) {
+        self.scrolled = scrolled
+        self.listBox = listBox
+    }
+
+    func updateVisibleRows() -> gboolean {
+        guard gtk_swift_is_widget(scrolled) != 0,
+              gtk_swift_is_widget(listBox) != 0 else {
+            return 0
+        }
+
+        var row = gtk_widget_get_first_child(listBox)
+        while let current = row {
+            if let lifecycle = gtkListRowLifecycleBox(from: current) {
+                lifecycle.setVisible(gtkListRowIsVisible(current, in: scrolled))
+            }
+            row = gtk_widget_get_next_sibling(current)
+        }
+
+        return 1
+    }
+}
+
+private let gtkListViewportLifecycleTickCallback: GtkTickCallback = { _, _, userData in
+    guard let userData else { return 0 }
+    let controller = Unmanaged<GTKListViewportLifecycleController>
+        .fromOpaque(userData)
+        .takeUnretainedValue()
+    return controller.updateVisibleRows()
+}
+
+extension ForEach: GTKKeyedListRowProducer {
+    fileprivate func gtkKeyedListRows(depth: Int) -> [any View] {
+        data.map { item in
+            GTKStateNamespaceView(
+                component: gtkForEachStateIdentityComponent(for: item[keyPath: id]),
+                content: content(item)
+            )
+        }
+    }
+}
+
+extension EnvironmentModifierView: GTKListRowWrapper {
+    fileprivate func gtkFlattenedListRows(depth: Int) -> [any View] {
+        gtkDirectChildViews(of: content, depth: depth + 1).map {
+            AnyView($0).environment(keyPath, value)
+        }
+    }
+}
+
+extension EnvironmentObjectModifierView: GTKListRowWrapper {
+    fileprivate func gtkFlattenedListRows(depth: Int) -> [any View] {
+        gtkDirectChildViews(of: content, depth: depth + 1).map {
+            AnyView($0).environmentObject(object)
+        }
+    }
+}
+
+extension EnvironmentObservableModifierView: GTKListRowWrapper {
+    fileprivate func gtkFlattenedListRows(depth: Int) -> [any View] {
+        gtkDirectChildViews(of: content, depth: depth + 1).map {
+            AnyView($0).environment(object)
+        }
+    }
+}
+
+private func gtkDirectChildViews<V: View>(of view: V, depth: Int = 0) -> [any View] {
+    guard depth < 24 else { return [view] }
+
+    let mirror = Mirror(reflecting: view)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first?.value as? any View else { return [] }
+        return gtkDirectChildViews(ofAny: child, depth: depth + 1)
+    }
+
+    if mirror.displayStyle == .enum,
+       String(reflecting: Swift.type(of: view)).contains("_ConditionalView") {
+        for child in mirror.children {
+            if let nested = child.value as? any View {
+                return gtkDirectChildViews(ofAny: nested, depth: depth + 1)
+            }
+        }
+        return []
+    }
+
+    if let keyedRows = view as? GTKKeyedListRowProducer {
+        let children = keyedRows.gtkKeyedListRows(depth: depth + 1)
+        if depth == 0 {
+            gtkListDebugLog("root keyed=\(String(reflecting: type(of: view))) rows=\(children.count)")
+        }
+        return children
+    }
+
+    if let multi = view as? any TransparentMultiChildView {
+        let children = multi.children.flatMap { gtkDirectChildViews(ofAny: $0, depth: depth + 1) }
+        if depth == 0 {
+            gtkListDebugLog("root multi=\(String(reflecting: type(of: view))) rows=\(children.count)")
+            for (index, child) in children.enumerated() {
+                gtkListDebugLog("  row[\(index)]=\(String(reflecting: type(of: child)))")
+            }
+        }
+        return children
+    }
+    if let wrapper = view as? GTKListRowWrapper {
+        let children = wrapper.gtkFlattenedListRows(depth: depth + 1)
+        gtkListDebugLog(
+            "wrapper=\(String(reflecting: type(of: view))) rows=\(children.count)"
+        )
+        if !children.isEmpty {
+            return children
+        }
+    }
+    if V.Body.self != Never.self, gtkViewTypeNameSuggestsListRowProducer(view) {
+        let bodyChildren: [any View]
+        if hasReactiveProperties(view), let host = GTKViewHost.getCurrentRebuilding() {
+            let namespace = gtkRestoreAndInstallInlineState(view, host: host)
+            bodyChildren = gtkWithForcedStateIdentityNamespace(namespace) {
+                MainActor.assumeIsolated {
+                    gtkDirectChildViews(of: view.body, depth: depth + 1)
+                }
+            }
+        } else {
+            bodyChildren = MainActor.assumeIsolated {
+                gtkDirectChildViews(of: view.body, depth: depth + 1)
+            }
+        }
+        gtkListDebugLog(
+            "producer=\(String(reflecting: type(of: view))) bodyRows=\(bodyChildren.count)"
+        )
+        if !bodyChildren.isEmpty {
+            return bodyChildren
+        }
     }
     return [view]
+}
+
+private func gtkDirectChildViews(ofAny view: any View, depth: Int = 0) -> [any View] {
+    func unwrap<V: View>(_ typedView: V) -> [any View] {
+        gtkDirectChildViews(of: typedView, depth: depth)
+    }
+    return unwrap(view)
+}
+
+private func gtkDescribeListRowLifecycleScope(
+    _ view: any View,
+    index: Int
+) -> GTK4DescriptorNode {
+    GTK4DescriptorNode(
+        kind: .listRowLifecycleScope,
+        typeName: "GTKListRowLifecycleScope<\(index)>",
+        children: [
+            gtkWithSuppressedDescriptorLifecyclePayloads {
+                gtkDescribeAnyView(view)
+            }
+        ]
+    )
+}
+
+private func gtkBuildListRowLifecycleBox(
+    for view: any View,
+    source: String
+) -> GTKListRowLifecycleBox? {
+    let described = gtkDescribeCapturingCanvasPayloads {
+        gtkDescribeAnyView(view)
+    }
+    guard !described.onAppearPayloads.isEmpty || !described.taskPayloads.isEmpty else {
+        return nil
+    }
+
+    let identified = gtkIdentifyDescriptorTree(described.descriptor)
+    let onAppearPayloads = gtkOnAppearPayloadsByIdentity(
+        descriptorRoot: identified,
+        payloads: described.onAppearPayloads
+    )
+    let taskPayloads = gtkTaskPayloadsByIdentity(
+        descriptorRoot: identified,
+        payloads: described.taskPayloads
+    )
+    guard !onAppearPayloads.isEmpty || !taskPayloads.isEmpty else {
+        return nil
+    }
+
+    return GTKListRowLifecycleBox(
+        source: source,
+        onAppearPayloadsByIdentity: onAppearPayloads,
+        taskPayloadsByIdentity: taskPayloads
+    )
+}
+
+private func gtkAttachListRowLifecycleData(
+    to row: UnsafeMutablePointer<GtkWidget>,
+    view: any View,
+    source: String
+) {
+    guard let lifecycle = gtkBuildListRowLifecycleBox(for: view, source: source) else {
+        return
+    }
+    gtkListDebugLog(
+        "row lifecycle attach source=\(source) onAppear=\(lifecycle.onAppearPayloadsByIdentity.count) tasks=\(lifecycle.taskPayloadsByIdentity.count)"
+    )
+    g_object_set_data_full(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowLifecycleDataKey,
+        Unmanaged.passRetained(lifecycle).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListRowLifecycleBox>.fromOpaque(userData).release()
+        }
+    )
+}
+
+private func gtkListRowLifecycleBox(
+    from row: UnsafeMutablePointer<GtkWidget>
+) -> GTKListRowLifecycleBox? {
+    guard let lifecycleData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowLifecycleDataKey
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKListRowLifecycleBox>
+        .fromOpaque(lifecycleData)
+        .takeUnretainedValue()
+}
+
+private func gtkListRowIsVisible(
+    _ row: UnsafeMutablePointer<GtkWidget>,
+    in scrolled: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    guard gtk_widget_get_mapped(scrolled) != 0,
+          gtk_widget_get_mapped(row) != 0,
+          gtk_widget_get_visible(row) != 0 else {
+        return false
+    }
+
+    var rowX: gdouble = 0
+    var rowY: gdouble = 0
+    guard gtk_widget_translate_coordinates(row, scrolled, 0, 0, &rowX, &rowY) != 0 else {
+        return false
+    }
+
+    let rowHeight = Double(max(1, gtk_widget_get_height(row)))
+    let viewportHeight = Double(max(1, gtk_widget_get_height(scrolled)))
+    let margin = 8.0
+    return Double(rowY) < viewportHeight + margin
+        && Double(rowY) + rowHeight > -margin
+}
+
+private func gtkInstallListViewportLifecycleController(
+    on scrolled: UnsafeMutablePointer<GtkWidget>,
+    listBox: UnsafeMutablePointer<GtkWidget>
+) {
+    let controller = GTKListViewportLifecycleController(scrolled: scrolled, listBox: listBox)
+    let pointer = Unmanaged.passRetained(controller).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        scrolled,
+        gtkListViewportLifecycleTickCallback,
+        pointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListViewportLifecycleController>.fromOpaque(userData).release()
+        }
+    )
+}
+
+private func gtkFormChildViews<V: View>(of view: V, depth: Int = 0) -> [any View] {
+    guard depth < 24 else { return [view] }
+    return gtkDirectChildViews(of: view, depth: depth).flatMap { child in
+        gtkFlattenSectionProducingFormChild(child, depth: depth + 1)
+    }
+}
+
+private func gtkFlattenSectionProducingFormChild(_ view: any View, depth: Int) -> [any View] {
+    func flatten<V: View>(_ typedView: V) -> [any View] {
+        gtkFlattenSectionProducingTypedFormChild(typedView, depth: depth)
+    }
+    return flatten(view)
+}
+
+private func gtkFlattenSectionProducingTypedFormChild<V: View>(_ view: V, depth: Int) -> [any View] {
+    guard depth < 24 else { return [view] }
+    if gtkIsSectionView(view) {
+        return [view]
+    }
+
+    if V.Body.self != Never.self, gtkViewTypeNameSuggestsFormSectionProducer(view) {
+        let bodyChildren = MainActor.assumeIsolated {
+            gtkFormChildViews(of: view.body, depth: depth + 1)
+        }
+        if bodyChildren.contains(where: gtkIsSectionView) {
+            return bodyChildren
+        }
+    }
+
+    return [view]
+}
+
+private func gtkViewTypeNameSuggestsFormSectionProducer(_ view: any View) -> Bool {
+    let typeName = String(describing: type(of: view))
+    let reflectedTypeName = String(reflecting: type(of: view))
+    return typeName.hasSuffix("Section")
+        || typeName.hasSuffix("Sections")
+        || reflectedTypeName.hasSuffix("Section")
+        || reflectedTypeName.hasSuffix("Sections")
+}
+
+private func gtkViewTypeNameSuggestsListRowProducer(_ view: any View) -> Bool {
+    let typeName = String(describing: type(of: view))
+    let reflectedTypeName = String(reflecting: type(of: view))
+    return typeName.contains("ListView")
+        || typeName.contains("Rows")
+        || typeName.contains("RowsView")
+        || reflectedTypeName.contains("ListView")
+        || reflectedTypeName.contains("Rows")
+        || reflectedTypeName.contains("RowsView")
 }
 
 private func gtkRowMetadata(from view: any View) -> GTKRowMetadata {
@@ -6317,41 +8786,2026 @@ private func gtkSeparatorIsHidden(_ metadata: GTKRowMetadata) -> Bool {
     metadata.separatorVisibility == .hidden || metadata.separatorVisibility == .never
 }
 
+private func gtkViewIsPlainTextRow(_ value: Any, depth: Int = 0) -> Bool {
+    guard depth < 24 else { return false }
+    if value is Text { return true }
+
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first?.value as? any View else { return false }
+        return gtkViewIsPlainTextRow(child, depth: depth + 1)
+    }
+    if mirror.displayStyle == .enum {
+        for child in mirror.children {
+            if let nested = child.value as? any View {
+                return gtkViewIsPlainTextRow(nested, depth: depth + 1)
+            }
+        }
+    }
+
+    if value is any MultiChildView { return false }
+
+    let typeName = String(describing: Swift.type(of: value))
+    if typeName.contains("Button<")
+        || typeName.contains("HStack<")
+        || typeName.contains("VStack<")
+        || typeName.contains("ZStack<")
+        || typeName.contains("LabeledContent<")
+        || typeName.contains("LayoutContainer<")
+        || typeName.contains("Form<")
+        || typeName.contains("Section<") {
+        return false
+    }
+
+    if let insetsProvider = value as? any ListRowInsetsProvider {
+        return gtkViewIsPlainTextRow(insetsProvider.listRowContent, depth: depth + 1)
+    }
+    if let separatorProvider = value as? any ListRowSeparatorProvider {
+        return gtkViewIsPlainTextRow(separatorProvider.listRowSeparatorContent, depth: depth + 1)
+    }
+
+    for child in mirror.children {
+        guard child.label == "content" || child.label == "wrapped" || child.label == "base" else {
+            continue
+        }
+        if let nested = child.value as? any View {
+            return gtkViewIsPlainTextRow(nested, depth: depth + 1)
+        }
+    }
+    return false
+}
+
+private let gtkRowLabelWrapThreshold = 40
+private let gtkRowLabelMinWidthChars: gint = 24
+private let gtkRowLabelMaxWidthChars: gint = 88
+private let gtkRowLabelAverageCharWidth: gint = 9
+private let gtkPlainListRowMinimumHeight: gint = 56
+private let gtkComplexListRowMinimumHeight: gint = 112
+private var gtkRowTextRenderContextStack: [Bool] = []
+
+private var gtkIsRenderingRowContent: Bool {
+    !gtkRowTextRenderContextStack.isEmpty
+}
+
+private func gtkWithRowTextRenderContext<Result>(
+    includeShortPlainText: Bool,
+    _ body: () -> Result
+) -> Result {
+    gtkRowTextRenderContextStack.append(includeShortPlainText)
+    defer { _ = gtkRowTextRenderContextStack.popLast() }
+    return body()
+}
+
+private func gtkPrepareRowTextLabel(_ label: UnsafeMutablePointer<GtkWidget>, text: String) {
+    guard let includeShortPlainText = gtkRowTextRenderContextStack.last else { return }
+    guard includeShortPlainText || text.count >= gtkRowLabelWrapThreshold else { return }
+    let labelOp = OpaquePointer(label)
+    gtk_label_set_wrap(labelOp, 1)
+    gtk_label_set_wrap_mode(labelOp, PANGO_WRAP_WORD_CHAR)
+    gtk_label_set_lines(labelOp, -1)
+    gtk_label_set_width_chars(labelOp, gtkRowLabelMaxWidthChars)
+    gtk_label_set_max_width_chars(labelOp, gtkRowLabelMaxWidthChars)
+}
+
+private func gtkConstrainRowTextLabels(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    includeShortPlainText: Bool
+) {
+    gtkConstrainRowTextLabels(
+        widget,
+        includeShortPlainText: includeShortPlainText,
+        widthChars: gtkRowLabelMaxWidthChars
+    )
+}
+
+private func gtkConstrainRowTextLabels(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    includeShortPlainText: Bool,
+    widthChars: gint
+) {
+    for label in findAllGtkLabels(in: widget) {
+        let labelOp = OpaquePointer(label)
+        let existingLines = gtk_label_get_lines(labelOp)
+        if existingLines == 1 {
+            continue
+        }
+        let text = originalLabelText(label) ?? String(cString: gtk_label_get_text(labelOp))
+        if !includeShortPlainText && text.count < gtkRowLabelWrapThreshold {
+            continue
+        }
+        gtk_label_set_wrap(labelOp, 1)
+        gtk_label_set_wrap_mode(labelOp, PANGO_WRAP_WORD_CHAR)
+        gtk_label_set_lines(labelOp, existingLines > 1 ? existingLines : -1)
+        gtk_label_set_width_chars(labelOp, widthChars)
+        gtk_label_set_max_width_chars(labelOp, widthChars)
+        gtk_widget_set_hexpand(label, 1)
+        gtk_widget_set_halign(label, GTK_ALIGN_FILL)
+    }
+}
+
+private func gtkRowLabelWidthChars(forWidth width: gint) -> gint {
+    max(gtkRowLabelMinWidthChars, min(gtkRowLabelMaxWidthChars, width / gtkRowLabelAverageCharWidth))
+}
+
+private func gtkUpdateWrappingRowLabelWidths(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    forWidth width: gint
+) {
+    let widthChars = gtkRowLabelWidthChars(forWidth: width)
+    for label in findAllGtkLabels(in: widget) {
+        let labelOp = OpaquePointer(label)
+        guard gtk_label_get_wrap(labelOp) != 0 else { continue }
+        gtk_label_set_width_chars(labelOp, widthChars)
+        gtk_label_set_max_width_chars(labelOp, widthChars)
+        gtk_widget_set_hexpand(label, 1)
+        gtk_widget_set_halign(label, GTK_ALIGN_FILL)
+    }
+}
+
 private func gtkRenderRowContent(
     _ view: any View,
-    metadata: GTKRowMetadata? = nil
+    metadata: GTKRowMetadata? = nil,
+    minimumHeight: gint? = nil,
+    installPrimaryActionFallback: Bool = false
 ) -> UnsafeMutablePointer<GtkWidget> {
     let resolvedMetadata = metadata ?? gtkRowMetadata(from: view)
     let insets = gtkRowInsets(resolvedMetadata)
-    let child = widgetFromOpaque(gtkRenderAnyView(view))
+    let includeShortPlainText = gtkViewIsPlainTextRow(view)
+    let primaryAction = installPrimaryActionFallback ? gtkPrimaryTapAction(inAny: view) : nil
+    let primaryActionAllowsButtonTarget = view is any GTKNavigationPrimaryActionProvider
+    let child = gtkWithRowTextRenderContext(includeShortPlainText: includeShortPlainText) {
+        widgetFromOpaque(gtkRenderAnyView(view))
+    }
+    if gtkIsEmptyViewWidget(child) {
+        return gtkCreateEmptyViewWidget()
+    }
+    gtkConstrainRowTextLabels(child, includeShortPlainText: includeShortPlainText)
     gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_vexpand(child, 0)
     gtk_widget_set_halign(child, GTK_ALIGN_FILL)
-
-    let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-    gtk_widget_set_hexpand(wrapper, 1)
-    gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(child, GTK_ALIGN_START)
     gtk_widget_set_margin_top(child, gint(insets.top))
     gtk_widget_set_margin_bottom(child, gint(insets.bottom))
     gtk_widget_set_margin_start(child, gint(insets.leading))
     gtk_widget_set_margin_end(child, gint(insets.trailing))
-    gtk_box_append(boxPointer(wrapper), child)
+
+    let wrapper = gtk_swift_compressible_width_clamp_new(child)!
+    gtk_widget_set_hexpand(wrapper, 1)
+    gtk_widget_set_vexpand(wrapper, 0)
+    gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(wrapper, GTK_ALIGN_START)
+    if let minimumHeight {
+        gtk_widget_set_size_request(wrapper, -1, minimumHeight)
+    }
+    gtkInstallRowWidthFill(on: wrapper, child: child)
+    if let primaryAction {
+        let source = "FormRow<\(String(reflecting: Swift.type(of: view)))>"
+        let rowTapActionBox = gtkInstallListRowTapFallback(
+            on: wrapper,
+            source: source,
+            action: primaryAction,
+            allowButtonTarget: primaryActionAllowsButtonTarget
+        )
+        gtkAttachListRowTapActionData(to: child, box: rowTapActionBox)
+    }
     return wrapper
+}
+
+private func gtkListRowMinimumHeight(for view: any View) -> gint {
+    let environmentMinimum = max(gint(1), gint(getCurrentEnvironment().defaultMinListRowHeight))
+    if let explicitHeight = gtkExplicitFrameHeight(in: view) {
+        return max(environmentMinimum, gtkPixelSize(explicitHeight))
+    }
+    let contentMinimum = gtkViewIsPlainTextRow(view)
+        ? gtkPlainListRowMinimumHeight
+        : gtkComplexListRowMinimumHeight
+    return max(environmentMinimum, contentMinimum)
+}
+
+private func gtkExplicitFrameHeight(in value: Any, depth: Int = 0) -> Double? {
+    guard depth < 24 else { return nil }
+
+    let typeName = String(reflecting: Swift.type(of: value))
+    if typeName.contains("FrameView") {
+        for child in Mirror(reflecting: value).children where child.label == "height" {
+            return child.value as? Double
+        }
+    }
+
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first else { return nil }
+        return gtkExplicitFrameHeight(in: child.value, depth: depth + 1)
+    }
+    if mirror.displayStyle == .enum {
+        for child in mirror.children {
+            if let height = gtkExplicitFrameHeight(in: child.value, depth: depth + 1) {
+                return height
+            }
+        }
+    }
+
+    for child in mirror.children {
+        guard child.label == "content" || child.label == "wrapped" || child.label == "base" else {
+            continue
+        }
+        if let height = gtkExplicitFrameHeight(in: child.value, depth: depth + 1) {
+            return height
+        }
+    }
+    return nil
 }
 
 private func gtkAppendRows(
     _ rows: [any View],
     to box: UnsafeMutablePointer<GtkWidget>,
-    includeOuterSeparators: Bool = false
+    includeOuterSeparators: Bool = false,
+    installPrimaryActionFallback: Bool = false
 ) {
     guard !rows.isEmpty else { return }
     for (index, rowView) in rows.enumerated() {
         let metadata = gtkRowMetadata(from: rowView)
-        gtk_box_append(boxPointer(box), gtkRenderRowContent(rowView, metadata: metadata))
+        gtk_box_append(
+            boxPointer(box),
+            gtkRenderRowContent(
+                rowView,
+                metadata: metadata,
+                installPrimaryActionFallback: installPrimaryActionFallback
+            )
+        )
         let isLast = index == rows.count - 1
         if (!isLast || includeOuterSeparators) && !gtkSeparatorIsHidden(metadata) {
             gtk_box_append(boxPointer(box), gtk_separator_new(GTK_ORIENTATION_HORIZONTAL))
         }
     }
+}
+
+private final class GTKListRowTapActionBox {
+    let action: () -> Void
+    let source: String
+    let allowButtonTarget: Bool
+    var lastActivationTime: TimeInterval = 0
+
+    init(action: @escaping () -> Void, source: String, allowButtonTarget: Bool = false) {
+        self.action = action
+        self.source = source
+        self.allowButtonTarget = allowButtonTarget
+    }
+}
+
+private final class GTKListRowGeometryBox {
+    let estimatedHeight: Double
+    let source: String
+    let namespace: String
+
+    init(estimatedHeight: Double, source: String, namespace: String) {
+        self.estimatedHeight = estimatedHeight
+        self.source = source
+        self.namespace = namespace
+    }
+}
+
+private enum GTKCollapsedRowControl {
+    case button(box: GTKButtonActionBox, naturalWidth: Double)
+    case menu(button: UnsafeMutablePointer<GtkWidget>, naturalWidth: Double)
+
+    var naturalWidth: Double {
+        switch self {
+        case .button(_, let naturalWidth), .menu(_, let naturalWidth):
+            naturalWidth
+        }
+    }
+}
+
+private final class GTKCollapsedRowControlsBox {
+    let controls: [GTKCollapsedRowControl]
+
+    init(controls: [GTKCollapsedRowControl]) {
+        self.controls = controls
+    }
+}
+
+private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"
+private let gtkListRowGeometryDataKey = "gtk-swift-list-row-geometry"
+private let gtkCollapsedListRowControlsDataKey = "gtk-swift-collapsed-list-row-controls"
+private let gtkListRowGlobalDispatcherDataKey = "gtk-swift-list-row-global-dispatcher"
+
+private final class GTKListRowIdleActionContext {
+    let box: GTKListRowTapActionBox
+    let source: String
+
+    init(box: GTKListRowTapActionBox, source: String) {
+        self.box = box
+        self.source = source
+    }
+}
+
+private final class GTKListRowRootEventContext {
+    let row: UnsafeMutablePointer<GtkWidget>
+    let box: GTKListRowTapActionBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+    var loggedRootUnavailable = false
+
+    init(row: UnsafeMutablePointer<GtkWidget>, box: GTKListRowTapActionBox) {
+        self.row = row
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private final class GTKListBoxRootEventContext {
+    let listBox: UnsafeMutablePointer<GtkWidget>
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+    var loggedRootUnavailable = false
+
+    init(listBox: UnsafeMutablePointer<GtkWidget>) {
+        self.listBox = listBox
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private final class GTKListRowGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
+private func gtkPrimaryTapAction(inAny view: any View, depth: Int = 0) -> (() -> Void)? {
+    func inspect<V: View>(_ typedView: V) -> (() -> Void)? {
+        gtkPrimaryTapAction(in: typedView, depth: depth)
+    }
+    return inspect(view)
+}
+
+private func gtkPrimaryTapAction<V: View>(in view: V, depth: Int = 0) -> (() -> Void)? {
+    guard depth < 32 else { return nil }
+
+    if let tapProvider = view as? any GTKPrimaryTapActionProvider,
+       tapProvider.gtkTapGestureCount == 1 {
+        gtkDebugLog("list primary action tap depth=\(depth) type=\(String(reflecting: Swift.type(of: view)))")
+        return bindActionToCurrentEnvironment(tapProvider.gtkTapGestureAction)
+    }
+
+    if let navigationProvider = view as? any GTKNavigationPrimaryActionProvider,
+       let action = navigationProvider.gtkNavigationPrimaryAction {
+        gtkDebugLog("list primary action navigation depth=\(depth) type=\(String(reflecting: Swift.type(of: view)))")
+        return action
+    }
+
+    if let erased = view as? AnyView {
+        return gtkPrimaryTapAction(inAny: erased.wrapped, depth: depth + 1)
+    }
+
+    if let background = view as? any GTKBackgroundActionProvider {
+        if let action = gtkPrimaryTapAction(
+            inAny: background.gtkPrimaryActionBackground,
+            depth: depth + 1
+        ) {
+            gtkDebugLog("list primary action background depth=\(depth) type=\(String(reflecting: Swift.type(of: view)))")
+            return action
+        }
+        return gtkPrimaryTapAction(inAny: background.gtkPrimaryActionContent, depth: depth + 1)
+    }
+
+    if let overlay = view as? any GTKOverlayActionProvider {
+        if let action = gtkPrimaryTapAction(
+            inAny: overlay.gtkPrimaryActionContent,
+            depth: depth + 1
+        ) {
+            return action
+        }
+        return gtkPrimaryTapAction(inAny: overlay.gtkPrimaryActionOverlay, depth: depth + 1)
+    }
+
+    if let namespaced = view as? any GTKStateNamespaceActionProvider {
+        return gtkWithStateIdentityNamespaceComponent(namespaced.gtkStateNamespaceComponent) {
+            gtkPrimaryTapAction(inAny: namespaced.gtkStateNamespaceContent, depth: depth + 1)
+        }
+    }
+
+    let mirror = Mirror(reflecting: view)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first?.value as? any View else { return nil }
+        return gtkPrimaryTapAction(inAny: child, depth: depth + 1)
+    }
+
+    if mirror.displayStyle == .enum,
+       String(reflecting: Swift.type(of: view)).contains("_ConditionalView") {
+        for child in mirror.children {
+            if let nested = child.value as? any View {
+                return gtkPrimaryTapAction(inAny: nested, depth: depth + 1)
+            }
+        }
+        return nil
+    }
+
+    for child in mirror.children {
+        guard child.label == "content"
+            || child.label == "wrapped"
+            || child.label == "base"
+            || child.label == "label"
+        else {
+            continue
+        }
+        if let nested = child.value as? any View,
+           let action = gtkPrimaryTapAction(inAny: nested, depth: depth + 1) {
+            return action
+        }
+    }
+
+    if V.Body.self != Never.self {
+        return MainActor.assumeIsolated {
+            gtkPrimaryTapAction(in: view.body, depth: depth + 1)
+        }
+    }
+
+    return nil
+}
+
+private func gtkScheduleListRowTapAction(
+    _ box: GTKListRowTapActionBox,
+    source: String,
+    deferAction: Bool = true
+) {
+    let now = Date().timeIntervalSinceReferenceDate
+    if now - box.lastActivationTime < 0.08 {
+        gtkDebugLog("list row tap duplicate \(source) \(box.source)")
+        return
+    }
+    box.lastActivationTime = now
+    gtkDebugLog("list row tap pressed \(source) \(box.source)")
+    gtkFlushPendingTextBindingUpdate()
+    if !deferAction {
+        gtkDebugLog("list row tap action \(source) \(box.source)")
+        box.action()
+        return
+    }
+    let context = Unmanaged.passRetained(
+        GTKListRowIdleActionContext(box: box, source: source)
+    ).toOpaque()
+    g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let context = Unmanaged<GTKListRowIdleActionContext>.fromOpaque(userData).takeRetainedValue()
+        gtkDebugLog("list row tap action \(context.source) \(context.box.source)")
+        context.box.action()
+        return 0
+    }, context)
+}
+
+private func gtkVisualListBoxActionRowAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    if gtk_swift_widget_is_list_box_row(widget) != 0,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
+       g_object_get_data(
+           UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+           gtkListRowTapActionDataKey
+       ) != nil {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let row = gtkVisualListBoxActionRowAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return row
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return nil
+}
+
+private func gtkVisualListRowActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualListRowActionWidgetAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    guard gtk_swift_widget_is_button(widget) == 0,
+          gtk_swift_widget_is_menu_button(widget) == 0,
+          gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
+          g_object_get_data(
+              UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+              gtkListRowTapActionDataKey
+          ) != nil
+    else {
+        return nil
+    }
+    return widget
+}
+
+private func gtkPickedListBoxActionRowAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    while let widget = current, depth < 96 {
+        if gtk_swift_widget_is_list_box_row(widget) != 0,
+           g_object_get_data(
+               UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+               gtkListRowTapActionDataKey
+           ) != nil {
+            return widget
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return nil
+}
+
+private func gtkPickedListRowActionWidgetAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    while let widget = current, depth < 96 {
+        if gtk_swift_widget_is_button(widget) == 0,
+           gtk_swift_widget_is_menu_button(widget) == 0,
+           g_object_get_data(
+               UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+               gtkListRowTapActionDataKey
+           ) != nil {
+            return widget
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return nil
+}
+
+private func gtkListRowTapActionData(
+    from widget: UnsafeMutablePointer<GtkWidget>?
+) -> gpointer? {
+    guard let widget else { return nil }
+    return g_object_get_data(
+        UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+        gtkListRowTapActionDataKey
+    )
+}
+
+private func gtkAttachListRowGeometryData(
+    to row: UnsafeMutablePointer<GtkWidget>,
+    estimatedHeight: Double,
+    source: String,
+    namespace: String
+) {
+    let object = UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        object,
+        gtkListRowGeometryDataKey,
+        Unmanaged.passRetained(
+            GTKListRowGeometryBox(estimatedHeight: estimatedHeight, source: source, namespace: namespace)
+        ).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListRowGeometryBox>.fromOpaque(userData).release()
+        }
+    )
+}
+
+private func gtkListRowGeometry(
+    _ row: UnsafeMutablePointer<GtkWidget>
+) -> GTKListRowGeometryBox? {
+    guard let geometryData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowGeometryDataKey
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKListRowGeometryBox>.fromOpaque(geometryData).takeUnretainedValue()
+}
+
+private func gtkEstimatedListRowHeight(
+    _ row: UnsafeMutablePointer<GtkWidget>
+) -> Double {
+    if let geometry = gtkListRowGeometry(row) {
+        return max(1, geometry.estimatedHeight)
+    }
+    return Double(gtkComplexListRowMinimumHeight)
+}
+
+private func gtkMeasuredNaturalWidth(
+    _ widget: UnsafeMutablePointer<GtkWidget>
+) -> Double {
+    var minimumWidth: gint = 0
+    var naturalWidth: gint = 0
+    gtk_swift_widget_measure(
+        widget,
+        GTK_ORIENTATION_HORIZONTAL,
+        -1,
+        &minimumWidth,
+        &naturalWidth
+    )
+    return Double(max(minimumWidth, naturalWidth, gtk_widget_get_width(widget)))
+}
+
+private func gtkCollectCollapsedRowControls(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    into controls: inout [GTKCollapsedRowControl],
+    depth: Int = 0
+) {
+    guard depth < 160 else { return }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return }
+
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if gtk_swift_widget_is_menu_button(widget) != 0,
+       let modelData = g_object_get_data(object, gtkSwiftMenuOverlayModelKey) {
+        let model = Unmanaged<GTKMenuOverlayModel>.fromOpaque(modelData).takeUnretainedValue()
+        guard !model.elements.isEmpty else { return }
+        controls.append(.menu(button: widget, naturalWidth: gtkMeasuredNaturalWidth(widget)))
+        return
+    }
+
+    if gtk_swift_widget_is_button(widget) != 0,
+       let actionData = g_object_get_data(object, gtkSwiftButtonActionBoxDataKey) {
+        let box = Unmanaged<GTKButtonActionBox>.fromOpaque(actionData).takeUnretainedValue()
+        controls.append(.button(box: box, naturalWidth: gtkMeasuredNaturalWidth(widget)))
+        return
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollectCollapsedRowControls(in: current, into: &controls, depth: depth + 1)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkAttachCollapsedListRowControlsData(
+    to row: UnsafeMutablePointer<GtkWidget>,
+    content: UnsafeMutablePointer<GtkWidget>
+) {
+    var controls: [GTKCollapsedRowControl] = []
+    gtkCollectCollapsedRowControls(in: content, into: &controls)
+    guard !controls.isEmpty else { return }
+    let summary = controls.enumerated().map { index, control -> String in
+        let kind: String
+        switch control {
+        case .button:
+            kind = "button"
+        case .menu:
+            kind = "menu"
+        }
+        return "#\(index):\(kind):\(Int(control.naturalWidth))"
+    }.joined(separator: ",")
+    gtkDebugLog("collapsed-list controls attached count=\(controls.count) [\(summary)]")
+
+    let object = UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        object,
+        gtkCollapsedListRowControlsDataKey,
+        Unmanaged.passRetained(GTKCollapsedRowControlsBox(controls: controls)).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKCollapsedRowControlsBox>.fromOpaque(userData).release()
+        }
+    )
+}
+
+private func gtkCollapsedListRowControls(
+    from row: UnsafeMutablePointer<GtkWidget>
+) -> GTKCollapsedRowControlsBox? {
+    guard let controlsData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkCollapsedListRowControlsDataKey
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKCollapsedRowControlsBox>
+        .fromOpaque(controlsData)
+        .takeUnretainedValue()
+}
+
+private struct GTKCollapsedListRowHit {
+    let row: UnsafeMutablePointer<GtkWidget>
+    let rowLocalY: Double
+    let estimatedHeight: Double
+    let namespace: String
+    let actionData: gpointer?
+    let controls: GTKCollapsedRowControlsBox?
+}
+
+private struct GTKCollapsedListContentHit {
+    let widget: UnsafeMutablePointer<GtkWidget>
+    let frame: (x: Double, y: Double, width: Double, height: Double)
+}
+
+private func gtkFirstCollapsedListRowHit(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    localY: Double,
+    depth: Int = 0
+) -> GTKCollapsedListRowHit? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    if gtk_swift_widget_is_list_box(widget) != 0 {
+        var cursor = 0.0
+        var child = gtk_widget_get_first_child(widget)
+        while let row = child {
+            defer { child = gtk_widget_get_next_sibling(row) }
+            guard gtk_swift_widget_is_list_box_row(row) != 0 else { continue }
+            let height = gtkEstimatedListRowHeight(row)
+            let rowMinY = cursor
+            let rowMaxY = cursor + height
+            if localY >= rowMinY && localY < rowMaxY {
+                let geometry = gtkListRowGeometry(row)
+                return GTKCollapsedListRowHit(
+                    row: row,
+                    rowLocalY: localY - rowMinY,
+                    estimatedHeight: height,
+                    namespace: geometry?.namespace ?? "",
+                    actionData: gtkListRowTapActionData(from: row),
+                    controls: gtkCollapsedListRowControls(from: row)
+                )
+            }
+            cursor = rowMaxY
+        }
+        if cursor > localY {
+            return nil
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let hit = gtkFirstCollapsedListRowHit(
+            in: current,
+            localY: localY,
+            depth: depth + 1
+        ) {
+            return hit
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkFirstCollapsedListRowHitWithControls(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    localY: Double,
+    depth: Int = 0
+) -> GTKCollapsedListRowHit? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    if gtk_swift_widget_is_list_box(widget) != 0 {
+        var cursor = 0.0
+        var child = gtk_widget_get_first_child(widget)
+        while let row = child {
+            defer { child = gtk_widget_get_next_sibling(row) }
+            guard gtk_swift_widget_is_list_box_row(row) != 0 else { continue }
+            let height = gtkEstimatedListRowHeight(row)
+            let rowMinY = cursor
+            let rowMaxY = cursor + height
+            let controls = gtkCollapsedListRowControls(from: row)
+            let controlsHitSlop = controls == nil ? 0 : 64.0
+            if localY >= rowMinY && localY < rowMaxY + controlsHitSlop,
+               let controls {
+                let geometry = gtkListRowGeometry(row)
+                let rowLocalY = min(max(localY - rowMinY, 0), max(1, height) - 1)
+                return GTKCollapsedListRowHit(
+                    row: row,
+                    rowLocalY: rowLocalY,
+                    estimatedHeight: height,
+                    namespace: geometry?.namespace ?? "",
+                    actionData: gtkListRowTapActionData(from: row),
+                    controls: controls
+                )
+            }
+            cursor = rowMaxY
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let hit = gtkFirstCollapsedListRowHitWithControls(
+            in: current,
+            localY: localY,
+            depth: depth + 1
+        ) {
+            return hit
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkCollapsedListRowHit(
+    inListBox listBox: UnsafeMutablePointer<GtkWidget>,
+    localY: Double
+) -> GTKCollapsedListRowHit? {
+    guard gtk_swift_widget_is_list_box(listBox) != 0 else { return nil }
+    var cursor = 0.0
+    var child = gtk_widget_get_first_child(listBox)
+    while let row = child {
+        defer { child = gtk_widget_get_next_sibling(row) }
+        guard gtk_swift_widget_is_list_box_row(row) != 0 else { continue }
+        let height = gtkEstimatedListRowHeight(row)
+        let rowMinY = cursor
+        let rowMaxY = cursor + height
+        if localY >= rowMinY && localY < rowMaxY {
+            let geometry = gtkListRowGeometry(row)
+            return GTKCollapsedListRowHit(
+                row: row,
+                rowLocalY: localY - rowMinY,
+                estimatedHeight: height,
+                namespace: geometry?.namespace ?? "",
+                actionData: gtkListRowTapActionData(from: row),
+                controls: gtkCollapsedListRowControls(from: row)
+            )
+        }
+        cursor = rowMaxY
+    }
+    return nil
+}
+
+private func gtkPickedCollapsedListRowHitAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> GTKCollapsedListRowHit? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    while let widget = current, depth < 96 {
+        if gtk_swift_widget_is_list_box(widget) != 0 {
+            var listX = 0.0
+            var listY = 0.0
+            guard gtk_swift_widget_compute_point(root, widget, x, y, &listX, &listY) != 0 else {
+                return nil
+            }
+            return gtkCollapsedListRowHit(inListBox: widget, localY: listY)
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return nil
+}
+
+private func gtkVisualCollapsedListRowHitAtRootPoint(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    contentFrame: (x: Double, y: Double, width: Double, height: Double),
+    depth: Int = 0
+) -> GTKCollapsedListRowHit? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
+
+    if gtk_swift_widget_is_list_box(widget) != 0,
+       let frame = gtkWidgetVisualFrameInRoot(widget, root: root) {
+        let containsPoint = x >= frame.x
+            && x < frame.x + frame.width
+            && y >= frame.y
+            && y < frame.y + frame.height
+        let overlapsContent = frame.x < contentFrame.x + contentFrame.width
+            && frame.x + frame.width > contentFrame.x
+            && frame.y < contentFrame.y + contentFrame.height
+            && frame.y + frame.height > contentFrame.y
+        if containsPoint && overlapsContent {
+            var listX = 0.0
+            var listY = 0.0
+            if gtk_swift_widget_compute_point(root, widget, x, y, &listX, &listY) != 0,
+               let hit = gtkCollapsedListRowHit(inListBox: widget, localY: listY) {
+                return hit
+            }
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let hit = gtkVisualCollapsedListRowHitAtRootPoint(
+            in: current,
+            root: root,
+            x: x,
+            y: y,
+            contentFrame: contentFrame,
+            depth: depth + 1
+        ) {
+            return hit
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkFirstCollapsedListRowActionData(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    localY: Double,
+    depth: Int = 0
+) -> gpointer? {
+    gtkFirstCollapsedListRowHit(in: widget, localY: localY, depth: depth)?.actionData
+}
+
+private func gtkCollapsedListContentHitAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> GTKCollapsedListContentHit? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    let rootWidth = Double(max(1, gtk_widget_get_width(root)))
+    let rootHeight = Double(max(1, gtk_widget_get_height(root)))
+    let minimumContentWidth = min(240, max(160, rootWidth * 0.30))
+    let minimumContentHeight = min(120, max(64, rootHeight * 0.20))
+    var firstHit: GTKCollapsedListContentHit?
+    var bestHit: GTKCollapsedListContentHit?
+    var bestScore = -Double.greatestFiniteMagnitude
+
+    func frameContainsPoint(_ frame: (x: Double, y: Double, width: Double, height: Double)) -> Bool {
+        x >= frame.x
+            && x < frame.x + frame.width
+            && y >= frame.y
+            && y < frame.y + frame.height
+    }
+
+    func contentScore(_ frame: (x: Double, y: Double, width: Double, height: Double)) -> Double {
+        var score = 0.0
+        let contentSized = frame.width >= minimumContentWidth && frame.height >= minimumContentHeight
+        if contentSized {
+            score += 100_000
+        }
+
+        let desktopChromeWidth = gtkCollapsedListDesktopChromeWidth(rootWidth: rootWidth)
+        let isDesktopDetailClick = rootWidth >= 700 && x >= desktopChromeWidth
+        if isDesktopDetailClick {
+            let fullWindowLike = frame.x < 4 && frame.width >= rootWidth * 0.90
+            if frame.x >= desktopChromeWidth - 16 {
+                score += 20_000
+            }
+            if fullWindowLike {
+                score -= 15_000
+            }
+            if frame.height >= rootHeight * 0.65 {
+                score += 5_000
+            }
+            if frame.width < rootWidth * 0.90 {
+                score += 2_000
+            }
+            score -= abs(frame.x - desktopChromeWidth) * 20
+        } else if frame.height >= rootHeight * 0.55 {
+            score += 1_000
+        }
+
+        let rootArea = max(1, rootWidth * rootHeight)
+        let areaRatio = min(1, (frame.width * frame.height) / rootArea)
+        score -= areaRatio * 500
+        return score
+    }
+
+    func consider(
+        widget: UnsafeMutablePointer<GtkWidget>,
+        frame: (x: Double, y: Double, width: Double, height: Double)
+    ) {
+        guard widget != root,
+              frame.width > 1,
+              frame.height > 1,
+              frameContainsPoint(frame) else { return }
+        if firstHit == nil {
+            firstHit = GTKCollapsedListContentHit(widget: widget, frame: frame)
+        }
+        guard frame.width >= minimumContentWidth,
+              frame.height >= minimumContentHeight else { return }
+        let score = contentScore(frame)
+        if score > bestScore {
+            bestScore = score
+            bestHit = GTKCollapsedListContentHit(widget: widget, frame: frame)
+        }
+    }
+
+    while let widget = current, depth < 96 {
+        if let frame = gtkWidgetVisualFrameInRoot(widget, root: root) {
+            consider(widget: widget, frame: frame)
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+
+    func searchTree(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int = 0) {
+        guard depth < 160 else { return }
+        guard gtk_widget_get_visible(widget) != 0,
+              gtk_widget_get_mapped(widget) != 0 else { return }
+        if let frame = gtkWidgetVisualFrameInRoot(widget, root: root) {
+            consider(widget: widget, frame: frame)
+        }
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            searchTree(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+    var child = gtk_widget_get_first_child(root)
+    while let current = child {
+        searchTree(current)
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return bestHit ?? firstHit
+}
+
+private func gtkCollapsedListRowActionDataAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> gpointer? {
+    gtkCollapsedListRowHitAtRootPoint(root: root, x: x, y: y)?.hit.actionData
+}
+
+private func gtkCollapsedListRowHitCandidatesAtRootPoint(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    contentFrame: (x: Double, y: Double, width: Double, height: Double),
+    depth: Int = 0,
+    into hits: inout [GTKCollapsedListRowHit]
+) {
+    guard depth < 160 else { return }
+    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return }
+
+    if gtk_swift_widget_is_list_box(widget) != 0,
+       let frame = gtkWidgetVisualFrameInRoot(widget, root: root) {
+        let containsPoint = x >= frame.x
+            && x < frame.x + frame.width
+            && y >= frame.y
+            && y < frame.y + frame.height
+        let overlapsContent = frame.x < contentFrame.x + contentFrame.width
+            && frame.x + frame.width > contentFrame.x
+            && frame.y < contentFrame.y + contentFrame.height
+            && frame.y + frame.height > contentFrame.y
+        if containsPoint && overlapsContent {
+            var listX = 0.0
+            var listY = 0.0
+            if gtk_swift_widget_compute_point(root, widget, x, y, &listX, &listY) != 0,
+               let hit = gtkCollapsedListRowHit(inListBox: widget, localY: listY) {
+                hits.append(hit)
+            }
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollapsedListRowHitCandidatesAtRootPoint(
+            in: current,
+            root: root,
+            x: x,
+            y: y,
+            contentFrame: contentFrame,
+            depth: depth + 1,
+            into: &hits
+        )
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkBestCollapsedListRowHit(_ hits: [GTKCollapsedListRowHit]) -> GTKCollapsedListRowHit? {
+    guard !hits.isEmpty else { return nil }
+    return hits.enumerated().max { lhs, rhs in
+        func score(_ candidate: (offset: Int, element: GTKCollapsedListRowHit)) -> Int {
+            var value = candidate.offset
+            let namespace = candidate.element.namespace
+            if !namespace.contains("::Tab[") {
+                value += 10_000
+            }
+            if candidate.element.controls != nil {
+                value += 1_000
+            }
+            if candidate.element.actionData != nil {
+                value += 100
+            }
+            return value
+        }
+        return score(lhs) < score(rhs)
+    }?.element
+}
+
+private func gtkCollapsedListDesktopChromeWidth(rootWidth: Double) -> Double {
+    min(240, max(160, rootWidth * 0.25))
+}
+
+private func gtkCollapsedListContentStartX(
+    contentFrame: (x: Double, y: Double, width: Double, height: Double),
+    rootWidth: Double
+) -> Double {
+    guard rootWidth >= 700, contentFrame.x < 4 else {
+        return contentFrame.x
+    }
+    return contentFrame.x + gtkCollapsedListDesktopChromeWidth(rootWidth: rootWidth)
+}
+
+private func gtkCollapsedListInlineControlsStartX(
+    contentFrame: (x: Double, y: Double, width: Double, height: Double),
+    rootWidth: Double
+) -> Double {
+    let contentStartX = gtkCollapsedListContentStartX(contentFrame: contentFrame, rootWidth: rootWidth)
+    return contentStartX + (rootWidth >= 700 && contentFrame.x < 4 ? 56 : 16)
+}
+
+private func gtkCollapsedListRowHitAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> (hit: GTKCollapsedListRowHit, contentFrame: (x: Double, y: Double, width: Double, height: Double))? {
+    guard let contentHit = gtkCollapsedListContentHitAtRootPoint(root: root, x: x, y: y) else {
+        return nil
+    }
+    let contentFrame = contentHit.frame
+    let rootWidth = max(Double(gtk_widget_get_width(root)), contentFrame.width)
+    if rootWidth >= 700 {
+        let minimumContentX = gtkCollapsedListContentStartX(contentFrame: contentFrame, rootWidth: rootWidth)
+        guard x >= minimumContentX else {
+            gtkDebugLog(
+                "collapsed-list dispatch skipped leading chrome root@\(Int(x)),\(Int(y)) "
+                + "minX=\(Int(minimumContentX))"
+            )
+            return nil
+        }
+    }
+    let localY = y - contentFrame.y
+    guard localY >= 0, localY < contentFrame.height else { return nil }
+    gtkDebugLog(
+        "collapsed-list candidate root@\(Int(x)),\(Int(y)) "
+        + "content=\(Int(contentFrame.x)),\(Int(contentFrame.y)) "
+        + "\(Int(contentFrame.width))x\(Int(contentFrame.height)) "
+        + "localY=\(Int(localY))"
+    )
+    var candidates: [GTKCollapsedListRowHit] = []
+    gtkCollapsedListRowHitCandidatesAtRootPoint(
+        in: root,
+        root: root,
+        x: x,
+        y: y,
+        contentFrame: contentFrame,
+        into: &candidates
+    )
+    if let bestHit = gtkBestCollapsedListRowHit(candidates) {
+        gtkDebugLog(
+            "collapsed-list best row root@\(Int(x)),\(Int(y)) "
+            + "candidates=\(candidates.count) namespace=\(bestHit.namespace)"
+        )
+        return (bestHit, contentFrame)
+    }
+    if let pickedHit = gtkPickedCollapsedListRowHitAtRootPoint(root: root, x: x, y: y) {
+        gtkDebugLog("collapsed-list picked row root@\(Int(x)),\(Int(y))")
+        return (pickedHit, contentFrame)
+    }
+    if let contentScopedHit = gtkFirstCollapsedListRowHit(in: contentHit.widget, localY: localY) {
+        if contentScopedHit.controls == nil {
+            if let controlsHit = gtkFirstCollapsedListRowHitWithControls(in: contentHit.widget, localY: localY) {
+                gtkDebugLog("collapsed-list content controls row root@\(Int(x)),\(Int(y))")
+                return (controlsHit, contentFrame)
+            }
+            if let controlsHit = gtkFirstCollapsedListRowHitWithControls(in: root, localY: localY) {
+                gtkDebugLog("collapsed-list root controls row root@\(Int(x)),\(Int(y))")
+                return (controlsHit, contentFrame)
+            }
+        }
+        gtkDebugLog("collapsed-list content row root@\(Int(x)),\(Int(y))")
+        return (contentScopedHit, contentFrame)
+    }
+    guard let hit = gtkVisualCollapsedListRowHitAtRootPoint(
+        in: root,
+        root: root,
+        x: x,
+        y: y,
+        contentFrame: contentFrame
+    ) else {
+        return nil
+    }
+    return (hit, contentFrame)
+}
+
+private func gtkCollapsedListRowControlAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> GTKCollapsedRowControl? {
+    guard let result = gtkCollapsedListRowHitAtRootPoint(root: root, x: x, y: y),
+          let controls = result.hit.controls?.controls,
+          !controls.isEmpty
+    else {
+        return nil
+    }
+
+    let rowHeight = max(1, result.hit.estimatedHeight)
+    let actionBandStart = max(36, rowHeight - 64)
+    let usesWideInlineControls = controls.contains { $0.naturalWidth > 96 }
+    guard usesWideInlineControls || result.hit.rowLocalY >= actionBandStart else {
+        gtkDebugLog(
+            "collapsed-list controls skipped row y=\(Int(result.hit.rowLocalY)) "
+            + "band=\(Int(actionBandStart)) root@\(Int(x)),\(Int(y))"
+        )
+        return nil
+    }
+
+    let rootWidth = max(Double(gtk_widget_get_width(root)), result.contentFrame.width)
+    if rootWidth >= 700,
+       x >= result.contentFrame.x + rootWidth - 96,
+       let trailingControl = controls.last {
+        gtkDebugLog("collapsed-list controls trailing hit root@\(Int(x)),\(Int(y))")
+        return trailingControl
+    }
+
+    var cursor = gtkCollapsedListInlineControlsStartX(
+        contentFrame: result.contentFrame,
+        rootWidth: rootWidth
+    )
+    let inlineLimit = min(4, controls.count)
+    for index in 0..<inlineLimit {
+        let control = controls[index]
+        let width = max(44, control.naturalWidth)
+        if x >= cursor && x <= cursor + width {
+            gtkDebugLog(
+                "collapsed-list controls hit index=\(index) "
+                + "frame=\(Int(cursor)),\(Int(result.contentFrame.y + result.hit.rowLocalY)) "
+                + "\(Int(width))w root@\(Int(x)),\(Int(y))"
+            )
+            return control
+        }
+        cursor += width + 8
+    }
+
+    gtkDebugLog("collapsed-list controls miss root@\(Int(x)),\(Int(y)) count=\(controls.count)")
+    return nil
+}
+
+private func gtkActivateCollapsedListRowControlAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    guard let control = gtkCollapsedListRowControlAtRootPoint(root: root, x: x, y: y) else {
+        return false
+    }
+    switch control {
+    case .button(let box, _):
+        gtkScheduleButtonAction(box, source: source)
+        return true
+    case .menu(let button, _):
+        return gtkOpenMenuButton(button, root: root, anchorX: x, anchorY: y, source: source)
+    }
+}
+
+private func gtkDebugListRowActionCandidates(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var total = 0
+    var hits = 0
+    var logged = 0
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 160 else { return }
+        let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        if g_object_get_data(object, gtkListRowTapActionDataKey) != nil {
+            let contains = gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y)
+            total += 1
+            if contains { hits += 1 }
+            if contains || logged < 40 {
+                let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+                gtkDebugLog(
+                    "\(source) row-action-candidate[\(total - 1)] hit=\(contains ? 1 : 0) "
+                    + "type=\(typeName) isRow=\(gtk_swift_widget_is_list_box_row(widget)) "
+                    + gtkDebugVisualFrameDescription(widget, root: root)
+                )
+                logged += 1
+            }
+        }
+
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    gtkDebugLog("\(source) row-action-candidates total=\(total) hits=\(hits) root@\(Int(x)),\(Int(y))")
+}
+
+private func gtkDebugNonzeroWidgetsAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var total = 0
+    var hits = 0
+    var logged = 0
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 160 else { return }
+        let width = gtk_widget_get_width(widget)
+        let height = gtk_widget_get_height(widget)
+        if width > 0 && height > 0 {
+            total += 1
+            let contains = gtkWidgetVisuallyContainsRootPoint(widget, root: root, x: x, y: y)
+            if contains { hits += 1 }
+            if contains || logged < 80 {
+                let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+                let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+                let hasTap = g_object_get_data(object, gtkTapGestureActionDataKey) != nil
+                let hasRow = g_object_get_data(object, gtkListRowTapActionDataKey) != nil
+                gtkDebugLog(
+                    "\(source) nonzero-widget[\(total - 1)] hit=\(contains ? 1 : 0) "
+                    + "type=\(typeName) tap=\(hasTap ? 1 : 0) row=\(hasRow ? 1 : 0) "
+                    + gtkDebugVisualFrameDescription(widget, root: root)
+                )
+                logged += 1
+            }
+        }
+
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    gtkDebugLog("\(source) nonzero-widgets total=\(total) hits=\(hits) root@\(Int(x)),\(Int(y))")
+}
+
+private func gtkInstallGlobalListRowRootDispatcher(for widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkListRowGlobalDispatcherDataKey) == nil else { return }
+
+    let dispatcher = GTKListRowGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkListRowGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListRowGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("list row global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let dispatcher = Unmanaged<GTKListRowGlobalRootDispatcher>.fromOpaque(userData).takeUnretainedValue()
+            let root = dispatcher.root
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "list-row-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+
+            if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "list-row-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+            guard gtk_swift_root_point_picks_button(root, rootX, rootY) == 0 else {
+                gtkDebugLog("list row global dispatch skipped button root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+                gtkDebugLog("list row global dispatch skipped visual button root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualTapActionAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+                gtkDebugLog("list row global dispatch skipped visual tap root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+
+            let pickedGTKRow = gtk_swift_root_point_pick_list_box_row(root, rootX, rootY)
+            var actionData = gtkListRowTapActionData(from: pickedGTKRow)
+            var deferRowAction = true
+            if actionData == nil,
+               let pickedRow = gtkPickedListBoxActionRowAtRootPoint(root: root, x: rootX, y: rootY) {
+                actionData = gtkListRowTapActionData(from: pickedRow)
+                gtkDebugLog("list row global dispatch picked fallback root@\(Int(rootX)),\(Int(rootY))")
+            }
+            if actionData == nil,
+               let pickedActionWidget = gtkPickedListRowActionWidgetAtRootPoint(root: root, x: rootX, y: rootY) {
+                actionData = gtkListRowTapActionData(from: pickedActionWidget)
+                gtkDebugLog("list row global dispatch picked action fallback root@\(Int(rootX)),\(Int(rootY))")
+            }
+            if actionData == nil,
+               let visualRow = gtkVisualListBoxActionRowAtRootPoint(root, root: root, x: rootX, y: rootY) {
+                actionData = gtkListRowTapActionData(from: visualRow)
+                gtkDebugLog("list row global dispatch visual fallback root@\(Int(rootX)),\(Int(rootY))")
+            }
+            if actionData == nil,
+               let visualActionWidget = gtkVisualListRowActionWidgetAtRootPoint(root, root: root, x: rootX, y: rootY) {
+                actionData = gtkListRowTapActionData(from: visualActionWidget)
+                gtkDebugLog("list row global dispatch visual action fallback root@\(Int(rootX)),\(Int(rootY))")
+            }
+            if actionData == nil,
+               gtkActivateCollapsedListRowControlAtRootPoint(
+                   root: root,
+                   x: rootX,
+                   y: rootY,
+                   source: "collapsed-list-control@\(Int(rootX)),\(Int(rootY))"
+               ) {
+                return 1
+            }
+            if actionData == nil,
+               let collapsedActionData = gtkCollapsedListRowActionDataAtRootPoint(root: root, x: rootX, y: rootY) {
+                actionData = collapsedActionData
+                deferRowAction = false
+                gtkDebugLog("list row global dispatch collapsed-list fallback root@\(Int(rootX)),\(Int(rootY))")
+            }
+            guard let actionData else {
+                gtkDebugListRowActionCandidates(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "list row global dispatch"
+                )
+                gtkDebugNonzeroWidgetsAtRootPoint(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "list row global dispatch"
+                )
+                gtkDebugPickedWidgetChain(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "list row global dispatch"
+                )
+                gtkDebugLog("list row global dispatch miss root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkScheduleListRowTapAction(
+                box,
+                source: "root-dispatch@\(Int(rootX)),\(Int(rootY))",
+                deferAction: deferRowAction
+            )
+            return 1
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.listBox) else {
+        if !context.loggedRootUnavailable {
+            context.loggedRootUnavailable = true
+            gtkDebugLog("list box root fallback root unavailable")
+        }
+        return
+    }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    gtkDebugLog("list box root fallback installed")
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+
+            let visibleContainer = gtk_widget_get_parent(context.listBox) ?? context.listBox
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.listBox, rootX, rootY) != 0
+            let isVisualHit = gtkWidgetOrDescendantVisuallyContainsRootPoint(visibleContainer, root: root, x: rootX, y: rootY)
+                || gtkWidgetOrDescendantVisuallyContainsRootPoint(context.listBox, root: root, x: rootX, y: rootY)
+            guard isTopmost || isVisualHit else {
+                gtkDebugLog(
+                    "listbox-root missed root@\(Int(rootX)),\(Int(rootY)) list="
+                    + gtkDebugVisualFrameDescription(context.listBox, root: root)
+                    + " container="
+                    + gtkDebugVisualFrameDescription(visibleContainer, root: root)
+                )
+                return 0
+            }
+            gtkDebugPickedWidgetChain(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "listbox-root candidate"
+            )
+            gtkDebugLog(
+                "listbox-root candidate root@\(Int(rootX)),\(Int(rootY)) "
+                + "topmost=\(isTopmost ? 1 : 0) visual=\(isVisualHit ? 1 : 0) list="
+                + gtkDebugVisualFrameDescription(context.listBox, root: root)
+                + " container="
+                + gtkDebugVisualFrameDescription(visibleContainer, root: root)
+            )
+
+            if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "listbox-root@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+            guard gtk_swift_root_point_picks_button(root, rootX, rootY) == 0 else {
+                gtkDebugLog("list row tap skipped button listbox-root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+                gtkDebugLog("list row tap skipped visual button listbox-root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard !gtkWidgetTreeContainsVisualTapActionAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+                gtkDebugLog("list row tap skipped visual tap listbox-root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+
+            var listX: Double = 0
+            var listY: Double = 0
+            guard gtk_swift_widget_compute_point(root, context.listBox, rootX, rootY, &listX, &listY) != 0 else {
+                return 0
+            }
+            guard let row = gtk_swift_list_box_row_at_point(context.listBox, listX, listY) else {
+                gtkDebugLog("list row tap miss listbox-root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            guard let actionData = g_object_get_data(
+                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+                gtkListRowTapActionDataKey
+            ) else {
+                gtkDebugLog("list row tap no action listbox-root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkDebugLog(
+                "listbox-root row root@\(Int(rootX)),\(Int(rootY)) list@\(Int(listX)),\(Int(listY)) "
+                + gtkDebugVisualFrameDescription(row, root: root)
+                + " source=\(box.source)"
+            )
+            gtkScheduleListRowTapAction(box, source: "listbox-root@\(Int(rootX)),\(Int(rootY))")
+            return 1
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkListBoxRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallListBoxRootEventFallback(context)
+    gtkInstallGlobalListRowRootDispatcher(for: context.listBox)
+    return context.controller == nil ? 1 : 0
+}
+
+private func gtkInstallListRowRootEventFallback(_ context: GTKListRowRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.row) else {
+        if !context.loggedRootUnavailable {
+            context.loggedRootUnavailable = true
+            gtkDebugLog("list row root fallback root unavailable \(context.box.source)")
+        }
+        return
+    }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    gtkDebugLog("list row root fallback installed \(context.box.source)")
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.row, x, y) != 0
+            let isVisualHit = gtkWidgetOrDescendantVisuallyContainsRootPoint(context.row, root: root, x: x, y: y)
+            guard isTopmost || isVisualHit else {
+                gtkDebugLog(
+                    "list row tap missed root@\(Int(x)),\(Int(y)) \(context.box.source) "
+                    + gtkDebugVisualFrameDescription(context.row, root: root)
+                )
+                return 0
+            }
+            let source = isTopmost ? "root" : "root-visual"
+            if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                source: "\(source)@\(Int(x)),\(Int(y)) \(context.box.source)"
+            ) {
+                return 1
+            }
+            if !context.box.allowButtonTarget {
+                guard gtk_swift_root_point_picks_button(root, x, y) == 0 else {
+                    gtkDebugLog("list row tap skipped button \(source)@\(Int(x)),\(Int(y)) \(context.box.source)")
+                    return 0
+                }
+                guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: x, y: y) else {
+                    gtkDebugLog("list row tap skipped visual button \(source)@\(Int(x)),\(Int(y)) \(context.box.source)")
+                    return 0
+                }
+                guard !gtkWidgetTreeContainsVisualTapActionAtRootPoint(root, root: root, x: x, y: y) else {
+                    gtkDebugLog("list row tap skipped visual tap \(source)@\(Int(x)),\(Int(y)) \(context.box.source)")
+                    return 0
+                }
+            }
+            gtkScheduleListRowTapAction(context.box, source: "\(source)@\(Int(x)),\(Int(y))")
+            return 1
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkListRowRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallListRowRootEventFallback(context)
+    return context.controller == nil ? 1 : 0
+}
+
+private func gtkAttachListRowTapActionData(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    box: GTKListRowTapActionBox,
+    depth: Int = 0
+) {
+    guard depth < 160 else { return }
+    guard gtk_swift_widget_is_button(widget) == 0,
+          gtk_swift_widget_is_menu_button(widget) == 0
+    else {
+        return
+    }
+
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if g_object_get_data(object, gtkListRowTapActionDataKey) == nil {
+        g_object_set_data_full(
+            object,
+            gtkListRowTapActionDataKey,
+            Unmanaged.passRetained(box).toOpaque(),
+            { userData in
+                guard let userData else { return }
+                Unmanaged<GTKListRowTapActionBox>.fromOpaque(userData).release()
+            }
+        )
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkAttachListRowTapActionData(to: current, box: box, depth: depth + 1)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkInstallListRowTapFallback(
+    on row: UnsafeMutablePointer<GtkWidget>,
+    source: String,
+    action: @escaping () -> Void,
+    allowButtonTarget: Bool = false
+) -> GTKListRowTapActionBox {
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
+
+    gtkDebugLog("list row tap fallback installed \(source)")
+    let actionBox = GTKListRowTapActionBox(
+        action: action,
+        source: source,
+        allowButtonTarget: allowButtonTarget
+    )
+    let box = Unmanaged.passRetained(actionBox).toOpaque()
+    gtkAttachListRowTapActionData(to: row, box: actionBox)
+    let rootContextObject = GTKListRowRootEventContext(row: row, box: actionBox)
+    let rootEventContext = Unmanaged.passRetained(
+        rootContextObject
+    ).toOpaque()
+    g_signal_connect_data(
+        gpointer(row),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            gtkInstallListRowRootEventFallback(context)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(row),
+        "unmap",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    let tickRootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        row,
+        gtkListRowRootInstallTickCallback,
+        tickRootEventContext,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).release()
+        }
+    )
+    g_signal_connect_data(
+        gpointer(row),
+        "destroy",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListRowRootEventContext>.fromOpaque(userData).takeRetainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (gesture: gpointer?, nPress: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+            guard Int(nPress) == 1, let userData else { return }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(userData).takeUnretainedValue()
+            guard let row = gtk_swift_event_controller_widget(gesture) else {
+                gtkScheduleListRowTapAction(box, source: "gesture")
+                return
+            }
+            if gtkHandleActiveMenuOverlayClick(from: row, x: x, y: y) != 0 {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
+            if gtkOpenVisualMenuButtonAtWidgetPoint(row, x: x, y: y, source: "gesture@\(Int(x)),\(Int(y)) \(box.source)") {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
+            if !box.allowButtonTarget {
+                guard gtk_swift_root_point_picks_button(row, x, y) == 0 else {
+                    gtkDebugLog("list row tap skipped button gesture@\(Int(x)),\(Int(y)) \(box.source)")
+                    return
+                }
+                guard !gtkRootTreeContainsVisualButtonAtWidgetPoint(row, x: x, y: y) else {
+                    gtkDebugLog("list row tap skipped visual button gesture@\(Int(x)),\(Int(y)) \(box.source)")
+                    return
+                }
+                guard !gtkRootTreeContainsVisualTapActionAtWidgetPoint(row, x: x, y: y) else {
+                    gtkDebugLog("list row tap skipped visual tap gesture@\(Int(x)),\(Int(y)) \(box.source)")
+                    return
+                }
+            }
+            gtkScheduleListRowTapAction(box, source: "gesture")
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+            Unmanaged<GTKListRowTapActionBox>.fromOpaque(userData!).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtk_swift_add_gesture(row, gesture)
+    return actionBox
+}
+
+private func gtkInstallListBoxTapFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
+
+    let rootContextObject = GTKListBoxRootEventContext(listBox: listBox)
+    let rootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+    g_signal_connect_data(
+        gpointer(listBox),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            gtkInstallListBoxRootEventFallback(context)
+            gtkInstallGlobalListRowRootDispatcher(for: context.listBox)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(listBox),
+        "unmap",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    let tickRootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        listBox,
+        gtkListBoxRootInstallTickCallback,
+        tickRootEventContext,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).release()
+        }
+    )
+    g_signal_connect_data(
+        gpointer(listBox),
+        "destroy",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKListBoxRootEventContext>.fromOpaque(userData).takeRetainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        rootEventContext,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtkDebugLog("list box tap fallback installed")
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (gesture: gpointer?, nPress: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+            guard Int(nPress) == 1, let userData else { return }
+            let listBox = userData.assumingMemoryBound(to: GtkWidget.self)
+            if gtkHandleActiveMenuOverlayClick(from: listBox, x: x, y: y) != 0 {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
+            if gtkOpenVisualMenuButtonAtWidgetPoint(listBox, x: x, y: y, source: "listbox@\(Int(x)),\(Int(y))") {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
+            guard gtk_swift_root_point_picks_button(listBox, x, y) == 0 else {
+                gtkDebugLog("list row tap skipped button listbox@\(Int(x)),\(Int(y))")
+                return
+            }
+            guard !gtkRootTreeContainsVisualButtonAtWidgetPoint(listBox, x: x, y: y) else {
+                gtkDebugLog("list row tap skipped visual button listbox@\(Int(x)),\(Int(y))")
+                return
+            }
+            guard !gtkRootTreeContainsVisualTapActionAtWidgetPoint(listBox, x: x, y: y) else {
+                gtkDebugLog("list row tap skipped visual tap listbox@\(Int(x)),\(Int(y))")
+                return
+            }
+            guard let row = gtk_swift_list_box_row_at_point(listBox, x, y) else {
+                gtkDebugLog("list row tap miss listbox@\(Int(x)),\(Int(y))")
+                return
+            }
+            guard let actionData = g_object_get_data(
+                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+                gtkListRowTapActionDataKey
+            ) else {
+                gtkDebugLog("list row tap no action listbox@\(Int(x)),\(Int(y))")
+                return
+            }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkScheduleListRowTapAction(box, source: "listbox@\(Int(x)),\(Int(y))")
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        gpointer(listBox),
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtk_swift_add_gesture(listBox, gesture)
+}
+
+private func gtkInstallListBoxRowActivationFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
+    gtk_swift_list_box_set_activate_on_single_click(listBox, 1)
+    g_signal_connect_data(
+        gpointer(listBox),
+        "row-activated",
+        unsafeBitCast({ (_: gpointer?, row: gpointer?, _: gpointer?) in
+            guard let row else { return }
+            guard let actionData = g_object_get_data(
+                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+                gtkListRowTapActionDataKey
+            ) else {
+                return
+            }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkScheduleListRowTapAction(box, source: "row-activated")
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        nil,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
 }
 
 /// Track which GdkDisplays have had list CSS installed.
@@ -6366,7 +10820,7 @@ private func ensureListCSS(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let provider = gtk_css_provider_new()!
     let css = """
         .swiftopenui-list { background: @view_bg_color; border-radius: 10px; padding: 0; }
-        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); padding: 0; }
+        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); min-height: 56px; padding: 0; }
         .swiftopenui-list row.separator-hidden { border-bottom: none; }
         .swiftopenui-list row:last-child { border-bottom: none; }
         """
@@ -6379,36 +10833,80 @@ private func ensureListCSS(_ widget: UnsafeMutablePointer<GtkWidget>) {
     g_object_unref(gpointer(provider))
 }
 
-extension List: GTKRenderable {
+extension List: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let rowDescriptors = gtkDirectChildViews(of: content).enumerated().map { index, child in
+            gtkDescribeListRowLifecycleScope(child, index: index)
+        }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "List",
+            children: rowDescriptors
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let listBox = gtk_list_box_new()!
         let listBoxOp = OpaquePointer(listBox)
         gtk_widget_set_hexpand(listBox, 1)
+        gtk_widget_set_halign(listBox, GTK_ALIGN_FILL)
         gtk_list_box_set_selection_mode(listBoxOp, GTK_SELECTION_NONE)
 
         ensureListCSS(listBox)
         gtk_widget_add_css_class(listBox, "swiftopenui-list")
+        gtkInstallListBoxRowActivationFallback(on: listBox)
+        gtkInstallListBoxTapFallback(on: listBox)
 
         for child in gtkDirectChildViews(of: content) {
             let metadata = gtkRowMetadata(from: child)
-            let widget = gtkRenderRowContent(child, metadata: metadata)
+            let minimumHeight = gtkListRowMinimumHeight(for: child)
+            let rowSource = String(reflecting: Swift.type(of: child))
+            let widget = gtkRenderRowContent(
+                child,
+                metadata: metadata,
+                minimumHeight: minimumHeight
+            )
+            if gtkIsEmptyViewWidget(widget) {
+                continue
+            }
             let row = gtk_list_box_row_new()!
+            gtk_swift_list_box_row_set_activatable(row, 1)
             if gtkSeparatorIsHidden(metadata) {
                 gtk_widget_add_css_class(row, "separator-hidden")
             }
             gtk_widget_set_hexpand(row, 1)
             gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+            gtkAttachListRowLifecycleData(to: row, view: child, source: rowSource)
+            gtkAttachListRowGeometryData(
+                to: row,
+                estimatedHeight: Double(minimumHeight),
+                source: rowSource,
+                namespace: gtkStateIdentityNamespace()
+            )
+            var rowTapActionBox: GTKListRowTapActionBox?
+            if let tapAction = gtkPrimaryTapAction(inAny: child) {
+                rowTapActionBox = gtkInstallListRowTapFallback(
+                    on: row,
+                    source: rowSource,
+                    action: tapAction
+                )
+            }
             gtk_list_box_row_set_child(
                 UnsafeMutableRawPointer(row).assumingMemoryBound(to: GtkListBoxRow.self),
                 widget
             )
+            if let rowTapActionBox {
+                gtkAttachListRowTapActionData(to: widget, box: rowTapActionBox)
+            }
+            gtkAttachCollapsedListRowControlsData(to: row, content: widget)
+            gtkInstallRowWidthFill(on: row, child: widget)
             gtk_list_box_append(listBoxOp, row)
         }
 
         // Wrap in scrolled window
         let scrolled = gtk_scrolled_window_new()!
         let scrolledOp = OpaquePointer(scrolled)
-        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
         // A vertical SwiftUI List lays rows out in the viewport width.
         // Propagating natural width lets fixed-width row content push
         // trailing controls outside the visible sheet.
@@ -6421,6 +10919,7 @@ extension List: GTKRenderable {
         gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
         gtk_scrolled_window_set_child(scrolledOp, listBox)
         gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)
+        gtkInstallListViewportLifecycleController(on: scrolled, listBox: listBox)
         gtk_widget_set_vexpand(scrolled, 1)
         gtk_widget_set_hexpand(scrolled, 1)
 
@@ -6428,7 +10927,20 @@ extension List: GTKRenderable {
     }
 }
 
-extension EnvironmentObjectModifierView: GTKRenderable {
+extension EnvironmentObjectModifierView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        var env = getCurrentEnvironment()
+        env.setObject(object)
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "EnvironmentObjectModifierView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.setObject(object)
@@ -6440,7 +10952,20 @@ extension EnvironmentObjectModifierView: GTKRenderable {
     }
 }
 
-extension EnvironmentObservableModifierView: GTKRenderable {
+extension EnvironmentObservableModifierView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        var env = getCurrentEnvironment()
+        env.setObject(object)
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "EnvironmentObservableModifierView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.setObject(object)
@@ -6452,7 +10977,20 @@ extension EnvironmentObservableModifierView: GTKRenderable {
     }
 }
 
-extension EnvironmentModifierView: GTKRenderable {
+extension EnvironmentModifierView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        var env = getCurrentEnvironment()
+        env[keyPath: keyPath] = value
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "EnvironmentModifierView",
+            children: [gtkDescribeView(content)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env[keyPath: keyPath] = value
@@ -6531,13 +11069,382 @@ extension TupleView: GTKRenderable {
 // `TabView` iterates `[AnyTab]` and renders each `tab.wrapped` directly.
 // This matches the Win32 backend, which also does not render bare `Tab`.
 
-extension TabView: GTKRenderable {
-    public func gtkCreateWidget() -> OpaquePointer {
-        let stack = gtk_stack_new()!
-        gtk_swift_stack_set_transition_type(stack, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT_RIGHT)
+private func gtkTabViewShouldShowSwitcher(_ tabs: [AnyTab]) -> Bool {
+    tabs.count > 1 && tabs.contains { !$0.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+}
 
+private func gtkTabViewShouldShowSidebar(_ tabs: [AnyTab]) -> Bool {
+    tabs.count > 1 && tabs.contains { tab in
+        tab.label != nil || tab.placement == "pinned" || tab.placement == "sidebarOnly"
+    }
+}
+
+private func gtkTabDebugLog(_ message: @autoclosure () -> String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_TABS"] == "1" else {
+        return
+    }
+    let line = "[SwiftOpenUI][TabView] \(message())\n"
+    if let data = line.data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
+private final class GTKTabActivationBox {
+    let button: UnsafeMutablePointer<GtkWidget>
+    let stack: UnsafeMutablePointer<GtkWidget>
+    let id: String
+    let selectionHandler: ((String) -> Void)?
+    private var lastActivationTime: TimeInterval = 0
+
+    init(
+        button: UnsafeMutablePointer<GtkWidget>,
+        stack: UnsafeMutablePointer<GtkWidget>,
+        id: String,
+        selectionHandler: ((String) -> Void)?
+    ) {
+        self.button = button
+        self.stack = stack
+        self.id = id
+        self.selectionHandler = selectionHandler
+    }
+
+    func activate(button: UnsafeMutablePointer<GtkWidget>?) {
+        let now = Date.timeIntervalSinceReferenceDate
+        guard now - lastActivationTime > 0.05 else {
+            return
+        }
+        lastActivationTime = now
+
+        gtkTabDebugLog("clicked requested=\(id)")
+        selectionHandler?(id)
+        gtk_swift_stack_set_visible_child_name(stack, id)
+        gtkSelectSidebarTabButton(button ?? self.button)
+        let visibleName = gtk_swift_stack_get_visible_child_name(stack)
+            .map { String(cString: $0) } ?? "<nil>"
+        gtkTabDebugLog("clicked visible=\(visibleName)")
+    }
+}
+
+private final class GTKSidebarTabFallbackContext {
+    let sidebar: UnsafeMutablePointer<GtkWidget>
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+
+    init(sidebar: UnsafeMutablePointer<GtkWidget>) {
+        self.sidebar = sidebar
+    }
+
+    func removeController() {
+        if let root, let controller {
+            gtk_swift_remove_event_controller(root, controller)
+        }
+        root = nil
+        controller = nil
+    }
+
+    deinit {
+        removeController()
+    }
+}
+
+private let gtkSidebarTabClass = "swiftopenui-tab-sidebar"
+private let gtkSidebarTabButtonClass = "swiftopenui-tab-sidebar-button"
+private let gtkSidebarTabSelectedClass = "swiftopenui-tab-selected"
+private let gtkSidebarTabActivationBoxDataKey = "gtk-swift-sidebar-tab-activation-box"
+private var gtkSidebarTabCSSDisplays: Set<ObjectIdentifier> = []
+
+private func ensureSidebarTabCSS(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    let display = gtk_widget_get_display(widget)!
+    let displayId = ObjectIdentifier(display as AnyObject)
+    guard !gtkSidebarTabCSSDisplays.contains(displayId) else { return }
+    gtkSidebarTabCSSDisplays.insert(displayId)
+
+    let provider = gtk_css_provider_new()!
+    let css = """
+        .\(gtkSidebarTabClass) {
+            background: alpha(currentColor, 0.03);
+            padding: 8px;
+        }
+        .\(gtkSidebarTabClass) button.\(gtkSidebarTabButtonClass) {
+            border-radius: 8px;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+        }
+        .\(gtkSidebarTabClass) button.\(gtkSidebarTabButtonClass):hover {
+            background: alpha(currentColor, 0.08);
+        }
+        .\(gtkSidebarTabClass) button.\(gtkSidebarTabButtonClass).\(gtkSidebarTabSelectedClass) {
+            background: rgb(225, 237, 250);
+            color: rgb(26, 95, 180);
+        }
+        .\(gtkSidebarTabClass) button.\(gtkSidebarTabButtonClass).\(gtkSidebarTabSelectedClass) label {
+            font-weight: 600;
+        }
+        """
+    gtk_css_provider_load_from_string(provider, css)
+    gtk_swift_add_css_provider_to_display(
+        display,
+        provider,
+        UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+    )
+    g_object_unref(gpointer(provider))
+}
+
+private func gtkSelectSidebarTabButton(_ button: UnsafeMutablePointer<GtkWidget>) {
+    if let parent = gtk_widget_get_parent(button) {
+        var child = gtk_widget_get_first_child(parent)
+        while let current = child {
+            gtk_widget_remove_css_class(current, gtkSidebarTabSelectedClass)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+    gtk_widget_add_css_class(button, gtkSidebarTabSelectedClass)
+}
+
+private func gtkActivateSidebarTab(buttonPtr: gpointer?, userData: gpointer?) {
+    guard let userData else { return }
+    let context = Unmanaged<GTKTabActivationBox>.fromOpaque(userData).takeUnretainedValue()
+    let button = buttonPtr.map {
+        UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWidget.self)
+    }
+    context.activate(button: button)
+}
+
+private func gtkInstallSidebarTabActivationGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    context: gpointer
+) {
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+            gtkActivateSidebarTab(buttonPtr: nil, userData: userData)
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        context,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
+private func gtkAttachSidebarTabActivationContext(
+    _ context: gpointer,
+    to button: UnsafeMutablePointer<GtkWidget>
+) {
+    g_object_set_data(
+        UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
+        gtkSidebarTabActivationBoxDataKey,
+        context
+    )
+}
+
+private func gtkSidebarTabActivationContext(
+    from button: UnsafeMutablePointer<GtkWidget>
+) -> GTKTabActivationBox? {
+    guard let pointer = g_object_get_data(
+        UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
+        gtkSidebarTabActivationBoxDataKey
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKTabActivationBox>.fromOpaque(pointer).takeUnretainedValue()
+}
+
+private func gtkActivateSidebarTabAt(
+    sidebar: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) {
+    var child = gtk_widget_get_first_child(sidebar)
+    while let button = child {
+        var buttonX = 0.0
+        var buttonY = 0.0
+        let hasCoordinates = gtk_widget_translate_coordinates(button, sidebar, 0, 0, &buttonX, &buttonY) != 0
+        let width = Double(max(0, gtk_widget_get_width(button)))
+        let height = Double(max(0, gtk_widget_get_height(button)))
+        if hasCoordinates,
+           x >= buttonX,
+           x <= buttonX + width,
+           y >= buttonY,
+           y <= buttonY + height,
+           let context = gtkSidebarTabActivationContext(from: button) {
+            gtkTabDebugLog("sidebar fallback requested=\(context.id) at=\(Int(x)),\(Int(y))")
+            context.activate(button: button)
+            return
+        }
+        child = gtk_widget_get_next_sibling(button)
+    }
+}
+
+private func gtkInstallSidebarTabRootActivationFallback(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    sidebar: UnsafeMutablePointer<GtkWidget>
+) {
+    gtk_widget_set_can_target(widget, 1)
+    let context = Unmanaged.passRetained(GTKSidebarTabFallbackContext(sidebar: sidebar)).toOpaque()
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (widgetPtr: gpointer?, userData: gpointer?) in
+            guard let widgetPtr, let userData else { return }
+            let widget = UnsafeMutableRawPointer(widgetPtr).assumingMemoryBound(to: GtkWidget.self)
+            let context = Unmanaged<GTKSidebarTabFallbackContext>.fromOpaque(userData).takeUnretainedValue()
+            guard context.controller == nil,
+                  let root = gtk_swift_widget_root_widget(widget) else {
+                return
+            }
+            let controller = gtk_swift_legacy_capture_controller()!
+            context.root = root
+            context.controller = controller
+            g_signal_connect_data(
+                controller,
+                "event",
+                unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+                    guard let event, let userData else { return 0 }
+                    guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+                    let context = Unmanaged<GTKSidebarTabFallbackContext>.fromOpaque(userData).takeUnretainedValue()
+                    guard let root = context.root else { return 0 }
+                    var rootX = 0.0
+                    var rootY = 0.0
+                    guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+                    var sidebarX = 0.0
+                    var sidebarY = 0.0
+                    guard gtk_widget_translate_coordinates(root, context.sidebar, rootX, rootY, &sidebarX, &sidebarY) != 0 else {
+                        return 0
+                    }
+                    gtkActivateSidebarTabAt(sidebar: context.sidebar, x: sidebarX, y: sidebarY)
+                    return 0
+                } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+                userData,
+                nil,
+                GConnectFlags(rawValue: 0)
+            )
+            gtk_swift_add_event_controller(root, controller)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        context,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(widget),
+        "unmap",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKSidebarTabFallbackContext>.fromOpaque(userData).takeUnretainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        context,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    g_signal_connect_data(
+        gpointer(widget),
+        "destroy",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKSidebarTabFallbackContext>.fromOpaque(userData).takeRetainedValue()
+            context.removeController()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        context,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (gesturePtr: gpointer?, _: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+            guard let gesturePtr,
+                  let widget = gtk_swift_event_controller_get_widget(gesturePtr),
+                  let userData else {
+                return
+            }
+            let context = Unmanaged<GTKSidebarTabFallbackContext>.fromOpaque(userData).takeUnretainedValue()
+            let source = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkWidget.self)
+            var sidebarX = x
+            var sidebarY = y
+            if source != context.sidebar {
+                guard gtk_widget_translate_coordinates(source, context.sidebar, x, y, &sidebarX, &sidebarY) != 0 else {
+                    return
+                }
+            }
+            gtkActivateSidebarTabAt(sidebar: context.sidebar, x: sidebarX, y: sidebarY)
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        context,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
+private func gtkCreateSidebarTabButton(
+    tab: AnyTab,
+    id: String,
+    stack: UnsafeMutablePointer<GtkWidget>,
+    selectionHandler: ((String) -> Void)?,
+    isSelected: Bool
+) -> UnsafeMutablePointer<GtkWidget> {
+    let button = gtk_button_new()!
+    gtk_widget_add_css_class(button, "flat")
+    gtk_widget_add_css_class(button, gtkSidebarTabButtonClass)
+    if isSelected {
+        gtk_widget_add_css_class(button, gtkSidebarTabSelectedClass)
+    }
+    gtk_widget_set_hexpand(button, 1)
+    gtk_widget_set_halign(button, GTK_ALIGN_FILL)
+
+    let child: UnsafeMutablePointer<GtkWidget>
+    if let label = tab.label {
+        child = widgetFromOpaque(gtkRenderAnyView(label))
+    } else {
+        child = gtk_label_new(tab.title.isEmpty ? id : tab.title)!
+        gtk_swift_label_set_xalign(child, 0)
+    }
+    gtk_widget_set_hexpand(child, 1)
+    gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    gtk_widget_set_margin_top(child, 6)
+    gtk_widget_set_margin_bottom(child, 6)
+    gtk_widget_set_margin_start(child, 10)
+    gtk_widget_set_margin_end(child, 10)
+    gtk_button_set_child(UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self), child)
+    gtkDisableButtonChildTargeting(child)
+
+    let context = Unmanaged.passRetained(GTKTabActivationBox(
+        button: button,
+        stack: stack,
+        id: id,
+        selectionHandler: selectionHandler
+    )).toOpaque()
+    gtkAttachSidebarTabActivationContext(context, to: button)
+    g_signal_connect_data(
+        gpointer(button),
+        "clicked",
+        unsafeBitCast({ (buttonPtr: gpointer?, userData: gpointer?) in
+            gtkActivateSidebarTab(buttonPtr: buttonPtr, userData: userData)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        context,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKTabActivationBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtkInstallSidebarTabActivationGesture(on: button, context: context)
+    gtkInstallSidebarTabActivationGesture(on: child, context: context)
+
+    return button
+}
+
+extension TabView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
         var usedIds = Set<String>()
-        var orderedIds: [String] = []
+        var children: [GTK4DescriptorNode] = []
+
         for tab in tabs {
             var id = tab.id
             if usedIds.contains(id) {
@@ -6546,22 +11453,122 @@ extension TabView: GTKRenderable {
                 id = "\(id)-\(suffix)"
             }
             usedIds.insert(id)
-            orderedIds.append(id)
-            let childWidget = widgetFromOpaque(gtkRenderAnyView(tab.wrapped))
+
+            children.append(
+                gtkWithStateIdentityNamespaceComponent("Tab[\(id)]") {
+                    gtkDescribeAnyView(tab.wrapped)
+                }
+            )
+        }
+
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "TabView",
+            children: children
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let stack = gtk_stack_new()!
+        gtk_swift_stack_set_transition_type(stack, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT_RIGHT)
+        gtk_widget_set_hexpand(stack, 1)
+        gtk_widget_set_vexpand(stack, 1)
+        gtk_widget_set_halign(stack, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(stack, GTK_ALIGN_FILL)
+
+        var usedIds = Set<String>()
+        var resolvedTabs: [(tab: AnyTab, id: String)] = []
+        var selectedResolvedId: String?
+        for tab in tabs {
+            var id = tab.id
+            if usedIds.contains(id) {
+                var suffix = 2
+                while usedIds.contains("\(id)-\(suffix)") { suffix += 1 }
+                id = "\(id)-\(suffix)"
+            }
+            usedIds.insert(id)
+            resolvedTabs.append((tab, id))
+            if selectedResolvedId == nil, tab.id == selectedID {
+                selectedResolvedId = id
+            }
+        }
+
+        let initialResolvedId: String?
+        if let tabIndex = initialTab, tabIndex >= 0, tabIndex < resolvedTabs.count {
+            initialResolvedId = resolvedTabs[tabIndex].id
+        } else {
+            initialResolvedId = nil
+        }
+        let activeResolvedId = selectedResolvedId ?? initialResolvedId ?? resolvedTabs.first?.id
+        let lazilyRenderInactiveTabs = selectionHandler != nil
+
+        for (tab, id) in resolvedTabs {
+            let childWidget = widgetFromOpaque(gtkWithStateIdentityNamespaceComponent("Tab[\(id)]") {
+                if lazilyRenderInactiveTabs, id != activeResolvedId {
+                    opaqueFromWidget(gtkCreateEmptyViewWidget())
+                } else {
+                    gtkRenderAnyView(tab.wrapped)
+                }
+            })
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_vexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
             gtk_swift_stack_add_titled(stack, childWidget, id, tab.title)
         }
 
-        if let tabIndex = initialTab, tabIndex >= 0, tabIndex < orderedIds.count {
-            gtk_swift_stack_set_visible_child_name(stack, orderedIds[tabIndex])
+        if let activeResolvedId {
+            gtk_swift_stack_set_visible_child_name(stack, activeResolvedId)
+        }
+        let visibleName = gtk_swift_stack_get_visible_child_name(stack)
+            .map { String(cString: $0) } ?? "<nil>"
+        gtkTabDebugLog("created selectedID=\(selectedID ?? "<nil>") ordered=\(resolvedTabs.map(\.id).joined(separator: ",")) visible=\(visibleName)")
+
+        if gtkTabViewShouldShowSidebar(tabs) {
+            let root = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+            gtk_widget_set_hexpand(root, 1)
+            gtk_widget_set_vexpand(root, 1)
+            gtk_widget_set_halign(root, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(root, GTK_ALIGN_FILL)
+
+            let sidebar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2)!
+            gtk_widget_set_size_request(sidebar, 240, -1)
+            gtk_widget_set_hexpand(sidebar, 0)
+            gtk_widget_set_hexpand_set(sidebar, 1)
+            gtk_widget_set_halign(sidebar, GTK_ALIGN_START)
+            gtk_widget_set_vexpand(sidebar, 1)
+            gtk_widget_set_valign(sidebar, GTK_ALIGN_FILL)
+            gtk_widget_set_can_target(sidebar, 1)
+            ensureSidebarTabCSS(sidebar)
+            gtk_widget_add_css_class(sidebar, gtkSidebarTabClass)
+            gtkInstallSidebarTabRootActivationFallback(on: sidebar, sidebar: sidebar)
+
+            for (tab, id) in resolvedTabs {
+                let button = gtkCreateSidebarTabButton(
+                    tab: tab,
+                    id: id,
+                    stack: stack,
+                    selectionHandler: selectionHandler,
+                    isSelected: id == visibleName
+                )
+                gtk_box_append(boxPointer(sidebar), button)
+            }
+
+            gtk_box_append(boxPointer(root), sidebar)
+            gtk_box_append(boxPointer(root), stack)
+            gtkInstallSidebarTabRootActivationFallback(on: root, sidebar: sidebar)
+            return opaqueFromWidget(root)
         }
 
-        let switcher = gtk_stack_switcher_new()!
-        gtk_swift_stack_switcher_set_stack(switcher, stack)
-
         let vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_box_append(boxPointer(vbox), switcher)
+        if gtkTabViewShouldShowSwitcher(tabs) {
+            let switcher = gtk_stack_switcher_new()!
+            gtk_swift_stack_switcher_set_stack(switcher, stack)
+            gtk_box_append(boxPointer(vbox), switcher)
+        }
         gtk_box_append(boxPointer(vbox), stack)
-        gtk_widget_set_vexpand(stack, 1)
+        gtk_widget_set_hexpand(vbox, 1)
+        gtk_widget_set_vexpand(vbox, 1)
 
         return opaqueFromWidget(vbox)
     }
@@ -6895,33 +11902,48 @@ extension Form: GTKRenderable {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12)!
         let boxPtr = boxPointer(box)
 
-        for child in gtkDirectChildViews(of: content) {
+        for child in gtkFormChildViews(of: content) {
             if gtkIsSectionView(child) {
                 gtk_box_append(boxPtr, widgetFromOpaque(gtkRenderAnyView(child)))
             } else {
                 let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
                 gtk_widget_set_hexpand(rows, 1)
                 gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
-                gtkAppendRows([child], to: rows)
+                gtkAppendRows([child], to: rows, installPrimaryActionFallback: true)
                 gtk_box_append(boxPtr, rows)
             }
         }
 
         gtk_widget_set_hexpand(box, 1)
         gtk_widget_set_vexpand(box, 1)
-        gtk_widget_set_margin_top(box, 16)
-        gtk_widget_set_margin_bottom(box, 16)
-        gtk_widget_set_margin_start(box, 16)
-        gtk_widget_set_margin_end(box, 16)
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+        let clampedBox = gtk_swift_width_clamp_new(box)!
+        let viewport = gtk_swift_min_width_viewport_new(clampedBox)!
+        gtk_scrolled_window_set_child(scrolledOp, viewport)
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: viewport, fillWidth: true, fillHeight: false)
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_widget_set_margin_top(scrolled, 16)
+        gtk_widget_set_margin_bottom(scrolled, 16)
+        gtk_widget_set_margin_start(scrolled, 16)
+        gtk_widget_set_margin_end(scrolled, 16)
 
-        return opaqueFromWidget(box)
+        return opaqueFromWidget(scrolled)
     }
 }
 
 // MARK: - Section GTK extension
 
 private func gtkIsSectionView(_ view: any View) -> Bool {
-    String(describing: type(of: view)).hasPrefix("Section<")
+    let typeName = String(describing: type(of: view))
+    let reflectedTypeName = String(reflecting: type(of: view))
+    return typeName.hasPrefix("Section<")
+        || reflectedTypeName.contains("SwiftOpenUI.Section<")
 }
 
 extension Section: GTKRenderable {
@@ -6943,7 +11965,11 @@ extension Section: GTKRenderable {
         let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(rows, 1)
         gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
-        gtkAppendRows(gtkDirectChildViews(of: content), to: rows)
+        gtkAppendRows(
+            gtkDirectChildViews(of: content),
+            to: rows,
+            installPrimaryActionFallback: true
+        )
         gtk_box_append(boxPtr, rows)
 
         if let footer = footer {
@@ -6973,6 +11999,60 @@ private class LazyListContext {
             widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
         }
     }
+}
+
+private let gtkStaticLazyStackItemLimit = 64
+
+private func gtkCreateStaticLazyStackWidget<Data, Content: View>(
+    items: [Data],
+    contentBuilder: @escaping (Data) -> Content,
+    orientation: GtkOrientation
+) -> OpaquePointer? {
+    guard items.count <= gtkStaticLazyStackItemLimit else { return nil }
+
+    let box = gtk_box_new(orientation, 0)!
+    var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
+    renderedChildren.reserveCapacity(items.count)
+
+    for item in items {
+        let child = widgetFromOpaque(gtkRenderView(contentBuilder(item)))
+        renderedChildren.append(child)
+        gtk_box_append(boxPointer(box), child)
+    }
+
+    let hasHorizontalExpansion = renderedChildren.contains {
+        gtk_widget_get_hexpand($0) != 0
+    }
+    let hasVerticalExpansion = renderedChildren.contains {
+        gtk_widget_get_vexpand($0) != 0
+    }
+    let hasVerticalFillIntent = renderedChildren.contains {
+        gtkHasVerticalFillIntent($0)
+    }
+
+    if orientation == GTK_ORIENTATION_VERTICAL {
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        if hasVerticalExpansion {
+            gtk_widget_set_vexpand(box, 1)
+            gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        }
+    } else {
+        if hasHorizontalExpansion {
+            gtk_widget_set_hexpand(box, 1)
+            gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        }
+        if hasVerticalExpansion || hasVerticalFillIntent {
+            gtk_widget_set_vexpand(box, 1)
+            gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        }
+    }
+
+    if hasVerticalFillIntent {
+        gtkMarkVerticalFillIntent(box)
+    }
+    gtkPropagateSingleChildLayoutMarkers(from: renderedChildren, to: box)
+    return opaqueFromWidget(box)
 }
 
 /// Create a GtkListView-based lazy list widget.
@@ -7026,10 +12106,14 @@ private func gtkCreateLazyListWidget<Data, Content: View>(
 
     // Wrap in scrolled window
     let scrolled = gtk_scrolled_window_new()!
-    gtk_scrolled_window_set_policy(OpaquePointer(scrolled),
-        GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC)
+    gtk_scrolled_window_set_policy(
+        OpaquePointer(scrolled),
+        GTK_POLICY_EXTERNAL,
+        GTK_POLICY_EXTERNAL
+    )
+    gtk_scrolled_window_set_has_frame(OpaquePointer(scrolled), 0)
     gtk_scrolled_window_set_child(OpaquePointer(scrolled), listView)
-    gtk_widget_set_vexpand(scrolled, 1)
+    gtk_widget_set_vexpand(scrolled, orientation == GTK_ORIENTATION_VERTICAL ? 1 : 0)
     gtk_widget_set_hexpand(scrolled, 1)
     applyCSSToWidget(scrolled, properties: "background-color: transparent;")
 
@@ -7093,15 +12177,29 @@ private func lazyListClearChild(_ listItem: gpointer) {
 
 extension LazyVStack: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        gtkCreateLazyListWidget(items: items, contentBuilder: contentBuilder,
-                                orientation: GTK_ORIENTATION_VERTICAL)
+        if let staticWidget = gtkCreateStaticLazyStackWidget(
+            items: items,
+            contentBuilder: contentBuilder,
+            orientation: GTK_ORIENTATION_VERTICAL
+        ) {
+            return staticWidget
+        }
+        return gtkCreateLazyListWidget(items: items, contentBuilder: contentBuilder,
+                                       orientation: GTK_ORIENTATION_VERTICAL)
     }
 }
 
 extension LazyHStack: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        gtkCreateLazyListWidget(items: items, contentBuilder: contentBuilder,
-                                orientation: GTK_ORIENTATION_HORIZONTAL)
+        if let staticWidget = gtkCreateStaticLazyStackWidget(
+            items: items,
+            contentBuilder: contentBuilder,
+            orientation: GTK_ORIENTATION_HORIZONTAL
+        ) {
+            return staticWidget
+        }
+        return gtkCreateLazyListWidget(items: items, contentBuilder: contentBuilder,
+                                       orientation: GTK_ORIENTATION_HORIZONTAL)
     }
 }
 
@@ -7339,7 +12437,7 @@ private class SegmentClosureBox {
     }
 }
 
-extension Picker: GTKRenderable {
+extension Picker: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
         switch style {
@@ -7350,6 +12448,16 @@ extension Picker: GTKRenderable {
         }
         gtkApplyEnabledState(to: widgetFromOpaque(widget))
         return widget
+    }
+
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "Picker",
+            props: .text(GTK4TextDescriptor(
+                content: "\(label)|\(selected)|\(style)|\(options.joined(separator: "\u{1f}"))"
+            ))
+        )
     }
 
     /// True iff the caller wrapped us in `.labelsHidden()`. The
@@ -7374,11 +12482,12 @@ extension Picker: GTKRenderable {
         }
 
         if let onChanged = onChanged {
+            let boundOnChanged = bindActionToCurrentEnvironment(onChanged)
             let box = Unmanaged.passRetained(IntClosureBox { newIndex in
                 guard options.indices.contains(newIndex), newIndex != clampedSelection else {
                     return
                 }
-                onChanged(newIndex)
+                boundOnChanged(newIndex)
             }).toOpaque()
             g_signal_connect_data(
                 gpointer(dropdown),
@@ -7433,10 +12542,11 @@ extension Picker: GTKRenderable {
             gtk_swift_toggle_button_set_active(buttons[clampedSelection], 1)
         }
 
+        let boundOnChanged = onChanged.map { bindActionToCurrentEnvironment($0) }
         for (index, button) in buttons.enumerated() {
-            if let onChanged = onChanged {
+            if let boundOnChanged = boundOnChanged {
                 let box = Unmanaged.passRetained(
-                    SegmentClosureBox(index: index, closure: onChanged)
+                    SegmentClosureBox(index: index, closure: boundOnChanged)
                 ).toOpaque()
                 g_signal_connect_data(
                     gpointer(button),
@@ -7566,12 +12676,29 @@ private class GeometryReaderContext {
 private func geometryRenderContent(_ context: GeometryReaderContext,
                                     widget: UnsafeMutablePointer<GtkWidget>,
                                     width: Double, height: Double) {
+    gtkDebugGeometryLog(
+        "render requested=\(Int(width))x\(Int(height)) widget=\(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
+    )
     let proxy = GeometryProxy(size: GeometrySize(width: width, height: height))
     while let child = gtk_widget_get_first_child(widget) {
         gtk_box_remove(boxPointer(widget), child)
     }
     let rendered = context.renderContent(proxy)
-    gtk_box_append(boxPointer(widget), widgetFromOpaque(rendered))
+    let child = widgetFromOpaque(rendered)
+    if gtk_widget_get_hexpand(child) != 0 {
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(child) != 0 {
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_hexpand(child) != 0 || gtk_widget_get_vexpand(child) != 0 {
+        gtk_widget_set_size_request(
+            child,
+            gtk_widget_get_hexpand(child) != 0 ? gtkPixelSize(width) : -1,
+            gtk_widget_get_vexpand(child) != 0 ? gtkPixelSize(height) : -1
+        )
+    }
+    gtk_box_append(boxPointer(widget), child)
 }
 
 private let geometryMapCallback: @convention(c) (
@@ -7590,6 +12717,7 @@ private let geometryMapCallback: @convention(c) (
         let aw = Double(gtk_widget_get_width(a))
         let ah = Double(gtk_widget_get_height(a))
         if aw > 1, ah > 1 {
+            gtkDebugGeometryLog("map ancestor=\(Int(aw))x\(Int(ah)) self=\(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))")
             geometryRenderContent(context, widget: widget, width: aw, height: ah)
             return
         }
@@ -7619,6 +12747,7 @@ private let geometryMapCallback: @convention(c) (
         let height = Double(gtk_widget_get_height(widget))
 
         if width <= 1 || height <= 1 {
+            gtkDebugGeometryLog("idle retry self=\(Int(width))x\(Int(height))")
             context.idleRetryCount += 1
             if context.idleRetryCount <= 10 {
                 return 1 // retry
@@ -7629,6 +12758,7 @@ private let geometryMapCallback: @convention(c) (
         }
 
         context.renderScheduled = false
+        gtkDebugGeometryLog("idle self=\(Int(width))x\(Int(height))")
         geometryRenderContent(context, widget: widget, width: width, height: height)
         g_object_unref(userData)
         return 0
@@ -7652,6 +12782,7 @@ private let geometryTickCallback: GtkTickCallback = { widget, _, userData in
     if w > 1, h > 1, (w != context.lastWidth || h != context.lastHeight) {
         context.lastWidth = w
         context.lastHeight = h
+        gtkDebugGeometryLog("tick self=\(Int(w))x\(Int(h))")
         geometryRenderContent(context, widget: widget, width: w, height: h)
     }
     return 1 // G_SOURCE_CONTINUE
@@ -7662,6 +12793,7 @@ extension GeometryReader: GTKRenderable {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(box, 1)
         gtk_widget_set_vexpand(box, 1)
+        gtkMarkVerticalFillIntent(box)
 
         let context = GeometryReaderContext(content: content, box: box)
         let contextPtr = Unmanaged.passRetained(context).toOpaque()
@@ -7726,6 +12858,315 @@ private class SearchBox {
     }
 }
 
+private let gtkSearchableFocusDataKey = "gtk-swift-searchable-focus"
+private let gtkSearchableTopSurfaceDataKey = "gtk-swift-searchable-top-surface-focus"
+private let gtkSearchableDefaultHitHeight = 48.0
+
+private final class GTKSearchRootEventContext {
+    let entry: UnsafeMutablePointer<GtkWidget>
+    let box: SearchBox
+    var root: UnsafeMutablePointer<GtkWidget>?
+    var controller: gpointer?
+    var loggedRootUnavailable = false
+
+    init(entry: UnsafeMutablePointer<GtkWidget>, box: SearchBox) {
+        self.entry = entry
+        self.box = box
+    }
+
+    func removeController() {
+        guard let root, let controller else { return }
+        gtk_swift_remove_event_controller(root, controller)
+        self.root = nil
+        self.controller = nil
+    }
+}
+
+private func gtkSearchableKeepsChromeVisible(for placement: SearchFieldPlacement) -> Bool {
+    switch placement {
+    case .navigationBarDrawer(let displayMode):
+        return displayMode == .always
+    case .automatic, .toolbar, .sidebar:
+        return false
+    }
+}
+
+private func gtkAttachSearchFocusData(to widget: UnsafeMutablePointer<GtkWidget>, box: SearchBox) {
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    let retained = Unmanaged.passRetained(box).toOpaque()
+    g_object_set_data_full(object, gtkSearchableFocusDataKey, retained) { userData in
+        guard let userData else { return }
+        Unmanaged<SearchBox>.fromOpaque(userData).release()
+    }
+}
+
+private func gtkAttachSearchTopSurfaceData(to widget: UnsafeMutablePointer<GtkWidget>, box: SearchBox) {
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    let retained = Unmanaged.passRetained(box).toOpaque()
+    g_object_set_data_full(object, gtkSearchableTopSurfaceDataKey, retained) { userData in
+        guard let userData else { return }
+        Unmanaged<SearchBox>.fromOpaque(userData).release()
+    }
+}
+
+private func gtkFocusSearchBox(_ box: SearchBox, source: String) -> Bool {
+    box.isPresented?.wrappedValue = true
+    gtk_widget_set_focusable(box.entry, 1)
+    gtk_widget_set_focus_on_click(box.entry, 1)
+    let entryGrabbed = gtk_swift_root_grab_focus(box.entry) != 0
+    var delegateGrabbed = false
+    if let delegate = gtk_editable_get_delegate(OpaquePointer(box.entry)) {
+        let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
+        gtk_widget_set_focusable(delegateWidget, 1)
+        gtk_widget_set_focus_on_click(delegateWidget, 1)
+        delegateGrabbed = gtk_swift_root_grab_focus(delegateWidget) != 0
+    }
+    gtkDebugLog(
+        "searchable focus \(source) entryGrabbed=\(entryGrabbed ? 1 : 0) "
+        + "delegateGrabbed=\(delegateGrabbed ? 1 : 0)"
+    )
+    return entryGrabbed || delegateGrabbed
+}
+
+private func gtkSearchFocusBoxAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> SearchBox? {
+    var result: SearchBox?
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard result == nil, depth < 160 else { return }
+        guard gtk_widget_get_visible(widget) != 0 else { return }
+        let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        if let raw = g_object_get_data(object, gtkSearchableTopSurfaceDataKey),
+           let box = Optional(Unmanaged<SearchBox>.fromOpaque(raw).takeUnretainedValue()) {
+            if gtkSearchEntryAllocationContainsRootPoint(box.entry, root: root, x: x, y: y)
+                || gtkSearchEntryEstimatedChromeContainsRootPoint(box.entry, root: root, x: x, y: y) {
+                result = box
+                return
+            }
+            if let frame = gtkWidgetVisualFrameInRoot(widget, root: root),
+               x >= frame.x, x < frame.x + frame.width,
+               y >= frame.y, y < frame.y + gtkSearchableDefaultHitHeight {
+                result = box
+                return
+            }
+        }
+        if let raw = g_object_get_data(object, gtkSearchableFocusDataKey),
+           let box = Optional(Unmanaged<SearchBox>.fromOpaque(raw).takeUnretainedValue()) {
+            if gtkSearchEntryAllocationContainsRootPoint(box.entry, root: root, x: x, y: y)
+                || gtkSearchEntryEstimatedChromeContainsRootPoint(box.entry, root: root, x: x, y: y)
+                || gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+                result = box
+                return
+            }
+        }
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    return result
+}
+
+private func gtkSearchEntryEstimatedChromeContainsRootPoint(
+    _ entry: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    guard gtk_widget_get_mapped(entry) != 0 else { return false }
+    guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: x, y: y) else {
+        return false
+    }
+    guard let frame = gtkWidgetVisualFrameInRoot(entry, root: root) else { return false }
+    let rootWidth = Double(gtk_widget_get_width(root))
+    guard rootWidth > 0 else { return false }
+    return x >= 0
+        && x < rootWidth
+        && y >= frame.y
+        && y < frame.y + gtkSearchableDefaultHitHeight
+}
+
+private func gtkSearchEntryAllocationContainsRootPoint(
+    _ entry: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    let width = Double(gtk_widget_get_width(entry))
+    let height = Double(gtk_widget_get_height(entry))
+    guard width > 0, height > 0 else { return false }
+    var entryX = 0.0
+    var entryY = 0.0
+    guard gtk_swift_widget_compute_point(entry, root, 0, 0, &entryX, &entryY) != 0 else {
+        return false
+    }
+    return x >= entryX
+        && x < entryX + width
+        && y >= entryY
+        && y < entryY + max(height, gtkSearchableDefaultHitHeight)
+}
+
+private func gtkDebugSearchFocusCandidates(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var total = 0
+    var hits = 0
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 160 else { return }
+        let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        let hasEntryData = g_object_get_data(object, gtkSearchableFocusDataKey) != nil
+        let hasTopSurfaceData = g_object_get_data(object, gtkSearchableTopSurfaceDataKey) != nil
+        if hasEntryData || hasTopSurfaceData {
+            let raw = g_object_get_data(object, gtkSearchableTopSurfaceDataKey)
+                ?? g_object_get_data(object, gtkSearchableFocusDataKey)
+            let allocationHit = raw.map {
+                let box = Unmanaged<SearchBox>.fromOpaque($0).takeUnretainedValue()
+                return gtkSearchEntryAllocationContainsRootPoint(box.entry, root: root, x: x, y: y)
+            } ?? false
+            let estimatedChromeHit = raw.map {
+                let box = Unmanaged<SearchBox>.fromOpaque($0).takeUnretainedValue()
+                return gtkSearchEntryEstimatedChromeContainsRootPoint(box.entry, root: root, x: x, y: y)
+            } ?? false
+            let containsEntry = gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y)
+            var containsTopSurface = false
+            if hasTopSurfaceData,
+               let frame = gtkWidgetVisualFrameInRoot(widget, root: root),
+               x >= frame.x, x < frame.x + frame.width,
+               y >= frame.y, y < frame.y + gtkSearchableDefaultHitHeight {
+                containsTopSurface = true
+            }
+            let contains = allocationHit || estimatedChromeHit || containsEntry || containsTopSurface
+            total += 1
+            if contains { hits += 1 }
+            gtkDebugLog(
+                "\(source) search-candidate[\(total - 1)] hit=\(contains ? 1 : 0) "
+                + "surface=\(hasTopSurfaceData ? 1 : 0) "
+                + "allocation=\(allocationHit ? 1 : 0) "
+                + "estimated=\(estimatedChromeHit ? 1 : 0) "
+                + gtkDebugVisualFrameDescription(widget, root: root)
+            )
+        }
+
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    gtkDebugLog("\(source) search-candidates total=\(total) hits=\(hits) root@\(Int(x)),\(Int(y))")
+}
+
+private func gtkFocusSearchEntryAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    guard let box = gtkSearchFocusBoxAtRootPoint(root: root, x: x, y: y) else {
+        gtkDebugSearchFocusCandidates(root: root, x: x, y: y, source: source)
+        return false
+    }
+    return gtkFocusSearchBox(box, source: source)
+}
+
+private func gtkInstallSearchRootEventFallback(_ context: GTKSearchRootEventContext) {
+    guard context.controller == nil else { return }
+    guard let root = gtk_swift_widget_root_widget(context.entry) else {
+        if !context.loggedRootUnavailable {
+            context.loggedRootUnavailable = true
+            gtkDebugLog("searchable root fallback root unavailable")
+        }
+        return
+    }
+
+    let controller = gtk_swift_legacy_capture_controller()!
+    context.root = root
+    context.controller = controller
+    gtkDebugLog("searchable root fallback installed")
+    let contextPointer = Unmanaged.passUnretained(context).toOpaque()
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return 0 }
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "search-root@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkSearchRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallSearchRootEventFallback(context)
+    return context.controller == nil ? 1 : 0
+}
+
+private func gtkInstallSearchFocusGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    entry: UnsafeMutablePointer<GtkWidget>,
+    binding: Binding<String>,
+    isPresented: Binding<Bool>?
+) {
+    let focusGesture = gtk_gesture_click_new()!
+    let focusBox = Unmanaged.passRetained(
+        SearchBox(entry: entry, binding: binding, isPresented: isPresented)
+    ).toOpaque()
+    gtk_swift_gesture_single_set_button(focusGesture, 1)
+    g_signal_connect_data(
+        gpointer(focusGesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+            guard let userData else { return }
+            let box = Unmanaged<SearchBox>.fromOpaque(userData).takeUnretainedValue()
+            _ = gtkFocusSearchBox(box, source: "gesture")
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        focusBox,
+        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+            Unmanaged<SearchBox>.fromOpaque(userData!).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, focusGesture)
+}
+
 extension SearchableView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         GTK4DescriptorNode(
@@ -7748,25 +13189,104 @@ extension SearchableView: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         let boxPtr = boxPointer(box)
+        gtk_widget_set_can_target(box, 1)
+        let binding = text
+        let presentedBinding = isPresented
 
         let entry = gtk_swift_search_entry_new()!
+        gtkDebugLog("searchable create placement=\(placement) prompt='\(prompt)' text='\(binding.wrappedValue)'")
+        gtk_widget_set_focusable(entry, 1)
+        gtk_widget_set_focus_on_click(entry, 1)
+        let searchFocusBox = SearchBox(entry: entry, binding: binding, isPresented: presentedBinding)
+        gtkAttachSearchTopSurfaceData(to: box, box: searchFocusBox)
+        gtkAttachSearchFocusData(to: entry, box: searchFocusBox)
+        let entryContainer = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_can_target(entryContainer, 1)
+        gtk_widget_set_hexpand(entryContainer, 1)
+        gtk_widget_set_halign(entryContainer, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(entryContainer, GTK_ALIGN_START)
+        gtkAttachSearchFocusData(to: entryContainer, box: searchFocusBox)
+        if let delegate = gtk_editable_get_delegate(OpaquePointer(entry)) {
+            let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
+            gtk_widget_set_focusable(delegateWidget, 1)
+            gtk_widget_set_focus_on_click(delegateWidget, 1)
+            gtkAttachSearchFocusData(to: delegateWidget, box: searchFocusBox)
+            gtkInstallSearchFocusGesture(
+                on: delegateWidget,
+                entry: entry,
+                binding: binding,
+                isPresented: presentedBinding
+            )
+        }
+        gtkInstallSearchFocusGesture(on: entry, entry: entry, binding: binding, isPresented: presentedBinding)
+        gtkInstallSearchFocusGesture(on: box, entry: entry, binding: binding, isPresented: presentedBinding)
+        let rootContextObject = GTKSearchRootEventContext(entry: entry, box: searchFocusBox)
+        let rootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallSearchRootEventFallback(context)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        g_signal_connect_data(
+            gpointer(entry),
+            "unmap",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
+        let tickRootEventContext = Unmanaged.passRetained(rootContextObject).toOpaque()
+        _ = gtk_widget_add_tick_callback(
+            entry,
+            gtkSearchRootInstallTickCallback,
+            tickRootEventContext,
+            { userData in
+                guard let userData else { return }
+                Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).release()
+            }
+        )
+        g_signal_connect_data(
+            gpointer(entry),
+            "destroy",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                let context = Unmanaged<GTKSearchRootEventContext>.fromOpaque(userData).takeRetainedValue()
+                context.removeController()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            rootEventContext,
+            nil,
+            GConnectFlags(rawValue: 0)
+        )
         if !prompt.isEmpty {
             g_object_set_property_string(entry, "placeholder-text", prompt)
         }
-        gtk_box_append(boxPtr, entry)
+        gtk_box_append(boxPointer(entryContainer), entry)
+        gtk_box_append(boxPtr, entryContainer)
 
         if !text.wrappedValue.isEmpty {
             gtk_swift_editable_set_text(entry, text.wrappedValue)
         }
 
         // Honor isPresented: hide entire search UI surface when false
-        let isDismissed = isPresented.map { !$0.wrappedValue } ?? false
+        let isDismissed = isPresented.map {
+            !$0.wrappedValue && !gtkSearchableKeepsChromeVisible(for: placement)
+        } ?? false
         if isDismissed {
             gtk_widget_set_visible(entry, 0)
+            gtk_widget_set_visible(entryContainer, 0)
         }
 
-        let binding = text
-        let presentedBinding = isPresented
         let callbackBox = Unmanaged.passRetained(
             SearchBox(entry: entry, binding: binding, isPresented: presentedBinding)
         ).toOpaque()
@@ -7779,12 +13299,33 @@ extension SearchableView: GTKRenderable, GTKDescribable {
                 let cStr = gtk_swift_editable_get_text(box.entry)
                 let newValue = cStr.map { String(cString: $0) } ?? ""
                 if newValue != box.binding.wrappedValue {
-                    box.binding.wrappedValue = newValue
+                    gtkDebugLog("searchable search-changed text='\(newValue)'")
+                    gtkScheduleTextBindingUpdate(box.binding, value: newValue)
                 }
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             callbackBox,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
                 Unmanaged<SearchBox>.fromOpaque(userData!).release()
+            },
+            GConnectFlags(rawValue: 0)
+        )
+
+        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(entry),
+            "changed",
+            unsafeBitCast({ (editable: gpointer?, userData: gpointer?) in
+                let box = Unmanaged<StringClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let cStr = gtk_editable_get_text(OpaquePointer(editable))!
+                let newText = String(cString: cStr)
+                gtkDebugLog("searchable changed text='\(newText)'")
+                box.closure(newText)
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            changedBox,
+            { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+                Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
         )
@@ -7885,6 +13426,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
 
         let contentWidget = widgetFromOpaque(gtkRenderView(content))
         gtk_widget_set_vexpand(contentWidget, 1)
+        gtk_swift_search_entry_set_key_capture_widget(entry, box)
         gtk_box_append(boxPtr, contentWidget)
 
         return opaqueFromWidget(box)
@@ -7898,32 +13440,764 @@ private class MenuActionBox {
     var actions: [ClosureBox] = []
 }
 
+private final class GTKMenuOverlayModel {
+    let elements: [GTKBoundMenuElement]
+
+    init(elements: [GTKBoundMenuElement]) {
+        self.elements = elements
+    }
+}
+
+private enum GTKBoundMenuElement {
+    case item(label: String, action: () -> Void)
+    case divider
+    case submenu(label: String, children: [GTKBoundMenuElement])
+}
+
+private final class GTKActiveMenuOverlayState {
+    let root: UnsafeMutablePointer<GtkWidget>
+    let controller: gpointer
+    let elements: [GTKBoundMenuElement]
+    let x: Double
+    let y: Double
+    let width: Double
+    let height: Double
+
+    init(
+        root: UnsafeMutablePointer<GtkWidget>,
+        controller: gpointer,
+        elements: [GTKBoundMenuElement],
+        x: Double,
+        y: Double,
+        width: Double,
+        height: Double
+    ) {
+        self.root = root
+        self.controller = controller
+        self.elements = elements
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    func removeController() {
+        gtk_swift_remove_event_controller(root, controller)
+    }
+}
+
+private let gtkSwiftMenuPopupGestureInstalledKey = "gtk-swift-menu-popup-gesture-installed"
+private let gtkSwiftMenuOverlayModelKey = "gtk-swift-menu-overlay-model"
+private let gtkMenuOverlayPreferredWidth: gint = 156
+private let gtkMenuOverlayRowHeight = 48.0
+private let gtkMenuOverlayDividerHeight = 10.0
+private var gtkActiveMenuOverlayLayer: UnsafeMutablePointer<GtkWidget>?
+private var gtkActiveMenuOverlayState: GTKActiveMenuOverlayState?
+
+private func gtkMenuPresentationMode() -> String {
+    (ProcessInfo.processInfo.environment["QUILLUI_GTK_MENU_PRESENTATION"]
+        ?? "root-overlay")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+}
+
+private func gtkShouldUseRootMenuOverlay() -> Bool {
+    let mode = gtkMenuPresentationMode()
+    return mode.isEmpty || mode == "root" || mode == "root-overlay" || mode == "overlay"
+}
+
+private final class GTKMenuPopupEventContext {
+    let menuButton: UnsafeMutablePointer<GtkWidget>
+
+    init(menuButton: UnsafeMutablePointer<GtkWidget>) {
+        self.menuButton = menuButton
+    }
+}
+
+private func gtkDismissActiveMenuOverlay() {
+    let activeLayer = gtkActiveMenuOverlayLayer
+    let activeState = gtkActiveMenuOverlayState
+    gtkActiveMenuOverlayLayer = nil
+    gtkActiveMenuOverlayState = nil
+    if let activeState {
+        activeState.removeController()
+    }
+    if let layer = activeLayer, gtk_swift_is_widget(layer) != 0 {
+        if gtk_widget_get_parent(layer) != nil {
+            gtk_widget_unparent(layer)
+        }
+    }
+    gtkDebugLog("menu overlay dismissed")
+}
+
+private func gtkBindMenuElementsToCurrentEnvironment(
+    _ elements: [MenuElement]
+) -> [GTKBoundMenuElement] {
+    elements.map { element in
+        switch element {
+        case .item(let label, let action):
+            return .item(label: label, action: bindActionToCurrentEnvironment(action))
+        case .divider:
+            return .divider
+        case .submenu(let label, let children):
+            return .submenu(
+                label: label,
+                children: gtkBindMenuElementsToCurrentEnvironment(children)
+            )
+        }
+    }
+}
+
+private func gtkMenuOverlayContentHeight(
+    elements: [GTKBoundMenuElement]
+) -> Double {
+    elements.reduce(0) { height, element in
+        switch element {
+        case .item, .submenu:
+            return height + gtkMenuOverlayRowHeight
+        case .divider:
+            return height + gtkMenuOverlayDividerHeight
+        }
+    }
+}
+
+private func gtkMenuOverlayAction(
+    in elements: [GTKBoundMenuElement],
+    at offsetY: Double
+) -> (label: String, action: () -> Void)? {
+    var cursor = 0.0
+    for element in elements {
+        switch element {
+        case .item(let label, let action):
+            let next = cursor + gtkMenuOverlayRowHeight
+            if offsetY >= cursor && offsetY < next {
+                return (label, action)
+            }
+            cursor = next
+        case .submenu:
+            cursor += gtkMenuOverlayRowHeight
+        case .divider:
+            cursor += gtkMenuOverlayDividerHeight
+        }
+    }
+    return nil
+}
+
+private func gtkHandleActiveMenuOverlayClick(x: Double, y: Double) -> gboolean {
+    guard let state = gtkActiveMenuOverlayState else { return 0 }
+    guard x >= state.x, x <= state.x + state.width,
+          y >= state.y, y <= state.y + state.height else {
+        gtkDebugLog("menu overlay action miss root@\(Int(x)),\(Int(y))")
+        gtkDismissActiveMenuOverlay()
+        return 1
+    }
+    guard let item = gtkMenuOverlayAction(in: state.elements, at: y - state.y) else {
+        gtkDebugLog("menu overlay action skipped root@\(Int(x)),\(Int(y))")
+        gtkDismissActiveMenuOverlay()
+        return 1
+    }
+    gtkDebugLog("menu overlay action hit root@\(Int(x)),\(Int(y)) label='\(item.label)'")
+    gtkDismissActiveMenuOverlay()
+    item.action()
+    return 1
+}
+
+private func gtkHandleActiveMenuOverlayClick(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> gboolean {
+    guard gtkActiveMenuOverlayState != nil else { return 0 }
+    guard let root = gtk_swift_widget_root_widget(widget) else { return 0 }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_widget_translate_coordinates(widget, root, x, y, &rootX, &rootY) != 0 else {
+        return 0
+    }
+    return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+}
+
+private func gtkInstallActiveMenuOverlayController(
+    root: UnsafeMutablePointer<GtkWidget>,
+    elements: [GTKBoundMenuElement],
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double
+) {
+    let controller = gtk_swift_legacy_capture_controller()!
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, _: gpointer?) -> gboolean in
+            guard let event else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            var x: Double = 0
+            var y: Double = 0
+            guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
+            return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        nil,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtkActiveMenuOverlayState = GTKActiveMenuOverlayState(
+        root: root,
+        controller: controller,
+        elements: elements,
+        x: x,
+        y: y,
+        width: width,
+        height: height
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkMenuOverlayRoot(
+    for anchor: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>
+) -> OpaquePointer? {
+    if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(anchor)) {
+        return rootOverlay
+    }
+    var ancestor = gtk_widget_get_parent(anchor)
+    while let current = ancestor {
+        if let rootOverlay = gtkStoredRootPresentationOverlay(on: gpointer(current)) {
+            return rootOverlay
+        }
+        ancestor = gtk_widget_get_parent(current)
+    }
+    if let rootOverlay = gtkRootPresentationOverlay(for: gpointer(root)) {
+        return rootOverlay
+    }
+    if let gtkRoot = gtk_widget_get_root(anchor),
+       let rootOverlay = gtkRootPresentationOverlay(for: gpointer(gtkRoot)) {
+        return rootOverlay
+    }
+    return gtkFallbackRootPresentationOverlay()
+}
+
+private func gtkClampMenuOverlayCoordinate(
+    _ value: Double,
+    preferredSize: gint,
+    hostSize: gint
+) -> Double {
+    let margin = 8.0
+    guard hostSize > preferredSize + gint(margin * 2) else {
+        return max(margin, value)
+    }
+    let upper = Double(hostSize - preferredSize) - margin
+    return min(max(margin, value), upper)
+}
+
+private func gtkAttachMenuOverlayLayer(
+    _ layer: UnsafeMutablePointer<GtkWidget>,
+    to rootOverlay: OpaquePointer
+) {
+    let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
+    let previousTop = gtk_widget_get_last_child(overlayWidget)
+    gtk_overlay_add_overlay(rootOverlay, layer)
+    if let previousTop, previousTop != layer {
+        gtk_widget_insert_after(layer, overlayWidget, previousTop)
+    }
+}
+
+private func gtkOpenMenuOverlay(
+    menuButton: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    source: String,
+    anchorFrame: (x: Double, y: Double, width: Double, height: Double)? = nil
+) -> Bool {
+    guard gtkShouldUseRootMenuOverlay() else { return false }
+
+    let gobject = UnsafeMutableRawPointer(menuButton).assumingMemoryBound(to: GObject.self)
+    guard let modelData = g_object_get_data(gobject, gtkSwiftMenuOverlayModelKey) else {
+        return false
+    }
+    let model = Unmanaged<GTKMenuOverlayModel>.fromOpaque(modelData).takeUnretainedValue()
+    guard !model.elements.isEmpty else { return false }
+    guard let rootOverlay = gtkMenuOverlayRoot(for: menuButton, root: root) else { return false }
+    let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
+
+    let frame = anchorFrame
+        ?? gtkWidgetVisualFrameInRoot(menuButton, root: root)
+        ?? (x: 0, y: 0, width: Double(gtk_widget_get_width(menuButton)), height: Double(gtk_widget_get_height(menuButton)))
+    let hostWidth = max(gtk_widget_get_width(overlayWidget), gtk_widget_get_width(root))
+    let hostHeight = max(gtk_widget_get_height(overlayWidget), gtk_widget_get_height(root))
+    let panelX = gtkClampMenuOverlayCoordinate(
+        frame.x,
+        preferredSize: gtkMenuOverlayPreferredWidth,
+        hostSize: hostWidth
+    )
+    let panelY = gtkClampMenuOverlayCoordinate(
+        frame.y + frame.height + 4,
+        preferredSize: 96,
+        hostSize: hostHeight
+    )
+    let panelHeight = max(gtkMenuOverlayRowHeight, gtkMenuOverlayContentHeight(elements: model.elements))
+
+    gtkDismissActiveMenuOverlay()
+
+    let panel = gtkCreateMenuOverlayPanel(elements: model.elements)
+    gtk_widget_set_margin_start(panel, gint(panelX))
+    gtk_widget_set_margin_top(panel, gint(panelY))
+    gtk_widget_set_size_request(panel, gtkMenuOverlayPreferredWidth, gint(panelHeight))
+    gtk_widget_set_visible(panel, 1)
+    let layer = gtkCreateMenuOverlayLayer(panel: panel)
+    gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
+    gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
+    gtkAttachMenuOverlayLayer(layer, to: rootOverlay)
+    gtk_widget_queue_draw(overlayWidget)
+    gtkActiveMenuOverlayLayer = layer
+    gtkInstallActiveMenuOverlayController(
+        root: root,
+        elements: model.elements,
+        x: panelX,
+        y: panelY,
+        width: Double(gtkMenuOverlayPreferredWidth),
+        height: panelHeight
+    )
+    gtkDebugLog(
+        "menu overlay opened \(source) host=\(hostWidth)x\(hostHeight) frame=\(Int(frame.x)),\(Int(frame.y)) \(Int(frame.width))x\(Int(frame.height)) panel=\(Int(panelX)),\(Int(panelY)) \(Int(panelHeight))h"
+    )
+    return true
+}
+
+private func gtkOpenMenuOverlayFromButton(
+    _ menuButton: UnsafeMutablePointer<GtkWidget>,
+    source: String
+) -> Bool {
+    guard let root = gtk_swift_widget_root_widget(menuButton) else { return false }
+    return gtkOpenMenuOverlay(menuButton: menuButton, root: root, source: source)
+}
+
+private func gtkOpenMenuButton(
+    _ menuButton: UnsafeMutablePointer<GtkWidget>,
+    source: String
+) -> Bool {
+    if gtkOpenMenuOverlayFromButton(menuButton, source: source) {
+        return true
+    }
+    let visible = gtk_swift_menu_button_popup_if_closed(menuButton) != 0
+    gtkDebugLog("menu popup \(source) visible=\(visible)")
+    return visible
+}
+
+private func gtkOpenMenuButton(
+    _ menuButton: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    anchorX: Double,
+    anchorY: Double,
+    source: String
+) -> Bool {
+    if gtkOpenMenuOverlay(
+        menuButton: menuButton,
+        root: root,
+        source: source,
+        anchorFrame: (x: anchorX - 32, y: anchorY - 16, width: 64, height: 36)
+    ) {
+        return true
+    }
+    return gtkOpenMenuButton(menuButton, source: source)
+}
+
+private func gtkOpenVisualMenuButtonAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    let menuButton = gtkWidgetTreeFindVisualMenuButtonAtRootPoint(root, root: root, x: x, y: y)
+        ?? gtk_swift_root_point_pick_menu_button(root, x, y)
+    guard let menuButton else { return false }
+    return gtkOpenMenuButton(menuButton, source: source)
+}
+
+private func gtkInstallMenuPopupGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    menuButton: UnsafeMutablePointer<GtkWidget>
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(gobject, gtkSwiftMenuPopupGestureInstalledKey) == nil else { return }
+    g_object_set_data(gobject, gtkSwiftMenuPopupGestureInstalledKey, gpointer(bitPattern: 1))
+
+    let popupGesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(popupGesture, 1)
+    let popupBox = Unmanaged.passRetained(ClosureBox { [menuButton] in
+        _ = gtkOpenMenuButton(menuButton, source: "menu popup gesture")
+    }).toOpaque()
+    g_signal_connect_data(
+        gpointer(popupGesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: gdouble, _: gdouble, userData: gpointer?) in
+            guard let userData else { return }
+            Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        popupBox,
+        { data, _ in
+            if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, popupGesture)
+
+    let legacyController = gtk_swift_legacy_capture_controller()!
+    let legacyContext = Unmanaged.passRetained(GTKMenuPopupEventContext(menuButton: menuButton)).toOpaque()
+    g_signal_connect_data(
+        legacyController,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let context = Unmanaged<GTKMenuPopupEventContext>.fromOpaque(userData).takeUnretainedValue()
+            var x: Double = 0
+            var y: Double = 0
+            let source: String
+            if gtk_swift_event_get_position(event, &x, &y) != 0 {
+                source = "menu legacy@\(Int(x)),\(Int(y))"
+            } else {
+                source = "menu legacy"
+            }
+            return gtkOpenMenuButton(context.menuButton, source: source) ? 1 : 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        legacyContext,
+        { data, _ in
+            if let data { Unmanaged<GTKMenuPopupEventContext>.fromOpaque(data).release() }
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(widget, legacyController)
+}
+
+private func gtkInstallMenuPopupGestures(
+    under widget: UnsafeMutablePointer<GtkWidget>,
+    menuButton: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkInstallMenuPopupGesture(on: widget, menuButton: menuButton)
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkInstallMenuPopupGestures(under: c, menuButton: menuButton)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
 extension Menu: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let button = gtk_menu_button_new()!
-        gtk_swift_menu_button_set_label(button, title)
+        gtkDebugLog("menu render title='\(title)' elements=\(elements.count) labels=[\(gtkDebugMenuLabels(elements).joined(separator: ", "))]")
+        if let labelView {
+            let environment = getCurrentEnvironment()
+            gtkDebugLog(
+                "menu label environment customButtonStyle=\(environment.customButtonStyle != nil) buttonStyle=\(environment.buttonStyle)"
+            )
+            let child: UnsafeMutablePointer<GtkWidget>
+            if let customButtonStyle = environment.customButtonStyle {
+                var renderEnvironment = environment
+                renderEnvironment.customButtonStyle = nil
+                renderEnvironment.buttonStyle = .plain
+                let previousEnvironment = getCurrentEnvironment()
+                setCurrentEnvironment(renderEnvironment)
+                let styledBody = customButtonStyle.makeBody(
+                    configuration: .init(label: labelView, isPressed: false)
+                )
+                child = widgetFromOpaque(gtkRenderView(styledBody))
+                setCurrentEnvironment(previousEnvironment)
+                applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
+                    border: none;
+                    border-radius: 0;
+                    box-shadow: none;
+                    outline: none;
+                    padding: 0;
+                    min-height: 0;
+                    min-width: 0;
+                    text-shadow: none;
+                    """)
+            } else {
+                child = widgetFromOpaque(gtkRenderView(labelView))
+            }
+            gtkDisableButtonChildTargeting(child)
+            gtk_swift_menu_button_set_child(button, child)
+            gtk_swift_menu_button_set_always_show_arrow(button, 0)
+            gtkMarkMenuOwner(under: child, menuButton: button)
+        } else {
+            gtk_swift_menu_button_set_label(button, title)
+        }
 
-        let actionGroup = g_simple_action_group_new()!
-        let menuModel = gtk_swift_menu_new()!
         let actionBox = MenuActionBox()
-        var actionIndex = 0
+        let overlayModel = GTKMenuOverlayModel(
+            elements: gtkBindMenuElementsToCurrentEnvironment(elements)
+        )
 
-        gtkBuildMenuModel(elements: elements, menu: menuModel,
-                          actionGroup: actionGroup, actionBox: actionBox,
-                          actionIndex: &actionIndex)
-
-        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        let popover = gtk_popover_new()!
+        let popoverContent = gtkBuildMenuPopoverContent(
+            elements: elements,
+            popover: popover,
+            actionBox: actionBox
+        )
+        gtk_swift_popover_set_child(popover, popoverContent)
         gtk_swift_menu_button_set_popover(button, popover)
 
-        gtk_swift_widget_insert_action_group(button, "menu", gpointer(actionGroup))
+        gtkMarkMenuOwner(under: button, menuButton: button)
+        gtkInstallMenuPopupGestures(under: button, menuButton: button)
+        let installBox = Unmanaged.passRetained(ClosureBox { [button] in
+            gtkMarkMenuOwner(under: button, menuButton: button)
+            gtkInstallMenuPopupGestures(under: button, menuButton: button)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "map",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            installBox,
+            { data, _ in
+                if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+            },
+            GConnectFlags(rawValue: 0)
+        )
 
         // Attach actionBox to button for lifetime management
         let retained = Unmanaged.passRetained(actionBox).toOpaque()
         let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
         g_object_set_data_full(gobject, "gtk-swift-menu-actions", retained,
             { userData in Unmanaged<MenuActionBox>.fromOpaque(userData!).release() })
+        let retainedOverlayModel = Unmanaged.passRetained(overlayModel).toOpaque()
+        g_object_set_data_full(gobject, gtkSwiftMenuOverlayModelKey, retainedOverlayModel,
+            { userData in Unmanaged<GTKMenuOverlayModel>.fromOpaque(userData!).release() })
 
         return opaqueFromWidget(button)
+    }
+}
+
+private func gtkBuildMenuPopoverContent(
+    elements: [MenuElement],
+    popover: UnsafeMutablePointer<GtkWidget>,
+    actionBox: MenuActionBox
+) -> UnsafeMutablePointer<GtkWidget> {
+    let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2)!
+    gtk_widget_set_margin_top(box, 6)
+    gtk_widget_set_margin_bottom(box, 6)
+    gtk_widget_set_margin_start(box, 6)
+    gtk_widget_set_margin_end(box, 6)
+
+    for element in elements {
+        gtkAppendMenuPopoverElement(element, to: box, popover: popover, actionBox: actionBox)
+    }
+
+    return box
+}
+
+private func gtkCreateMenuOverlayPanel(
+    elements: [GTKBoundMenuElement]
+) -> UnsafeMutablePointer<GtkWidget> {
+    let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2)!
+    gtk_widget_set_size_request(panel, gtkMenuOverlayPreferredWidth, -1)
+    gtk_widget_set_halign(panel, GTK_ALIGN_START)
+    gtk_widget_set_valign(panel, GTK_ALIGN_START)
+    gtk_widget_set_can_target(panel, 1)
+    gtk_widget_set_margin_top(panel, 0)
+    gtk_widget_set_margin_bottom(panel, 0)
+    gtk_widget_set_margin_start(panel, 0)
+    gtk_widget_set_margin_end(panel, 0)
+    applyCSSToWidget(panel, properties: """
+        background: #ffffff;
+        border: 1px solid rgba(0,0,0,0.16);
+        border-radius: 8px;
+        box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+        padding: 6px;
+        """)
+
+    for element in elements {
+        gtkAppendMenuOverlayElement(element, to: panel)
+    }
+
+    return panel
+}
+
+private func gtkCreateMenuOverlayLayer(
+    panel: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let layer = gtk_overlay_new()!
+    gtk_widget_set_hexpand(layer, 1)
+    gtk_widget_set_vexpand(layer, 1)
+    gtk_widget_set_halign(layer, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(layer, GTK_ALIGN_FILL)
+    gtk_widget_set_can_target(layer, 0)
+
+    let backing = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtk_widget_set_hexpand(backing, 1)
+    gtk_widget_set_vexpand(backing, 1)
+    gtk_widget_set_halign(backing, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(backing, GTK_ALIGN_FILL)
+    gtk_widget_set_can_target(backing, 0)
+    applyCSSToWidget(backing, properties: "background: transparent;")
+
+    gtk_overlay_set_child(OpaquePointer(layer), backing)
+    gtk_overlay_add_overlay(OpaquePointer(layer), panel)
+    gtk_widget_set_visible(backing, 1)
+    gtk_widget_set_visible(panel, 1)
+    gtk_widget_set_visible(layer, 1)
+    return layer
+}
+
+private func gtkAppendMenuOverlayElement(
+    _ element: GTKBoundMenuElement,
+    to box: UnsafeMutablePointer<GtkWidget>
+) {
+    switch element {
+    case .item(let label, let action):
+        let button = gtk_button_new()!
+        let labelWidget = gtk_label_new(label)!
+        gtk_swift_label_set_xalign(labelWidget, 0)
+        gtk_widget_set_hexpand(labelWidget, 1)
+        gtk_button_set_child(
+            UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self),
+            labelWidget
+        )
+        gtk_widget_set_hexpand(button, 1)
+        gtk_widget_set_halign(button, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(button, gtkMenuOverlayPreferredWidth - 12, -1)
+        gtk_widget_set_visible(button, 1)
+        gtk_widget_set_visible(labelWidget, 1)
+        applyCSSToWidget(button, properties: """
+            background: transparent;
+            background-image: none;
+            border: none;
+            border-radius: 6px;
+            box-shadow: none;
+            color: #1d1d1f;
+            padding: 8px 10px;
+            min-height: 0;
+            """)
+
+        let clickBox = Unmanaged.passRetained(ClosureBox {
+            gtkDismissActiveMenuOverlay()
+            action()
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "clicked",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            clickBox,
+            { data, _ in
+                if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+            },
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_box_append(boxPointer(box), button)
+
+    case .submenu(let label, let children):
+        let subButton = gtk_menu_button_new()!
+        gtk_swift_menu_button_set_label(subButton, label)
+        let subPopover = gtk_popover_new()!
+        let child = gtkCreateMenuOverlayPanel(elements: children)
+        gtk_swift_popover_set_child(subPopover, child)
+        gtk_swift_menu_button_set_popover(subButton, subPopover)
+        gtk_widget_set_hexpand(subButton, 1)
+        gtk_widget_set_halign(subButton, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(subButton, gtkMenuOverlayPreferredWidth - 12, -1)
+        gtk_widget_set_visible(subButton, 1)
+        gtk_box_append(boxPointer(box), subButton)
+
+    case .divider:
+        let separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)!
+        gtk_widget_set_margin_top(separator, 4)
+        gtk_widget_set_margin_bottom(separator, 4)
+        gtk_widget_set_visible(separator, 1)
+        gtk_box_append(boxPointer(box), separator)
+    }
+}
+
+private func gtkAppendMenuPopoverElement(
+    _ element: MenuElement,
+    to box: UnsafeMutablePointer<GtkWidget>,
+    popover: UnsafeMutablePointer<GtkWidget>,
+    actionBox: MenuActionBox
+) {
+    switch element {
+    case .item(let label, let action):
+        let button = gtk_button_new()!
+        let labelWidget = gtk_label_new(label)!
+        gtk_swift_label_set_xalign(labelWidget, 0)
+        gtk_widget_set_hexpand(labelWidget, 1)
+        gtk_button_set_child(UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self), labelWidget)
+        gtk_widget_set_hexpand(button, 1)
+        gtk_widget_set_halign(button, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(button, 132, -1)
+        applyCSSToWidget(button, properties: """
+            background: transparent;
+            background-image: none;
+            border: none;
+            border-radius: 6px;
+            box-shadow: none;
+            padding: 7px 10px;
+            min-height: 0;
+            """)
+
+        let actionClosure = ClosureBox(bindActionToCurrentEnvironment(action))
+        actionBox.actions.append(actionClosure)
+        let clickBox = Unmanaged.passRetained(ClosureBox { [actionClosure, popover] in
+            actionClosure.closure()
+            gtk_swift_popover_popdown(popover)
+        }).toOpaque()
+        g_signal_connect_data(
+            gpointer(button),
+            "clicked",
+            unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+                guard let userData else { return }
+                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+            clickBox,
+            { data, _ in
+                if let data { Unmanaged<ClosureBox>.fromOpaque(data).release() }
+            },
+            GConnectFlags(rawValue: 0)
+        )
+        gtk_box_append(boxPointer(box), button)
+
+    case .submenu(let label, let children):
+        let subButton = gtk_menu_button_new()!
+        gtk_swift_menu_button_set_label(subButton, label)
+        let subPopover = gtk_popover_new()!
+        let child = gtkBuildMenuPopoverContent(
+            elements: children,
+            popover: subPopover,
+            actionBox: actionBox
+        )
+        gtk_swift_popover_set_child(subPopover, child)
+        gtk_swift_menu_button_set_popover(subButton, subPopover)
+        gtkInstallMenuPopupGestures(under: subButton, menuButton: subButton)
+        gtk_widget_set_hexpand(subButton, 1)
+        gtk_widget_set_halign(subButton, GTK_ALIGN_FILL)
+        gtk_widget_set_size_request(subButton, 132, -1)
+        gtk_box_append(boxPointer(box), subButton)
+
+    case .divider:
+        let separator = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL)!
+        gtk_widget_set_margin_top(separator, 4)
+        gtk_widget_set_margin_bottom(separator, 4)
+        gtk_box_append(boxPointer(box), separator)
+    }
+}
+
+private func gtkDebugMenuLabels(_ elements: [MenuElement]) -> [String] {
+    elements.flatMap { element -> [String] in
+        switch element {
+        case .item(let label, _):
+            return [label]
+        case .divider:
+            return ["---"]
+        case .submenu(let label, let children):
+            return [label] + gtkDebugMenuLabels(children)
+        }
     }
 }
 
@@ -8372,6 +14646,7 @@ extension Canvas: GTKRenderable, GTKDescribable {
         }
         if height <= 0 {
             gtk_widget_set_vexpand(area, 1)
+            gtkMarkVerticalFillIntent(area)
         }
 
         let box = Unmanaged.passRetained(
@@ -8419,6 +14694,10 @@ func gtkGetCurrentForegroundColor() -> Color {
     _gtkCurrentForegroundColor ?? Color(red: 0.0, green: 0.0, blue: 0.0, opacity: 1.0)
 }
 
+func gtkCurrentForegroundColorIfSet() -> Color? {
+    _gtkCurrentForegroundColor
+}
+
 func gtkSetCurrentForegroundColor(_ color: Color?) {
     _gtkCurrentForegroundColor = color
 }
@@ -8446,6 +14725,7 @@ private func gtkCreateShapeWidget(box: ShapeDrawBox) -> OpaquePointer {
     let area = gtk_drawing_area_new()!
     gtk_widget_set_hexpand(area, 1)
     gtk_widget_set_vexpand(area, 1)
+    gtkMarkVerticalFillIntent(area)
 
     let retained = Unmanaged.passRetained(box).toOpaque()
 
@@ -8539,10 +14819,11 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     }
 
     gtkRestoreAndInstallState(view, host: host)
+    gtkRestoreViewHostLifecycleIfAvailable(host)
 
     let previousHost = GTKViewHost.getCurrentRebuilding()
     GTKViewHost.setCurrentRebuilding(host)
-    beginDependencyTracking()
+    beginDependencyTracking(host: host)
     let widget = host.buildBodyWithTracking()
     if let tracking = endDependencyTracking() {
         host.lastReadSet = tracking.readSet
@@ -8562,6 +14843,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         gtk_widget_set_valign(child, GTK_ALIGN_FILL)
     }
     gtk_box_append(boxPointer(host.container), child)
+    gtkPropagateSingleChildLayoutMarkers(from: [child], to: host.container)
 
     // Capture initial descriptor state so the narrow mutation path is
     // available from the very first @State change.  Without this, the
@@ -8570,7 +14852,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     if let describeBody = host.describeBody {
         let previousEnvForDesc = getCurrentEnvironment()
         setCurrentEnvironment(host.capturedEnvironment)
-        let described = gtkDescribeCapturingCanvasPayloads(describeBody)
+        let described = host.describeBodyCapturingPayloads(describeBody)
         setCurrentEnvironment(previousEnvForDesc)
 
         let identified = gtkIdentifyDescriptorTree(described.descriptor)
@@ -8593,6 +14875,100 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
             canvasPayloadsByIdentity: canvasPayloads
         )
         executor = gtkCaptureSupportedNativeSlots(
+            from: child,
+            descriptorRoot: identified,
+            executorRoot: executor
+        )
+        executor = gtkCaptureButtonNativeSlots(
+            from: child,
+            descriptorRoot: identified,
+            executorRoot: executor
+        )
+        host.retainedExecutor = executor
+    }
+
+    return opaqueFromWidget(host.container)
+}
+
+private func gtkInstallStateProviders(from source: Any, host: GTKViewHost) -> Int {
+    let providers = Mirror(reflecting: source).children.compactMap { $0.value as? AnyStateStorageProvider }
+    for provider in providers {
+        provider.anyStorage.host = host
+    }
+    return providers.count
+}
+
+func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> OpaquePointer {
+    let host = GTKViewHost(buildBody: {
+        MainActor.assumeIsolated { gtkRenderView(view) }
+    })
+    host.describeBody = {
+        MainActor.assumeIsolated { gtkDescribeView(view) }
+    }
+
+    if let appStateSource {
+        let installed = gtkInstallStateProviders(from: appStateSource, host: host)
+        gtkDebugLog(
+            "app state install type=\(String(reflecting: type(of: appStateSource))) providers=\(installed)"
+        )
+    }
+    gtkRestoreViewHostLifecycleIfAvailable(host)
+
+    let previousHost = GTKViewHost.getCurrentRebuilding()
+    GTKViewHost.setCurrentRebuilding(host)
+    beginDependencyTracking(host: host)
+    let widget = host.buildBodyWithTracking()
+    if let tracking = endDependencyTracking() {
+        host.lastReadSet = tracking.readSet
+        host.lastInputSnapshot = tracking.snapshots
+    }
+    GTKViewHost.setCurrentRebuilding(previousHost)
+
+    let child = widgetFromOpaque(widget)
+    let childHexpand = gtk_widget_get_hexpand(child) != 0
+    let childVexpand = gtk_widget_get_vexpand(child) != 0
+    gtk_widget_set_hexpand(host.container, childHexpand ? 1 : 0)
+    gtk_widget_set_vexpand(host.container, childVexpand ? 1 : 0)
+    if childHexpand {
+        gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+    }
+    if childVexpand {
+        gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+    }
+    gtk_box_append(boxPointer(host.container), child)
+    gtkPropagateSingleChildLayoutMarkers(from: [child], to: host.container)
+
+    if let describeBody = host.describeBody {
+        let previousEnvForDesc = getCurrentEnvironment()
+        setCurrentEnvironment(host.capturedEnvironment)
+        let described = host.describeBodyCapturingPayloads(describeBody)
+        setCurrentEnvironment(previousEnvForDesc)
+
+        let identified = gtkIdentifyDescriptorTree(described.descriptor)
+        let canvasPayloads = gtkCanvasPayloadsByIdentity(
+            descriptorRoot: identified,
+            payloads: described.canvasPayloads
+        )
+        host.updateOnAppearLifecycle(
+            descriptorRoot: identified,
+            onAppearPayloads: described.onAppearPayloads
+        )
+        host.updateTaskLifecycle(
+            descriptorRoot: identified,
+            taskPayloads: described.taskPayloads
+        )
+        gtkTagFocusableInputIdentities(in: child, descriptorRoot: identified)
+        host.lastRetainedDescriptor = gtkRetainDescriptorTree(identified)
+        var executor = gtkMakeExecutorTree(
+            from: identified,
+            canvasPayloadsByIdentity: canvasPayloads
+        )
+        executor = gtkCaptureSupportedNativeSlots(
+            from: child,
+            descriptorRoot: identified,
+            executorRoot: executor
+        )
+        executor = gtkCaptureButtonNativeSlots(
             from: child,
             descriptorRoot: identified,
             executorRoot: executor
@@ -8733,6 +15109,125 @@ extension SafeAreaPaddingView: GTKRenderable, GTKDescribable {
         if gtk_widget_get_hexpand(child) != 0 { gtk_widget_set_hexpand(wrapper, 1) }
         if gtk_widget_get_vexpand(child) != 0 { gtk_widget_set_vexpand(wrapper, 1) }
         gtk_box_append(boxPointer(wrapper), child)
+        return opaqueFromWidget(wrapper)
+    }
+}
+
+// MARK: - Custom Layout GTK extension
+
+private final class GTKLayoutContainerContext {
+    let child: UnsafeMutablePointer<GtkWidget>
+    private let measureSize: (ProposedViewSize) -> CGSize
+
+    init(child: UnsafeMutablePointer<GtkWidget>, measureSize: @escaping (ProposedViewSize) -> CGSize) {
+        self.child = child
+        self.measureSize = measureSize
+    }
+
+    func sizeThatFits(width: Double?) -> CGSize {
+        measureSize(ProposedViewSize(width: width, height: nil))
+    }
+
+    func unspecifiedSize() -> CGSize {
+        measureSize(.unspecified)
+    }
+
+    func measure(
+        orientation: GtkOrientation,
+        forSize: gint,
+        minimum: UnsafeMutablePointer<gint>?,
+        natural: UnsafeMutablePointer<gint>?
+    ) {
+        let size: CGSize
+        if orientation == GTK_ORIENTATION_HORIZONTAL {
+            let minimumSize = sizeThatFits(width: 0)
+            let naturalSize = unspecifiedSize()
+            minimum?.pointee = gtkPixelSize(minimumSize.width)
+            natural?.pointee = gtkPixelSize(naturalSize.width)
+            return
+        }
+
+        let proposedWidth: Double?
+        if forSize >= 0 {
+            proposedWidth = Double(forSize)
+        } else {
+            proposedWidth = unspecifiedSize().width
+        }
+        size = sizeThatFits(width: proposedWidth)
+        let value = gtkPixelSize(size.height)
+        minimum?.pointee = value
+        natural?.pointee = value
+    }
+
+    func allocate(width: gint, height: gint, baseline: gint) {
+        let proposedWidth = width >= 0 ? Double(width) : nil
+        let size = sizeThatFits(width: proposedWidth)
+        let childWidth = min(Double(max(0, width)), max(0, size.width))
+        let childHeight = min(Double(max(0, height)), max(0, size.height))
+        gtk_widget_allocate(
+            child,
+            gtkPixelSize(childWidth),
+            gtkPixelSize(childHeight),
+            baseline,
+            nil
+        )
+    }
+}
+
+private let gtkLayoutContainerMeasureCallback: @convention(c) (
+    gpointer?,
+    GtkOrientation,
+    gint,
+    UnsafeMutablePointer<gint>?,
+    UnsafeMutablePointer<gint>?
+) -> Void = { userData, orientation, forSize, minimum, natural in
+    guard let userData else { return }
+    let context = Unmanaged<GTKLayoutContainerContext>.fromOpaque(userData).takeUnretainedValue()
+    context.measure(orientation: orientation, forSize: forSize, minimum: minimum, natural: natural)
+}
+
+private let gtkLayoutContainerAllocateCallback: @convention(c) (
+    gpointer?,
+    gint,
+    gint,
+    gint
+) -> Void = { userData, width, height, baseline in
+    guard let userData else { return }
+    let context = Unmanaged<GTKLayoutContainerContext>.fromOpaque(userData).takeUnretainedValue()
+    context.allocate(width: width, height: height, baseline: baseline)
+}
+
+private let gtkLayoutContainerDestroyCallback: @convention(c) (gpointer?) -> Void = { userData in
+    guard let userData else { return }
+    Unmanaged<GTKLayoutContainerContext>.fromOpaque(userData).release()
+}
+
+extension LayoutContainer: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let child = widgetFromOpaque(gtkRenderView(content))
+        let subviews = LayoutSubviews([LayoutSubview(index: 0)])
+        let context = GTKLayoutContainerContext(child: child) { proposal in
+            var cache: () = ()
+            return layout.sizeThatFits(proposal: proposal, subviews: subviews, cache: &cache)
+        }
+        let contextPointer = Unmanaged.passRetained(context).toOpaque()
+        let wrapper = gtk_swift_custom_layout_new(
+            child,
+            contextPointer,
+            gtkLayoutContainerMeasureCallback,
+            gtkLayoutContainerAllocateCallback,
+            gtkLayoutContainerDestroyCallback
+        )!
+
+        if gtk_widget_get_hexpand(child) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if gtk_widget_get_vexpand(child) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
+        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
         return opaqueFromWidget(wrapper)
     }
 }

@@ -1534,6 +1534,25 @@ public class RSColor: NSObject, @unchecked Sendable {
         self._red = red; self._green = green; self._blue = blue; self._alpha = alpha
     }
 
+    public override var hash: Int {
+        var hasher = Hasher()
+        hasher.combine(_red)
+        hasher.combine(_green)
+        hasher.combine(_blue)
+        hasher.combine(_alpha)
+        return hasher.finalize()
+    }
+
+    public override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? RSColor else {
+            return false
+        }
+        return _red == other._red
+            && _green == other._green
+            && _blue == other._blue
+            && _alpha == other._alpha
+    }
+
     /// Apple's UIColor(hue:saturation:brightness:alpha:) -- standard HSB->RGB
     /// conversion, delegating to the RGBA designated init. (UIColor+OWS blending.)
     public convenience init(hue: CGFloat, saturation: CGFloat, brightness: CGFloat, alpha: CGFloat) {

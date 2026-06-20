@@ -42,6 +42,246 @@ import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
 
+private struct CompatibilityFixedLayout: Layout {
+    let width: CGFloat
+    let height: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        _ = proposal
+        _ = subviews
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        _ = bounds
+        _ = proposal
+        _ = subviews
+    }
+}
+
+private struct CompatibilityLayoutPaintProbe: View {
+    var body: some View {
+        CompatibilityFixedLayout(width: 160, height: 90) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.12, green: 0.36, blue: 0.88))
+                    .overlay {
+                        GeometryReader { proxy in
+                            Color(red: 0.12, green: 0.36, blue: 0.88)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray, lineWidth: 1)
+                    )
+            }
+        }
+    }
+}
+
+private struct CompatibilityGeometryOverlayOnlyPaintProbe: View {
+    var body: some View {
+        CompatibilityFixedLayout(width: 160, height: 90) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.clear)
+                .overlay {
+                    GeometryReader { proxy in
+                        Color(red: 0.12, green: 0.36, blue: 0.88)
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                    }
+                }
+        }
+    }
+}
+
+private struct CompatibilityIceCubesFeaturedMediaLayout: Layout {
+    let originalWidth: CGFloat
+    let originalHeight: CGFloat
+    let maxSize: CGSize?
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        _ = subviews
+        _ = cache
+        if let maxSize { return maxSize }
+        return calculateSize(proposal)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        _ = bounds
+        _ = proposal
+        _ = subviews
+        _ = cache
+    }
+
+    private func calculateSize(_ proposal: ProposedViewSize) -> CGSize {
+        var size: CGSize
+        switch (proposal.width, proposal.height) {
+        case (0, _), (_, 0):
+            size = .zero
+        case (nil, nil), (nil, .some(.infinity)), (.some(.infinity), .some(.infinity)), (.some(.infinity), nil):
+            size = CGSize(width: originalWidth, height: originalWidth)
+        case (nil, .some(let height)), (.some(.infinity), .some(let height)):
+            let minHeight = min(height, originalWidth)
+            size = originalHeight == 0
+                ? .zero
+                : CGSize(width: originalWidth * minHeight / originalHeight, height: minHeight)
+        case (.some(let width), .some(.infinity)), (.some(let width), nil):
+            size = originalWidth == 0
+                ? CGSize(width: width, height: width)
+                : CGSize(width: width, height: width / originalWidth * originalHeight)
+        case (.some(let width), .some(let height)):
+            if originalWidth <= width, originalHeight <= height {
+                size = CGSize(width: originalWidth, height: originalHeight)
+            } else {
+                let xRatio = width / originalWidth
+                let yRatio = height / originalHeight
+                size = xRatio < yRatio
+                    ? CGSize(width: width, height: originalHeight * xRatio)
+                    : CGSize(width: originalWidth * yRatio, height: height)
+            }
+        }
+        return CGSize(width: max(size.width, 200), height: min(size.height, 450))
+    }
+}
+
+private struct CompatibilityIceCubesFeaturedMediaProbe: View {
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.12, green: 0.36, blue: 0.88))
+                    .overlay {
+                        GeometryReader { proxy in
+                            Color(red: 0.12, green: 0.36, blue: 0.88)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private struct CompatibilityIceCubesConstrainedFeaturedMediaProbe: View {
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaProbe()
+            .frame(width: 528)
+    }
+}
+
+private struct CompatibilityIceCubesConstrainedVStackMediaRowProbe: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("QuillUI fixture timeline: home rows are rendering through the real IceCubes UI.")
+            CompatibilityIceCubesFeaturedMediaProbe()
+        }
+        .frame(width: 528)
+    }
+}
+
+private struct CompatibilityIceCubesFileImageMediaProbe: View {
+    let imagePath: String
+
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray)
+                    .overlay {
+                        Image(filePath: imagePath)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private struct CompatibilityIceCubesGeometryFileImageMediaProbe: View {
+    let imagePath: String
+
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray)
+                    .overlay {
+                        GeometryReader { _ in
+                            Image(filePath: imagePath)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private func compatibilityOptionalDoubleValue(_ value: Any?) -> Double? {
+    guard let value else { return nil }
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+        return mirror.children.first?.value as? Double
+    }
+    return value as? Double
+}
+
+private func writeIceCubesMediaFixturePNG() throws -> String {
+    let fixtureBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAKAAAABaCAIAAACwpMoFAAAAoUlEQVR42u3RAQ0AAAjDsDvEGJ7BBzSZgjXVo8PFAsACLMACLMACLMCABViABViABViAAQuwAAuwAAuwAAswYAEWYAEWYAEWYMACLMACLMACLMCABViABViABViABRiwAAuwAAuwAAswYAEWYAEWYAEWYMAuABZgARZgARZgAQYswAIswAIswAIMWIAFWIAFWIAFWIABC7AAC7AAC7AA/2oBR40smWEV2aUAAAAASUVORK5CYII="
+    let file = FileManager.default.temporaryDirectory
+        .appendingPathComponent("quillui-icecubes-media-fixture-\(UUID().uuidString).png")
+    guard let data = Data(base64Encoded: fixtureBase64) else {
+        throw NSError(domain: "QuillCompatibilityModuleTests", code: 1)
+    }
+    try data.write(to: file, options: [.atomic])
+    return file.path
+}
+
 #if os(Linux)
 private struct QuillImportedFileTransferable: Transferable, Equatable, Sendable {
     let url: URL
@@ -392,6 +632,22 @@ struct CompatibilityModuleTests {
         #expect(second.frame.width == 220)
         #expect(second.frame.minY > first.frame.maxY)
     }
+
+    #if os(Linux)
+    @Test("UIFont secure coding round-trips custom font identity")
+    func uiFontSecureCodingRoundTripsCustomFontIdentity() throws {
+        let font = try #require(UIFont(name: "OpenDyslexic", size: 15))
+        let data = try NSKeyedArchiver.archivedData(
+            withRootObject: font,
+            requiringSecureCoding: false
+        )
+        let decodedFont = try NSKeyedUnarchiver.unarchivedObject(ofClass: UIFont.self, from: data)
+        let decoded = try #require(decodedFont)
+
+        #expect(decoded.fontName == "OpenDyslexic")
+        #expect(decoded.pointSize == 15)
+    }
+    #endif
 
     @Test("UIVisualEffectView contentView fills bounds")
     @MainActor
@@ -1544,6 +1800,364 @@ struct CompatibilityModuleTests {
         })
     }
 
+    @Test("SwiftUI custom Layout containers apply their measured size")
+    func swiftUICustomLayoutContainersApplyMeasuredSize() {
+        let body = CompatibilityFixedLayout(width: 160, height: 90) {
+            Text("media")
+        }.body
+        let mirror = Mirror(reflecting: body)
+        let width = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "width" }?.value)
+        let height = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "height" }?.value)
+
+        #expect(String(describing: Swift.type(of: body)).contains("FrameView"))
+        #expect(width == 160)
+        #expect(height == 90)
+    }
+
+    @Test("SwiftUI custom Layout containers use a finite width proposal")
+    func swiftUICustomLayoutContainersUseFiniteWidthProposal() {
+        let body = CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Text("media")
+        }.body
+        let mirror = Mirror(reflecting: body)
+        let width = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "width" }?.value)
+        let height = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "height" }?.value)
+
+        #expect(String(describing: Swift.type(of: body)).contains("FrameView"))
+        #expect(width == 640)
+        #expect(height == 360)
+    }
+
+    @Test("SwiftUI custom Layout containers paint full-width GTK geometry content")
+    func swiftUICustomLayoutContainersPaintFullWidthGTKGeometryContent() {
+        guard let png = quillRenderViewToImage(CompatibilityLayoutPaintProbe(), width: 200, height: 120) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var rightSideBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if x >= 120 {
+                    rightSideBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 8_000)
+        #expect(
+            rightSideBluePixels > 1_200,
+            "The IceCubes media custom Layout path must paint across the measured width, not collapse to a 1px vertical strip."
+        )
+    }
+
+    @Test("GeometryReader overlay fills the measured GTK layout slot")
+    func geometryReaderOverlayFillsMeasuredGTKLayoutSlot() {
+        guard let png = quillRenderViewToImage(CompatibilityGeometryOverlayOnlyPaintProbe(), width: 200, height: 120) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var lowerBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 70 {
+                    lowerBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 8_000)
+        #expect(
+            lowerBluePixels > 1_800,
+            "A GeometryReader overlay must receive the full vertical proposal, not a natural one-pixel allocation."
+        )
+    }
+
+    @Test("IceCubes-style featured media Layout paints across clipped GTK width")
+    func iceCubesFeaturedMediaLayoutPaintsAcrossClippedGTKWidth() {
+        guard let png = quillRenderViewToImage(CompatibilityIceCubesFeaturedMediaProbe(), width: 700, height: 500) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "The featured media preview must paint across its IceCubes-measured width after clipping and corner radius."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "The featured media preview should use the 16:9 proposed height, not the unspecified 450pt fallback cap."
+        )
+    }
+
+    @Test("IceCubes-style featured media respects constrained GTK width proposals")
+    func iceCubesFeaturedMediaLayoutUsesConstrainedGTKWidthProposal() {
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesConstrainedFeaturedMediaProbe(),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 330 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 140_000)
+        #expect(
+            bottomBluePixels < 1_000,
+            "A 640x360 IceCubes media attachment constrained to 528pt width should render near 297pt tall, not from the 640pt natural-width fallback."
+        )
+    }
+
+    @Test("IceCubes-style VStack rows propagate constrained width to media Layout children")
+    func iceCubesVStackMediaRowsUseConstrainedGTKWidthProposal() {
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesConstrainedVStackMediaRowProbe(),
+            width: 700,
+            height: 560
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 130_000)
+        #expect(
+            bottomBluePixels < 1_000,
+            "A VStack status row should pass the row width proposal to an IceCubes media Layout child instead of preserving the child's 640pt natural height."
+        )
+    }
+
+    @Test("IceCubes-style file-backed image preview paints across clipped GTK width")
+    func iceCubesFileBackedMediaImagePaintsAcrossClippedGTKWidth() throws {
+        let imagePath = try writeIceCubesMediaFixturePNG()
+        defer { try? FileManager.default.removeItem(atPath: imagePath) }
+
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesFileImageMediaProbe(imagePath: imagePath),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 190, green > 95, red < 120 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "The fixture image should fill the same clipped preview area as IceCubes media attachments."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "The fixture image preview should use the 16:9 proposed height, not the unspecified 450pt fallback cap."
+        )
+    }
+
+    @Test("IceCubes-style GeometryReader image preview paints across clipped GTK width")
+    func iceCubesGeometryReaderMediaImagePaintsAcrossClippedGTKWidth() throws {
+        let imagePath = try writeIceCubesMediaFixturePNG()
+        defer { try? FileManager.default.removeItem(atPath: imagePath) }
+
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesGeometryFileImageMediaProbe(imagePath: imagePath),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 190, green > 95, red < 120 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "A resizable image returned directly from GeometryReader must receive the reader's full proposal."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "A resizable image returned directly from GeometryReader should use the 16:9 proposed height."
+        )
+    }
+
     @Test("Magnet hot keys use the shared QuillKit registry")
     func magnetHotKeysUseSharedQuillKitRegistry() {
         QuillHotkeyService.shared.unregisterAll()
@@ -2479,6 +3093,22 @@ struct CompatibilityModuleTests {
         // A garbage rawValue at the storage key falls back to the default.
         UserDefaults.standard.set("not-a-case", forKey: key)
         #expect(AppStorage(wrappedValue: AppStorageMode.classic, key).wrappedValue == .classic)
+    }
+
+    @Test("AppStorage encodes Int-backed RawRepresentable values")
+    func appStorageEncodesIntBackedRawRepresentableValues() {
+        let key = "quill.test.rgb.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .purple)
+
+        let storage = AppStorage(wrappedValue: AppStorageRGB.purple, key)
+        storage.wrappedValue = .iceCube
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .iceCube)
+        #expect(UserDefaults.standard.integer(forKey: key) == 0xBB3BE2)
+
+        UserDefaults.standard.set(-1, forKey: key)
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .purple)
     }
 
     // MARK: - File importer
@@ -4059,6 +4689,11 @@ struct CompatibilityModuleTests {
 private enum AppStorageMode: String {
     case classic
     case modern
+}
+
+private enum AppStorageRGB: Int {
+    case purple = 0x800080
+    case iceCube = 0xBB3BE2
 }
 
 /// Tiny mutable reference container for capturing values out of closures in
