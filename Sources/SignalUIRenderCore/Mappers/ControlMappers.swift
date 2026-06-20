@@ -172,9 +172,16 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
             applyButtonSize(fixed, from: button)
             let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
             for (subview, childWidget) in renderedSubviews {
-                gtk_fixed_put(fixedPtr, childWidget, gdouble(subview.frame.origin.x), gdouble(subview.frame.origin.y))
-                if subview.frame.width > 0, subview.frame.height > 0 {
-                    gtk_widget_set_size_request(childWidget, gint(subview.frame.width), gint(subview.frame.height))
+                gtk_fixed_put(
+                    fixedPtr,
+                    childWidget,
+                    UIKitGtkRenderer.gtkCoordinateValue(subview.frame.origin.x),
+                    UIKitGtkRenderer.gtkCoordinateValue(subview.frame.origin.y)
+                )
+                let width = UIKitGtkRenderer.gtkSizeRequestValue(subview.frame.width)
+                let height = UIKitGtkRenderer.gtkSizeRequestValue(subview.frame.height)
+                if width > 0 || height > 0 {
+                    gtk_widget_set_size_request(childWidget, width, height)
                 }
             }
             return fixed
@@ -198,8 +205,10 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
     private static func applyButtonSize(_ widget: GtkWidgetPtr, from button: UIButton) {
         let width = button.bounds.width > 0 ? button.bounds.width : button.frame.width
         let height = button.bounds.height > 0 ? button.bounds.height : button.frame.height
-        if width > 0, height > 0 {
-            gtk_widget_set_size_request(widget, gint(width), gint(height))
+        let requestWidth = UIKitGtkRenderer.gtkSizeRequestValue(width)
+        let requestHeight = UIKitGtkRenderer.gtkSizeRequestValue(height)
+        if requestWidth > 0 || requestHeight > 0 {
+            gtk_widget_set_size_request(widget, requestWidth, requestHeight)
         }
         gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
         gtk_widget_set_valign(widget, GTK_ALIGN_FILL)

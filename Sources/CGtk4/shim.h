@@ -19,6 +19,20 @@ static inline int quill_widget_is_button(gpointer instance) {
     return GTK_IS_BUTTON(instance) ? 1 : 0;
 }
 
+static inline int quill_widget_is_label(gpointer instance) {
+    if (instance == NULL) {
+        return 0;
+    }
+    return GTK_IS_LABEL(instance) ? 1 : 0;
+}
+
+static inline const char *quill_label_get_text(gpointer instance) {
+    if (instance == NULL || !GTK_IS_LABEL(instance)) {
+        return "";
+    }
+    return gtk_label_get_text(GTK_LABEL(instance));
+}
+
 static inline int quill_widget_has_css_class(gpointer instance, const char *class_name) {
     if (instance == NULL || class_name == NULL || !GTK_IS_WIDGET(instance)) {
         return 0;

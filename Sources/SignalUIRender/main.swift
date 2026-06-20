@@ -55,6 +55,74 @@ private let deferredSignalButtonClick: @convention(c) (gpointer?) -> gboolean = 
 }
 
 @MainActor
+private final class DeferredSignalButtonLabelClick {
+    let rootWidget: UnsafeMutableRawPointer
+    let window: UnsafeMutablePointer<GtkWindow>
+    let labelText: String
+    weak var viewController: UIViewController?
+
+    init(rootWidget: UnsafeMutableRawPointer, window: UnsafeMutablePointer<GtkWindow>, labelText: String, viewController: UIViewController?) {
+        self.rootWidget = rootWidget
+        self.window = window
+        self.labelText = labelText
+        self.viewController = viewController
+    }
+
+    func run() {
+        logSignalInputBody(in: viewController, label: "before button label click")
+        let didClick = quillSignalRenderClickButton(in: rootWidget, labelText: labelText)
+        let status = didClick ? "clicked button label=\"\(labelText)\"" : "found no button label=\"\(labelText)\""
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: viewController, label: "after button label click")
+        guard didClick, let viewController else { return }
+        Task { @MainActor in
+            let delayMS = UInt64(
+                ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_RERENDER_DELAY_MS"]
+                    .flatMap(UInt64.init) ?? 1_600
+            )
+            if delayMS > 0 {
+                try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+            }
+            #if canImport(SignalApp)
+            if labelText == "Continue" {
+                do {
+                    let summary = try await QuillSignalRealConversationProbe.settlePendingRequestContinuation(in: viewController)
+                    FileHandle.standardError.write(Data("signal-ui-render: pending request continuation settled \(summary)\n".utf8))
+                } catch {
+                    FileHandle.standardError.write(Data("signal-ui-render: pending request continuation failed error=\"\(error)\"\n".utf8))
+                }
+            }
+            #endif
+            rerenderRootViewController(viewController, in: window, reason: "button label click \"\(labelText)\"")
+        }
+    }
+}
+
+private let deferredSignalButtonLabelClick: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalButtonLabelClick>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
+@MainActor
+private func rerenderRootViewController(_ vc: UIViewController, in window: UnsafeMutablePointer<GtkWindow>, reason: String) {
+    vc.view.layoutIfNeeded()
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DUMP"] == "1" {
+        FileHandle.standardError.write(Data("signal-ui-render: rerendered UIKit tree after \(reason)\n".utf8))
+        dumpViewTree(vc.view, depth: 0)
+    }
+    guard let nextRootWidget = UIKitGtkRenderer.render(vc.view) else {
+        FileHandle.standardError.write(Data("signal-ui-render: rerender after \(reason) produced no widget\n".utf8))
+        return
+    }
+    gtk_window_set_child(window, nextRootWidget)
+    FileHandle.standardError.write(Data("signal-ui-render: rerendered root after \(reason)\n".utf8))
+}
+
+@MainActor
 private final class DeferredSignalIncomingInjection {
     let text: String
     weak var viewController: UIViewController?
@@ -352,6 +420,22 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
         )).toOpaque()
         g_timeout_add(guint(delayMS), deferredSignalButtonClick, box)
         FileHandle.standardError.write(Data("signal-ui-render: scheduled send button click\n".utf8))
+    }
+
+    if let labelText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL"],
+       !labelText.isEmpty {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 700
+        )
+        let box = Unmanaged.passRetained(DeferredSignalButtonLabelClick(
+            rootWidget: UnsafeMutableRawPointer(rootWidget),
+            window: winPtr,
+            labelText: labelText,
+            viewController: vc
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalButtonLabelClick, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled button label click \"\(labelText)\"\n".utf8))
     }
 
     if let incomingText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"],

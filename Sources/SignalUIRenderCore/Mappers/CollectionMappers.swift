@@ -58,11 +58,13 @@ public enum UICollectionViewGtkMapper: UIViewGtkMapper {
             gtk_widget_set_valign(cellWidget, GTK_ALIGN_START)
 
             let frame = cell.frame
-            if frame.width > 0 || frame.height > 0 {
+            let width = UIKitGtkRenderer.gtkSizeRequestValue(frame.width)
+            let height = UIKitGtkRenderer.gtkSizeRequestValue(frame.height)
+            if width > 0 || height > 0 {
                 gtk_widget_set_size_request(
                     cellWidget,
-                    frame.width > 0 ? gint(frame.width) : -1,
-                    frame.height > 0 ? gint(frame.height) : -1
+                    width,
+                    height
                 )
             }
             gtk_box_append(boxPointer(stack), cellWidget)

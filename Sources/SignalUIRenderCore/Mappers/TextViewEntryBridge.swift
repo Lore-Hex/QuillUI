@@ -186,6 +186,46 @@ public func quillSignalRenderClickButton(in widget: UnsafeMutableRawPointer, css
     return false
 }
 
+@MainActor
+public func quillSignalRenderClickButton(in widget: UnsafeMutableRawPointer, labelText: String) -> Bool {
+    if quill_widget_is_button(widget) != 0,
+       quillSignalRenderWidgetContainsLabelText(widget, labelText: labelText) {
+        quill_signal_emit_clicked(widget)
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderClickButton(in: UnsafeMutableRawPointer(current), labelText: labelText) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
+}
+
+@MainActor
+private func quillSignalRenderWidgetContainsLabelText(_ widget: UnsafeMutableRawPointer, labelText: String) -> Bool {
+    if quill_widget_is_label(widget) != 0,
+       let text = quill_label_get_text(widget),
+       String(cString: text).contains(labelText) {
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderWidgetContainsLabelText(UnsafeMutableRawPointer(current), labelText: labelText) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
+}
+
 private func quillSignalConnectTextViewEntrySignal(
     _ widget: UnsafeMutableRawPointer,
     signal: String,

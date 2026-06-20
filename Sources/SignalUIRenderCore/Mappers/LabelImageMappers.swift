@@ -616,11 +616,13 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         gtk_label_set_xalign(labelPtr, 0.5)
         gtk_label_set_yalign(labelPtr, 0.5)
         gtk_label_set_justify(labelPtr, GTK_JUSTIFY_CENTER)
-        if size.width > 0 || size.height > 0 {
+        let width = UIKitGtkRenderer.gtkSizeRequestValue(size.width)
+        let height = UIKitGtkRenderer.gtkSizeRequestValue(size.height)
+        if width > 0 || height > 0 {
             gtk_widget_set_size_request(
                 widget,
-                size.width > 0 ? gint(size.width) : -1,
-                size.height > 0 ? gint(size.height) : -1
+                width,
+                height
             )
         }
         gtk_widget_set_halign(widget, GTK_ALIGN_CENTER)

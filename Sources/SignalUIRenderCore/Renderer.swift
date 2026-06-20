@@ -102,6 +102,20 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
             && renderBindingGenerations[token.viewID, default: 0] == token.generation
     }
 
+    static func gtkSizeRequestValue(_ value: CGFloat) -> gint {
+        guard value.isFinite, value > 0, value <= 10_000 else {
+            return -1
+        }
+        return gint(value.rounded(.up))
+    }
+
+    static func gtkCoordinateValue(_ value: CGFloat) -> gdouble {
+        guard value.isFinite, abs(value) <= 10_000 else {
+            return 0
+        }
+        return gdouble(value)
+    }
+
     private static func invalidateRenderBindings(for view: UIView) {
         let viewID = ObjectIdentifier(view)
         renderBindingGenerations[viewID, default: 0] &+= 1
@@ -134,11 +148,13 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
             }
             gtk_widget_set_sensitive(widget, isSensitive ? 1 : 0)
             let size = updatedView.bounds.size != .zero ? updatedView.bounds.size : updatedView.frame.size
-            if size.width > 0 || size.height > 0 {
+            let width = gtkSizeRequestValue(size.width)
+            let height = gtkSizeRequestValue(size.height)
+            if width > 0 || height > 0 {
                 gtk_widget_set_size_request(
                     widget,
-                    size.width > 0 ? gint(size.width) : -1,
-                    size.height > 0 ? gint(size.height) : -1
+                    width,
+                    height
                 )
             }
         }

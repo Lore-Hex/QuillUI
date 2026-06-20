@@ -4611,6 +4611,7 @@ def main() -> int:
     signal_real_conversation_product = product in {
         "signal-real-conversation",
         "signal-real-conversation-pending",
+        "signal-real-conversation-accepted-request",
         "signal-real-conversation-send",
         "signal-real-conversation-receive",
     }
@@ -4815,6 +4816,8 @@ def main() -> int:
         print(validate_signal_real_conversation(image))
     elif product == "signal-real-conversation-pending":
         print(validate_signal_real_conversation(image, variant="pending"))
+    elif product == "signal-real-conversation-accepted-request":
+        print(validate_signal_real_conversation(image, variant="accepted-request"))
     elif product == "signal-real-conversation-send":
         print(validate_signal_real_conversation(image, variant="send"))
     elif product == "signal-real-conversation-receive":

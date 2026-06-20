@@ -81,6 +81,40 @@ public enum QuillSignalRealConversationProbe {
         )
     }
 
+    public static func settlePendingRequestContinuation(in viewController: UIViewController) async throws -> String {
+        guard let cvc = viewController as? ConversationViewController else {
+            throw QuillSignalRealConversationProbeError.unexpectedViewController(String(describing: type(of: viewController)))
+        }
+
+        for _ in 0..<100 {
+            if try pendingRequestDebugSummary(cvc: cvc).dbPending == false {
+                SUIEnvironment.shared.quillInstallRenderLinkPreviewFetcher(QuillSignalRenderLinkPreviewFetcher())
+                cvc.isInPreviewPlatter = false
+            }
+            cvc.loadCoordinator.enqueueReload(
+                scrollAction: CVScrollAction(action: .bottomForNewMessage, isAnimated: false)
+            )
+            cvc.view.layoutIfNeeded()
+            cvc.collectionView.reloadData()
+            cvc.ensureBottomViewType()
+            cvc.inputToolbar?.scrollToBottom()
+
+            let summary = try pendingRequestDebugSummary(cvc: cvc)
+            if summary.dbPending == false,
+               summary.viewModelPending == false,
+               summary.bottomViewType == "inputToolbar",
+               summary.hasInputToolbar {
+                return summary.description
+            }
+
+            try await Task.sleep(nanoseconds: 30_000_000)
+        }
+
+        throw QuillSignalRealConversationProbeError.pendingRequestDidNotSettle(
+            summary: try pendingRequestDebugSummary(cvc: cvc).description,
+        )
+    }
+
     private nonisolated static func acceptedThread(transaction tx: DBReadTransaction) throws(QuillSignalRealConversationProbeError) -> TSContactThread {
         let contactAddress = SignalServiceAddress(
             serviceId: Aci(fromUUID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!),
@@ -90,6 +124,21 @@ public enum QuillSignalRealConversationProbe {
             throw QuillSignalRealConversationProbeError.missingSeedThread
         }
         return thread
+    }
+
+    private static func pendingRequestDebugSummary(cvc: ConversationViewController) throws -> PendingRequestDebugSummary {
+        let dbPending = try SSKEnvironment.shared.databaseStorageRef.read { tx throws(QuillSignalRealConversationProbeError) in
+            guard let thread = TSContactThread.getWithContactAddress(SeedMode.pendingRequest.contactAddress, transaction: tx) else {
+                throw .missingSeedThread
+            }
+            return thread.hasPendingMessageRequest(transaction: tx)
+        }
+        return PendingRequestDebugSummary(
+            dbPending: dbPending,
+            viewModelPending: cvc.threadViewModel.hasPendingMessageRequest,
+            bottomViewType: String(describing: cvc.bottomViewType),
+            hasInputToolbar: cvc.inputToolbar != nil,
+        )
     }
 
     private nonisolated static func interactionDebugSummary(threadUniqueId: String, database: Database) throws -> String {
@@ -151,6 +200,14 @@ public enum QuillSignalRealConversationProbe {
             )
             bootstrap.dependenciesBridge.tsAccountManager.setRegistrationId(1234, for: .aci, tx: tx)
             bootstrap.dependenciesBridge.tsAccountManager.setRegistrationId(5678, for: .pni, tx: tx)
+            if SSKEnvironment.shared.profileManagerRef.localProfileKey(tx: tx) == nil {
+                let keyData = Data((0..<Int(Aes256Key.keyByteLength)).map { UInt8($0 + 1) })
+                SSKEnvironment.shared.profileManagerRef.setLocalProfileKey(
+                    Aes256Key(data: keyData)!,
+                    userProfileWriter: .localUser,
+                    transaction: tx,
+                )
+            }
 
             let contactAddress = mode.contactAddress
             let thread = TSContactThread.getOrCreateThread(withContactAddress: contactAddress, transaction: tx)
@@ -281,6 +338,7 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
     case initialRenderDidNotProduceCells(renderItems: Int, visibleCells: Int, shouldHideContent: Bool)
     case unexpectedViewController(String)
     case injectedMessageDidNotRender(interactionUniqueId: String, renderItems: Int)
+    case pendingRequestDidNotSettle(summary: String)
 
     public var description: String {
         switch self {
@@ -296,7 +354,20 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
             return "Expected ConversationViewController, received \(typeName)."
         case let .injectedMessageDidNotRender(interactionUniqueId, renderItems):
             return "Injected incoming message did not render (interactionUniqueId=\(interactionUniqueId), renderItems=\(renderItems))."
+        case let .pendingRequestDidNotSettle(summary):
+            return "Pending request did not settle after Continue (\(summary))."
         }
+    }
+}
+
+private struct PendingRequestDebugSummary: CustomStringConvertible {
+    let dbPending: Bool
+    let viewModelPending: Bool
+    let bottomViewType: String
+    let hasInputToolbar: Bool
+
+    var description: String {
+        "dbPending=\(dbPending) viewModelPending=\(viewModelPending) bottomViewType=\(bottomViewType) hasInputToolbar=\(hasInputToolbar)"
     }
 }
 
