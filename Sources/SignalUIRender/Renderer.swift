@@ -75,10 +75,26 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
             if view.alpha < 0.999 {
                 gtk_widget_set_opacity(widget, gdouble(view.alpha))
             }
+            installMutationBridge(widget, view)
             applyAccessibilityHints(widget, view)
             return widget
         }
         return nil
+    }
+
+    private static func installMutationBridge(_ widget: GtkWidgetPtr, _ view: UIView) {
+        view.quillViewMutationHandler = { updatedView in
+            gtk_widget_set_visible(widget, updatedView.isHidden ? 0 : 1)
+            gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))
+            let isSensitive: Bool
+            if let control = updatedView as? UIControl {
+                isSensitive = updatedView.isUserInteractionEnabled && control.isEnabled
+            } else {
+                isSensitive = updatedView.isUserInteractionEnabled
+            }
+            gtk_widget_set_sensitive(widget, isSensitive ? 1 : 0)
+        }
+        view.quillNotifyViewMutation()
     }
 
     /// Render hints carried on `accessibilityIdentifier` (a property views already

@@ -140,6 +140,20 @@ struct SourceHygieneTests {
         #expect(controls.contains("g_signal_connect_data("))
     }
 
+    @Test("Signal UIKit renderer binds live UIKit mutations onto GTK widgets")
+    func signalUIKitRendererBindsLiveViewMutationsOntoGtkWidgets() throws {
+        let renderer = try packageSource("Sources/SignalUIRender/Renderer.swift")
+        let quillUIKit = try packageSource("Sources/QuillUIKit/QuillUIKit.swift")
+
+        #expect(quillUIKit.contains("quillViewMutationHandler"))
+        #expect(quillUIKit.contains("quillNotifyViewMutation()"))
+        #expect(renderer.contains("installMutationBridge(widget, view)"))
+        #expect(renderer.contains("gtk_widget_set_visible(widget, updatedView.isHidden ? 0 : 1)"))
+        #expect(renderer.contains("gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))"))
+        #expect(renderer.contains("updatedView.isUserInteractionEnabled && control.isEnabled"))
+        #expect(renderer.contains("view.quillNotifyViewMutation()"))
+    }
+
     @Test("Qt manifest avoids pkg-config prohibited flag warnings")
     func qtManifestAvoidsPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()

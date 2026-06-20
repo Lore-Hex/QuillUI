@@ -736,6 +736,40 @@ struct CompatibilityModuleTests {
         #expect(firedTitles == ["Send", "Send"])
     }
 
+    @Test("UIView mutation hook observes visibility interaction and control enabled changes")
+    @MainActor
+    func uiViewMutationHookObservesRenderableStateChanges() {
+        let view = UIView()
+        var viewEvents: [(Bool, Bool, CGFloat)] = []
+        view.quillViewMutationHandler = { updatedView in
+            viewEvents.append((
+                updatedView.isHidden,
+                updatedView.isUserInteractionEnabled,
+                updatedView.alpha
+            ))
+        }
+
+        view.alpha = 0.5
+        view.isHidden = true
+        view.isUserInteractionEnabled = false
+        view.isUserInteractionEnabled = false
+
+        #expect(viewEvents.count == 3)
+        #expect(viewEvents.last?.0 == true)
+        #expect(viewEvents.last?.1 == false)
+        #expect(viewEvents.last?.2 == 0.5)
+
+        let button = UIButton(type: .system)
+        var controlEvents = 0
+        button.quillViewMutationHandler = { _ in
+            controlEvents += 1
+        }
+        button.isEnabled = false
+        button.isEnabled = false
+
+        #expect(controlEvents == 1)
+    }
+
     @Test("Quill localization resolves Apple strings resources")
     @MainActor
     func quillLocalizationResolvesAppleStringsResources() throws {

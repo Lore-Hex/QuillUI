@@ -788,9 +788,26 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // UIView properties — Signal subclasses override them (often with didSet
     // observers) and that requires the stored property itself to be
     // overridable cross-module.
-    open var isHidden: Bool = false
-    open var isUserInteractionEnabled: Bool = true
-    open var alpha: CGFloat = 1.0
+    public var quillViewMutationHandler: ((UIView) -> Void)?
+    public func quillNotifyViewMutation() {
+        quillViewMutationHandler?(self)
+    }
+
+    open var isHidden: Bool = false {
+        didSet {
+            if oldValue != isHidden { quillNotifyViewMutation() }
+        }
+    }
+    open var isUserInteractionEnabled: Bool = true {
+        didSet {
+            if oldValue != isUserInteractionEnabled { quillNotifyViewMutation() }
+        }
+    }
+    open var alpha: CGFloat = 1.0 {
+        didSet {
+            if oldValue != alpha { quillNotifyViewMutation() }
+        }
+    }
     open var tintColor: UIColor?
     open func tintColorDidChange() {}
 
@@ -2544,7 +2561,11 @@ public class SLComposeSheetConfigurationItem: NSObject {
         public static let reserved = State(rawValue: 0xFF00_0000)
     }
 
-    open var isEnabled = true
+    open var isEnabled = true {
+        didSet {
+            if oldValue != isEnabled { quillNotifyViewMutation() }
+        }
+    }
     open var isSelected = false
     open var isHighlighted = false
     open var state: State = .normal
