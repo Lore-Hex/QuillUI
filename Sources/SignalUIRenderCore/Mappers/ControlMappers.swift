@@ -170,16 +170,18 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
         if hasRealFrames {
             let fixed = gtk_fixed_new()!
             applyButtonSize(fixed, from: button)
+            gtk_widget_set_overflow(fixed, GTK_OVERFLOW_HIDDEN)
             let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
             for (subview, childWidget) in renderedSubviews {
+                let childFrame = clippedButtonChildFrame(subview.frame, in: button)
                 gtk_fixed_put(
                     fixedPtr,
                     childWidget,
-                    UIKitGtkRenderer.gtkCoordinateValue(subview.frame.origin.x),
-                    UIKitGtkRenderer.gtkCoordinateValue(subview.frame.origin.y)
+                    UIKitGtkRenderer.gtkCoordinateValue(childFrame.origin.x),
+                    UIKitGtkRenderer.gtkCoordinateValue(childFrame.origin.y)
                 )
-                let width = UIKitGtkRenderer.gtkSizeRequestValue(subview.frame.width)
-                let height = UIKitGtkRenderer.gtkSizeRequestValue(subview.frame.height)
+                let width = UIKitGtkRenderer.gtkSizeRequestValue(childFrame.width)
+                let height = UIKitGtkRenderer.gtkSizeRequestValue(childFrame.height)
                 if width > 0 || height > 0 {
                     gtk_widget_set_size_request(childWidget, width, height)
                 }
@@ -200,6 +202,21 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
             gtk_box_append(boxPointer(box), childWidget)
         }
         return box
+    }
+
+    private static func clippedButtonChildFrame(_ childFrame: CGRect, in button: UIButton) -> CGRect {
+        let buttonSize = button.bounds.size != .zero ? button.bounds.size : button.frame.size
+        guard buttonSize.width > 0, buttonSize.height > 0 else {
+            return childFrame
+        }
+        let maxWidth = max(0, buttonSize.width - childFrame.origin.x)
+        let maxHeight = max(0, buttonSize.height - childFrame.origin.y)
+        return CGRect(
+            x: childFrame.origin.x,
+            y: childFrame.origin.y,
+            width: min(childFrame.width, maxWidth),
+            height: min(childFrame.height, maxHeight)
+        )
     }
 
     private static func applyButtonSize(_ widget: GtkWidgetPtr, from button: UIButton) {

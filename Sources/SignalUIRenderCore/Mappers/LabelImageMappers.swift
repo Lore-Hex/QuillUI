@@ -101,9 +101,13 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
         if numberOfLines == 1 {
             gtk_label_set_wrap(labelPtr, 0)
             gtk_label_set_lines(labelPtr, 1)
+            gtk_label_set_single_line_mode(labelPtr, 1)
+            gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_END)
             return
         }
 
+        gtk_label_set_single_line_mode(labelPtr, 0)
+        gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_NONE)
         gtk_label_set_wrap(labelPtr, 1)
         // Word-then-char wrapping matches SwiftOpenUI's multi-line labels and
         // avoids mid-word overflow when a single token is wider than the box.
@@ -177,9 +181,13 @@ public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
         if numberOfLines == 1 {
             gtk_label_set_wrap(labelPtr, 0)
             gtk_label_set_lines(labelPtr, 1)
+            gtk_label_set_single_line_mode(labelPtr, 1)
+            gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_END)
             return
         }
 
+        gtk_label_set_single_line_mode(labelPtr, 0)
+        gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_NONE)
         gtk_label_set_wrap(labelPtr, 1)
         gtk_label_set_wrap_mode(labelPtr, PANGO_WRAP_WORD_CHAR)
         gtk_label_set_lines(labelPtr, numberOfLines == 0 ? -1 : gint(numberOfLines))
