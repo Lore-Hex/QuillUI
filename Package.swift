@@ -409,6 +409,7 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    products.append(.library(name: "SignalUIRenderCore", targets: ["SignalUIRenderCore"]))
 }
 
 if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {
@@ -2463,7 +2464,8 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
         "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
     ]
     let signalUIRenderDependencies: [Target.Dependency] = [
-        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
+        "SignalUIRenderCore",
+        "QuillUIKit", "UIKit", "QuillFoundation",
         "SignalUI", "SignalServiceKit",
         .product(name: "CGTK", package: "SwiftOpenUI"),
         .product(name: "CGTKBridge", package: "SwiftOpenUI"),
@@ -2518,9 +2520,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             swiftSettings: appSwiftSettings
         ),
         // signal-ui-render: UIKit→GTK4 renderer. First-light depends only on the
-        // UIKit shim + GTK (fast build, no SignalUI link); the registry + mappers
-        // turn a UIViewController's UIView tree into a GtkWidget window. SignalUI
-        // is added here once the real-VC (Settings) wiring lands.
+        // reusable renderer core plus the Signal-specific demo/app adapters.
         .executableTarget(
             name: "SignalUIRender",
             dependencies: signalUIRenderDependencies,
@@ -3044,6 +3044,19 @@ targets.append(contentsOf: [
         dependencies: ["QuillUIGtk", "QuillInteractionSmokeSupport"],
         path: "Sources/QuillGtkInteractionSmoke",
         swiftSettings: appSwiftSettings
+    ),
+    // Reusable UIKit→GTK renderer + mappers. Keep this free of
+    // SignalUI/SignalServiceKit/libsignal so mapper parity work can compile
+    // quickly and remain useful for non-Signal UIKit ports.
+    .target(
+        name: "SignalUIRenderCore",
+        dependencies: [
+            "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
+            .product(name: "CGTK", package: "SwiftOpenUI"),
+            .product(name: "CGTKBridge", package: "SwiftOpenUI"),
+        ],
+        path: "Sources/SignalUIRenderCore",
+        swiftSettings: appSwiftSettings + [.unsafeFlags(gtk4SwiftImporterFlags)]
     ),
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target

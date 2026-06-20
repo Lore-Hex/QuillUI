@@ -12,6 +12,7 @@ import CGTKBridge
 import QuillUIKit
 import UIKit
 import QuillFoundation
+import SignalUIRenderCore
 import Foundation
 import Dispatch
 
