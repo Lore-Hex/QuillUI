@@ -28,7 +28,12 @@ case "$demo" in
 esac
 width="${SIGNAL_RENDER_CAPTURE_WIDTH:-$default_width}"
 height="${SIGNAL_RENDER_CAPTURE_HEIGHT:-$default_height}"
-binary="${SIGNAL_RENDER_CAPTURE_BINARY:-.build/aarch64-unknown-linux-gnu/debug/signal-ui-render}"
+if [ -n "${SIGNAL_RENDER_CAPTURE_BINARY:-}" ]; then
+  binary="$SIGNAL_RENDER_CAPTURE_BINARY"
+else
+  bin_dir="$(swift build --show-bin-path 2>/dev/null || true)"
+  binary="${bin_dir:-.build/debug}/signal-ui-render"
+fi
 display_id="${SIGNAL_RENDER_CAPTURE_DISPLAY:-:99}"
 
 mkdir -p "$(dirname "$output")" "$(dirname "$log_output")"

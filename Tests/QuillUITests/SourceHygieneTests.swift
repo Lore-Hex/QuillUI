@@ -114,6 +114,7 @@ struct SourceHygieneTests {
         let bridge = try packageSource("Sources/SignalUIRenderCore/Mappers/TextViewEntryBridge.swift")
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
         let captureScript = try packageSource("scripts/signal-render-capture.sh")
+        let sendSmokeScript = try packageSource("scripts/signal-render-send-smoke.sh")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
         #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
@@ -156,8 +157,15 @@ struct SourceHygieneTests {
         #expect(gtkShim.contains("static inline int quill_widget_has_css_class"))
         #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
         #expect(captureScript.contains("conversation|real-conversation|real-conversation-accepted)"))
+        #expect(captureScript.contains("swift build --show-bin-path"))
+        #expect(!captureScript.contains(".build/aarch64-unknown-linux-gnu"))
         #expect(captureScript.contains("width=\"${SIGNAL_RENDER_CAPTURE_WIDTH:-$default_width}\""))
         #expect(captureScript.contains("GSK_RENDERER=\"${GSK_RENDERER:-cairo}\""))
+        #expect(sendSmokeScript.contains("swift build --show-bin-path"))
+        #expect(sendSmokeScript.contains("SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE=1"))
+        #expect(sendSmokeScript.contains(#"require_log_line 'signal-ui-render: after send click body=""'"#))
+        #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions send queue drained"))
+        #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions count=3 bodies="))
     }
 
     @Test("Signal upstream patches keep the real send pipeline database-backed")
