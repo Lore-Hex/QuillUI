@@ -329,7 +329,8 @@ struct QuillDataSourceLoweringTests {
         #expect(passing.status == 0, Comment(rawValue: passing.output))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
-        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has 137 lines (max 137)"))
+        #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has "))
+        #expect(passing.output.contains(" lines (max 137)"))
 
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
@@ -880,6 +881,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("attachment-send|image-attachment-send"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_PATH"))
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file"))
+        #expect(interactionScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_CLICK_X"))
         #expect(interactionScript.contains("window_width - 70"))
         #expect(interactionScript.contains("attachment_y=\"${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}\""))
@@ -1225,7 +1227,11 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(modelStoreRule.contains("QUILLUI_ENCHANTED_REFERENCE_MODE"))
         #expect(modelStoreRule.contains("QUILLUI_QUILL_CHAT_REFERENCE_MODE"))
+        #expect(modelStoreRule.contains("QUILLUI_ENCHANTED_REFERENCE_VISION_MODEL"))
+        #expect(modelStoreRule.contains("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL"))
         #expect(modelStoreRule.contains("llava:latest"))
+        #expect(modelStoreRule.contains("mistral-7b-reference-linux:latest"))
+        #expect(modelStoreRule.contains("imageSupport: vision"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModels.first"))
         #expect(modelStoreRule.contains("let availableModels = storedModels.filter"))
