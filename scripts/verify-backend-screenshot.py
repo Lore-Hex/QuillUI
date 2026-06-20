@@ -1097,18 +1097,10 @@ def validate_quill_chat_landmarks(
                 composer_segment = segment
                 composer_y = y
 
-    # SwiftOpenUI's GTK4 layout currently lands the prompt-card
-    # row near the bottom of the window with little room left for
-    # the composer border — on Mac SwiftUI the composer is the
-    # visible separator below the cards. Don't fail the smoke if
-    # the composer isn't found; the sidebar + header + 4 prompt
-    # cards are enough to confirm the app rendered. Track composer
-    # separately when present so the landmarks string still reports
-    # it for diagnostic purposes.
-    composer_summary = (
-        f"composer={composer_segment.width}px@{composer_y}"
-        if composer_segment is not None
-        else "composer=absent"
+    require(composer_segment is not None, "Quill Chat composer border was not detected")
+    require(
+        composer_segment.width >= min(500, int(detail_width * 0.68)),
+        f"Quill Chat composer is too narrow: {composer_segment.width}px",
     )
 
     return (
@@ -1119,7 +1111,7 @@ def validate_quill_chat_landmarks(
         f"toolbar={toolbar_rows[0]}-{toolbar_rows[-1]}, "
         f"prompt_row={prompt_row}px, "
         f"cards={prompt_segments[0].start}-{prompt_segments[-1].end}, "
-        f"{composer_summary}"
+        f"composer={composer_segment.width}px@{composer_y}"
     )
 
 
