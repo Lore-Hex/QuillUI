@@ -1052,6 +1052,13 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("composer_click_y = max(top, min(bottom, composer_click_y))"))
         #expect(functionalScript.contains("click_y = window_y + composer_click_y"))
         #expect(!functionalScript.contains("click_y = window_y + composer_y + 30"))
+        #expect(functionalScript.contains("quill_chat_functional_detected_relaunch_history_click_point()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_PROBE"))
+        #expect(functionalScript.contains("if sum(image.rgb(x, y)) < 430"))
+        #expect(functionalScript.contains("detected_history_point=\"$(quill_chat_functional_detected_relaunch_history_click_point | head -n 1 || true)\""))
+        #expect(functionalScript.contains("history_y=\"${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + window_height / 2))}\""))
+        #expect(functionalScript.contains("functional-check: relaunch history=${history_x},${history_y}"))
+        #expect(!functionalScript.contains("window_y + 172"))
         if let composerPointsRange = functionalScript.range(of: "quill_chat_functional_composer_click_points() {"),
            let detectedRange = functionalScript.range(
             of: "quill_chat_functional_detected_composer_click_points",
@@ -1109,9 +1116,11 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_FOCUS_PRIME"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_FOCUS_PRIME_SLEEP"))
         #expect(functionalScript.contains("quillui_functional_click_at \"$click_x\" \"$click_y\""))
-        #expect(functionalScript.contains("window_x + 110"))
-        #expect(functionalScript.contains("window_y + 172"))
-        #expect(functionalScript.contains("Click the row band rather than the header"))
+        #expect(functionalScript.contains("quill_chat_functional_detected_relaunch_history_click_point | head -n 1"))
+        #expect(functionalScript.contains("history_x=\"${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}\""))
+        #expect(functionalScript.contains("quillui_functional_click_at \"$history_x\" \"$history_y\""))
+        #expect(!functionalScript.contains("window_x + 110"))
+        #expect(!functionalScript.contains("window_y + 172"))
         #expect(!functionalScript.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(!functionalScript.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
         #expect(mockOllama.contains("class MockOllamaHandler"))
