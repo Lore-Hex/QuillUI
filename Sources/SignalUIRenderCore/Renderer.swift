@@ -42,6 +42,12 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
 /// The render engine: owns the mapper registry + the recursion + the shared
 /// context closures.
 @MainActor public enum UIKitGtkRenderer {
+    struct RenderBindingToken: Equatable {
+        fileprivate let viewID: ObjectIdentifier
+        fileprivate let generation: UInt64
+    }
+
+    private static var renderBindingGenerations: [ObjectIdentifier: UInt64] = [:]
 
     /// Registration order = match priority. Specific types first; the generic
     /// frame-positioned `UIView` fallback (handles == true) must be LAST.
@@ -62,6 +68,7 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
 
     /// Render a full UIView tree to a GtkWidget. Returns nil for hidden views.
     public static func render(_ view: UIView) -> GtkWidgetPtr? {
+        invalidateRenderBindingsRecursively(for: view)
         if view.isHidden { return nil }
         view.layoutIfNeeded()
         let ctx = UIKitGtkRenderContext(
@@ -82,8 +89,41 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
         return nil
     }
 
+    static func renderBindingToken(for view: UIView) -> RenderBindingToken {
+        let viewID = ObjectIdentifier(view)
+        return RenderBindingToken(
+            viewID: viewID,
+            generation: renderBindingGenerations[viewID, default: 0]
+        )
+    }
+
+    static func isRenderBindingActive(_ token: RenderBindingToken, for view: UIView) -> Bool {
+        token.viewID == ObjectIdentifier(view)
+            && renderBindingGenerations[token.viewID, default: 0] == token.generation
+    }
+
+    private static func invalidateRenderBindings(for view: UIView) {
+        let viewID = ObjectIdentifier(view)
+        renderBindingGenerations[viewID, default: 0] &+= 1
+    }
+
+    static func invalidateDescendantRenderBindings(for view: UIView) {
+        for child in view.subviews {
+            invalidateRenderBindingsRecursively(for: child)
+        }
+    }
+
+    private static func invalidateRenderBindingsRecursively(for view: UIView) {
+        invalidateRenderBindings(for: view)
+        for child in view.subviews {
+            invalidateRenderBindingsRecursively(for: child)
+        }
+    }
+
     private static func installMutationBridge(_ widget: GtkWidgetPtr, _ view: UIView) {
+        let token = renderBindingToken(for: view)
         view.quillSetViewMutationHandler("SignalUIRender.widgetState") { updatedView in
+            guard isRenderBindingActive(token, for: updatedView) else { return }
             gtk_widget_set_visible(widget, updatedView.isHidden ? 0 : 1)
             gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))
             let isSensitive: Bool

@@ -374,6 +374,11 @@ extension UIButton {
     public convenience init(configuration: UIButton.Configuration, primaryAction: UIAction? = nil) {
         self.init(frame: .zero)
         quillConfigurationState.primaryAction = primaryAction
+        if let primaryAction {
+            if !primaryAction.title.isEmpty { setTitle(primaryAction.title, for: .normal) }
+            if let image = primaryAction.image { setImage(image, for: .normal) }
+            addAction(primaryAction, for: .primaryActionTriggered)
+        }
         self.configuration = configuration
     }
 

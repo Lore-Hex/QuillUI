@@ -184,8 +184,11 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         stack: UIStackView,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: stack)
         stack.quillSetSubviewMutationHandler("SignalUIRender.stackChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedStack = updatedView as? UIStackView else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedStack)
             clearBoxChildren(box)
             let isVertical = (updatedStack.axis == .vertical)
             let mainAxisFills: Bool
@@ -350,7 +353,10 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         view: UIView,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: view)
         view.quillSetSubviewMutationHandler("SignalUIRender.genericFixedChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedView)
             clearFixedChildren(fixed)
             appendFixedSubviews(to: fixed, view: updatedView, ctx: ctx)
             gtk_widget_queue_resize(fixed)
@@ -419,7 +425,10 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         isBadge: Bool,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: view)
         view.quillSetSubviewMutationHandler("SignalUIRender.genericBoxChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedView)
             clearBoxChildren(box)
             for child in updatedView.subviews {
                 guard let childWidget = ctx.render(child) else { continue }

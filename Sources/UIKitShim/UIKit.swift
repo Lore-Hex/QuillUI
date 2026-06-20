@@ -612,7 +612,6 @@ public final class UITextPasteItem {
         guard changed else { return }
         invalidateIntrinsicContentSize()
         quillNotifyViewMutation()
-        superview?.quillNotifySubviewMutation()
     }
 
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -691,10 +690,9 @@ public final class UITextPasteItem {
         inputDelegate?.textWillChange(self)
         inputDelegate?.selectionWillChange(self)
 
-        let lower = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location)
-        let upper = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location + normalizedRange.length)
-        let nextText = currentText.replacingCharacters(in: lower..<upper, with: replacementText)
-        text = nextText
+        textStorage.replaceCharacters(in: normalizedRange, with: replacementText)
+        let nextText = textStorage.string
+        quillNotifyTextViewMutation(currentText != nextText)
 
         let caret = min(
             normalizedRange.location + replacementText.utf16.count,

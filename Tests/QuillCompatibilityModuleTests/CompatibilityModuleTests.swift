@@ -181,6 +181,39 @@ private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
     }
 }
 
+private final class UIKitRecordingTextStorage: UIKit.NSTextStorage {
+    private let backing: NSMutableAttributedString
+    var replacements: [(range: NSRange, string: String)] = []
+
+    init(_ string: String) {
+        self.backing = NSMutableAttributedString(string: string)
+        super.init(string: "")
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var string: String {
+        backing.string
+    }
+
+    override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
+        backing.attributes(at: location, effectiveRange: range)
+    }
+
+    override func replaceCharacters(in range: NSRange, with str: String) {
+        replacements.append((range, str))
+        backing.replaceCharacters(in: range, with: str)
+        edited(.editedCharacters, range: range, changeInLength: (str as NSString).length - range.length)
+    }
+
+    override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        backing.setAttributes(attrs, range: range)
+        edited(.editedAttributes, range: range, changeInLength: 0)
+    }
+}
+
 @MainActor
 private final class UIKitTextInputDelegateProbe: UITextInputDelegate {
     var events: [String] = []
@@ -355,6 +388,49 @@ struct CompatibilityModuleTests {
         emojiView.deleteBackward()
         #expect(emojiView.text == "ab")
         #expect(emojiView.selectedRange == NSRange(location: 1, length: 0))
+
+        let parent = UIView()
+        let child = UITextView()
+        child.text = "Subview unstable"
+        parent.addSubview(child)
+        var parentTreeMutations = 0
+        var childContentMutations = 0
+        parent.quillSetSubviewMutationHandler("test.textViewContentDoesNotRebuildParent") { _ in
+            parentTreeMutations += 1
+        }
+        child.quillSetViewMutationHandler("test.textViewContentMutatesChild") { _ in
+            childContentMutations += 1
+        }
+
+        let childReplaced = child.quillReplaceCharacters(
+            in: NSRange(location: 8, length: 8),
+            with: "stable"
+        )
+
+        #expect(childReplaced)
+        #expect(child.text == "Subview stable")
+        #expect(childContentMutations == 1)
+        #expect(parentTreeMutations == 0)
+
+        let recordingStorage = UIKitRecordingTextStorage("Alpha beta")
+        let layoutManager = UIKit.NSLayoutManager()
+        recordingStorage.addLayoutManager(layoutManager)
+        let textContainer = UIKit.NSTextContainer()
+        layoutManager.addTextContainer(textContainer)
+        let storageBackedView = UITextView(frame: .zero, textContainer: textContainer)
+
+        let storageReplaced = storageBackedView.quillReplaceCharacters(
+            in: NSRange(location: 6, length: 4),
+            with: "Signal"
+        )
+
+        #expect(storageReplaced)
+        #expect(recordingStorage.replacements.count == 1)
+        #expect(recordingStorage.replacements.first?.range == NSRange(location: 6, length: 4))
+        #expect(recordingStorage.replacements.first?.string == "Signal")
+        #expect(recordingStorage.string == "Alpha Signal")
+        #expect(storageBackedView.text == "Alpha Signal")
+        #expect(storageBackedView.selectedRange == NSRange(location: 12, length: 0))
     }
 
     @Test("UINavigationController owns child navigation back references")
@@ -749,6 +825,19 @@ struct CompatibilityModuleTests {
 
         button.sendActions(for: [.primaryActionTriggered, .touchUpInside])
         #expect(firedTitles == ["Send", "Send"])
+
+        var configurationActionCount = 0
+        let configuredButton = UIButton(
+            configuration: .prominentGlass(),
+            primaryAction: UIAction(title: "Configured Send") { _ in
+                configurationActionCount += 1
+            }
+        )
+
+        #expect(configuredButton.currentTitle == "Configured Send")
+        #expect(configuredButton.quillRegisteredActionCount(for: .primaryActionTriggered) == 1)
+        configuredButton.sendActions(for: .primaryActionTriggered)
+        #expect(configurationActionCount == 1)
     }
 
     @Test("UIView mutation hook observes visibility interaction and control enabled changes")

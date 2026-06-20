@@ -27,6 +27,21 @@ import AppKit
 
 #if !os(iOS)
 
+@MainActor
+public enum QuillUIKitMutationNotifications {
+    private static var suppressionDepth = 0
+
+    public static var isSuppressed: Bool {
+        suppressionDepth > 0
+    }
+
+    public static func withoutNotifications(_ body: () -> Void) {
+        suppressionDepth += 1
+        defer { suppressionDepth -= 1 }
+        body()
+    }
+}
+
 // MARK: - UIResponder / UIView / UIViewController stubs
 
 @MainActor open class UITextInputAssistantItem: NSObject {
@@ -802,6 +817,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public var quillViewMutationHandler: ((UIView) -> Void)?
     private var quillViewMutationHandlers: [String: (UIView) -> Void] = [:]
     public func quillNotifyViewMutation() {
+        guard !QuillUIKitMutationNotifications.isSuppressed else { return }
         quillViewMutationHandler?(self)
         for key in quillViewMutationHandlers.keys.sorted() {
             quillViewMutationHandlers[key]?(self)
@@ -823,6 +839,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public var quillSubviewMutationHandler: ((UIView) -> Void)?
     private var quillSubviewMutationHandlers: [String: (UIView) -> Void] = [:]
     public func quillNotifySubviewMutation() {
+        guard !QuillUIKitMutationNotifications.isSuppressed else { return }
         quillSubviewMutationHandler?(self)
         for key in quillSubviewMutationHandlers.keys.sorted() {
             quillSubviewMutationHandlers[key]?(self)

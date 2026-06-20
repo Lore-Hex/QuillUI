@@ -6,7 +6,16 @@
 
 import CGtk4
 import Foundation
+import QuillUIKit
 import UIKit
+
+@MainActor
+private var textViewGTKEntryApplyingWidgets: Set<UInt> = []
+
+@MainActor
+func quillSignalTextViewEntryIsApplyingText(_ widget: UnsafeMutableRawPointer) -> Bool {
+    textViewGTKEntryApplyingWidgets.contains(UInt(bitPattern: widget))
+}
 
 @MainActor
 private final class UITextViewGTKEntryContext {
@@ -23,10 +32,12 @@ private final class UITextViewGTKEntryContext {
         }
         let currentText = textView.text ?? ""
         guard currentText != nextText else { return }
-        _ = textView.quillReplaceCharacters(
-            in: NSRange(location: 0, length: currentText.utf16.count),
-            with: nextText
-        )
+        QuillUIKitMutationNotifications.withoutNotifications {
+            _ = textView.quillReplaceCharacters(
+                in: NSRange(location: 0, length: currentText.utf16.count),
+                with: nextText
+            )
+        }
     }
 
     func activateReturnKey() {
@@ -94,6 +105,9 @@ func quillSignalTextViewEntryGetText(_ widget: UnsafeMutableRawPointer) -> Strin
 
 @MainActor
 func quillSignalTextViewEntrySetText(_ widget: UnsafeMutableRawPointer, _ text: String) {
+    let key = UInt(bitPattern: widget)
+    textViewGTKEntryApplyingWidgets.insert(key)
+    defer { textViewGTKEntryApplyingWidgets.remove(key) }
     text.withCString { quill_editable_set_text(widget, $0) }
 }
 
@@ -137,7 +151,7 @@ func quillSignalConnectTextViewEntrySignals(_ widget: UnsafeMutableRawPointer, t
 public func quillSignalRenderSetFirstTextEntry(in widget: UnsafeMutableRawPointer, text: String) -> Bool {
     if quill_widget_is_editable(widget) != 0 {
         quillSignalTextViewEntrySetText(widget, text)
-        return quillSignalTextViewEntryGetText(widget) == text
+        return true
     }
 
     let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)

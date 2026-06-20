@@ -84,7 +84,9 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
     }
 
     private static func installLabelMutationBridge(_ widget: GtkWidgetPtr, label: UILabel) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: label)
         label.quillSetViewMutationHandler("SignalUIRender.labelContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedLabel = updatedView as? UILabel else { return }
             applyLabelContent(to: widget, label: updatedLabel)
             gtk_widget_queue_resize(widget)
@@ -257,7 +259,9 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
     }
 
     private static func installTextViewLabelMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: textView)
         textView.quillSetViewMutationHandler("SignalUIRender.textViewLabelContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedTextView = updatedView as? UITextView else { return }
             applyTextViewLabelContent(to: widget, textView: updatedTextView)
             gtk_widget_queue_resize(widget)
@@ -311,10 +315,13 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
 
     private static func installEditableTextViewMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
         let rawWidget = UnsafeMutableRawPointer(widget)
+        let token = UIKitGtkRenderer.renderBindingToken(for: textView)
         textView.quillSetViewMutationHandler("SignalUIRender.textViewEntryContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedTextView = updatedView as? UITextView else { return }
             let nextText = updatedTextView.attributedText?.string ?? updatedTextView.text ?? ""
-            if quillSignalTextViewEntryGetText(rawWidget) != nextText {
+            if !quillSignalTextViewEntryIsApplyingText(rawWidget),
+               quillSignalTextViewEntryGetText(rawWidget) != nextText {
                 quillSignalTextViewEntrySetText(rawWidget, nextText)
             }
             if let placeholder = placeholderText(for: updatedTextView) {

@@ -20,6 +20,15 @@ private final class UIButtonGTKActionContext {
     }
 
     func clicked() {
+        if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_BUTTON_ACTIONS"] == "1" {
+            let identifier = button?.accessibilityIdentifier ?? "-"
+            let primaryActions = button?.quillRegisteredActionCount(for: .primaryActionTriggered) ?? 0
+            let touchActions = button?.quillRegisteredActionCount(for: .touchUpInside) ?? 0
+            let enabled = button?.isEnabled == true ? "true" : "false"
+            FileHandle.standardError.write(Data(
+                "signal-ui-render: gtk button click id=\"\(identifier)\" primaryActions=\(primaryActions) touchActions=\(touchActions) enabled=\(enabled)\n".utf8
+            ))
+        }
         button?.sendActions(for: [.primaryActionTriggered, .touchUpInside])
     }
 }
@@ -126,7 +135,9 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
         button: UIButton,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: button)
         button.quillSetSubviewMutationHandler("SignalUIRender.buttonContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedButton = updatedView as? UIButton else { return }
             let child = buttonContentWidget(for: updatedButton, ctx) ?? gtk_label_new(nil)!
             gtk_button_set_child(buttonPointer(widget), child)
@@ -315,7 +326,9 @@ public enum UISwitchGtkMapper: UIViewGtkMapper {
         uiSwitch: UISwitch,
         context rawContext: UnsafeMutableRawPointer
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: uiSwitch)
         uiSwitch.quillSetViewMutationHandler("SignalUIRender.switchState") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedSwitch = updatedView as? UISwitch else { return }
             let context = Unmanaged<UISwitchGTKActionContext>
                 .fromOpaque(rawContext)

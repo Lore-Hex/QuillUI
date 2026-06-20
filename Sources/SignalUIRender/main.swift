@@ -13,6 +13,7 @@ import QuillUIKit
 import UIKit
 import QuillFoundation
 import SignalUIRenderCore
+import SignalUI
 import Foundation
 import Dispatch
 
@@ -20,16 +21,20 @@ import Dispatch
 private final class DeferredSignalButtonClick {
     let rootWidget: UnsafeMutableRawPointer
     let cssClass: String
+    weak var viewController: UIViewController?
 
-    init(rootWidget: UnsafeMutableRawPointer, cssClass: String) {
+    init(rootWidget: UnsafeMutableRawPointer, cssClass: String, viewController: UIViewController?) {
         self.rootWidget = rootWidget
         self.cssClass = cssClass
+        self.viewController = viewController
     }
 
     func run() {
+        logSignalInputBody(in: viewController, label: "before send click")
         let didClick = quillSignalRenderClickButton(in: rootWidget, cssClass: cssClass)
         let status = didClick ? "clicked send button" : "found no send button"
         FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: viewController, label: "after send click")
     }
 }
 
@@ -40,6 +45,34 @@ private let deferredSignalButtonClick: @convention(c) (gpointer?) -> gboolean = 
         box.run()
     }
     return 0
+}
+
+@MainActor
+private func logSignalInputBody(in viewController: UIViewController?, label: String) {
+    guard ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INPUT_BODY"] == "1" else { return }
+    guard let rootView = viewController?.view else {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) body unavailable\n".utf8))
+        return
+    }
+    guard let textView = firstBodyRangesTextView(in: rootView) else {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) body text view missing\n".utf8))
+        return
+    }
+    let body = textView.messageBodyForSending
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) body=\"\(body.text)\"\n".utf8))
+}
+
+@MainActor
+private func firstBodyRangesTextView(in view: UIView) -> BodyRangesTextView? {
+    if let textView = view as? BodyRangesTextView {
+        return textView
+    }
+    for subview in view.subviews {
+        if let textView = firstBodyRangesTextView(in: subview) {
+            return textView
+        }
+    }
+    return nil
 }
 
 // MARK: - First-light demo view controller (trivial; no SignalUI dependency)
@@ -198,6 +231,7 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
         )
         let status = didSet ? "updated first text entry" : "found no text entry"
         FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: vc, label: "after text entry")
     }
 
     if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_SEND"] == "1" {
@@ -207,7 +241,8 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
         )
         let box = Unmanaged.passRetained(DeferredSignalButtonClick(
             rootWidget: UnsafeMutableRawPointer(rootWidget),
-            cssClass: "signal-uikit-button-send"
+            cssClass: "signal-uikit-button-send",
+            viewController: vc
         )).toOpaque()
         g_timeout_add(guint(delayMS), deferredSignalButtonClick, box)
         FileHandle.standardError.write(Data("signal-ui-render: scheduled send button click\n".utf8))
