@@ -14,6 +14,12 @@ import UIKit
 import QuillFoundation
 import SignalUIRenderCore
 import SignalUI
+#if canImport(SignalApp)
+import SignalApp
+#endif
+#if canImport(SignalServiceKit)
+import SignalServiceKit
+#endif
 import Foundation
 import Dispatch
 
@@ -35,6 +41,7 @@ private final class DeferredSignalButtonClick {
         let status = didClick ? "clicked send button" : "found no send button"
         FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
         logSignalInputBody(in: viewController, label: "after send click")
+        logSignalAcceptedInteractionSummary(label: "after send click interactions")
     }
 }
 
@@ -60,6 +67,66 @@ private func logSignalInputBody(in viewController: UIViewController?, label: Str
     }
     let body = textView.messageBodyForSending
     FileHandle.standardError.write(Data("signal-ui-render: \(label) body=\"\(body.text)\"\n".utf8))
+}
+
+@MainActor
+private func logSignalAcceptedInteractionSummary(label: String) {
+    guard ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INTERACTIONS"] == "1" else { return }
+    let delayMS = UInt64(
+        ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INTERACTIONS_DELAY_MS"]
+            .flatMap(UInt64.init) ?? 1200
+    )
+    let summaryLabel = label
+    Task.detached {
+        if delayMS > 0 {
+            try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+        }
+        #if canImport(SignalApp)
+        if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE"] == "1" {
+            await logSignalSendQueueDrain(label: "\(summaryLabel) send queue")
+        }
+        do {
+            let summary = try QuillSignalRealConversationProbe.acceptedInteractionDebugSummary()
+            FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) \(summary)\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) unavailable error=\"\(error)\"\n".utf8))
+        }
+        #else
+        FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) unavailable SignalApp not linked\n".utf8))
+        #endif
+    }
+}
+
+private enum SignalRenderSendQueueDrainError: Error {
+    case timedOut
+}
+
+private func logSignalSendQueueDrain(label: String) async {
+    #if canImport(SignalServiceKit)
+    let timeoutMS = UInt64(
+        ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE_TIMEOUT_MS"]
+            .flatMap(UInt64.init) ?? 4_000
+    )
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) draining\n".utf8))
+    do {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await ThreadUtil.enqueueSendQueue.enqueue(operation: {}).value
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutMS * 1_000_000)
+                throw SignalRenderSendQueueDrainError.timedOut
+            }
+            _ = try await group.next()
+            group.cancelAll()
+        }
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) drained\n".utf8))
+    } catch {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) drain error=\"\(error)\"\n".utf8))
+    }
+    #else
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) drain unavailable SignalServiceKit not linked\n".utf8))
+    #endif
 }
 
 @MainActor
@@ -251,6 +318,14 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
     gtk_window_present(winPtr)
 }
 
+@MainActor
+func runGtkMainLoopCooperatively() async {
+    while true {
+        while g_main_context_iteration(nil, 0) != 0 {}
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
+}
+
 // MARK: - Entry
 
 guard gtk_init_check() != 0 else {
@@ -295,9 +370,7 @@ if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" || sel
                 height = 280
             }
             renderRootViewController(vc, title: title, width: width, height: height, windowBackground: "#FFFFFF")
-            let loop = g_main_loop_new(nil, 0)
-            g_main_loop_run(loop)
-            g_main_loop_unref(loop)
+            await runGtkMainLoopCooperatively()
         }
     }
     dispatchMain()

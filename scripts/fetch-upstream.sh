@@ -1142,6 +1142,27 @@ open(path, "w").write(s)
 PY
     fi
 
+    # Signal's Yap/GRDB bridge expects the in-memory SDSRecord delegate to learn
+    # the inserted GRDB row id immediately after anyInsert(...). SQLite on Linux
+    # successfully inserts the row, but without this callback outgoing messages
+    # still see `sqliteRowId == nil` and the real send pipeline aborts with
+    # "Failed to insert message!". Match the update path by propagating GRDB's
+    # last inserted row id from the Linux-patched disposable checkout.
+    local sds="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/SDSRecord.swift"
+    if [[ -f "$sds" ]] && ! grep -q 'delegate?.updateRowId(transaction.database.lastInsertedRowID)' "$sds"; then
+        echo "==> patching signal-ios SDSRecord.swift insert row-id propagation"
+        python3 - "$sds" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+needle = "        failIfThrows {\n            try self.insert(transaction.database)\n        }\n"
+replacement = "        failIfThrows {\n            try self.insert(transaction.database)\n            delegate?.updateRowId(transaction.database.lastInsertedRowID)\n        }\n"
+if needle not in s:
+    raise SystemExit("SDSRecord.sdsInsert shape changed")
+open(path, "w").write(s.replace(needle, replacement, 1))
+PY
+    fi
+
     # swift-corelibs NSAttributedString/NSMutableAttributedString have no
     # parameterless init() (NSAttributedString() binds to init?(coder:),
     # NSMutableAttributedString() needs init(string:)). The extension-override

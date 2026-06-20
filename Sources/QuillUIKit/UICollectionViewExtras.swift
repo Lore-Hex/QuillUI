@@ -590,7 +590,7 @@ extension UICollectionView {
         quillCollectionState = state
 
         if shouldReload {
-            quillReloadData()
+            quillReloadDataAndNotify()
         }
         completion?(true)
     }
@@ -602,11 +602,18 @@ extension UICollectionView {
             state.needsReloadAfterBatchUpdates = true
             quillCollectionState = state
         } else {
-            quillReloadData()
+            quillReloadDataAndNotify()
         }
     }
 
     // MARK: Realized-cell snapshot
+
+    func quillReloadDataAndNotify() {
+        QuillUIKitMutationNotifications.withoutNotifications {
+            quillReloadData()
+        }
+        quillNotifySubviewMutation()
+    }
 
     func quillReloadData() {
         var state = quillCollectionState
@@ -630,6 +637,7 @@ extension UICollectionView {
         var realizedIndexPaths: [IndexPath] = []
         var fallbackY: CGFloat = 0
         var contentUnion = CGRect.null
+        let prefetchedAttributes = quillPrefetchedLayoutAttributesByIndexPath()
 
         let sectionCount = max(0, dataSource.numberOfSections(in: self))
         for section in 0..<sectionCount {
@@ -638,7 +646,9 @@ extension UICollectionView {
                 let indexPath = IndexPath(item: item, section: section)
                 let cell = dataSource.collectionView(self, cellForItemAt: indexPath)
 
-                if let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
+                if let attributes = prefetchedAttributes[indexPath] {
+                    cell.apply(attributes)
+                } else if prefetchedAttributes.isEmpty, let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
                     cell.apply(attributes)
                 } else if cell.frame.size == .zero {
                     let fallbackSize = quillFallbackItemSize()
@@ -668,6 +678,22 @@ extension UICollectionView {
         } else {
             contentSize = .zero
         }
+    }
+
+    private func quillPrefetchedLayoutAttributesByIndexPath() -> [IndexPath: UICollectionViewLayoutAttributes] {
+        let layoutContentSize = collectionViewLayout.collectionViewContentSize
+        let scanRect = CGRect(
+            x: min(bounds.minX, contentOffset.x) - 10_000,
+            y: min(bounds.minY, contentOffset.y) - 1_000_000,
+            width: max(bounds.width, layoutContentSize.width, 1) + 20_000,
+            height: max(bounds.height, layoutContentSize.height, 1) + 2_000_000
+        )
+        let attributes = collectionViewLayout.layoutAttributesForElements(in: scanRect) ?? []
+        var result: [IndexPath: UICollectionViewLayoutAttributes] = [:]
+        for attributes in attributes {
+            result[attributes.indexPath] = attributes
+        }
+        return result
     }
 
     func quillCellForItem(at indexPath: IndexPath) -> UICollectionViewCell? {

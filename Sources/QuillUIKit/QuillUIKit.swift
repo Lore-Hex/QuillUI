@@ -2459,7 +2459,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     }
 
     open func reloadData() {
-        quillReloadData()
+        quillReloadDataAndNotify()
     }
 }
 

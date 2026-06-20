@@ -29,6 +29,30 @@ public enum QuillSignalRealConversationProbe {
         try await makeViewController(mode: .accepted, width: width, height: height)
     }
 
+    nonisolated public static func acceptedInteractionDebugSummary() throws -> String {
+        try SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let contactAddress = SignalServiceAddress(
+                serviceId: Aci(fromUUID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!),
+                e164: E164("+15555550112")!
+            )
+            guard let thread = TSContactThread.getWithContactAddress(contactAddress, transaction: tx) else {
+                throw QuillSignalRealConversationProbeError.missingSeedThread
+            }
+            let bodies = try String.fetchAll(
+                tx.database,
+                sql: """
+                    SELECT COALESCE(body, '')
+                    FROM \(InteractionRecord.databaseTableName)
+                    WHERE uniqueThreadId = ?
+                    ORDER BY timestamp ASC, id ASC
+                    """,
+                arguments: [thread.uniqueId],
+            )
+            let bodyList = bodies.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
+            return "count=\(bodies.count) bodies=[\(bodyList)]"
+        }
+    }
+
     private static func makeViewController(mode: SeedMode, width: CGFloat, height: CGFloat) async throws -> UIViewController {
         let bootstrap = try await quillBootstrapSignalRenderEnvironment()
         if mode.shouldShowInputToolbar {

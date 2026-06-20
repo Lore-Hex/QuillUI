@@ -58,7 +58,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export DISPLAY="$display_id" GTK_A11Y=none SIGNAL_UI_RENDER_DEMO="$demo" SIGNAL_UI_RENDER_DUMP="${SIGNAL_UI_RENDER_DUMP:-1}"
+export DISPLAY="$display_id" GTK_A11Y=none GSK_RENDERER="${GSK_RENDERER:-cairo}" SIGNAL_UI_RENDER_DEMO="$demo" SIGNAL_UI_RENDER_DUMP="${SIGNAL_UI_RENDER_DUMP:-1}"
 "$binary" >"$log_output" 2>&1 &
 app_pid=$!
 
