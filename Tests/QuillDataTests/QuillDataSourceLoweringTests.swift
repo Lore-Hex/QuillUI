@@ -1081,10 +1081,10 @@ struct QuillDataSourceLoweringTests {
             of: "quill_chat_functional_static_composer_click_points",
             range: composerPointsRange.upperBound..<functionalScript.endIndex
            ) {
-            #expect(attachmentRange.lowerBound < detectedRange.lowerBound)
             #expect(detectedRange.lowerBound < fallbackRange.lowerBound)
+            #expect(fallbackRange.lowerBound < attachmentRange.lowerBound)
         } else {
-            Issue.record("Functional composer points should try attachment action coordinates, detected coordinates, then static fallbacks")
+            Issue.record("Functional composer points should try detected coordinates, static fallbacks, then attachment action coordinates")
         }
         #expect(functionalScript.contains("""
   else
@@ -1125,6 +1125,7 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quill_chat_functional_attachment_action_click_points()"))
         #expect(functionalScript.contains("click_y=\"$(quill_chat_functional_action_click_y \"$(quill_chat_functional_composer_click_y)\")\""))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ACTION_Y"))
+        #expect(functionalScript.contains("if [[ -n \"$fallback_y\" ]]; then"))
         #expect(functionalScript.contains("reference_height - 170"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
         #expect(functionalScript.contains("window_width - 70"))

@@ -414,6 +414,10 @@ quill_chat_functional_action_click_y() {
   fi
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    if [[ -n "$fallback_y" ]]; then
+      printf '%s\n' "$fallback_y"
+      return
+    fi
     local reference_height="${reference_window_height:-$window_height}"
     printf '%s\n' "$((window_y + reference_height - 170))"
   else
@@ -446,9 +450,9 @@ quill_chat_functional_attachment_action_click_points() {
 quill_chat_functional_composer_click_points() {
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     {
-      quill_chat_functional_attachment_action_click_points
       quill_chat_functional_detected_composer_click_points
       quill_chat_functional_static_composer_click_points
+      quill_chat_functional_attachment_action_click_points
     }
   else
     {
