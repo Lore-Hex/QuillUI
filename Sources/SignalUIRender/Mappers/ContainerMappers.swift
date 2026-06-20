@@ -229,14 +229,9 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
 
         if hasRealFrames {
             let fixed = gtk_fixed_new()!
-            let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
             applyViewSize(to: fixed, from: view)
-            for child in subviewsInLayerOrder(subviews) {
-                guard let childWidget = ctx.render(child) else { continue }
-                let frame = child.frame
-                gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
-                gtk_widget_set_size_request(childWidget, gint(frame.width), gint(frame.height))
-            }
+            appendFixedSubviews(to: fixed, view: view, ctx: ctx)
+            installGenericFixedMutationBridge(on: fixed, view: view, ctx: ctx)
             ctx.applyLayerStyle(fixed, view)
             return fixed
         }
@@ -256,6 +251,38 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         installGenericBoxMutationBridge(on: box, view: view, isBadge: isBadge, ctx: ctx)
         ctx.applyLayerStyle(box, view)
         return box
+    }
+
+    private static func appendFixedSubviews(
+        to fixed: GtkWidgetPtr,
+        view: UIView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+        for child in subviewsInLayerOrder(view.subviews) {
+            guard let childWidget = ctx.render(child) else { continue }
+            let frame = child.frame
+            gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
+            if frame.width > 0 || frame.height > 0 {
+                gtk_widget_set_size_request(
+                    childWidget,
+                    frame.width > 0 ? gint(frame.width) : -1,
+                    frame.height > 0 ? gint(frame.height) : -1
+                )
+            }
+        }
+    }
+
+    private static func installGenericFixedMutationBridge(
+        on fixed: GtkWidgetPtr,
+        view: UIView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        view.quillSetSubviewMutationHandler("SignalUIRender.genericFixedChildren") { updatedView in
+            clearFixedChildren(fixed)
+            appendFixedSubviews(to: fixed, view: updatedView, ctx: ctx)
+            gtk_widget_queue_resize(fixed)
+        }
     }
 
     private static func applyViewSize(to widget: GtkWidgetPtr, from view: UIView) {
@@ -335,5 +362,12 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
 private func clearBoxChildren(_ box: GtkWidgetPtr) {
     while let child = gtk_widget_get_first_child(box) {
         gtk_box_remove(boxPointer(box), child)
+    }
+}
+
+private func clearFixedChildren(_ fixed: GtkWidgetPtr) {
+    let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
+    while let child = gtk_widget_get_first_child(fixed) {
+        gtk_fixed_remove(fixedPtr, child)
     }
 }
