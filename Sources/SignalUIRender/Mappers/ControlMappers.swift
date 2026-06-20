@@ -65,6 +65,7 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
         if let child = buttonContentWidget(for: button, ctx) {
             gtk_button_set_child(buttonPointer(widget), child)
         }
+        installButtonContentMutationBridge(on: widget, button: button, ctx: ctx)
 
         let context = Unmanaged.passRetained(UIButtonGTKActionContext(button: button)).toOpaque()
         let destroyNotify = unsafeBitCast(releaseUIButtonGTKActionContext, to: GClosureNotify.self)
@@ -79,6 +80,19 @@ public enum UIButtonGtkMapper: UIViewGtkMapper {
 
         ctx.applyLayerStyle(widget, button)
         return widget
+    }
+
+    private static func installButtonContentMutationBridge(
+        on widget: GtkWidgetPtr,
+        button: UIButton,
+        ctx: UIKitGtkRenderContext
+    ) {
+        button.quillSetSubviewMutationHandler("SignalUIRender.buttonContent") { updatedView in
+            guard let updatedButton = updatedView as? UIButton else { return }
+            let child = buttonContentWidget(for: updatedButton, ctx) ?? gtk_label_new(nil)!
+            gtk_button_set_child(buttonPointer(widget), child)
+            gtk_widget_queue_resize(widget)
+        }
     }
 
     private static func buttonContentWidget(

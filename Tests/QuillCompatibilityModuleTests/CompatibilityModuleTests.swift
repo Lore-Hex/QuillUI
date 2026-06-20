@@ -859,6 +859,14 @@ struct CompatibilityModuleTests {
         imageView.image = UIImage()
         #expect(imageEvents == 1)
         #expect(parentTreeEvents == 1)
+
+        let button = UIButton(type: .system)
+        var buttonTreeEvents = 0
+        button.quillAppendSubviewMutationHandler { _ in buttonTreeEvents += 1 }
+        button.setTitle("Accept", for: .normal)
+        button.setTitleColor(UIColor(white: 0, alpha: 1), for: .normal)
+        button.setImage(UIImage(), for: .normal)
+        #expect(buttonTreeEvents >= 3)
     }
 
     @Test("Quill localization resolves Apple strings resources")
