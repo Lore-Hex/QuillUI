@@ -555,10 +555,16 @@ quill_chat_verified_selection_probe() {
   local probe_suffix="${2:-}"
   local probe_path="$OUTPUT_DIR/quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}${probe_suffix}.png"
 
+  quill_chat_last_verified_selection_probe_path=""
   capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
-  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
-    "$probe_path" \
-    "$verify_product" >/dev/null 2>&1
+  if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$probe_path" \
+      "$verify_product" >/dev/null 2>&1; then
+    quill_chat_last_verified_selection_probe_path="$probe_path"
+    return 0
+  fi
+
+  return 1
 }
 
 scroll_quill_chat_transcript_to_bottom() {
@@ -1139,6 +1145,8 @@ ensure_quill_chat_long_transcript_bottom_scroll() {
   fi
 
   if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-initial"; then
+    cp -f "$quill_chat_last_verified_selection_probe_path" "$SCREENSHOT_PATH"
+    settled_capture_taken=1
     return 0
   fi
   echo "interaction-check: long transcript bottom marker not verified; applying explicit scroll fallback" >&2
@@ -1146,6 +1154,8 @@ ensure_quill_chat_long_transcript_bottom_scroll() {
   for ((scroll_attempt = 1; scroll_attempt <= scroll_attempts; scroll_attempt++)); do
     scroll_quill_chat_transcript_to_bottom
     if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-scroll-${scroll_attempt}"; then
+      cp -f "$quill_chat_last_verified_selection_probe_path" "$SCREENSHOT_PATH"
+      settled_capture_taken=1
       return 0
     fi
     if (( scroll_attempt < scroll_attempts )); then
