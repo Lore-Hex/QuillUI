@@ -226,25 +226,42 @@ resolve_app_window_geometry() {
   fi
 }
 
+quill_chat_functional_composer_click_x() {
+  printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 34 / 100)))}"
+}
+
+quill_chat_functional_composer_click_y() {
+  if [[ -n "${QUILLUI_FUNCTIONAL_COMPOSER_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_COMPOSER_Y"
+    return
+  fi
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 135))}"
+  else
+    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 80))}"
+  fi
+}
+
 launch_app_instance truncate
 resolve_app_window_geometry
 
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
-  attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$((window_y + window_height - 46))}"
+  attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_composer_click_y)}"
   quillui_functional_xdotool mousemove "$attachment_x" "$attachment_y" click 1
   sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
 fi
 
-click_x="${QUILLUI_FUNCTIONAL_COMPOSER_X:-$((window_x + (window_width * 56 / 100)))}"
-click_y="${QUILLUI_FUNCTIONAL_COMPOSER_Y:-$((window_y + window_height - 46))}"
+click_x="$(quill_chat_functional_composer_click_x)"
+click_y="$(quill_chat_functional_composer_click_y)"
 quillui_functional_xdotool mousemove "$click_x" "$click_y" click 1
 sleep 1
 quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
 sleep 1
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
-  send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$((window_y + window_height - 46))}"
+  send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_composer_click_y)}"
   quillui_functional_xdotool mousemove "$send_x" "$send_y" click 1
 else
   quillui_functional_xdotool key --clearmodifiers Return
