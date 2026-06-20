@@ -323,6 +323,7 @@ if spec is None or spec.loader is None:
     raise SystemExit(0)
 
 module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
 image = module.Screenshot(probe_path)
@@ -338,8 +339,8 @@ divider_x = max(
 detail_left = divider_x + 1
 detail_width = right - detail_left + 1
 
-composer = None
-for y in range(top + int(app_height * 0.74), bottom + 1):
+composer_matches = []
+for y in range(top + int(app_height * 0.68), bottom + 1):
     candidates = [
         segment
         for segment in image.segments_at(
@@ -354,18 +355,30 @@ for y in range(top + int(app_height * 0.74), bottom + 1):
     ]
     if candidates:
         segment = max(candidates, key=lambda item: item.width)
-        if (
-            composer is None
-            or segment.width > composer[1].width
-            or (segment.width == composer[1].width and y < composer[0])
-        ):
-            composer = (y, segment)
+        composer_matches.append((y, segment))
 
-if composer is None:
+if not composer_matches:
     raise SystemExit(0)
 
-composer_y, composer_segment = composer
-click_y = window_y + composer_y + 30
+best_y, composer_segment = max(composer_matches, key=lambda item: item[1].width)
+max_width = composer_segment.width
+matched_rows = [
+    (y, segment)
+    for y, segment in composer_matches
+    if segment.width >= int(max_width * 0.95)
+    and abs(segment.start - composer_segment.start) <= 8
+    and abs(segment.end - composer_segment.end) <= 8
+]
+top_row = min((y for y, _ in matched_rows), default=best_y)
+bottom_row = max((y for y, _ in matched_rows), default=best_y)
+if bottom_row - top_row >= 16:
+    composer_click_y = (top_row + bottom_row) // 2
+elif best_y - top >= int(app_height * 0.75):
+    composer_click_y = best_y - 24
+else:
+    composer_click_y = best_y + 24
+composer_click_y = max(top, min(bottom, composer_click_y))
+click_y = window_y + composer_click_y
 candidate_x_values = [
     composer_segment.start + 42,
     min(composer_segment.end - 42, composer_segment.start + 300),
