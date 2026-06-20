@@ -447,7 +447,10 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
 
         if isAvatar {
-            return name.contains("question") ? "?" : ""
+            if name.contains("question") {
+                return "?"
+            }
+            return avatarInitials(for: imageView) ?? ""
         }
         if name.contains("plus") || name.contains("add") || name.contains("attachment") || name.contains("paperclip") {
             return "+"
@@ -489,6 +492,108 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
             return "•"
         }
         return nil
+    }
+
+    private static func avatarInitials(for imageView: UIImageView) -> String? {
+        var best: (initials: String, score: Int)?
+
+        for candidate in avatarInitialCandidateTexts(near: imageView) {
+            guard let scored = scoredAvatarInitials(from: candidate.text, distance: candidate.distance) else {
+                continue
+            }
+            if best == nil || scored.score > best!.score {
+                best = scored
+            }
+        }
+
+        return best?.initials
+    }
+
+    private static func avatarInitialCandidateTexts(near imageView: UIImageView) -> [(text: String, distance: Int)] {
+        var candidates: [(text: String, distance: Int)] = []
+
+        if let label = imageView.accessibilityLabel {
+            candidates.append((label, 0))
+        }
+
+        var distance = 1
+        var ancestor = imageView.superview
+        while let current = ancestor, distance <= 5 {
+            if let label = current.accessibilityLabel {
+                candidates.append((label, distance))
+            }
+            collectLabelTexts(in: current, excluding: imageView, distance: distance, into: &candidates)
+            ancestor = current.superview
+            distance += 1
+        }
+
+        return candidates
+    }
+
+    private static func collectLabelTexts(
+        in root: UIView,
+        excluding excluded: UIView,
+        distance: Int,
+        into candidates: inout [(text: String, distance: Int)]
+    ) {
+        for child in root.subviews where child !== excluded {
+            if containsView(child, target: excluded) {
+                continue
+            }
+            if let label = child as? UILabel {
+                let text = visibleText(from: label.attributedText?.string ?? label.text ?? "")
+                candidates.append((text, distance))
+            }
+            collectLabelTexts(in: child, excluding: excluded, distance: distance + 1, into: &candidates)
+        }
+    }
+
+    private static func containsView(_ root: UIView, target: UIView) -> Bool {
+        if root === target {
+            return true
+        }
+        return root.subviews.contains { containsView($0, target: target) }
+    }
+
+    private static func scoredAvatarInitials(from rawText: String, distance: Int) -> (initials: String, score: Int)? {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 48 else { return nil }
+
+        let lower = text.lowercased()
+        let rejectedPhrases = [
+            "message", "groups in common", "no groups", "typing", "online",
+            "offline", "sent", "delivered", "read", "now"
+        ]
+        guard !rejectedPhrases.contains(where: { lower.contains($0) }) else {
+            return nil
+        }
+
+        let words = text
+            .split { character in
+                !character.isLetter && !character.isNumber
+            }
+            .map(String.init)
+            .filter { word in
+                word.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
+            }
+
+        guard !words.isEmpty, words.count <= 3 else { return nil }
+
+        let pickedWords = words.count == 1 ? [words[0]] : [words[0], words[1]]
+        let initials = pickedWords
+            .compactMap { $0.first.map { String($0).uppercased() } }
+            .joined()
+        guard !initials.isEmpty, initials.count <= 3 else { return nil }
+
+        let capitalizedBonus = words.filter { word in
+            guard let first = word.first else { return false }
+            return String(first).uppercased() == String(first)
+        }.count
+        let wordCountBonus = words.count == 2 ? 8 : (words.count == 1 ? 4 : 2)
+        let distancePenalty = distance * 2
+        let score = wordCountBonus + capitalizedBonus - distancePenalty - min(text.count / 16, 3)
+
+        return (initials, score)
     }
 
     private static func fallbackLabel(text: String, for imageView: UIImageView) -> GtkWidgetPtr {
