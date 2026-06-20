@@ -140,6 +140,35 @@ private final class MutableCollectionViewProbe: UICollectionViewDataSource, UICo
 }
 
 @MainActor
+private final class InvalidatingCollectionViewLayout: UICollectionViewLayout {
+    var itemHeight: CGFloat = 24
+
+    override var collectionViewContentSize: CGSize {
+        CGSize(width: collectionView?.bounds.width ?? 0, height: itemHeight)
+    }
+
+    override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+        guard let attributes = layoutAttributesForItem(at: IndexPath(item: 0, section: 0)),
+              attributes.frame.intersects(rect) || rect.isEmpty else {
+            return []
+        }
+        return [attributes]
+    }
+
+    override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+        guard indexPath.section == 0, indexPath.item == 0 else { return nil }
+        let attributes = UICollectionViewLayoutAttributes(forCellWith: indexPath)
+        attributes.frame = CGRect(
+            x: 0,
+            y: 0,
+            width: collectionView?.bounds.width ?? 0,
+            height: itemHeight
+        )
+        return attributes
+    }
+}
+
+@MainActor
 private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
     var allowsChanges = true
     var shouldBeginRequests = 0
@@ -485,6 +514,31 @@ struct CompatibilityModuleTests {
 
         collectionView.selectItem(at: last, animated: false, scrollPosition: [])
         #expect(collectionView.indexPathsForSelectedItems == [last])
+    }
+
+    @Test("UICollectionView layout invalidation refreshes realized cell geometry")
+    @MainActor
+    func uiCollectionViewLayoutInvalidationRefreshesRealizedGeometry() async {
+        let layout = InvalidatingCollectionViewLayout()
+        let collectionView = UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 160, height: 120),
+            collectionViewLayout: layout
+        )
+        let probe = MutableCollectionViewProbe(items: [["A"]])
+        collectionView.dataSource = probe
+
+        collectionView.reloadData()
+
+        let first = IndexPath(item: 0, section: 0)
+        #expect(collectionView.cellForItem(at: first)?.frame.height == 24)
+
+        layout.itemHeight = 72
+        layout.invalidateLayout()
+        await Task.yield()
+        await Task.yield()
+
+        #expect(collectionView.cellForItem(at: first)?.frame.height == 72)
+        #expect(collectionView.contentSize.height == 72)
     }
 
     @Test("UICollectionView batch mutations refresh realized cells and visible geometry")

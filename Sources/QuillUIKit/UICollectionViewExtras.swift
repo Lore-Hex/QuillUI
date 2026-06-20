@@ -138,10 +138,18 @@ import QuillFoundation
 
     public override init() { super.init() }
 
-    /// Invalidation is bookkeeping-only on Linux (no layout pass to
-    /// re-schedule); subclasses clear their caches around the super call.
-    open func invalidateLayout() {}
-    open func invalidateLayout(with context: UICollectionViewLayoutInvalidationContext) { _ = context }
+    /// Schedule the collection view to realize a fresh cell snapshot after
+    /// subclass invalidation finishes. UIKit performs this on the next layout
+    /// pass; Linux has no run-loop layout engine, so the shim coalesces the
+    /// equivalent work onto the next main-actor turn.
+    open func invalidateLayout() {
+        collectionView?.quillScheduleReloadAfterLayoutInvalidation()
+    }
+
+    open func invalidateLayout(with context: UICollectionViewLayoutInvalidationContext) {
+        _ = context
+        collectionView?.quillScheduleReloadAfterLayoutInvalidation()
+    }
 
     open func prepare() {}
 
@@ -357,7 +365,9 @@ private struct QuillCollectionViewState {
     var realizedIndexPaths: [IndexPath] = []
     var selectedIndexPaths: Set<IndexPath> = []
     var isPerformingBatchUpdates = false
+    var isReloadingData = false
     var needsReloadAfterBatchUpdates = false
+    var hasScheduledReloadAfterLayoutInvalidation = false
 }
 
 @MainActor private var quillCollectionViewStates: [ObjectIdentifier: QuillCollectionViewState] = [:]
@@ -609,10 +619,49 @@ extension UICollectionView {
     // MARK: Realized-cell snapshot
 
     func quillReloadDataAndNotify() {
+        var state = quillCollectionState
+        guard !state.isReloadingData else { return }
+        state.isReloadingData = true
+        quillCollectionState = state
+        defer {
+            var state = quillCollectionState
+            let shouldReloadAgain = state.needsReloadAfterBatchUpdates
+            state.isReloadingData = false
+            state.needsReloadAfterBatchUpdates = false
+            quillCollectionState = state
+            if shouldReloadAgain {
+                quillScheduleReloadAfterLayoutInvalidation()
+            }
+        }
+
         QuillUIKitMutationNotifications.withoutNotifications {
             quillReloadData()
         }
         quillNotifySubviewMutation()
+    }
+
+    func quillScheduleReloadAfterLayoutInvalidation() {
+        var state = quillCollectionState
+        guard state.dataSource != nil else { return }
+
+        if state.isReloadingData || state.isPerformingBatchUpdates {
+            state.needsReloadAfterBatchUpdates = true
+            quillCollectionState = state
+            return
+        }
+
+        guard !state.hasScheduledReloadAfterLayoutInvalidation else { return }
+        state.hasScheduledReloadAfterLayoutInvalidation = true
+        quillCollectionState = state
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            var state = self.quillCollectionState
+            guard state.hasScheduledReloadAfterLayoutInvalidation else { return }
+            state.hasScheduledReloadAfterLayoutInvalidation = false
+            self.quillCollectionState = state
+            self.quillReloadDataAndNotify()
+        }
     }
 
     func quillReloadData() {

@@ -69,7 +69,7 @@ public enum QuillSignalRealConversationProbe {
         for _ in 0..<80 {
             cvc.view.layoutIfNeeded()
             if cvc.renderItems.contains(where: { $0.interactionUniqueId == interactionUniqueId }) {
-                cvc.collectionView.reloadData()
+                reloadConversationCollection(cvc)
                 return try acceptedInteractionDebugSummary()
             }
             try await Task.sleep(nanoseconds: 25_000_000)
@@ -95,7 +95,7 @@ public enum QuillSignalRealConversationProbe {
                 scrollAction: CVScrollAction(action: .bottomForNewMessage, isAnimated: false)
             )
             cvc.view.layoutIfNeeded()
-            cvc.collectionView.reloadData()
+            reloadConversationCollection(cvc)
             cvc.ensureBottomViewType()
             cvc.inputToolbar?.scrollToBottom()
 
@@ -104,7 +104,7 @@ public enum QuillSignalRealConversationProbe {
                summary.viewModelPending == false,
                summary.bottomViewType == "inputToolbar",
                summary.hasInputToolbar {
-                return summary.description
+                return "\(summary.description) \(systemMessageLayoutDebugSummary(cvc: cvc))"
             }
 
             try await Task.sleep(nanoseconds: 30_000_000)
@@ -139,6 +139,17 @@ public enum QuillSignalRealConversationProbe {
             bottomViewType: String(describing: cvc.bottomViewType),
             hasInputToolbar: cvc.inputToolbar != nil,
         )
+    }
+
+    private static func systemMessageLayoutDebugSummary(cvc: ConversationViewController) -> String {
+        let rows = cvc.renderItems.compactMap { item -> String? in
+            guard let infoMessage = item.interaction as? TSInfoMessage else { return nil }
+            let buttonSize = item.cellMeasurement.size(
+                key: "CVComponentSystemMessage.measurementKey_buttonSize"
+            ) ?? .zero
+            return "info:\(infoMessage.messageType):cell=\(Int(item.cellSize.width))x\(Int(item.cellSize.height)):collapse=\(item.itemViewState.shouldCollapseSystemMessageAction):button=\(Int(buttonSize.width))x\(Int(buttonSize.height))"
+        }
+        return "systemRows=[\(rows.joined(separator: ","))]"
     }
 
     private nonisolated static func interactionDebugSummary(threadUniqueId: String, database: Database) throws -> String {
@@ -315,7 +326,7 @@ public enum QuillSignalRealConversationProbe {
         for _ in 0..<80 {
             cvc.view.layoutIfNeeded()
             if !cvc.renderItems.isEmpty {
-                cvc.collectionView.reloadData()
+                reloadConversationCollection(cvc)
                 if !cvc.collectionView.visibleCells.isEmpty {
                     return
                 }
@@ -328,6 +339,12 @@ public enum QuillSignalRealConversationProbe {
             visibleCells: cvc.collectionView.visibleCells.count,
             shouldHideContent: cvc.loadCoordinator.shouldHideCollectionViewContent,
         )
+    }
+
+    private static func reloadConversationCollection(_ cvc: ConversationViewController) {
+        cvc.layout.invalidateLayout()
+        cvc.collectionView.reloadData()
+        cvc.view.layoutIfNeeded()
     }
 }
 

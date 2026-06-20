@@ -56,9 +56,12 @@ require_log_line "signal-ui-render: gtk button click"
 require_log_line 'signal-ui-render: auto-confirmed action sheet title="Accept Request?" action="Accept"'
 require_log_line 'signal-ui-render: clicked button label="Continue"'
 require_log_line "signal-ui-render: pending request continuation settled dbPending=false viewModelPending=false bottomViewType=inputToolbar hasInputToolbar=true"
+require_log_line "systemRows=[info:acceptedMessageRequest:cell=543x80:collapse=false:button=184x31]"
 require_log_line 'signal-ui-render: rerendered UIKit tree after button label click "Continue"'
 require_log_line "ConversationInputToolbar"
 require_log_line "You accepted Maya Rivera's message request."
+require_log_line "CVCell frame=(0,444,760x80)"
+require_log_line "UIButton frame=(152,37,184x31)"
 require_log_absent_after_rerender "acceptedMessageRequest"
 require_log_absent_after_rerender "MessageRequestView"
 
