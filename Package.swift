@@ -163,15 +163,6 @@ let quillUIGTKSwiftImporterSettings: [SwiftSetting] = []
 let quillUIGTKLinkerSettings: [LinkerSetting] = []
 #endif
 #if os(Linux)
-let quillFoundationDependencies: [Target.Dependency] = ["QuillKit", "CGdkPixbuf"]
-let quillFoundationSwiftSettings: [SwiftSetting] = [.unsafeFlags(gdkPixbufSwiftImporterFlags)]
-let quillFoundationLinkerSettings: [LinkerSetting] = [.unsafeFlags(gdkPixbufLinkerFlags)]
-#else
-let quillFoundationDependencies: [Target.Dependency] = ["QuillKit"]
-let quillFoundationSwiftSettings: [SwiftSetting] = []
-let quillFoundationLinkerSettings: [LinkerSetting] = []
-#endif
-#if os(Linux)
 let nnwUpstreamPresent: Bool = upstreamPresent(".upstream/netnewswire/Modules/RSCore")
 #else
 // The .upstream NetNewsWire full-source tree is a Linux-only port: it pulls
@@ -225,6 +216,8 @@ let signalAppTargetPresent: Bool = signalUpstreamPresent
 // macOS SwiftUI USB-microscope viewer (MIT) compiled UNMODIFIED on Linux
 // against the SwiftUI/AppKit/AVFoundation/CoreImage shim surface.
 let solderScopeUpstreamPresent: Bool = upstreamPresent(".upstream/solderscope/SolderScope")
+let solderScopeUpstreamEnabled: Bool = solderScopeUpstreamPresent
+    && ProcessInfo.processInfo.environment["QUILLUI_SOLDERSCOPE"] == "1"
 // SceneKit conformance lane (docs/scenekit-conformance.md) — all MIT:
 // nicklockwood/Euclid (pure-Swift 3D geometry/CSG lib + a UIKit/SceneKit
 // Example app) and nicklockwood/ShapeScript (real shipped macOS app whose
@@ -243,6 +236,13 @@ let shapeScriptUpstreamPresent: Bool = upstreamPresent(".upstream/shapescript/Sh
 // grows that surface, so they are opt-in:
 let quillUISceneKitFixturesEnabled: Bool =
     ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_FIXTURES"] == "1"
+// QuillV4L2LiveProbe — headless end-to-end V4L2 live-capture check (the real
+// QuillV4L2Camera path the SolderScope camera bridge uses), driven by
+// scripts/linux-v4l2-loopback-smoke.sh against a v4l2loopback virtual webcam.
+// Opt-in so it never enters the default build/test graph (loading the loopback
+// kernel module is impossible in the container CI runs in); the smoke script
+// sets QUILLUI_V4L2_LIVE_PROBE=1 on hosts that can load it.
+let v4l2LiveProbeEnabled: Bool = ProcessInfo.processInfo.environment["QUILLUI_V4L2_LIVE_PROBE"] == "1"
 // Real Dimillian/IceCubesApp Models + NetworkClient, vendored Linux-only.
 // The upstream iOS platform pin is a manifest constraint, not a source one —
 // the data/network layer is portable Swift+SwiftSoup; UI-coupled bits resolve
@@ -514,6 +514,11 @@ products += [
 #endif
 
 #if os(Linux)
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit", "CGdkPixbuf"]
+let quillFoundationSwiftSettings: [SwiftSetting] = [
+    .unsafeFlags(gdkPixbufSwiftImporterFlags)
+]
+let quillFoundationLinkerSettings: [LinkerSetting] = [.unsafeFlags(gdkPixbufLinkerFlags)]
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
     "QuartzCore", "CoreVideo", "ImageIO", "CoreText", "CoreImage", "CoreServices",
@@ -521,11 +526,13 @@ let appKitShadowDependencies: [Target.Dependency] = [
     "CGdkPixbuf",
 ]
 let quillWebKitDependencies: [Target.Dependency] = ["QuillFoundation", "AppKit"]
-// UIView.layer: on Linux, QuillUIKit (and the UIKit umbrella that re-exports
-// it) needs the in-tree QuartzCore shim. On Apple platforms CALayer comes from
-// the real QuartzCore via AppKit/UIKit — and the shim target doesn't exist, so
-// the dependency must vanish entirely (a `.when(platforms:)` condition would
-// still dangle: SwiftPM validates named targets even when the condition is off).
+// UIView.layer and geometry-shaped UIKit surface: on Linux, QuillUIKit (and the
+// UIKit umbrella that re-exports it) needs the in-tree QuartzCore/CoreGraphics
+// shims. Document/content-transfer APIs also live in shim modules here. On
+// Apple platforms those modules are real SDK modules and the shim targets don't
+// exist, so the dependencies must vanish entirely (a `.when(platforms:)`
+// condition would still dangle: SwiftPM validates named targets even when the
+// condition is off).
 let quillUIKitDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore",
     "CoreTransferable", "UniformTypeIdentifiers",
@@ -536,6 +543,9 @@ let uiKitShimDependencies: [Target.Dependency] =
 // keep the pure compile-surface AVFoundation.
 let quillV4L2Dependencies: [Target.Dependency] = ["CV4L2"]
 #else
+let quillFoundationDependencies: [Target.Dependency] = ["QuillKit"]
+let quillFoundationSwiftSettings: [SwiftSetting] = []
+let quillFoundationLinkerSettings: [LinkerSetting] = []
 let appKitShadowDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillUIKit", "QuillKit",
 ]
@@ -619,6 +629,23 @@ let standardSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
     .unsafeFlags(["-strict-concurrency=minimal", "-Xfrontend", "-import-module", "-Xfrontend", "QuillShims"])
 ]
+
+#if compiler(>=6.2)
+let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = [
+    // `-default-isolation MainActor` landed with newer Swift 6 toolchains.
+    // Keep the flag out of Swift 6.1 Apple CI, where the frontend rejects it.
+    .unsafeFlags(
+        ["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"],
+        .when(platforms: [.linux])
+    )
+]
+#else
+let quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []
+#endif
+
+let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = [
+    .unsafeFlags(["-strict-concurrency=minimal"])
+] + quillMainActorDefaultIsolationSwiftSettings
 
 let appSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5),
@@ -1134,7 +1161,10 @@ var targets: [Target] = [
     .target(
         name: "QuillWebKit",
         dependencies: quillWebKitDependencies,
-        path: "Sources/QuillWebKit"
+        path: "Sources/QuillWebKit",
+        swiftSettings: [
+            .unsafeFlags(gdkPixbufSwiftImporterFlags)
+        ]
     ),
     .target(
         name: "WebKit",
@@ -1855,7 +1885,7 @@ if wireguardUpstreamPresent {
             // parsing, IPv4/v6 helpers, the public API surface) compiles
             // unmodified on Linux.
             exclude: wireGuardKitExcludes,
-            swiftSettings: quillLegacyMainActorSwiftSettings
+            swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
         ),
         // The real wg-quick string parser (TunnelConfiguration(fromWgQuickConfig:)
         // / asWgQuickConfig()) lives in the App's Shared/Model, extending
@@ -2517,7 +2547,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
         "Storage/TSYapDatabaseObject.h", "Storage/TSYapDatabaseObject.m",
     ]
     let signalUIRenderDependencies: [Target.Dependency] = [
-        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore",
+        "QuillUIKit", "UIKit", "QuillFoundation", "QuartzCore", "CGtk4",
         "SignalUI", "SignalServiceKit",
         .product(name: "CGTK", package: "SwiftOpenUI"),
         .product(name: "CGTKBridge", package: "SwiftOpenUI"),
@@ -2630,7 +2660,7 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 "UIKitExtensions/UIStackView+SignalUITest.swift",
                 "FormatStyles/OWSByteCountFormatStyleTest.swift",
             ],
-            swiftSettings: quillLegacyMainActorSwiftSettings
+            swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
         ),
         .testTarget(
             name: "SignalServiceKitObjCPortTests",
@@ -2664,7 +2694,10 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
                 exclude: [
                     "Signal-Prefix.pch",
                 ],
-                swiftSettings: quillLegacyMainActorSwiftSettings
+                resources: [
+                    .copy("Symbols.xcassets"),
+                ],
+                swiftSettings: [.swiftLanguageMode(.v5)] + quillMinimalConcurrencyMainActorSwiftSettings
             )
         ]
     }
@@ -2696,10 +2729,11 @@ targets += [
 // viewer compiled UNMODIFIED on Linux (no @objc/#selector anywhere; the only
 // build-prep transform is quill-lower-appkit's `import os.log` → `import os`
 // clang-submodule lowering). Exercises the SwiftUI app lifecycle +
-// AVFoundation capture + CoreImage/CoreVideo surface. Inert on CI until
-// fetch-upstream.sh populates .upstream/solderscope (gitignored).
+// AVFoundation capture + CoreImage/CoreVideo surface. Opt-in so a local
+// fetched checkout does not silently expand every unrelated test build:
+//   QUILLUI_SOLDERSCOPE=1 scripts/fetch-upstream.sh solderscope && swift build --product QuillSolderScope
 #if os(Linux)
-if solderScopeUpstreamPresent {
+if solderScopeUpstreamEnabled {
     products.append(.executable(name: "QuillSolderScope", targets: ["QuillSolderScope"]))
     targets += [
         .executableTarget(
@@ -2906,6 +2940,26 @@ if quillUISceneKitFixturesEnabled {
 }
 #endif
 
+// QuillV4L2LiveProbe (opt-in: QUILLUI_V4L2_LIVE_PROBE=1) — headless executable
+// that drives the real QuillV4L2Camera capture path against a live /dev/video*
+// device. Kept out of the default graph because creating a V4L2 capture node
+// needs a kernel module the container CI can't load; the source under
+// Sources/QuillV4L2LiveProbe is simply unbuilt when the flag is unset.
+// scripts/linux-v4l2-loopback-smoke.sh sets the flag and stands up a
+// v4l2loopback virtual webcam to run it on a real-kernel host.
+#if os(Linux)
+if v4l2LiveProbeEnabled {
+    products.append(.executable(name: "QuillV4L2LiveProbe", targets: ["QuillV4L2LiveProbe"]))
+    targets += [
+        .executableTarget(
+            name: "QuillV4L2LiveProbe",
+            dependencies: ["AVFoundation", "CoreVideo"],
+            path: "Sources/QuillV4L2LiveProbe"
+        ),
+    ]
+}
+#endif
+
 // CodeEdit upstream — macOS-only (it's a pure AppKit/SwiftUI Mac app
 // using NSTextView, NSDocument, NSApplicationDelegateAdaptor, Sparkle,
 // and a stack of CodeEditApp's own packages). The Linux path can't
@@ -3026,9 +3080,9 @@ targets.append(contentsOf: [
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"]),
-            // The bitmap encoder (rung 4) imports CGdkPixbuf. Keep the importer
-            // flags here for older/non-explicit module builds; the systemLibrary
-            // target stays pkgConfig-free to avoid SwiftPM prohibited-flag noise.
+            // The bitmap encoder (rung 4) imports CGdkPixbuf. Keep the filtered
+            // importer flags here so clean builds can compile its PCM without
+            // SwiftPM's pkg-config prohibited-flag warnings.
             .unsafeFlags(gdkPixbufSwiftImporterFlags)
         ]
     ),
@@ -3302,6 +3356,16 @@ if quillUILinuxBuildBackend == .qt {
             linkerSettings: quillFoundationLinkerSettings
         ),
         .target(
+            name: "UniformTypeIdentifiers",
+            dependencies: [],
+            path: "Sources/UniformTypeIdentifiersShim"
+        ),
+        .target(
+            name: "CoreTransferable",
+            dependencies: ["UniformTypeIdentifiers"],
+            path: "Sources/CoreTransferable"
+        ),
+        .target(
             name: "QuillEnchantedShared",
             dependencies: ["QuillEnchantedData", "QuillFoundation"],
             path: "Sources/QuillEnchantedShared"
@@ -3335,11 +3399,12 @@ if quillUILinuxBuildBackend == .qt {
         // The AppKit shadow + its Qt runtime backing + Auto Layout, pulled into
         // the qt graph so unmodified `import AppKit` code can be recompiled and
         // rendered through Qt6. All GTK-free.
-        .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
-        .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
         .target(
             name: "QuillUIKit",
-            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "CoreTransferable", "UniformTypeIdentifiers"],
+            dependencies: [
+                "QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore",
+                "CoreTransferable", "UniformTypeIdentifiers",
+            ],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
@@ -3367,7 +3432,8 @@ if quillUILinuxBuildBackend == .qt {
             path: "Sources/QuillAppKit",
             swiftSettings: [
                 .swiftLanguageMode(.v5),
-                .unsafeFlags(["-strict-concurrency=minimal"])
+                .unsafeFlags(["-strict-concurrency=minimal"]),
+                .unsafeFlags(gdkPixbufSwiftImporterFlags)
             ]
         ),
         // `import Cocoa` umbrella (re-exports AppKit + common AppKit-adjacent
@@ -3465,6 +3531,8 @@ if quillUILinuxBuildBackend == .qt {
         // dependency list is enough to pull in its GTK pkg-config warnings even
         // for a native Qt-only smoke app.
         products = quillCanonicalLinuxAppProducts + [
+            .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
+            .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
@@ -3914,7 +3982,6 @@ let packageTestTargets: [Target] = {
         dependencies: ["CoreGraphics"],
         swiftSettings: appSwiftSettings
     ))
-
     // Exercises the Apple-framework compatibility modules that real
     // generated Enchanted source imports on Linux. This target stays out of
     // the stripped Qt manifest graph so `QUILLUI_LINUX_BACKEND=qt swift
@@ -4412,7 +4479,8 @@ targets += [
     .testTarget(
         name: "QuartzCoreTests",
         dependencies: ["QuartzCore"],
-        path: "Tests/QuartzCoreTests"
+        path: "Tests/QuartzCoreTests",
+        swiftSettings: [.swiftLanguageMode(.v5)]
     ),
 ]
 #endif

@@ -6,11 +6,16 @@ on:
       - main
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 env:
   QUILLUI_SKIP_APT: "1"
+  QUILLUI_SOLDERSCOPE: "1"
   QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
   QUILLUI_SMOKE_SECONDS: "4"
   SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE: "legacy"
@@ -57,13 +62,13 @@ jobs:
         run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter SolderScopeChromeConformanceTests
 
       - name: SolderScope capture surface tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-capture --filter AVCaptureSurfaceTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter AVCaptureSurfaceTests
 
       - name: SolderScope V4L2 fixture tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-v4l2 --filter V4L2ConversionTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter V4L2ConversionTests
 
       - name: SolderScope bitmap and movie fidelity tests
-        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-encode --filter BitmapAndMovieEncodeTests
+        run: scripts/linux-swift-test.sh --scratch-path .build-solderscope-api --filter BitmapAndMovieEncodeTests
 
   solderscope-gtk-smoke:
     name: SolderScope GTK launch and interaction
@@ -104,8 +109,11 @@ jobs:
       - name: SolderScope GTK visual smoke
         run: QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual
 
-      - name: SolderScope GTK interaction smoke
-        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
+      - name: SolderScope GTK freeze smoke
+        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
+
+      - name: SolderScope GTK recording smoke
+        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-recording.png interaction
 
       - name: Stage SolderScope QA artifacts
         if: always()

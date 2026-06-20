@@ -402,6 +402,73 @@ private final class MutableCollectionViewProbe: UICollectionViewDataSource, UICo
     }
 }
 
+@MainActor
+private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
+    var allowsChanges = true
+    var shouldBeginRequests = 0
+    var didBeginRequests = 0
+    var shouldChangeRequests = 0
+    var changeNotifications = 0
+    var selectionNotifications = 0
+    var lastRange: NSRange?
+    var lastReplacement: String?
+    weak var changedTextView: UITextView?
+
+    func textViewShouldBeginEditing(_ textView: UITextView) -> Bool {
+        _ = textView
+        shouldBeginRequests += 1
+        return true
+    }
+
+    func textViewDidBeginEditing(_ textView: UITextView) {
+        _ = textView
+        didBeginRequests += 1
+    }
+
+    func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        _ = textView
+        shouldChangeRequests += 1
+        lastRange = range
+        lastReplacement = text
+        return allowsChanges
+    }
+
+    func textViewDidChange(_ textView: UITextView) {
+        changeNotifications += 1
+        changedTextView = textView
+    }
+
+    func textViewDidChangeSelection(_ textView: UITextView) {
+        _ = textView
+        selectionNotifications += 1
+    }
+}
+
+@MainActor
+private final class UIKitTextInputDelegateProbe: UITextInputDelegate {
+    var events: [String] = []
+
+    func selectionWillChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("selectionWill")
+    }
+
+    func selectionDidChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("selectionDid")
+    }
+
+    func textWillChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("textWill")
+    }
+
+    func textDidChange(_ textInput: UITextInput?) {
+        _ = textInput
+        events.append("textDid")
+    }
+}
+
 // `@MainActor`: many tests here construct MainActor-isolated SwiftUI views
 // (WrappingHStack, etc.) whose initializers run a Swift-6 isolation runtime
 // check that SIGTRAPs when evaluated off the main actor. Swift Testing runs
@@ -475,6 +542,94 @@ struct CompatibilityModuleTests {
         }
     }
 
+    @Test("UITextView replacement helper notifies delegates and updates selection")
+    func uiTextViewReplacementHelperNotifiesDelegatesAndUpdatesSelection() {
+        let view = UITextView()
+        let delegate = UIKitTextViewDelegateProbe()
+        let inputDelegate = UIKitTextInputDelegateProbe()
+        view.delegate = delegate
+        view.inputDelegate = inputDelegate
+        view.text = "Hello world"
+
+        #expect(view.becomeFirstResponder())
+        let replaced = view.quillReplaceCharacters(
+            in: NSRange(location: 6, length: 5),
+            with: "Signal"
+        )
+
+        #expect(replaced)
+        #expect(view.text == "Hello Signal")
+        #expect(view.selectedRange == NSRange(location: 12, length: 0))
+        #expect(view.selectedTextRange.map { view.offset(from: view.beginningOfDocument, to: $0.start) } == 12)
+        #expect(delegate.shouldBeginRequests == 1)
+        #expect(delegate.didBeginRequests == 1)
+        #expect(delegate.shouldChangeRequests == 1)
+        #expect(delegate.lastRange == NSRange(location: 6, length: 5))
+        #expect(delegate.lastReplacement == "Signal")
+        #expect(delegate.changeNotifications == 1)
+        #expect(delegate.selectionNotifications == 1)
+        #expect(delegate.changedTextView === view)
+        #expect(inputDelegate.events == ["textWill", "selectionWill", "textDid", "selectionDid"])
+
+        let vetoView = UITextView()
+        let vetoDelegate = UIKitTextViewDelegateProbe()
+        vetoDelegate.allowsChanges = false
+        vetoView.delegate = vetoDelegate
+        vetoView.text = "Keep"
+
+        let vetoed = vetoView.quillReplaceCharacters(
+            in: NSRange(location: 0, length: 4),
+            with: "Drop"
+        )
+
+        #expect(!vetoed)
+        #expect(vetoView.text == "Keep")
+        #expect(vetoDelegate.shouldChangeRequests == 1)
+        #expect(vetoDelegate.changeNotifications == 0)
+
+        let editView = UITextView()
+        editView.text = "ab"
+        editView.selectedRange = NSRange(location: 2, length: 0)
+        editView.insertText("c")
+        #expect(editView.text == "abc")
+        #expect(editView.selectedRange == NSRange(location: 3, length: 0))
+        editView.deleteBackward()
+        #expect(editView.text == "ab")
+        #expect(editView.selectedRange == NSRange(location: 2, length: 0))
+
+        let emojiView = UITextView()
+        emojiView.text = "a🙂b"
+        emojiView.selectedRange = NSRange(location: "a🙂".utf16.count, length: 0)
+        emojiView.deleteBackward()
+        #expect(emojiView.text == "ab")
+        #expect(emojiView.selectedRange == NSRange(location: 1, length: 0))
+    }
+
+    @Test("UINavigationController owns child navigation back references")
+    @MainActor
+    func uiNavigationControllerOwnsChildBackReferences() {
+        let root = UIViewController()
+        let nav = UINavigationController(rootViewController: root)
+
+        #expect(root.navigationController === nav)
+        #expect(nav.topViewController === root)
+        #expect(nav.viewControllers.count == 1)
+
+        let pushed = UIViewController()
+        nav.pushViewController(pushed, animated: false)
+
+        #expect(root.navigationController === nav)
+        #expect(pushed.navigationController === nav)
+        #expect(nav.topViewController === pushed)
+        #expect(nav.viewControllers.map(ObjectIdentifier.init) == [ObjectIdentifier(root), ObjectIdentifier(pushed)])
+
+        let popped = nav.popViewController(animated: false)
+        #expect(popped === pushed)
+        #expect(pushed.navigationController == nil)
+        #expect(root.navigationController === nav)
+        #expect(nav.topViewController === root)
+    }
+
     @Test("UICollectionView reload materializes data-source cells")
     @MainActor
     func uiCollectionViewReloadMaterializesDataSourceCells() {
@@ -498,6 +653,7 @@ struct CompatibilityModuleTests {
         #expect(collectionView.visibleCells.count == 3)
         #expect(collectionView.cellForItem(at: last) === probe.cellsByIndexPath[last])
         #expect(collectionView.visibleCells.allSatisfy { $0.superview === collectionView })
+        #expect(collectionView.visibleCells.allSatisfy { $0.contentView.frame == $0.bounds })
 
         collectionView.selectItem(at: last, animated: false, scrollPosition: [])
         #expect(collectionView.indexPathsForSelectedItems == [last])
@@ -608,6 +764,146 @@ struct CompatibilityModuleTests {
         #expect(child.bounds == CGRect(x: 0, y: 0, width: 180, height: 90))
     }
 
+    @Test("UIView layout guides added to a view resolve edge constraints")
+    @MainActor
+    func uiViewAddedLayoutGuidesResolveEdgeConstraints() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let guide = UILayoutGuide()
+        parent.addLayoutGuide(guide)
+
+        let child = UIView()
+        parent.addSubview(child)
+
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: guide.topAnchor),
+            child.leadingAnchor.constraint(equalTo: guide.leadingAnchor),
+            child.trailingAnchor.constraint(equalTo: guide.trailingAnchor),
+            child.bottomAnchor.constraint(equalTo: guide.bottomAnchor),
+        ])
+
+        parent.layoutIfNeeded()
+
+        #expect(child.frame == parent.bounds)
+    }
+
+    @Test("UIView layout resolves nested child constraints to ancestor anchors")
+    @MainActor
+    func uiViewLayoutResolvesNestedChildConstraintsToAncestorAnchors() {
+        let parent = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let wrapper = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 120))
+        let child = UIView()
+        parent.addSubview(wrapper)
+        wrapper.addSubview(child)
+
+        NSLayoutConstraint.activate([
+            child.topAnchor.constraint(equalTo: parent.topAnchor, constant: 10),
+            child.leadingAnchor.constraint(equalTo: parent.leadingAnchor, constant: 12),
+            child.trailingAnchor.constraint(equalTo: parent.trailingAnchor, constant: -14),
+            child.bottomAnchor.constraint(equalTo: parent.bottomAnchor, constant: -16),
+        ])
+
+        parent.layoutIfNeeded()
+
+        #expect(child.frame == CGRect(x: 12, y: 10, width: 174, height: 94))
+    }
+
+    @Test("UIView layout uses intrinsic size for edge-pinned controls")
+    @MainActor
+    func uiViewLayoutUsesIntrinsicSizeForEdgePinnedControls() {
+        final class IntrinsicControl: UIControl {
+            override var intrinsicContentSize: CGSize {
+                CGSize(width: 40, height: 40)
+            }
+        }
+
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 200, height: 140))
+        let primary = IntrinsicControl()
+        let secondary = IntrinsicControl()
+        root.addSubview(primary)
+        root.addSubview(secondary)
+
+        NSLayoutConstraint.activate([
+            primary.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -15),
+            primary.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -24),
+            secondary.trailingAnchor.constraint(equalTo: primary.trailingAnchor),
+            secondary.bottomAnchor.constraint(equalTo: primary.topAnchor, constant: -30),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(primary.frame == CGRect(x: 145, y: 76, width: 40, height: 40))
+        #expect(secondary.frame == CGRect(x: 145, y: 6, width: 40, height: 40))
+    }
+
+    @Test("UIView infers bottom-pinned container height from edge-pinned stack")
+    @MainActor
+    func uiViewInfersBottomPinnedContainerHeightFromEdgePinnedStack() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 240, height: 180))
+        let container = UIView()
+        root.addSubview(container)
+
+        let label = UILabel()
+        label.text = "Signal bottom bar"
+        label.font = UIFont.systemFont(ofSize: 17)
+
+        let detail = UILabel()
+        detail.text = "Fitting height comes from arranged subviews."
+        detail.font = UIFont.systemFont(ofSize: 13)
+
+        let stack = UIStackView(arrangedSubviews: [label, detail])
+        stack.axis = .vertical
+        stack.alignment = .fill
+        stack.spacing = 6
+        container.addSubview(stack)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            stack.topAnchor.constraint(equalTo: container.topAnchor),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(container.frame.width == 240)
+        #expect(container.frame.height > 0)
+        #expect(container.frame.maxY == 180)
+        #expect(stack.frame == container.bounds)
+        #expect(label.frame.height > 0)
+        #expect(detail.frame.minY > label.frame.maxY)
+    }
+
+    @Test("UIView fitting honors minimum child height through layout margins")
+    @MainActor
+    func uiViewFittingHonorsMinimumChildHeightThroughLayoutMargins() {
+        let root = UIView(frame: CGRect(x: 0, y: 0, width: 240, height: 180))
+        let container = UIView()
+        container.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+        root.addSubview(container)
+
+        let field = UIView()
+        container.addSubview(field)
+
+        NSLayoutConstraint.activate([
+            container.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+            field.topAnchor.constraint(equalTo: container.layoutMarginsGuide.topAnchor),
+            field.leadingAnchor.constraint(equalTo: container.layoutMarginsGuide.leadingAnchor),
+            field.trailingAnchor.constraint(equalTo: container.layoutMarginsGuide.trailingAnchor),
+            field.bottomAnchor.constraint(equalTo: container.layoutMarginsGuide.bottomAnchor),
+            field.heightAnchor.constraint(greaterThanOrEqualToConstant: 40),
+        ])
+
+        root.layoutIfNeeded()
+
+        #expect(container.frame == CGRect(x: 0, y: 124, width: 240, height: 56))
+        #expect(field.frame == CGRect(x: 12, y: 8, width: 216, height: 40))
+    }
+
     @Test("UIStackView lays out arranged labels")
     @MainActor
     func uiStackViewLaysOutArrangedLabels() {
@@ -631,6 +927,256 @@ struct CompatibilityModuleTests {
         #expect(first.frame.height > 0)
         #expect(second.frame.width == 220)
         #expect(second.frame.minY > first.frame.maxY)
+
+        let horizontalFirst = UILabel()
+        horizontalFirst.text = "Block"
+        let horizontalSecond = UILabel()
+        horizontalSecond.text = "Continue"
+        let horizontal = UIStackView(arrangedSubviews: [horizontalFirst, horizontalSecond])
+        horizontal.axis = .horizontal
+        horizontal.alignment = .fill
+        horizontal.spacing = 8
+        let unboundedFit = horizontal.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+        #expect(unboundedFit.height > 0)
+        #expect(unboundedFit.height < 1_000)
+    }
+
+    @Test("UIButton configuration contributes intrinsic stack size")
+    @MainActor
+    func uiButtonConfigurationContributesIntrinsicStackSize() {
+        var configuration = UIButton.Configuration.plain()
+        configuration.title = "Accept"
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12)
+
+        let button = UIButton(configuration: configuration)
+        let fit = button.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(fit.width > 24)
+        #expect(fit.height > 16)
+
+        let stack = UIStackView(arrangedSubviews: [button])
+        stack.axis = .horizontal
+        stack.alignment = .fill
+        let stackFit = stack.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(stackFit.height == fit.height)
+
+        stack.frame = CGRect(x: 0, y: 0, width: 160, height: fit.height)
+        stack.layoutIfNeeded()
+
+        #expect(button.frame.height == fit.height)
+        #expect(button.titleLabel?.frame.height ?? 0 > 0)
+        #expect(button.titleLabel?.frame.minX ?? 0 >= 12)
+    }
+
+    @Test("UIButton primary action dispatches through UIControl events")
+    @MainActor
+    func uiButtonPrimaryActionDispatchesThroughControlEvents() {
+        var firedTitles: [String] = []
+        let action = UIAction(title: "Send") { action in
+            firedTitles.append(action.title)
+        }
+        let button = UIButton(type: .system, primaryAction: action)
+
+        #expect(button.currentTitle == "Send")
+
+        button.sendActions(for: .touchUpInside)
+        #expect(firedTitles.isEmpty)
+
+        button.sendActions(for: .primaryActionTriggered)
+        #expect(firedTitles == ["Send"])
+
+        button.sendActions(for: [.primaryActionTriggered, .touchUpInside])
+        #expect(firedTitles == ["Send", "Send"])
+    }
+
+    @Test("UIView mutation hook observes visibility interaction and control enabled changes")
+    @MainActor
+    func uiViewMutationHookObservesRenderableStateChanges() {
+        let view = UIView()
+        var viewEvents: [(Bool, Bool, CGFloat)] = []
+        view.quillViewMutationHandler = { updatedView in
+            viewEvents.append((
+                updatedView.isHidden,
+                updatedView.isUserInteractionEnabled,
+                updatedView.alpha
+            ))
+        }
+
+        view.alpha = 0.5
+        view.isHidden = true
+        view.isUserInteractionEnabled = false
+        view.isUserInteractionEnabled = false
+
+        #expect(viewEvents.count == 3)
+        #expect(viewEvents.last?.0 == true)
+        #expect(viewEvents.last?.1 == false)
+        #expect(viewEvents.last?.2 == 0.5)
+
+        let button = UIButton(type: .system)
+        var controlEvents = 0
+        button.quillViewMutationHandler = { _ in
+            controlEvents += 1
+        }
+        button.isEnabled = false
+        button.isEnabled = false
+
+        #expect(controlEvents == 1)
+
+        let chainedView = UIView()
+        var chainedEvents: [String] = []
+        chainedView.quillAppendViewMutationHandler { _ in chainedEvents.append("first") }
+        chainedView.quillAppendViewMutationHandler { _ in chainedEvents.append("second") }
+        chainedView.alpha = 0.25
+        #expect(chainedEvents == ["first", "second"])
+
+        let keyedView = UIView()
+        var keyedEvents: [String] = []
+        keyedView.quillSetViewMutationHandler("renderer") { _ in keyedEvents.append("old") }
+        keyedView.quillSetViewMutationHandler("renderer") { _ in keyedEvents.append("new") }
+        keyedView.alpha = 0.75
+        #expect(keyedEvents == ["new"])
+    }
+
+    @Test("UIView subtree mutation hook observes child visibility geometry and stack arrangement changes")
+    @MainActor
+    func uiViewSubviewMutationHookObservesRenderableTreeChanges() {
+        let parent = UIView()
+        let child = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+        var childCounts: [Int] = []
+        parent.quillSubviewMutationHandler = { updatedParent in
+            childCounts.append(updatedParent.subviews.count)
+        }
+
+        parent.addSubview(child)
+        #expect(childCounts.last == 1)
+
+        childCounts.removeAll()
+        child.isHidden = true
+        #expect(!childCounts.isEmpty)
+
+        childCounts.removeAll()
+        child.frame = CGRect(x: 4, y: 5, width: 20, height: 18)
+        #expect(!childCounts.isEmpty)
+
+        childCounts.removeAll()
+        child.removeFromSuperview()
+        #expect(childCounts.last == 0)
+
+        let stack = UIStackView()
+        var arrangedCounts: [Int] = []
+        stack.quillSubviewMutationHandler = { updatedStack in
+            arrangedCounts.append((updatedStack as? UIStackView)?.arrangedSubviews.count ?? -1)
+        }
+
+        let arranged = UILabel()
+        stack.addArrangedSubview(arranged)
+        #expect(arrangedCounts.contains(1))
+
+        arrangedCounts.removeAll()
+        stack.spacing = 12
+        #expect(arrangedCounts.last == 1)
+
+        arrangedCounts.removeAll()
+        stack.removeArrangedSubview(arranged)
+        #expect(arrangedCounts.last == 0)
+    }
+
+    @Test("UIKit text and image leaves publish renderer mutation notifications")
+    @MainActor
+    func uiTextAndImageLeavesPublishMutationNotifications() {
+        let label = UILabel()
+        var labelEvents = 0
+        label.quillAppendViewMutationHandler { _ in labelEvents += 1 }
+        label.text = "Draft"
+        label.font = UIFont.systemFont(ofSize: 14, weight: .semibold)
+        label.textAlignment = .center
+        label.numberOfLines = 2
+        #expect(labelEvents >= 4)
+
+        let textView = UITextView()
+        var textViewEvents = 0
+        textView.quillAppendViewMutationHandler { _ in textViewEvents += 1 }
+        textView.text = "Hello"
+        textView.font = UIFont.systemFont(ofSize: 15)
+        textView.textColor = UIColor(white: 0, alpha: 1)
+        textView.isEditable = false
+        #expect(textViewEvents >= 4)
+
+        let parent = UIView()
+        let imageView = UIImageView()
+        parent.addSubview(imageView)
+        var imageEvents = 0
+        var parentTreeEvents = 0
+        imageView.quillAppendViewMutationHandler { _ in imageEvents += 1 }
+        parent.quillAppendSubviewMutationHandler { _ in parentTreeEvents += 1 }
+        imageView.image = UIImage()
+        #expect(imageEvents == 1)
+        #expect(parentTreeEvents == 1)
+
+        let button = UIButton(type: .system)
+        var buttonTreeEvents = 0
+        button.quillAppendSubviewMutationHandler { _ in buttonTreeEvents += 1 }
+        button.setTitle("Accept", for: .normal)
+        button.setTitleColor(UIColor(white: 0, alpha: 1), for: .normal)
+        button.setImage(UIImage(), for: .normal)
+        #expect(buttonTreeEvents >= 3)
+
+        let uiSwitch = UISwitch()
+        var switchViewEvents = 0
+        var switchActionEvents = 0
+        uiSwitch.quillAppendViewMutationHandler { _ in switchViewEvents += 1 }
+        uiSwitch.addAction(UIAction { _ in switchActionEvents += 1 }, for: .valueChanged)
+        uiSwitch.isOn = true
+        uiSwitch.setOn(false, animated: true)
+        #expect(switchViewEvents == 2)
+        #expect(switchActionEvents == 0)
+    }
+
+    @Test("Quill localization resolves Apple strings resources")
+    @MainActor
+    func quillLocalizationResolvesAppleStringsResources() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillLocalizationTests-\(UUID().uuidString)", isDirectory: true)
+        let en = root.appendingPathComponent("en.lproj", isDirectory: true)
+        try FileManager.default.createDirectory(at: en, withIntermediateDirectories: true)
+        try #"""
+        /* Comment */
+        "MESSAGE_REQUEST_VIEW_BLOCK_BUTTON" = "Block";
+        "ESCAPED_VALUE" = "Line\nTwo";
+        """#.write(
+            to: en.appendingPathComponent("Localizable.strings"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        #if os(Linux)
+        setenv("QUILLUI_RESOURCE_DIRS", root.path, 1)
+        defer { unsetenv("QUILLUI_RESOURCE_DIRS") }
+        #endif
+
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "MESSAGE_REQUEST_VIEW_BLOCK_BUTTON",
+            preferredLocalizations: ["en"]
+        ) == "Block")
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "ESCAPED_VALUE",
+            preferredLocalizations: ["en"]
+        ) == "Line\nTwo")
+        #expect(QuillResourceLookup.localizedString(
+            forKey: "MISSING_KEY",
+            value: "Fallback",
+            preferredLocalizations: ["en"]
+        ) == "Fallback")
     }
 
     #if os(Linux)
@@ -684,13 +1230,40 @@ struct CompatibilityModuleTests {
         #expect(usedRect.height > 0)
         #expect(usedRect.width.isFinite)
         #expect(usedRect.height.isFinite)
-        #expect(usedRect.width <= CGFloat(storage.length) * 14 * 0.6)
+        let expectedSingleLineWidth = CGFloat(storage.length) * 14 * 0.6
+        #expect(usedRect.width <= expectedSingleLineWidth + 0.001)
         #expect(
             layoutManager.glyphIndex(
                 for: CGPoint(x: huge, y: huge),
                 in: textContainer
             ) == storage.length - 1
         )
+    }
+
+    @Test("NSLayoutManager measures attributed storage without reading fragile font attributes")
+    @MainActor
+    func nsLayoutManagerMeasuresAttributedStorageWithFontAttributes() {
+        let layoutManager = UIKit.NSLayoutManager()
+        let textContainer = UIKit.NSTextContainer(size: CGSize(width: 180, height: 500))
+        layoutManager.addTextContainer(textContainer)
+
+        let storage = UIKit.NSTextStorage(
+            string: "Signal thread details",
+            attributes: [
+                .font: UIFont.boldSystemFont(ofSize: 22),
+                .foregroundColor: UIColor.label,
+            ]
+        )
+        storage.addLayoutManager(layoutManager)
+
+        let usedRect = withExtendedLifetime(storage) {
+            layoutManager.usedRect(for: textContainer)
+        }
+
+        #expect(usedRect.width > 0)
+        #expect(usedRect.height > 0)
+        #expect(usedRect.width.isFinite)
+        #expect(usedRect.height.isFinite)
     }
 
     @Test("QuillUI fallback modifiers record diagnostics")
@@ -939,6 +1512,8 @@ struct CompatibilityModuleTests {
 
         let result = try AppleCompatibilitySmoke.runAppKitImageSmoke()
         #expect(result.sizeRoundTrip)
+        #expect(result.focusBitmapCreated)
+        #expect(result.copyDrawReplacesDestination)
         #expect(result.namedImagePlaceholder)
         #expect(result.systemImagePlaceholder)
         #expect(result.workspaceFileIconPlaceholder)
@@ -948,9 +1523,6 @@ struct CompatibilityModuleTests {
         #expect(result.bitmapRepresentationRoundTrip)
         #expect(result.windowTabbingRoundTrip)
         #expect(result.operations.isSuperset(of: Set([
-            "NSImage.lockFocus",
-            "NSImage.draw",
-            "NSImage.unlockFocus",
             "NSImage(named:)",
             "NSImage(systemName:)",
             "NSWorkspace.icon(forFile:)",
@@ -2987,12 +3559,77 @@ struct CompatibilityModuleTests {
             Issue.record("Image(\"logo-nobg\") should resolve to a file-backed SwiftOpenUI image")
         }
 
-        #expect(NSImage(named: "logo-nobg")?.data == imageData)
-        #expect(UIImage(named: "logo-nobg")?.data == imageData)
+        let nsImage = try #require(NSImage(named: "logo-nobg"))
+        let uiImage = try #require(UIImage(named: "logo-nobg"))
+        #expect(nsImage.data == imageData)
+        #expect(uiImage.data == imageData)
+        #expect(nsImage.quillResourceName == "logo-nobg")
+        #expect(uiImage.quillResourceName == "logo-nobg")
+        #expect((uiImage.copy() as? UIImage)?.quillResourceName == "logo-nobg")
         #expect(QuillResourceLookup.path(
             forResource: "logo-nobg",
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) == imageURL.path)
+    }
+
+    @Test("Named images resolve vector PDF imagesets from asset catalogs")
+    func namedImagesResolvePDFImagesetsFromAssetCatalogs() throws {
+        let fileManager = FileManager.default
+        let catalog = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillAssetCatalog-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("Symbols.xcassets", isDirectory: true)
+        let imageset = catalog
+            .appendingPathComponent("message_status", isDirectory: true)
+            .appendingPathComponent("message_status_sent.imageset", isDirectory: true)
+        defer { try? fileManager.removeItem(at: catalog.deletingLastPathComponent()) }
+        try fileManager.createDirectory(at: imageset, withIntermediateDirectories: true)
+
+        try """
+        {
+          "images" : [
+            {
+              "filename" : "messagestatus-sent.pdf",
+              "idiom" : "universal"
+            }
+          ],
+          "info" : { "author" : "xcode", "version" : 1 }
+        }
+        """.write(to: imageset.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+
+        let pdf = """
+        %PDF-1.7
+        1 0 obj
+        << /Type /Page /MediaBox [0 0 12 12] >>
+        endobj
+        %%EOF
+        """
+        let pdfURL = imageset.appendingPathComponent("messagestatus-sent.pdf")
+        try Data(pdf.utf8).write(to: pdfURL)
+
+        let previous = getenv("QUILLUI_RESOURCE_DIRS").map { String(cString: $0) }
+        setenv("QUILLUI_RESOURCE_DIRS", catalog.path, 1)
+        defer {
+            if let previous {
+                setenv("QUILLUI_RESOURCE_DIRS", previous, 1)
+            } else {
+                unsetenv("QUILLUI_RESOURCE_DIRS")
+            }
+        }
+
+        #expect(QuillResourceLookup.path(
+            forResource: "message_status_sent",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions
+        ) == pdfURL.path)
+        let image = try #require(UIImage(named: "message_status_sent"))
+        #expect(image.size == CGSize(width: 12, height: 12))
+        #expect(image.quillResourceName == "message_status_sent")
+    }
+
+    @Test("System images preserve symbol identity for render backends")
+    func systemImagesPreserveSymbolIdentityForRenderBackends() throws {
+        let image = try #require(UIImage(systemName: "paperplane.fill"))
+        #expect(image.quillSystemSymbolName == "paperplane.fill")
+        #expect((image.copy() as? UIImage)?.quillSystemSymbolName == "paperplane.fill")
     }
     #endif
 
@@ -4338,6 +4975,44 @@ struct CompatibilityModuleTests {
         }
         #expect(warnings.isEmpty, "Valid image transforms should not record fallback warnings; got \(warnings.map(\.message))")
     }
+
+    #if os(Linux)
+    @Test("NSImage(data:) keeps finite size and survives AppKit-style resize/compress")
+    func nsImageDataResizeCompressesThroughAppKitPath() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.2, green: 0.4, blue: 0.8, alpha: 1,
+            width: 4, height: 2,
+            format: .png
+        ) else {
+            Issue.record("Expected non-nil PNG for valid solid-color render")
+            return
+        }
+
+        let rendered = try #require(Image(data: png).render())
+        #expect(rendered.size == CGSize(width: 4, height: 2))
+        #expect(rendered.cgImage?.width == 4)
+        #expect(rendered.cgImage?.height == 2)
+
+        let targetSize = CGSize(width: 12, height: 6)
+        let resized = NSImage(size: targetSize)
+        resized.lockFocus()
+        rendered.draw(
+            in: CGRect(origin: .zero, size: targetSize),
+            from: CGRect(origin: .zero, size: rendered.size),
+            operation: .copy,
+            fraction: 1
+        )
+        resized.unlockFocus()
+
+        let tiff = try #require(resized.tiffRepresentation)
+        let bitmap = try #require(NSBitmapImageRep(data: tiff))
+        let jpeg = try #require(bitmap.representation(
+            using: .jpeg,
+            properties: [.compressionFactor: 0.2]
+        ))
+        #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+    }
+    #endif
 
     @Test("ImageRenderer rasterizes Color content to PNG bytes via gdk-pixbuf")
     func imageRendererRendersColorContent() {

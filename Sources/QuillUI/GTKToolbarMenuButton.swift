@@ -66,15 +66,36 @@ private enum QuillGTKToolbarMenuAutomation {
             let resourceValues = try? commandURL.resourceValues(forKeys: [.isDirectoryKey])
             guard resourceValues?.isDirectory != true,
                   let title = try? String(contentsOf: commandURL, encoding: .utf8)
-                    .trimmingCharacters(in: .whitespacesAndNewlines),
-                  let action = automationBox.actionBox.actionsByTitle[title]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
             else {
+                continue
+            }
+
+            if QuillChatCopy.performRememberedCommand(title) {
+                try? FileManager.default.removeItem(at: commandURL)
+                continue
+            }
+
+            if QuillChatCopy.isRememberedCommandTitle(title),
+               shouldDeferRememberedCommand(commandURL)
+            {
+                continue
+            }
+
+            guard let action = automationBox.actionBox.actionsByTitle[title] else {
                 continue
             }
 
             try? FileManager.default.removeItem(at: commandURL)
             action.closure()
         }
+    }
+
+    private static func shouldDeferRememberedCommand(_ commandURL: URL) -> Bool {
+        let commandAge = (try? commandURL.resourceValues(forKeys: [.contentModificationDateKey]))
+            .flatMap(\.contentModificationDate)
+            .map { Date().timeIntervalSince($0) } ?? 0
+        return commandAge < 2
     }
 }
 

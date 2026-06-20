@@ -195,6 +195,7 @@ extension UILabel {
             quillFontStorage = newValue
             quillFontPointSize = newValue?.pointSize ?? 17
             invalidateIntrinsicContentSize()
+            quillNotifyTextMutation(true)
         }
     }
 }

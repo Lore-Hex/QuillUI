@@ -1255,9 +1255,12 @@ public enum QuillAccessibility {
 
     public static var isTrusted: Bool {
         #if os(Linux)
-        false
+        if let override = ProcessInfo.processInfo.environment["QUILLUI_ACCESSIBILITY_TRUSTED"] {
+            return ["1", "true", "yes", "on"].contains(override.lowercased())
+        }
+        return false
         #else
-        true
+        return true
         #endif
     }
 }

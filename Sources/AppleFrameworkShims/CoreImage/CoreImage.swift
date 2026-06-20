@@ -89,10 +89,21 @@ open class CIColor {
 
     public convenience init(cgColor: CGColor) {
         let components = cgColor.components ?? [0, 0, 0, 1]
-        let red = components.indices.contains(0) ? components[0] : 0
-        let green = components.indices.contains(1) ? components[1] : red
-        let blue = components.indices.contains(2) ? components[2] : red
-        let alpha = components.indices.contains(3) ? components[3] : 1
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+        let alpha: CGFloat
+        if components.count == 2 {
+            red = components[0]
+            green = components[0]
+            blue = components[0]
+            alpha = components[1]
+        } else {
+            red = components.indices.contains(0) ? components[0] : 0
+            green = components.indices.contains(1) ? components[1] : red
+            blue = components.indices.contains(2) ? components[2] : red
+            alpha = components.indices.contains(3) ? components[3] : 1
+        }
         self.init(red: red, green: green, blue: blue, alpha: alpha)
     }
 }

@@ -9,6 +9,23 @@ static inline void quill_signal_emit_clicked(gpointer instance) {
     g_signal_emit_by_name(instance, "clicked");
 }
 
+// Non-variadic typed wrapper around g_signal_connect_data. Importing both the
+// SwiftOpenUI CGTK module and this filtered CGtk4 module can leave Swift with
+// ambiguous overload context for the raw GLib function; this keeps call sites on
+// one unambiguous C symbol.
+static inline gulong quill_signal_connect_data(gpointer instance,
+                                               const char *detailed_signal,
+                                               GCallback c_handler,
+                                               gpointer data,
+                                               GClosureNotify destroy_data) {
+    return g_signal_connect_data(instance,
+                                 detailed_signal,
+                                 c_handler,
+                                 data,
+                                 destroy_data,
+                                 (GConnectFlags)0);
+}
+
 // GtkEditable is a GObject interface; Swift's typed-pointer handling
 // can't bind to interface types directly. These helpers accept a
 // gpointer to any GtkEditable-conforming widget (GtkEntry, GtkText,

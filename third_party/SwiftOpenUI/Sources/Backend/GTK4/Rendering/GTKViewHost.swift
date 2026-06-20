@@ -1543,7 +1543,19 @@ private func restoreFocusInfo(_ info: FocusInfo, in widget: UnsafeMutablePointer
     }
 
     guard let target else { return }
+    guard focusInfo(info, matches: target) else { return }
     restoreFocusAndSelection(info, to: target, suppressFocus: suppressFocus)
+}
+
+private func focusInfo(_ info: FocusInfo, matches target: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    guard gtk_swift_is_widget(target) != 0 else { return false }
+    if info.isScale {
+        return isScale(target)
+    }
+    if info.isTextView {
+        return isTextView(target)
+    }
+    return gtk_swift_widget_is_editable(target) != 0 && !isTextView(target)
 }
 
 private func debugLogRebuild(_ message: String) {
@@ -1642,8 +1654,9 @@ private func restoreFocusAndSelection(
         return
     }
     if info.isTextView {
+        guard isTextView(target) else { return }
         let tvPtr = UnsafeMutableRawPointer(target).assumingMemoryBound(to: GtkTextView.self)
-        let buffer = gtk_text_view_get_buffer(tvPtr)!
+        guard let buffer = gtk_text_view_get_buffer(tvPtr) else { return }
         if info.selectionStart >= 0 && info.selectionEnd >= 0 {
             // Restore selection range
             var selStart = GtkTextIter()
@@ -1658,6 +1671,7 @@ private func restoreFocusAndSelection(
             gtk_text_buffer_place_cursor(buffer, &iter)
         }
     } else {
+        guard gtk_swift_widget_is_editable(target) != 0 else { return }
         let editable = OpaquePointer(target)
         if info.selectionStart >= 0 && info.selectionEnd >= 0 {
             // Restore selection range (also moves cursor to selectionEnd)

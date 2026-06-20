@@ -98,6 +98,7 @@ public extension UIView {
         // addSublayer detaches first).
         layer.addSublayer(view.layer)
         #endif
+        quillNotifySubviewMutation()
     }
 
     /// Moves an existing subview to the back (front of `subviews`). Not a
@@ -113,6 +114,7 @@ public extension UIView {
             layer.insertSublayer(view.layer, below: nextViewLayer)
         }
         #endif
+        quillNotifySubviewMutation()
     }
 }
 

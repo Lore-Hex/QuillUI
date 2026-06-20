@@ -13,7 +13,17 @@ public struct SCNHitTestOption: Hashable, RawRepresentable, Sendable {
     public let rawValue: String
     public init(rawValue: String) { self.rawValue = rawValue }
 
-    public static let searchMode = SCNHitTestOption(rawValue: "SCNHitTestSearchMode")
+    public static let boundingBoxOnly = SCNHitTestOption(rawValue: "kHitTestBoundingBoxOnly")
+    public static let backFaceCulling = SCNHitTestOption(rawValue: "kHitTestBackFaceCulling")
+    public static let clipToZRange = SCNHitTestOption(rawValue: "kHitTestClipToZRange")
+    public static let ignoreChildNodes = SCNHitTestOption(rawValue: "kHitTestIgnoreChildNodes")
+    public static let ignoreHiddenNodes = SCNHitTestOption(rawValue: "kHitTestSkipHiddenNode")
+    public static let categoryBitMask = SCNHitTestOption(rawValue: "kHitTestCategoryBitMask")
+    public static let rootNode = SCNHitTestOption(rawValue: "kHitTestRootNode")
+    public static let ignoreLightArea = SCNHitTestOption(rawValue: "kHitTestResultIgnoreLightArea")
+    public static let firstFoundOnly = SCNHitTestOption(rawValue: "kHitTestFirstFoundOnly")
+    public static let sortResults = SCNHitTestOption(rawValue: "kHitTestSortResults")
+    public static let searchMode = SCNHitTestOption(rawValue: "kHitTestSearchMode")
 }
 
 public enum SCNHitTestSearchMode: Int, Sendable {
@@ -272,6 +282,13 @@ public extension SCNCameraControllerDelegate {
         return scene.quillRenderImage(width: resolvedWidth, height: resolvedHeight, pointOfView: pointOfView)
     }
 
+    public func snapshot() -> UIImage {
+        guard let image = quillRenderImage() else {
+            return UIImage(size: bounds.size)
+        }
+        return UIImage(cgImage: image, size: bounds.size)
+    }
+
     open override func draw(_ rect: CGRect) {
         guard let context = NSGraphicsContext.current?.cgContext,
               let image = quillRenderImage(
@@ -286,14 +303,44 @@ public extension SCNCameraControllerDelegate {
 
     public func hitTest(_ point: CGPoint, options: [SCNHitTestOption: Any]? = nil) -> [SCNHitTestResult] {
         guard let scene else { return [] }
-        let searchMode = SCNHitTestSearchMode(optionValue: options?[.searchMode]) ?? .closest
+        let options = SCNHitTestOptions(options)
         return scene.quillHitTest(
             point,
             width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
             height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
             pointOfView: pointOfView,
-            searchMode: searchMode
+            searchMode: options.searchMode,
+            categoryBitMask: options.categoryBitMask,
+            rootNode: options.rootNode
         )
+    }
+
+    public func projectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let projected = scene.quillProjectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return projected
+    }
+
+    public func unprojectPoint(_ point: SCNVector3) -> SCNVector3 {
+        guard let scene,
+              let unprojected = scene.quillUnprojectPoint(
+                point,
+                width: QuillSceneKitRenderSupport.pixelCount(bounds.width),
+                height: QuillSceneKitRenderSupport.pixelCount(bounds.height),
+                pointOfView: pointOfView
+              )
+        else {
+            return SCNVector3()
+        }
+        return unprojected
     }
 
     private func syncDefaultCameraController() {
@@ -433,6 +480,40 @@ private extension SCNHitTestSearchMode {
             self.init(rawValue: value)
         case let value as NSNumber:
             self.init(rawValue: value.intValue)
+        default:
+            return nil
+        }
+    }
+}
+
+private struct SCNHitTestOptions {
+    var searchMode: SCNHitTestSearchMode = .closest
+    var categoryBitMask: Int?
+    var rootNode: SCNNode?
+
+    init(_ options: [SCNHitTestOption: Any]?) {
+        guard let options else { return }
+        searchMode = SCNHitTestSearchMode(optionValue: options[.searchMode]) ?? .closest
+        categoryBitMask = Self.integer(from: options[.categoryBitMask])
+        rootNode = options[.rootNode] as? SCNNode
+    }
+
+    private static func integer(from value: Any?) -> Int? {
+        switch value {
+        case let value as Int:
+            return value
+        case let value as UInt:
+            return value <= UInt(Int.max) ? Int(value) : nil
+        case let value as Int32:
+            return Int(value)
+        case let value as UInt32:
+            return Int(value)
+        case let value as Int64:
+            return Int(exactly: value)
+        case let value as UInt64:
+            return Int(exactly: value)
+        case let value as NSNumber:
+            return value.intValue
         default:
             return nil
         }

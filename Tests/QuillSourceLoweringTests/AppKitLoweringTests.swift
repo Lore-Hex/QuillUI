@@ -38,6 +38,53 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("func onSubmitCompletion(scheduledTyping: Bool)"))
     }
 
+    @Test("NSApplicationDelegate classes become constructible for SwiftUI adaptor")
+    func appDelegateAdaptorConformance() {
+        let source = """
+        #if os(macOS)
+        import SwiftUI
+
+        class PanelManager: NSObject, NSApplicationDelegate {
+            var panel: FloatingPanel!
+
+            override init() {
+                super.init()
+                Task {
+                    await NSApp.setActivationPolicy(.regular)
+                    await handleNewMessages()
+                }
+            }
+
+            private func handleNewMessages() async {}
+
+            @MainActor
+            @objc func togglePanel() {}
+        }
+        #endif
+        """
+        let lowering = AppKitLowering()
+        let lowered = lowering.lower(source)
+        #expect(lowered.contains("#if os(macOS) || os(Linux)"))
+        #expect(lowered.contains("class PanelManager: NSObject, NSApplicationDelegate, QuillSelectorDispatching, QuillReusableView {"))
+        #expect(lowered.contains("nonisolated required override init()"))
+        #expect(lowered.contains("MainActor.assumeIsolated"))
+        #expect(lowered.contains("func togglePanel()"))
+        #expect(!lowered.contains("@objc"))
+        #expect(lowering.lower(lowered) == lowered)
+    }
+
+    @Test("NSApplicationDelegate lowering synthesizes reusable no-arg init")
+    func appDelegateSynthesizesNoArgInit() {
+        let source = """
+        class AppDelegate: NSObject, NSApplicationDelegate {
+            var launchCount = 0
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("class AppDelegate: NSObject, NSApplicationDelegate, QuillReusableView {"))
+        #expect(lowered.contains("nonisolated required override init() { super.init() }"))
+    }
+
     @Test("@objc after a non-brace statement keeps its newline (no consecutive-statements merge)")
     func objcTriviaPreserved() {
         let source = """
@@ -535,7 +582,7 @@ struct AppKitLoweringTests {
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
 
-    @Test("nonisolated pass leaves non-matching members alone while still synthesizing required init isolation")
+    @Test("nonisolated pass leaves non-matching members and non-overrides alone")
     func nonisolatedLeavesOthersAlone() {
         let source = """
         class C: NSObject {
@@ -548,11 +595,13 @@ struct AppKitLoweringTests {
         let lowered = AppKitLowering().lower(source)
         // `var description = 0` is not an override and not the NSObject `String` var;
         // `isEqual(_: AnyObject)` isn't NSObject's `isEqual(_: Any?)`; `hash(into:)`
-        // is Hashable, not the NSObject `var hash`; `init(frame:)` is not annotated.
-        // The class is NSObject-direct, so a separate no-arg init is synthesized to
-        // match NSObject.init's nonisolated isolation.
+        // is Hashable, not the NSObject `var hash`; `init(frame:)` is a forest-only
+        // designated init this pass never annotates.
         #expect(!lowered.contains("nonisolated override func isEqual(_ object: AnyObject)"))
         #expect(!lowered.contains("nonisolated override init(frame: Int)"))
+        #expect(!lowered.contains("nonisolated var description"))
+        // The class itself is still NSObject-direct, so it may receive the generic
+        // no-arg init-isolation shim.
         #expect(lowered.contains("nonisolated override init() { super.init() }"))
     }
 
@@ -1159,8 +1208,8 @@ struct AppKitLoweringTests {
         #expect(methodPos > extOpen) // still in the extension
     }
 
-    @Test("override of forwardingTarget(for:) is preserved")
-    func forwardingTargetOverridePreserved() {
+    @Test("override of forwardingTarget(for:) is retained against shim class-body member")
+    func forwardingTargetOverrideRetained() {
         let source = """
         open class V: UITextView {
             override open func forwardingTarget(for aSelector: Selector!) -> Any? {
@@ -1169,18 +1218,17 @@ struct AppKitLoweringTests {
         }
         """
         let lowered = AppKitLowering().lower(source)
-        #expect(lowered.contains("override open func forwardingTarget(for aSelector: Selector!)"))
-        #expect(!lowered.contains("override public func forwardingTarget"))
-        // The decl keeps its own line + indentation (no merge onto the brace line).
+        #expect(lowered.contains("func forwardingTarget(for aSelector: Selector!)"))
         #expect(lowered.contains("override open func forwardingTarget"))
+        // The decl keeps its own line + indentation (no merge onto the brace line).
         #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
     }
 
-    @Test("forwardingTarget override is preserved with a class-body super call (BodyRangesTextView)")
-    func forwardingTargetOverridePreservedWithSuperCall() {
+    @Test("forwardingTarget override is retained even with a class-body super call")
+    func forwardingTargetOverrideWithSuperCall() {
         // The exact BodyRangesTextView shape: an `override open func forwardingTarget`
-        // whose body calls `super.forwardingTarget`. The shim now declares this in
-        // UIResponder's class body, so the override must stay present.
+        // whose body calls `super.forwardingTarget`. The shim now provides this as a
+        // class-body member, so the override is valid and must be retained.
         let source = """
         open class BodyRangesTextView: UITextView {
             override open func forwardingTarget(for aSelector: Selector!) -> Any? {
@@ -1337,7 +1385,7 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("override public init()"))
         #expect(!lowered.contains("nonisolated override public init()"))
         // And no second init is synthesized (the class already declares init()).
-        #expect(!lowered.contains("Auto-generated by AppKitLowering: nonisolated init()"))
+        #expect(!lowered.contains("Auto-generated by AppKitLowering"))
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
 
@@ -1385,13 +1433,14 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("nonisolated override init() { super.init() }"))
         // Recent annotated.
         #expect(lowered.contains("nonisolated override public init()"))
-        // Installed gets an unavailable synthesized nonisolated override init()
-        // despite having init(arg:); the fallback body cannot initialize `let info`.
+        // Installed gets an unavailable synthesized nonisolated override init() despite
+        // having init(arg:), because its stored `let info` cannot be initialized by a
+        // callable no-arg init.
         let installedStart = lowered.range(of: "class InstalledStickerPackDataSource")!.lowerBound
         let recentStart = lowered.range(of: "class RecentStickerPackDataSource")!.lowerBound
         let installedBody = String(lowered[installedStart..<recentStart])
         #expect(installedBody.contains("@available(*, unavailable)"))
-        #expect(installedBody.contains("nonisolated override init() { fatalError(\"init() is unavailable\") }"))
+        #expect(installedBody.contains(#"nonisolated override init() { fatalError("init() is unavailable") }"#))
         #expect(AppKitLowering().lower(lowered) == lowered)   // idempotent
     }
 
@@ -1413,7 +1462,7 @@ struct AppKitLoweringTests {
         let subStart = lowered.range(of: "class ActionSheetDisplayableError")!.lowerBound
         let subBody = String(lowered[subStart...])
         #expect(subBody.contains("@available(*, unavailable)"))
-        #expect(subBody.contains("nonisolated override init() { fatalError(\"init() is unavailable\") }"))
+        #expect(subBody.contains(#"nonisolated override init() { fatalError("init() is unavailable") }"#))
         // The Error-root base itself is NOT given a synthesized init (it overrides nothing).
         let baseBody = String(lowered[lowered.startIndex..<subStart])
         #expect(!baseBody.contains("nonisolated override init"))
@@ -1450,6 +1499,6 @@ struct AppKitLoweringTests {
         _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
         let leaf = try String(contentsOf: leafURL, encoding: .utf8)
         #expect(leaf.contains("@available(*, unavailable)"))
-        #expect(leaf.contains("nonisolated override init() { fatalError(\"init() is unavailable\") }"))
+        #expect(leaf.contains(#"nonisolated override init() { fatalError("init() is unavailable") }"#))
     }
 }

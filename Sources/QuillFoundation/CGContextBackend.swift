@@ -18,13 +18,19 @@ public protocol QuillCGContextBackend: AnyObject {
     func translateBy(x: CGFloat, y: CGFloat)
     func scaleBy(x: CGFloat, y: CGFloat)
     func rotate(by angle: CGFloat)
+    func concatenate(_ transform: CGAffineTransform)
 
     func setFillColor(_ rgba: [CGFloat])
     func setStrokeColor(_ rgba: [CGFloat])
     func setLineWidth(_ width: CGFloat)
     func setLineCap(_ cap: CGLineCap)
     func setLineJoin(_ join: CGLineJoin)
+    func setMiterLimit(_ limit: CGFloat)
+    func setLineDash(phase: CGFloat, lengths: [CGFloat])
+    func setShouldAntialias(_ shouldAntialias: Bool)
     func setAlpha(_ alpha: CGFloat)
+    func setBlendMode(_ mode: CGBlendMode)
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?)
 
     func fill(_ rect: CGRect)
     func fillEllipse(in rect: CGRect)
@@ -39,16 +45,55 @@ public protocol QuillCGContextBackend: AnyObject {
     func addLine(to point: CGPoint)
     func addRect(_ rect: CGRect)
     func addEllipse(in rect: CGRect)
+    func addQuadCurve(to end: CGPoint, control: CGPoint)
+    func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint)
     func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                 endAngle: CGFloat, clockwise: Bool)
     func fillPath()
+    func fillPath(using rule: CGPathFillRule)
     func strokePath()
     func clip()
+    func clip(using rule: CGPathFillRule)
     func clip(to rect: CGRect)
 
     /// `image` is the CGContext.draw(_:in:) argument (typed Any in the shadow);
     /// implementations downcast to CGImage and draw `quillBGRAPixels` if set.
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality)
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?)
+    func endTransparencyLayer()
+}
+
+public extension QuillCGContextBackend {
+    func concatenate(_ transform: CGAffineTransform) {
+        _ = transform
+    }
+
+    func setMiterLimit(_ limit: CGFloat) {
+        _ = limit
+    }
+
+    func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        _ = (phase, lengths)
+    }
+
+    func setShouldAntialias(_ shouldAntialias: Bool) {
+        _ = shouldAntialias
+    }
+
+    func setBlendMode(_ mode: CGBlendMode) {
+        _ = mode
+    }
+
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        _ = (offset, blur, colorRGBA)
+    }
+
+    func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        _ = auxiliaryInfo
+    }
+
+    func endTransparencyLayer() {}
 }
 
 public protocol QuillCGImageProducingBackend: AnyObject {
@@ -124,13 +169,19 @@ public final class QuillBitmapCGContextBackend: QuillCGContextBackend, QuillCGIm
     public func addLine(to point: CGPoint) { _ = point }
     public func addRect(_ rect: CGRect) { _ = rect }
     public func addEllipse(in rect: CGRect) { _ = rect }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) { _ = (end, control) }
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
+        _ = (end, control1, control2)
+    }
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                        endAngle: CGFloat, clockwise: Bool) {
         _ = (center, radius, startAngle, endAngle, clockwise)
     }
     public func fillPath() {}
+    public func fillPath(using rule: CGPathFillRule) { _ = rule }
     public func strokePath() {}
     public func clip() {}
+    public func clip(using rule: CGPathFillRule) { _ = rule }
     public func clip(to rect: CGRect) { _ = rect }
 
     public func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality) {

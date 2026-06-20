@@ -342,14 +342,12 @@ public enum UIAccessibilityContrast: Int {
     public internal(set) weak var owningView: UIView?
     public var identifier: String = ""
 
-    /// View-created guides (safe area / layout margins) alias the owning view:
-    /// Linux draws no status bar, notch, or home indicator, so the safe area
-    /// IS the view's bounds, and pinning to the guide must solve exactly like
-    /// pinning to the view. Free-standing guides bind anchors to the guide
-    /// object itself; the native layout pass skips items it cannot resolve to
-    /// a view, so their constraints are captured but inert.
+    /// View-created guides keep their own identity so the layout pass can
+    /// distinguish safe-area edges from layout-margin edges. Free-standing
+    /// guides added with addLayoutGuide(_:) still alias the owning view's full
+    /// bounds until Quill has a real guide solver.
     weak var quillAliasedView: UIView?
-    private var quillAnchorItem: AnyObject { quillAliasedView ?? self }
+    private var quillAnchorItem: AnyObject { self }
 
     // Fresh bound anchor per access — same pattern as UIView's anchors and
     // QuillAppKit's NSLayoutGuide.
@@ -514,6 +512,10 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
             if oldValue.size != frame.size {
                 setNeedsLayout()
             }
+            if oldValue != frame {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
+            }
             #if os(Linux)
             _layer?.frame = frame
             #endif
@@ -523,6 +525,10 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         didSet {
             if oldValue.size != bounds.size {
                 setNeedsLayout()
+            }
+            if oldValue != bounds {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
             }
             #if os(Linux)
             _layer?.bounds = bounds
@@ -587,6 +593,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         _layer?.removeFromSuperlayer()
         #endif
         oldSuperview?.setNeedsLayout()
+        oldSuperview?.quillNotifySubviewMutation()
     }
     // `open` (not just `public`): a classic overridable Apple UIView property
     // — Signal subclasses override backgroundColor with didSet observers.
@@ -604,6 +611,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         // place (so overrides can observe the new child).
         didAddSubview(view)
         setNeedsLayout()
+        quillNotifySubviewMutation()
     }
 
     // MARK: Subview observation hooks
@@ -658,6 +666,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         // Apple fires didAddSubview for every insertion path.
         didAddSubview(view)
         setNeedsLayout()
+        quillNotifySubviewMutation()
     }
 
     /// Apple requires `siblingSubview` to already be a child (behavior is
@@ -790,9 +799,67 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // UIView properties — Signal subclasses override them (often with didSet
     // observers) and that requires the stored property itself to be
     // overridable cross-module.
-    open var isHidden: Bool = false
-    open var isUserInteractionEnabled: Bool = true
-    open var alpha: CGFloat = 1.0
+    public var quillViewMutationHandler: ((UIView) -> Void)?
+    private var quillViewMutationHandlers: [String: (UIView) -> Void] = [:]
+    public func quillNotifyViewMutation() {
+        quillViewMutationHandler?(self)
+        for key in quillViewMutationHandlers.keys.sorted() {
+            quillViewMutationHandlers[key]?(self)
+        }
+    }
+    public func quillAppendViewMutationHandler(_ handler: @escaping (UIView) -> Void) {
+        let previous = quillViewMutationHandler
+        quillViewMutationHandler = { view in
+            previous?(view)
+            handler(view)
+        }
+    }
+    public func quillSetViewMutationHandler(
+        _ key: String,
+        _ handler: @escaping (UIView) -> Void
+    ) {
+        quillViewMutationHandlers[key] = handler
+    }
+    public var quillSubviewMutationHandler: ((UIView) -> Void)?
+    private var quillSubviewMutationHandlers: [String: (UIView) -> Void] = [:]
+    public func quillNotifySubviewMutation() {
+        quillSubviewMutationHandler?(self)
+        for key in quillSubviewMutationHandlers.keys.sorted() {
+            quillSubviewMutationHandlers[key]?(self)
+        }
+    }
+    public func quillAppendSubviewMutationHandler(_ handler: @escaping (UIView) -> Void) {
+        let previous = quillSubviewMutationHandler
+        quillSubviewMutationHandler = { view in
+            previous?(view)
+            handler(view)
+        }
+    }
+    public func quillSetSubviewMutationHandler(
+        _ key: String,
+        _ handler: @escaping (UIView) -> Void
+    ) {
+        quillSubviewMutationHandlers[key] = handler
+    }
+
+    open var isHidden: Bool = false {
+        didSet {
+            if oldValue != isHidden {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
+            }
+        }
+    }
+    open var isUserInteractionEnabled: Bool = true {
+        didSet {
+            if oldValue != isUserInteractionEnabled { quillNotifyViewMutation() }
+        }
+    }
+    open var alpha: CGFloat = 1.0 {
+        didSet {
+            if oldValue != alpha { quillNotifyViewMutation() }
+        }
+    }
     open var tintColor: UIColor?
     open func tintColorDidChange() {}
 
@@ -831,19 +898,22 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     /// value. 8pt on every edge is UIKit's default.
     public var quillLayoutMargins = QuillEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
 
-    /// Guides added via addLayoutGuide(_:). Free-standing guides keep their
-    /// anchors bound to the guide object itself, which the native layout pass
-    /// cannot (yet) resolve to a view — their constraints are captured but
-    /// inert (see UILayoutGuide.quillAliasedView).
+    /// Guides added via addLayoutGuide(_:). Until Quill has a full guide solver,
+    /// view-owned guides alias the owning view so constraints through common
+    /// content guides still produce usable frames instead of inert zero rects.
     public private(set) var layoutGuides: [UILayoutGuide] = []
     open func addLayoutGuide(_ layoutGuide: UILayoutGuide) {
         layoutGuide.owningView?.removeLayoutGuide(layoutGuide)
         layoutGuides.append(layoutGuide)
         layoutGuide.owningView = self
+        layoutGuide.quillAliasedView = self
     }
     open func removeLayoutGuide(_ layoutGuide: UILayoutGuide) {
         layoutGuides.removeAll { $0 === layoutGuide }
-        if layoutGuide.owningView === self { layoutGuide.owningView = nil }
+        if layoutGuide.owningView === self {
+            layoutGuide.owningView = nil
+            layoutGuide.quillAliasedView = nil
+        }
     }
 
     // Computed so each anchor is bound to this view + its attribute (the
@@ -895,6 +965,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
 
     private func quillApplyDirectSubviewConstraints() {
         guard !subviews.isEmpty else { return }
+        quillInferOwnSizeFromEdgePinnedSubviewIfNeeded()
         for subview in subviews {
             let resolved = quillResolvedConstraintFrame(for: subview)
             var nextFrame = subview.frame
@@ -904,6 +975,29 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
             }
             if let height = resolved.height {
                 nextFrame.size.height = max(0, height)
+            }
+
+            if resolved.width == nil, !(resolved.left != nil && resolved.right != nil), nextFrame.width == 0 {
+                let fitted = subview.quillImplicitLayoutSize(
+                    proposed: CGSize(
+                        width: CGFloat.greatestFiniteMagnitude,
+                        height: nextFrame.height > 0 ? nextFrame.height : CGFloat.greatestFiniteMagnitude
+                    )
+                )
+                if fitted.width > 0, fitted.width.isFinite {
+                    nextFrame.size.width = fitted.width
+                }
+            }
+            if resolved.height == nil, !(resolved.top != nil && resolved.bottom != nil), nextFrame.height == 0 {
+                let fitted = subview.quillImplicitLayoutSize(
+                    proposed: CGSize(
+                        width: nextFrame.width > 0 ? nextFrame.width : CGFloat.greatestFiniteMagnitude,
+                        height: CGFloat.greatestFiniteMagnitude
+                    )
+                )
+                if fitted.height > 0, fitted.height.isFinite {
+                    nextFrame.size.height = fitted.height
+                }
             }
 
             if let left = resolved.left, let right = resolved.right {
@@ -932,6 +1026,131 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
                 subview.frame = nextFrame
             }
         }
+    }
+
+    private func quillInferOwnSizeFromEdgePinnedSubviewIfNeeded() {
+        guard bounds.width == 0 || bounds.height == 0 else { return }
+        guard let subview = subviews.first(where: { !$0.isHidden }) else { return }
+
+        let resolved = quillResolvedConstraintFrame(for: subview)
+        var nextFrame = frame
+        var changed = false
+
+        if bounds.width == 0, resolved.left != nil, resolved.right != nil {
+            let fitted = subview.quillEstimatedFittingSize(
+                proposed: CGSize(width: CGFloat.greatestFiniteMagnitude, height: max(bounds.height, 1))
+            )
+            let pinnedSize = quillSizeContributionFromEdgePinnedChild(subview, childSize: fitted)
+            let width = pinnedSize.width > 0 ? pinnedSize.width : fitted.width
+            if width > 0, width.isFinite {
+                nextFrame.size.width = width
+                if let trailing = quillResolvedOwnConstraintValue(for: .trailing) ?? quillResolvedOwnConstraintValue(for: .right) {
+                    nextFrame.origin.x = trailing - width
+                }
+                changed = true
+            }
+        }
+
+        if bounds.height == 0, resolved.top != nil, resolved.bottom != nil {
+            let proposedWidth = nextFrame.size.width > 0 ? nextFrame.size.width : max(bounds.width, 1)
+            let fitted = subview.quillEstimatedFittingSize(
+                proposed: CGSize(width: proposedWidth, height: CGFloat.greatestFiniteMagnitude)
+            )
+            let pinnedSize = quillSizeContributionFromEdgePinnedChild(subview, childSize: fitted)
+            let height = pinnedSize.height > 0 ? pinnedSize.height : fitted.height
+            if height > 0, height.isFinite {
+                nextFrame.size.height = height
+                if let bottom = quillResolvedOwnConstraintValue(for: .bottom) {
+                    nextFrame.origin.y = bottom - height
+                }
+                changed = true
+            }
+        }
+
+        if changed, frame != nextFrame {
+            frame = nextFrame
+        }
+    }
+
+    func quillEstimatedFittingSize(proposed: CGSize) -> CGSize {
+        var measured = sizeThatFits(proposed)
+        let dimensionBounds = quillDimensionBoundsFromConstraints()
+        measured.width = quillApplyDimensionBounds(measured.width, bounds: dimensionBounds.width)
+        measured.height = quillApplyDimensionBounds(measured.height, bounds: dimensionBounds.height)
+
+        guard !subviews.isEmpty else { return measured }
+
+        var union = CGRect.null
+        for subview in subviews where !subview.isHidden {
+            let resolved = quillResolvedConstraintFrame(for: subview)
+            var childFrame = subview.frame
+            if let left = resolved.left {
+                childFrame.origin.x = left
+            }
+            if let top = resolved.top {
+                childFrame.origin.y = top
+            }
+            if let width = resolved.width {
+                childFrame.size.width = width
+            }
+            if let height = resolved.height {
+                childFrame.size.height = height
+            }
+
+            let childSize = subview.quillEstimatedFittingSize(proposed: CGSize(
+                width: childFrame.width > 0 ? childFrame.width : proposed.width,
+                height: childFrame.height > 0 ? childFrame.height : proposed.height
+            ))
+            if childFrame.width == 0 {
+                childFrame.size.width = childSize.width
+            }
+            if childFrame.height == 0 {
+                childFrame.size.height = childSize.height
+            }
+
+            let pinnedSize = quillSizeContributionFromEdgePinnedChild(subview, childSize: childSize)
+            if pinnedSize.width > 0, pinnedSize.width.isFinite {
+                measured.width = max(measured.width, pinnedSize.width)
+            }
+            if pinnedSize.height > 0, pinnedSize.height.isFinite {
+                measured.height = max(measured.height, pinnedSize.height)
+            }
+
+            guard childFrame.width > 0 || childFrame.height > 0 else { continue }
+            union = union.union(childFrame)
+        }
+
+        if !union.isNull {
+            measured.width = max(measured.width, union.maxX)
+            measured.height = max(measured.height, union.maxY)
+        }
+        measured.width = quillApplyDimensionBounds(measured.width, bounds: dimensionBounds.width)
+        measured.height = quillApplyDimensionBounds(measured.height, bounds: dimensionBounds.height)
+        return measured
+    }
+
+    private func quillImplicitLayoutSize(proposed: CGSize) -> CGSize {
+        let intrinsic = intrinsicContentSize
+        var size = CGSize.zero
+
+        if intrinsic.width != UIView.noIntrinsicMetric, intrinsic.width > 0, intrinsic.width.isFinite {
+            size.width = intrinsic.width
+        }
+        if intrinsic.height != UIView.noIntrinsicMetric, intrinsic.height > 0, intrinsic.height.isFinite {
+            size.height = intrinsic.height
+        }
+
+        if size.width == 0 || size.height == 0 {
+            let fitted = sizeThatFits(proposed)
+            if size.width == 0, fitted.width > 0, fitted.width.isFinite {
+                size.width = fitted.width
+            }
+            if size.height == 0, fitted.height > 0, fitted.height.isFinite {
+                size.height = fitted.height
+            }
+        }
+
+        return size
     }
 
     private func quillResolvedConstraintFrame(for subview: UIView) -> QuillConstraintFrame {
@@ -967,6 +1186,181 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         return resolved
     }
 
+    private struct QuillDimensionBounds {
+        var width = QuillSingleDimensionBounds()
+        var height = QuillSingleDimensionBounds()
+    }
+
+    private struct QuillSingleDimensionBounds {
+        var minimum: CGFloat = 0
+        var maximum: CGFloat?
+    }
+
+    private func quillDimensionBoundsFromConstraints() -> QuillDimensionBounds {
+        var bounds = QuillDimensionBounds()
+        for constraint in NSLayoutConstraint.quillActive {
+            guard let first = constraint.quillFirstAnchor,
+                  first.quillItem === self,
+                  constraint.quillSecondAnchor == nil,
+                  first.quillAttribute == .width || first.quillAttribute == .height else {
+                continue
+            }
+
+            var dimension = first.quillAttribute == .width ? bounds.width : bounds.height
+            switch constraint.quillRelation {
+            case .equal:
+                dimension.minimum = max(dimension.minimum, constraint.constant)
+                dimension.maximum = min(dimension.maximum ?? constraint.constant, constraint.constant)
+            case .greaterThanOrEqual:
+                dimension.minimum = max(dimension.minimum, constraint.constant)
+            case .lessThanOrEqual:
+                dimension.maximum = min(dimension.maximum ?? constraint.constant, constraint.constant)
+            }
+
+            if first.quillAttribute == .width {
+                bounds.width = dimension
+            } else {
+                bounds.height = dimension
+            }
+        }
+        return bounds
+    }
+
+    private func quillApplyDimensionBounds(_ value: CGFloat, bounds: QuillSingleDimensionBounds) -> CGFloat {
+        var result = value.isFinite && value > 0 ? value : 0
+        result = max(result, bounds.minimum)
+        if let maximum = bounds.maximum {
+            result = min(result, maximum)
+        }
+        return result
+    }
+
+    private func quillSizeContributionFromEdgePinnedChild(_ child: UIView, childSize: CGSize) -> CGSize {
+        var leftInset: CGFloat?
+        var rightInset: CGFloat?
+        var topInset: CGFloat?
+        var bottomInset: CGFloat?
+
+        for constraint in NSLayoutConstraint.quillActive where constraint.quillRelation == .equal {
+            guard let first = constraint.quillFirstAnchor,
+                  first.quillItem === child,
+                  let second = constraint.quillSecondAnchor,
+                  let edge = quillEdgeConstraintContribution(
+                    first: first.quillAttribute,
+                    second: second,
+                    constant: constraint.constant
+                  ) else {
+                continue
+            }
+
+            switch edge {
+            case .left(let inset):
+                leftInset = inset
+            case .right(let inset):
+                rightInset = inset
+            case .top(let inset):
+                topInset = inset
+            case .bottom(let inset):
+                bottomInset = inset
+            }
+        }
+
+        return CGSize(
+            width: (leftInset != nil && rightInset != nil) ? (leftInset! + childSize.width + rightInset!) : 0,
+            height: (topInset != nil && bottomInset != nil) ? (topInset! + childSize.height + bottomInset!) : 0
+        )
+    }
+
+    private enum QuillEdgeContribution {
+        case left(CGFloat)
+        case right(CGFloat)
+        case top(CGFloat)
+        case bottom(CGFloat)
+    }
+
+    private func quillEdgeConstraintContribution(
+        first: QuillLayoutAttribute,
+        second: any QuillLayoutAnchorReading,
+        constant: CGFloat
+    ) -> QuillEdgeContribution? {
+        let secondAttribute = second.quillAttribute
+        if let guide = second.quillItem as? UILayoutGuide,
+           let owner = guide.quillAliasedView ?? guide.owningView,
+           owner === self,
+           (guide === layoutMarginsGuide || guide.identifier == "UIViewLayoutMarginsGuide") {
+            switch (first, secondAttribute) {
+            case (.left, .left), (.leading, .leading):
+                return .left(max(0, quillLayoutMargins.left + constant))
+            case (.right, .right), (.trailing, .trailing):
+                return .right(max(0, quillLayoutMargins.right - constant))
+            case (.top, .top):
+                return .top(max(0, quillLayoutMargins.top + constant))
+            case (.bottom, .bottom):
+                return .bottom(max(0, quillLayoutMargins.bottom - constant))
+            default:
+                break
+            }
+        }
+
+        let guideFrame = (second.quillItem as? UILayoutGuide).flatMap { quillLayoutFrame(for: $0) }
+        let isSelfEdge = second.quillItem === self
+
+        switch (first, secondAttribute) {
+        case (.left, .left), (.leading, .leading):
+            if isSelfEdge {
+                return .left(max(0, constant))
+            }
+            if let guideFrame {
+                return .left(max(0, guideFrame.minX + constant))
+            }
+        case (.right, .right), (.trailing, .trailing):
+            if isSelfEdge {
+                return .right(max(0, -constant))
+            }
+            if let guideFrame {
+                return .right(max(0, bounds.width - (guideFrame.maxX + constant)))
+            }
+        case (.top, .top):
+            if isSelfEdge {
+                return .top(max(0, constant))
+            }
+            if let guideFrame {
+                return .top(max(0, guideFrame.minY + constant))
+            }
+        case (.bottom, .bottom):
+            if isSelfEdge {
+                return .bottom(max(0, -constant))
+            }
+            if let guideFrame {
+                return .bottom(max(0, bounds.height - (guideFrame.maxY + constant)))
+            }
+        default:
+            break
+        }
+        return nil
+    }
+
+    private func quillResolvedOwnConstraintValue(for attribute: QuillLayoutAttribute) -> CGFloat? {
+        guard let superview else { return nil }
+        for constraint in NSLayoutConstraint.quillActive where constraint.quillRelation == .equal {
+            guard let first = constraint.quillFirstAnchor,
+                  first.quillItem === self,
+                  first.quillAttribute == attribute else {
+                continue
+            }
+            guard let second = constraint.quillSecondAnchor,
+                  let secondView = second.quillItem as? UIView,
+                  secondView === superview else {
+                continue
+            }
+            guard let value = superview.quillLayoutValue(for: second) else {
+                continue
+            }
+            return value * constraint.quillMultiplier + constraint.constant
+        }
+        return nil
+    }
+
     private func quillResolvedConstraintValue(for constraint: NSLayoutConstraint) -> CGFloat? {
         let constant = constraint.constant
         guard let second = constraint.quillSecondAnchor else {
@@ -979,14 +1373,29 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     }
 
     private func quillLayoutValue(for anchor: any QuillLayoutAnchorReading) -> CGFloat? {
-        guard let view = anchor.quillItem as? UIView else {
-            return nil
-        }
         let frame: CGRect
-        if view === self {
-            frame = CGRect(origin: .zero, size: bounds.size)
-        } else if view.superview === self {
-            frame = view.frame
+        if let guide = anchor.quillItem as? UILayoutGuide {
+            guard let guideFrame = quillLayoutFrame(for: guide) else {
+                return nil
+            }
+            frame = guideFrame
+        } else if let view = anchor.quillItem as? UIView {
+            if view === self {
+                frame = CGRect(origin: .zero, size: bounds.size)
+            } else if view.superview === self {
+                frame = view.frame
+            } else if quillIsDescendant(of: view) {
+                let ancestorOrigin = view.quillAbsoluteOrigin()
+                let ownOrigin = quillAbsoluteOrigin()
+                frame = CGRect(
+                    x: ancestorOrigin.x - ownOrigin.x,
+                    y: ancestorOrigin.y - ownOrigin.y,
+                    width: view.bounds.width,
+                    height: view.bounds.height
+                )
+            } else {
+                return nil
+            }
         } else {
             return nil
         }
@@ -1011,6 +1420,61 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         case .firstBaseline, .lastBaseline, .notAnAttribute:
             return nil
         }
+    }
+
+    private func quillLayoutFrame(for guide: UILayoutGuide) -> CGRect? {
+        guard let owner = guide.quillAliasedView ?? guide.owningView else {
+            return nil
+        }
+
+        let ownerFrame: CGRect
+        if owner === self {
+            ownerFrame = CGRect(origin: .zero, size: owner.bounds.size)
+        } else if owner.superview === self {
+            ownerFrame = owner.frame
+        } else if quillIsDescendant(of: owner) {
+            let ancestorOrigin = owner.quillAbsoluteOrigin()
+            let ownOrigin = quillAbsoluteOrigin()
+            ownerFrame = CGRect(
+                x: ancestorOrigin.x - ownOrigin.x,
+                y: ancestorOrigin.y - ownOrigin.y,
+                width: owner.bounds.width,
+                height: owner.bounds.height
+            )
+        } else {
+            return nil
+        }
+
+        if guide === owner.layoutMarginsGuide || guide.identifier == "UIViewLayoutMarginsGuide" {
+            return CGRect(
+                x: ownerFrame.minX + owner.quillLayoutMargins.left,
+                y: ownerFrame.minY + owner.quillLayoutMargins.top,
+                width: max(0, ownerFrame.width - owner.quillLayoutMargins.left - owner.quillLayoutMargins.right),
+                height: max(0, ownerFrame.height - owner.quillLayoutMargins.top - owner.quillLayoutMargins.bottom)
+            )
+        }
+
+        return ownerFrame
+    }
+
+    private func quillIsDescendant(of ancestor: UIView) -> Bool {
+        var current = superview
+        while let view = current {
+            if view === ancestor { return true }
+            current = view.superview
+        }
+        return false
+    }
+
+    private func quillAbsoluteOrigin() -> CGPoint {
+        var origin = frame.origin
+        var current = superview
+        while let view = current {
+            origin.x += view.frame.origin.x
+            origin.y += view.frame.origin.y
+            current = view.superview
+        }
+        return origin
     }
 
     /// Apple's UIView is its own layer's delegate and implements
@@ -1094,25 +1558,47 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     nonisolated(unsafe) public static var areAnimationsEnabled: Bool = true
     public static var inheritedAnimationDuration: TimeInterval = 0
 
+    private var quillHorizontalCompressionResistancePriority: NSLayoutConstraint.Priority = .defaultHigh
+    private var quillVerticalCompressionResistancePriority: NSLayoutConstraint.Priority = .defaultHigh
+    private var quillHorizontalContentHuggingPriority: NSLayoutConstraint.Priority = .defaultLow
+    private var quillVerticalContentHuggingPriority: NSLayoutConstraint.Priority = .defaultLow
+
     public func setContentCompressionResistancePriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
-        _ = priority
-        _ = axis
+        switch axis {
+        case .horizontal:
+            quillHorizontalCompressionResistancePriority = priority
+        case .vertical:
+            quillVerticalCompressionResistancePriority = priority
+        }
     }
 
-    /// Sibling of setContentCompressionResistancePriority above, same
-    /// posture: recorded-intent no-op — the native layout pass does not
-    /// consume hugging/compression priorities yet. (SignalUI calls this
-    /// bare from UIView subclass bodies — SelectionIndicatorView, the
-    /// autoSetDimension helpers in UIView+AutoLayout — so it must be a
-    /// class member, not a global.)
+    public func contentCompressionResistancePriority(for axis: NSLayoutConstraint.Axis) -> NSLayoutConstraint.Priority {
+        switch axis {
+        case .horizontal:
+            return quillHorizontalCompressionResistancePriority
+        case .vertical:
+            return quillVerticalCompressionResistancePriority
+        }
+    }
+
+    /// Stored faithfully so lightweight renderers can honor common UIKit
+    /// stack-row intent even before a full constraint solver exists.
     public func setContentHuggingPriority(_ priority: NSLayoutConstraint.Priority, for axis: NSLayoutConstraint.Axis) {
-        _ = priority
-        _ = axis
+        switch axis {
+        case .horizontal:
+            quillHorizontalContentHuggingPriority = priority
+        case .vertical:
+            quillVerticalContentHuggingPriority = priority
+        }
     }
 
     public func contentHuggingPriority(for axis: NSLayoutConstraint.Axis) -> NSLayoutConstraint.Priority {
-        _ = axis
-        return .defaultLow
+        switch axis {
+        case .horizontal:
+            return quillHorizontalContentHuggingPriority
+        case .vertical:
+            return quillVerticalContentHuggingPriority
+        }
     }
 
     public struct AnimationOptions: OptionSet, Sendable {
@@ -1550,9 +2036,21 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public var interactivePopGestureRecognizer: UIGestureRecognizer? = UIGestureRecognizer()
     public var interactiveContentPopGestureRecognizer: UIGestureRecognizer? = UIGestureRecognizer()
     public private(set) var isNavigationBarHidden = false
+    private var quillViewControllers: [UIViewController] = []
     public var viewControllers: [UIViewController] {
-        get { topViewController.map { [$0] } ?? [] }
-        set { topViewController = newValue.last }
+        get { quillViewControllers }
+        set {
+            let previous = quillViewControllers
+            for controller in previous where !newValue.contains(where: { $0 === controller }) {
+                if controller.navigationController === self {
+                    controller.navigationController = nil
+                }
+            }
+            quillViewControllers = newValue
+            for controller in newValue {
+                controller.navigationController = self
+            }
+        }
     }
     open func setNavigationBarHidden(_ hidden: Bool, animated: Bool) {
         isNavigationBarHidden = hidden
@@ -1582,7 +2080,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     // ObjC relaxes the rules there; on Linux Swift's strict init model needs this.)
     public init(rootViewController: UIViewController) {
         super.init(nibName: nil, bundle: nil)
-        topViewController = rootViewController
+        viewControllers = [rootViewController]
     }
     public convenience init(navigationBarClass: AnyClass?, toolbarClass: AnyClass?) {
         self.init(nibName: nil, bundle: nil)
@@ -1593,13 +2091,39 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public func pushViewController(_: UIViewController, animated: Bool) {}
-    public func popViewController(animated: Bool) -> UIViewController? { nil }
+    open func pushViewController(_ viewController: UIViewController, animated: Bool) {
+        _ = animated
+        viewControllers.append(viewController)
+    }
+    open func popViewController(animated: Bool) -> UIViewController? {
+        _ = animated
+        guard viewControllers.count > 1 else { return nil }
+        let removed = viewControllers.removeLast()
+        if removed.navigationController === self {
+            removed.navigationController = nil
+        }
+        return removed
+    }
     @discardableResult
-    public func popToViewController(_: UIViewController, animated: Bool) -> [UIViewController]? { nil }
+    open func popToViewController(_ viewController: UIViewController, animated: Bool) -> [UIViewController]? {
+        _ = animated
+        guard let index = viewControllers.firstIndex(where: { $0 === viewController }) else {
+            return nil
+        }
+        let removed = Array(viewControllers.suffix(from: index + 1))
+        viewControllers = Array(viewControllers.prefix(index + 1))
+        return removed
+    }
     @discardableResult
-    public func popToRootViewController(animated: Bool) -> [UIViewController]? { nil }
-    public var topViewController: UIViewController?
+    open func popToRootViewController(animated: Bool) -> [UIViewController]? {
+        _ = animated
+        guard let root = viewControllers.first else { return nil }
+        return popToViewController(root, animated: false)
+    }
+    public var topViewController: UIViewController? {
+        get { viewControllers.last }
+        set { viewControllers = newValue.map { [$0] } ?? [] }
+    }
     public var visibleViewController: UIViewController? { topViewController }
     // modalPresentationStyle: the enum-typed UIViewController extension
     // member (UIViewControllerSurface.swift) is the one owner; an Int-typed
@@ -1937,11 +2461,18 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         super.init(frame: .zero)
         addSubview(contentView)
     }
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        contentView.frame = bounds
+        contentView.layoutIfNeeded()
+    }
     open func prepareForReuse() {}
     open func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
         frame = layoutAttributes.frame
         alpha = layoutAttributes.alpha
         isHidden = layoutAttributes.isHidden
+        contentView.frame = bounds
+        contentView.layoutIfNeeded()
     }
 }
 
@@ -2104,7 +2635,11 @@ public class SLComposeSheetConfigurationItem: NSObject {
         public static let reserved = State(rawValue: 0xFF00_0000)
     }
 
-    open var isEnabled = true
+    open var isEnabled = true {
+        didSet {
+            if oldValue != isEnabled { quillNotifyViewMutation() }
+        }
+    }
     open var isSelected = false
     open var isHighlighted = false
     open var state: State = .normal
@@ -2138,7 +2673,102 @@ public class SLComposeSheetConfigurationItem: NSObject {
     open var menu: UIMenu?
     open var showsMenuAsPrimaryAction: Bool = false
     open var contentHorizontalAlignment: UIControl.ContentHorizontalAlignment = .center
-    open func sizeToFit() {}
+    open func sizeToFit() {
+        frame.size = sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+    }
+
+    open override func sizeThatFits(_ size: CGSize) -> CGSize {
+        let metrics = quillButtonContentMetrics(constrainedTo: size)
+        let insets = quillMeasuredContentInsets
+        return CGSize(
+            width: metrics.contentSize.width + insets.left + insets.right,
+            height: metrics.contentSize.height + insets.top + insets.bottom
+        )
+    }
+
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        let metrics = quillButtonContentMetrics(constrainedTo: bounds.size)
+        let insets = quillMeasuredContentInsets
+        let availableWidth = max(0, bounds.width - insets.left - insets.right)
+        let availableHeight = max(0, bounds.height - insets.top - insets.bottom)
+        let contentWidth = min(metrics.contentSize.width, availableWidth)
+
+        let startX: CGFloat
+        switch contentHorizontalAlignment {
+        case .left, .leading:
+            startX = insets.left
+        case .right, .trailing:
+            startX = bounds.width - insets.right - contentWidth
+        case .fill:
+            startX = insets.left
+        case .center:
+            startX = insets.left + max(0, (availableWidth - contentWidth) / 2)
+        }
+
+        var x = startX
+        if let imageView = metrics.imageView, metrics.imageSize.width > 0, metrics.imageSize.height > 0 {
+            imageView.frame = CGRect(
+                x: x,
+                y: insets.top + max(0, (availableHeight - metrics.imageSize.height) / 2),
+                width: metrics.imageSize.width,
+                height: metrics.imageSize.height
+            )
+            x += metrics.imageSize.width
+            if metrics.titleSize.width > 0 {
+                x += metrics.imageTitleSpacing
+            }
+        }
+
+        if let titleLabel = metrics.titleLabel, metrics.titleSize.width > 0, metrics.titleSize.height > 0 {
+            titleLabel.frame = CGRect(
+                x: x,
+                y: insets.top + max(0, (availableHeight - metrics.titleSize.height) / 2),
+                width: min(metrics.titleSize.width, max(0, bounds.width - insets.right - x)),
+                height: metrics.titleSize.height
+            )
+        }
+    }
+
+    private func quillButtonContentMetrics(
+        constrainedTo size: CGSize
+    ) -> (
+        titleLabel: UILabel?,
+        titleSize: CGSize,
+        imageView: UIImageView?,
+        imageSize: CGSize,
+        imageTitleSpacing: CGFloat,
+        contentSize: CGSize
+    ) {
+        let insets = quillMeasuredContentInsets
+        let proposedWidth = size.width.isFinite && size.width > 0
+            ? max(0, size.width - insets.left - insets.right)
+            : CGFloat.greatestFiniteMagnitude
+        let proposedHeight = size.height.isFinite && size.height > 0
+            ? max(0, size.height - insets.top - insets.bottom)
+            : CGFloat.greatestFiniteMagnitude
+
+        let storedLabel = quillButtonState.titleLabel
+        let titleText = storedLabel?.attributedText?.string
+            ?? storedLabel?.text
+            ?? currentAttributedTitle?.string
+            ?? currentTitle
+            ?? ""
+        let measuredLabel = titleText.isEmpty ? nil : (storedLabel ?? titleLabel)
+        let titleSize = measuredLabel?.sizeThatFits(CGSize(width: proposedWidth, height: proposedHeight)) ?? .zero
+
+        let imageView = self.imageView
+        let imageSize = imageView?.image?.size ?? currentImage?.size ?? .zero
+        let spacing = imageSize.width > 0 && titleSize.width > 0 ? quillMeasuredImagePadding : 0
+        let contentSize = CGSize(
+            width: imageSize.width + spacing + titleSize.width,
+            height: max(imageSize.height, titleSize.height)
+        )
+        return (measuredLabel, titleSize, imageView, imageSize, spacing, contentSize)
+    }
 
     // `setImage(_:for:)` lives in the CLASS BODY (not the UIButtonExtras
     // extension) and is `open` because AvatarImageView OVERRIDES it — an
@@ -2175,8 +2805,15 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
     }
-    public var image: UIImage?
-    public var highlightedImage: UIImage?
+    public var image: UIImage? {
+        didSet {
+            quillNotifyViewMutation()
+            superview?.quillNotifySubviewMutation()
+        }
+    }
+    public var highlightedImage: UIImage? {
+        didSet { quillNotifyViewMutation() }
+    }
     /// Apple's `UIImageView.isHighlighted` toggles between `image` and
     /// `highlightedImage`. CLASS-BODY `open`: VideoTimelineView's TrimHandleView
     /// overrides it with a `willSet` observer to lazily build the highlighted
@@ -2185,23 +2822,37 @@ public class SLComposeSheetConfigurationItem: NSObject {
 }
 
 @MainActor open class UILabel: UIView {
-    public var text: String?
+    public var text: String? {
+        didSet { quillNotifyTextMutation(oldValue != text) }
+    }
     /// MODEL HONESTY: stored independently of `text` (real UIKit derives the
     /// plain string from it); no text engine consumes either on Linux yet.
-    public var attributedText: NSAttributedString?
+    public var attributedText: NSAttributedString? {
+        didSet { quillNotifyTextMutation(oldValue?.string != attributedText?.string) }
+    }
     // Platform-gated: on macOS UIColor aliases real NSColor, which spells
     // this semantic color `labelColor`; only the Linux RSColor has `label`.
     #if os(macOS)
-    public var textColor: UIColor! = .labelColor
+    public var textColor: UIColor! = .labelColor {
+        didSet { quillNotifyTextMutation(true) }
+    }
     #else
-    public var textColor: UIColor! = .label
+    public var textColor: UIColor! = .label {
+        didSet { quillNotifyTextMutation(true) }
+    }
     #endif
-    public var numberOfLines: Int = 1
+    public var numberOfLines: Int = 1 {
+        didSet { quillNotifyTextMutation(oldValue != numberOfLines) }
+    }
     // Module-qualified: on macOS this file imports real AppKit alongside
     // QuillFoundation, and the shared text-layout enums (NSTextLayoutShared.swift)
     // would tie with AppKit's under unqualified lookup. No-op on Linux.
-    public var lineBreakMode: QuillFoundation.NSLineBreakMode = .byTruncatingTail
-    public var textAlignment: QuillFoundation.NSTextAlignment = .natural
+    public var lineBreakMode: QuillFoundation.NSLineBreakMode = .byTruncatingTail {
+        didSet { quillNotifyTextMutation(oldValue != lineBreakMode) }
+    }
+    public var textAlignment: QuillFoundation.NSTextAlignment = .natural {
+        didSet { quillNotifyTextMutation(oldValue != textAlignment) }
+    }
     /// Recorded but inert: nothing measures or shrinks text on Linux yet.
     public var adjustsFontSizeToFitWidth = false
     public var minimumScaleFactor: CGFloat = 0
@@ -2212,12 +2863,21 @@ public class SLComposeSheetConfigurationItem: NSObject {
     public var allowsDefaultTighteningForTruncation = false
     /// Recorded for layout code that reads it back; no intrinsic-size pass
     /// consumes it on Linux yet.
-    public var preferredMaxLayoutWidth: CGFloat = 0
+    public var preferredMaxLayoutWidth: CGFloat = 0 {
+        didSet { quillNotifyTextMutation(oldValue != preferredMaxLayoutWidth) }
+    }
     /// Backing store for `font`. The UIFont-typed accessor cannot live here:
     /// UIFont is declared in the UIKit shim module, which depends on this one,
     /// so the shim layers `font: UIFont!` over this slot (UIFontExtras.swift).
     public var quillFontStorage: AnyObject?
     public var quillFontPointSize: CGFloat = 17
+
+    public func quillNotifyTextMutation(_ changed: Bool) {
+        guard changed else { return }
+        invalidateIntrinsicContentSize()
+        quillNotifyViewMutation()
+        superview?.quillNotifySubviewMutation()
+    }
 
     /// UILabel's text-drawing override point. Signal subclasses (CVCapsuleLabel)
     /// override this and call super; there is no text renderer on Linux, so the

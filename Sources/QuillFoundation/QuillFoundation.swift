@@ -14,6 +14,7 @@
 #endif
 #if os(Linux)
 import Glibc
+@_implementationOnly import CGdkPixbuf
 import QuillKit
 #endif
 
@@ -226,51 +227,80 @@ public class CGImage: Hashable, @unchecked Sendable {
     }
 
     // Pixel dimensions + cropping (BadgeAssets spritesheets, image utilities).
-    // Inert decode means dimensions are 0 and cropping yields a blank sub-image
-    // until a real decoder (libpng/Cairo) lands.
     public var width: Int = 0
     public var height: Int = 0
     public var bytesPerRow: Int { quillBytesPerRow }
     public func cropping(to rect: CGRect) -> CGImage? {
-        let crop = rect.integral
-        guard
-            width > 0,
-            height > 0,
-            crop.width > 0,
-            crop.height > 0,
-            let source = quillBGRAPixels,
-            quillBytesPerRow > 0
-        else {
-            return CGImage()
+        guard let crop = Self.pixelCropBounds(for: rect, imageWidth: width, imageHeight: height),
+              let croppedBytesPerRow = Self.bytesPerRow(forPixelWidth: crop.width),
+              let croppedPixelCount = Self.byteCount(height: crop.height, bytesPerRow: croppedBytesPerRow) else {
+            return nil
         }
 
-        let minX = max(0, Int(crop.minX))
-        let minY = max(0, Int(crop.minY))
-        let maxX = min(width, Int(crop.maxX))
-        let maxY = min(height, Int(crop.maxY))
-        guard minX < maxX, minY < maxY else { return nil }
+        let cropped = CGImage()
+        cropped.width = crop.width
+        cropped.height = crop.height
+        cropped.quillBytesPerRow = croppedBytesPerRow
+        guard let sourcePixels = quillBGRAPixels else { return cropped }
+        guard let sourceBytesPerRow = quillResolvedBytesPerRow,
+              let sourcePixelCount = Self.byteCount(height: height, bytesPerRow: sourceBytesPerRow),
+              sourcePixels.count >= sourcePixelCount else {
+            return nil
+        }
 
-        let cropWidth = maxX - minX
-        let cropHeight = maxY - minY
-        let destinationRowBytes = cropWidth * 4
-        var destination = [UInt8](repeating: 0, count: cropHeight * destinationRowBytes)
-        for y in 0..<cropHeight {
-            let sourceStart = (minY + y) * quillBytesPerRow + minX * 4
-            let destinationStart = y * destinationRowBytes
-            guard sourceStart + destinationRowBytes <= source.count else { return nil }
-            destination.replaceSubrange(
-                destinationStart..<(destinationStart + destinationRowBytes),
-                with: source[sourceStart..<(sourceStart + destinationRowBytes)]
+        var croppedPixels = [UInt8](repeating: 0, count: croppedPixelCount)
+        let rowByteCount = croppedBytesPerRow
+        for y in 0..<crop.height {
+            let sourceOffset = (crop.y + y) * sourceBytesPerRow + crop.x * Self.bytesPerPixel
+            let destinationOffset = y * croppedBytesPerRow
+            guard sourceOffset >= 0, sourceOffset + rowByteCount <= sourcePixels.count else { return nil }
+            croppedPixels.replaceSubrange(
+                destinationOffset..<(destinationOffset + rowByteCount),
+                with: sourcePixels[sourceOffset..<(sourceOffset + rowByteCount)]
             )
         }
+        cropped.quillBGRAPixels = croppedPixels
+        return cropped
+    }
 
-        let image = CGImage()
-        image.width = cropWidth
-        image.height = cropHeight
-        image.quillBytesPerRow = destinationRowBytes
-        image.quillBGRAPixels = destination
-        image.quillUTType = quillUTType
-        return image
+    private static let bytesPerPixel = 4
+
+    private var quillResolvedBytesPerRow: Int? {
+        guard let minimumBytesPerRow = Self.bytesPerRow(forPixelWidth: width) else { return nil }
+        let rowBytes = quillBytesPerRow > 0 ? quillBytesPerRow : minimumBytesPerRow
+        guard rowBytes >= minimumBytesPerRow else { return nil }
+        return rowBytes
+    }
+
+    private static func pixelCropBounds(
+        for rect: CGRect,
+        imageWidth: Int,
+        imageHeight: Int
+    ) -> (x: Int, y: Int, width: Int, height: Int)? {
+        guard imageWidth > 0, imageHeight > 0,
+              rect.minX.isFinite, rect.minY.isFinite,
+              rect.maxX.isFinite, rect.maxY.isFinite else {
+            return nil
+        }
+
+        let minX = Int(max(0, min(CGFloat(imageWidth), floor(rect.minX))))
+        let minY = Int(max(0, min(CGFloat(imageHeight), floor(rect.minY))))
+        let maxX = Int(max(0, min(CGFloat(imageWidth), ceil(rect.maxX))))
+        let maxY = Int(max(0, min(CGFloat(imageHeight), ceil(rect.maxY))))
+        guard minX < maxX, minY < maxY else { return nil }
+        return (minX, minY, maxX - minX, maxY - minY)
+    }
+
+    private static func bytesPerRow(forPixelWidth width: Int) -> Int? {
+        guard width >= 0 else { return nil }
+        let result = width.multipliedReportingOverflow(by: bytesPerPixel)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private static func byteCount(height: Int, bytesPerRow: Int) -> Int? {
+        guard height >= 0, bytesPerRow >= 0 else { return nil }
+        let result = height.multipliedReportingOverflow(by: bytesPerRow)
+        return result.overflow ? nil : result.partialValue
     }
 
     public static func == (lhs: CGImage, rhs: CGImage) -> Bool {
@@ -404,12 +434,10 @@ public final class NSHashTable<ObjectType>: @unchecked Sendable {
     public var count: Int { storage.count }
 }
 
-// Opaque path types (Linux). SSK builds UIBezierPaths and reads `.cgPath`; the
-// CGContext drawing shim takes paths as `Any`, so these only need to exist as
-// inert handles (no real geometry is recorded).
-// CoreGraphics path-element introspection. On Apple these are CoreGraphics
-// types; here they live beside CGPath and are re-exported by the CoreGraphics
-// shim. Euclid's `Path(CGPath)` reads them via `applyWithBlock`.
+// CoreGraphics path recording and path-element introspection. On Apple these
+// are CoreGraphics types; here they live beside the Linux geometry shims and are
+// re-exported by the CoreGraphics module. Euclid's `Path(CGPath)` reads them via
+// `applyWithBlock`, and CGContext uses the recorded elements for path drawing.
 public enum CGPathElementType: Int32, Sendable {
     case moveToPoint = 0
     case addLineToPoint = 1
@@ -429,9 +457,13 @@ public struct CGPathElement {
     }
 }
 
+public typealias CGPathApplierFunction = (UnsafeMutableRawPointer?, UnsafePointer<CGPathElement>) -> Void
+
 fileprivate typealias CGPathStorageElement = (type: CGPathElementType, points: [CGPoint])
 
 public class CGPath: Hashable, @unchecked Sendable {
+    private static let geometryTolerance: CGFloat = 0.0001
+
     /// Recorded path elements (type + its points), so the path is iterable.
     fileprivate var elements: [CGPathStorageElement] = []
 
@@ -445,9 +477,28 @@ public class CGPath: Hashable, @unchecked Sendable {
         hasher.combine(ObjectIdentifier(self))
     }
 
+    public var isEmpty: Bool { elements.isEmpty }
+
+    public var currentPoint: CGPoint {
+        Self.currentPoint(in: elements) ?? .zero
+    }
+
+    public var boundingBox: CGRect {
+        Self.boundingBox(for: elements.flatMap(\.points))
+    }
+
+    public var boundingBoxOfPath: CGRect {
+        Self.boundingBox(for: Self.pathBoundingPoints(in: elements))
+    }
+
     public convenience init(rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
         self.init()
         elements = Self.applying(transform?.pointee, to: Self.rectElements(rect))
+    }
+
+    public convenience init(ellipseIn rect: CGRect, transform: UnsafePointer<CGAffineTransform>?) {
+        self.init()
+        elements = Self.applying(transform?.pointee, to: Self.ellipseElements(in: rect))
     }
 
     public convenience init(
@@ -473,9 +524,31 @@ public class CGPath: Hashable, @unchecked Sendable {
         p.elements = Self.applying(transform?.pointee, to: elements)
         return p
     }
+
     public func contains(_ point: CGPoint) -> Bool {
-        _ = point
-        return false
+        contains(point, using: .winding, transform: .identity)
+    }
+
+    public func contains(
+        _ point: CGPoint,
+        using rule: CGPathFillRule = .winding,
+        transform: CGAffineTransform = .identity
+    ) -> Bool {
+        let subpaths = flattenedSubpaths(transform: transform)
+        if Self.pointIsOnBoundary(point, subpaths: subpaths) {
+            return true
+        }
+
+        switch rule {
+        case .evenOdd:
+            return subpaths.reduce(false) { inside, subpath in
+                inside != Self.subpathContainsEvenOdd(point, subpath: subpath)
+            }
+        case .winding:
+            return subpaths.reduce(0) { winding, subpath in
+                winding + Self.windingNumber(for: point, subpath: subpath)
+            } != 0
+        }
     }
 
     /// Iterate path elements (CGPath's `apply(info:function:)` / Swift's
@@ -491,6 +564,12 @@ public class CGPath: Hashable, @unchecked Sendable {
         }
     }
 
+    public func apply(info: UnsafeMutableRawPointer?, function: CGPathApplierFunction) {
+        applyWithBlock { elementPointer in
+            function(info, elementPointer)
+        }
+    }
+
     fileprivate static func applying(
         _ transform: CGAffineTransform?,
         to elements: [CGPathStorageElement]
@@ -499,6 +578,384 @@ public class CGPath: Hashable, @unchecked Sendable {
         return elements.map { element in
             (element.type, element.points.map { $0.applying(transform) })
         }
+    }
+
+    fileprivate func flattenedSubpaths(transform: CGAffineTransform?) -> [[CGPoint]] {
+        let transformPoint: (CGPoint) -> CGPoint = { point in
+            guard let transform else { return point }
+            return point.applying(transform)
+        }
+        var subpaths: [[CGPoint]] = []
+        var current: [CGPoint] = []
+        var currentPoint: CGPoint?
+        var startPoint: CGPoint?
+
+        func finishSubpath(closing: Bool) {
+            if closing, let startPoint, current.last != startPoint {
+                current.append(startPoint)
+            }
+            if !current.isEmpty {
+                subpaths.append(current)
+            }
+            current = []
+            currentPoint = nil
+            startPoint = nil
+        }
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                finishSubpath(closing: false)
+                guard let point = element.points.first.map(transformPoint) else { continue }
+                current = [point]
+                currentPoint = point
+                startPoint = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first.map(transformPoint) else { continue }
+                if current.isEmpty {
+                    current = [point]
+                    startPoint = point
+                } else {
+                    current.append(point)
+                }
+                currentPoint = point
+
+            case .addQuadCurveToPoint:
+                guard let from = currentPoint, element.points.count >= 2 else { continue }
+                let control = transformPoint(element.points[0])
+                let end = transformPoint(element.points[1])
+                for step in 1...12 {
+                    current.append(Self.quadPoint(from: from, control: control, end: end, t: CGFloat(step) / 12))
+                }
+                currentPoint = end
+
+            case .addCurveToPoint:
+                guard let from = currentPoint, element.points.count >= 3 else { continue }
+                let control1 = transformPoint(element.points[0])
+                let control2 = transformPoint(element.points[1])
+                let end = transformPoint(element.points[2])
+                for step in 1...16 {
+                    current.append(Self.cubicPoint(from: from, control1: control1, control2: control2, end: end, t: CGFloat(step) / 16))
+                }
+                currentPoint = end
+
+            case .closeSubpath:
+                finishSubpath(closing: true)
+            }
+        }
+
+        finishSubpath(closing: false)
+        return subpaths
+    }
+
+    private static func boundingBox(for points: [CGPoint]) -> CGRect {
+        guard let first = points.first else { return .null }
+        var minX = first.x
+        var minY = first.y
+        var maxX = first.x
+        var maxY = first.y
+        for point in points.dropFirst() {
+            minX = Swift.min(minX, point.x)
+            minY = Swift.min(minY, point.y)
+            maxX = Swift.max(maxX, point.x)
+            maxY = Swift.max(maxY, point.y)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    private static func subpathContainsEvenOdd(_ point: CGPoint, subpath: [CGPoint]) -> Bool {
+        guard subpath.count >= 3 else { return false }
+        let segments = segments(in: subpath)
+        var inside = false
+        for (a, b) in segments {
+            if (a.y > point.y) != (b.y > point.y) {
+                let x = a.x + (point.y - a.y) * (b.x - a.x) / (b.y - a.y)
+                if x > point.x {
+                    inside.toggle()
+                }
+            }
+        }
+        return inside
+    }
+
+    private static func windingNumber(for point: CGPoint, subpath: [CGPoint]) -> Int {
+        guard subpath.count >= 3 else { return 0 }
+        let segments = segments(in: subpath)
+        var winding = 0
+        for (a, b) in segments {
+            if a.y <= point.y {
+                if b.y > point.y, isLeft(a, b, point) > 0 {
+                    winding += 1
+                }
+            } else if b.y <= point.y, isLeft(a, b, point) < 0 {
+                winding -= 1
+            }
+        }
+        return winding
+    }
+
+    private static func pointIsOnBoundary(_ point: CGPoint, subpaths: [[CGPoint]]) -> Bool {
+        subpaths.contains { subpath in
+            segments(in: subpath).contains { pointIsOnSegment(point, $0.0, $0.1) }
+        }
+    }
+
+    private static func segments(in subpath: [CGPoint]) -> [(CGPoint, CGPoint)] {
+        guard subpath.count >= 2 else { return [] }
+        return (0..<subpath.count).map { index in
+            (subpath[index], subpath[(index + 1) % subpath.count])
+        }
+    }
+
+    private static func pointIsOnSegment(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> Bool {
+        let lengthSquared = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+        if lengthSquared <= geometryTolerance * geometryTolerance {
+            let dx = point.x - a.x
+            let dy = point.y - a.y
+            return dx * dx + dy * dy <= geometryTolerance * geometryTolerance
+        }
+        let cross = (point.y - a.y) * (b.x - a.x) - (point.x - a.x) * (b.y - a.y)
+        guard abs(cross) <= geometryTolerance else { return false }
+        let dot = (point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)
+        guard dot >= -geometryTolerance else { return false }
+        return dot <= lengthSquared + geometryTolerance
+    }
+
+    private static func isLeft(_ a: CGPoint, _ b: CGPoint, _ point: CGPoint) -> CGFloat {
+        (b.x - a.x) * (point.y - a.y) - (point.x - a.x) * (b.y - a.y)
+    }
+
+    private static func quadPoint(from: CGPoint, control: CGPoint, end: CGPoint, t: CGFloat) -> CGPoint {
+        let mt = 1 - t
+        return CGPoint(
+            x: mt * mt * from.x + 2 * mt * t * control.x + t * t * end.x,
+            y: mt * mt * from.y + 2 * mt * t * control.y + t * t * end.y
+        )
+    }
+
+    private static func cubicPoint(from: CGPoint, control1: CGPoint, control2: CGPoint, end: CGPoint, t: CGFloat) -> CGPoint {
+        let mt = 1 - t
+        return CGPoint(
+            x: mt * mt * mt * from.x + 3 * mt * mt * t * control1.x + 3 * mt * t * t * control2.x + t * t * t * end.x,
+            y: mt * mt * mt * from.y + 3 * mt * mt * t * control1.y + 3 * mt * t * t * control2.y + t * t * t * end.y
+        )
+    }
+
+    private static func currentPoint(in elements: [CGPathStorageElement]) -> CGPoint? {
+        var current: CGPoint?
+        var subpathStart: CGPoint?
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                guard let point = element.points.first else { continue }
+                current = point
+                subpathStart = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first else { continue }
+                current = point
+                if subpathStart == nil {
+                    subpathStart = point
+                }
+
+            case .addQuadCurveToPoint:
+                guard element.points.count >= 2 else { continue }
+                current = element.points[1]
+                if subpathStart == nil {
+                    subpathStart = current
+                }
+
+            case .addCurveToPoint:
+                guard element.points.count >= 3 else { continue }
+                current = element.points[2]
+                if subpathStart == nil {
+                    subpathStart = current
+                }
+
+            case .closeSubpath:
+                if let start = subpathStart {
+                    current = start
+                }
+                subpathStart = current
+            }
+        }
+
+        return current
+    }
+
+    private static func pathBoundingPoints(in elements: [CGPathStorageElement]) -> [CGPoint] {
+        var points: [CGPoint] = []
+        var current: CGPoint?
+        var subpathStart: CGPoint?
+
+        func include(_ point: CGPoint) {
+            points.append(point)
+        }
+
+        for element in elements {
+            switch element.type {
+            case .moveToPoint:
+                guard let point = element.points.first else { continue }
+                include(point)
+                current = point
+                subpathStart = point
+
+            case .addLineToPoint:
+                guard let point = element.points.first else { continue }
+                if let current {
+                    include(current)
+                }
+                include(point)
+                current = point
+                if subpathStart == nil {
+                    subpathStart = point
+                }
+
+            case .addQuadCurveToPoint:
+                guard let from = current, element.points.count >= 2 else { continue }
+                let control = element.points[0]
+                let end = element.points[1]
+                include(from)
+                include(end)
+                for t in quadraticExtrema(from: from, control: control, end: end) {
+                    include(quadPoint(from: from, control: control, end: end, t: t))
+                }
+                current = end
+
+            case .addCurveToPoint:
+                guard let from = current, element.points.count >= 3 else { continue }
+                let control1 = element.points[0]
+                let control2 = element.points[1]
+                let end = element.points[2]
+                include(from)
+                include(end)
+                for t in cubicExtrema(from: from, control1: control1, control2: control2, end: end) {
+                    include(cubicPoint(from: from, control1: control1, control2: control2, end: end, t: t))
+                }
+                current = end
+
+            case .closeSubpath:
+                if let current {
+                    include(current)
+                }
+                if let start = subpathStart {
+                    include(start)
+                    current = start
+                }
+                subpathStart = current
+            }
+        }
+
+        return points
+    }
+
+    private static func quadraticExtrema(from: CGPoint, control: CGPoint, end: CGPoint) -> [CGFloat] {
+        [quadraticExtremum(from.x, control.x, end.x), quadraticExtremum(from.y, control.y, end.y)]
+            .compactMap { $0 }
+    }
+
+    private static func quadraticExtremum(_ p0: CGFloat, _ p1: CGFloat, _ p2: CGFloat) -> CGFloat? {
+        let denominator = p0 - 2 * p1 + p2
+        guard abs(denominator) > geometryTolerance else { return nil }
+        let t = (p0 - p1) / denominator
+        return (t > 0 && t < 1) ? t : nil
+    }
+
+    private static func cubicExtrema(from: CGPoint, control1: CGPoint, control2: CGPoint, end: CGPoint) -> [CGFloat] {
+        var values: [CGFloat] = []
+        values.append(contentsOf: cubicExtrema(from.x, control1.x, control2.x, end.x))
+        values.append(contentsOf: cubicExtrema(from.y, control1.y, control2.y, end.y))
+        return values
+    }
+
+    private static func cubicExtrema(_ p0: CGFloat, _ p1: CGFloat, _ p2: CGFloat, _ p3: CGFloat) -> [CGFloat] {
+        let a = -p0 + 3 * p1 - 3 * p2 + p3
+        let b = 2 * (p0 - 2 * p1 + p2)
+        let c = p1 - p0
+
+        if abs(a) <= geometryTolerance {
+            guard abs(b) > geometryTolerance else { return [] }
+            let t = -c / b
+            return (t > 0 && t < 1) ? [t] : []
+        }
+
+        let discriminant = b * b - 4 * a * c
+        guard discriminant >= 0 else { return [] }
+        let root = discriminant.squareRoot()
+        return [(-b + root) / (2 * a), (-b - root) / (2 * a)]
+            .filter { $0 > 0 && $0 < 1 }
+    }
+
+    fileprivate static func arcCurveElements(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool
+    ) -> [CGPathStorageElement] {
+        guard radius > 0, radius.isFinite else { return [] }
+        let rawDelta = endAngle - startAngle
+        var delta = rawDelta
+        let fullTurn = CGFloat.pi * 2
+
+        if abs(rawDelta) >= fullTurn {
+            delta = clockwise ? -fullTurn : fullTurn
+        } else if clockwise {
+            while delta > 0 {
+                delta -= fullTurn
+            }
+        } else {
+            while delta < 0 {
+                delta += fullTurn
+            }
+        }
+
+        guard abs(delta) > geometryTolerance else { return [] }
+        let segmentCount = max(1, Int(ceil(max(0, abs(delta) - geometryTolerance) / (CGFloat.pi / 2))))
+        let segmentDelta = delta / CGFloat(segmentCount)
+        var elements: [CGPathStorageElement] = []
+
+        for segment in 0..<segmentCount {
+            let a0 = startAngle + CGFloat(segment) * segmentDelta
+            let a1 = a0 + segmentDelta
+            let p0 = arcPoint(center: center, radius: radius, angle: a0)
+            let p3 = arcPoint(center: center, radius: radius, angle: a1)
+            let k = CGFloat(4.0 / 3.0) * tan(segmentDelta / 4)
+            let c1 = CGPoint(
+                x: p0.x - sin(a0) * radius * k,
+                y: p0.y + cos(a0) * radius * k
+            )
+            let c2 = CGPoint(
+                x: p3.x + sin(a1) * radius * k,
+                y: p3.y - cos(a1) * radius * k
+            )
+            elements.append((.addCurveToPoint, [c1, c2, p3]))
+        }
+
+        return elements
+    }
+
+    fileprivate static func arcPoint(center: CGPoint, radius: CGFloat, angle: CGFloat) -> CGPoint {
+        CGPoint(
+            x: center.x + cos(angle) * radius,
+            y: center.y + sin(angle) * radius
+        )
+    }
+
+    fileprivate static func pointsAreClose(_ a: CGPoint, _ b: CGPoint) -> Bool {
+        abs(a.x - b.x) <= geometryTolerance && abs(a.y - b.y) <= geometryTolerance
+    }
+
+    fileprivate static func normalizedVector(from start: CGPoint, to end: CGPoint) -> (x: CGFloat, y: CGFloat)? {
+        normalizedVector(dx: end.x - start.x, dy: end.y - start.y)
+    }
+
+    fileprivate static func normalizedVector(dx: CGFloat, dy: CGFloat) -> (x: CGFloat, y: CGFloat)? {
+        let length = (dx * dx + dy * dy).squareRoot()
+        guard length > geometryTolerance else { return nil }
+        return (dx / length, dy / length)
     }
 
     fileprivate static func rectElements(_ rect: CGRect) -> [CGPathStorageElement] {
@@ -664,10 +1121,86 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         elements.append((.addQuadCurveToPoint, [control, end]))
     }
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
-        _ = (center, radius, startAngle, endAngle, clockwise)
+        guard radius > 0, radius.isFinite else { return }
+        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle)
+        if isEmpty {
+            move(to: start)
+        } else if !Self.pointsAreClose(currentPoint, start) {
+            addLine(to: start)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
-        _ = (tangent1End, tangent2End, radius)
+        guard radius > 0, radius.isFinite else { return }
+        guard !isEmpty else {
+            move(to: tangent1End)
+            return
+        }
+
+        let current = currentPoint
+        let incoming = Self.normalizedVector(from: tangent1End, to: current)
+        let outgoing = Self.normalizedVector(from: tangent1End, to: tangent2End)
+        guard let incoming, let outgoing else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let dot = max(-1, min(1, incoming.x * outgoing.x + incoming.y * outgoing.y))
+        let angle = acos(dot)
+        guard angle > 0.0001, abs(CGFloat.pi - angle) > 0.0001 else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentDistance = radius / tan(angle / 2)
+        guard tangentDistance.isFinite else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let tangentStart = CGPoint(
+            x: tangent1End.x + incoming.x * tangentDistance,
+            y: tangent1End.y + incoming.y * tangentDistance
+        )
+        let tangentEnd = CGPoint(
+            x: tangent1End.x + outgoing.x * tangentDistance,
+            y: tangent1End.y + outgoing.y * tangentDistance
+        )
+
+        let bisector = Self.normalizedVector(
+            dx: incoming.x + outgoing.x,
+            dy: incoming.y + outgoing.y
+        )
+        guard let bisector else {
+            addLine(to: tangent1End)
+            return
+        }
+
+        let centerDistance = radius / sin(angle / 2)
+        let center = CGPoint(
+            x: tangent1End.x + bisector.x * centerDistance,
+            y: tangent1End.y + bisector.y * centerDistance
+        )
+        let startAngle = atan2(tangentStart.y - center.y, tangentStart.x - center.x)
+        let endAngle = atan2(tangentEnd.y - center.y, tangentEnd.x - center.x)
+        let clockwise = incoming.x * outgoing.y - incoming.y * outgoing.x > 0
+
+        if !Self.pointsAreClose(current, tangentStart) {
+            addLine(to: tangentStart)
+        }
+        elements.append(contentsOf: Self.arcCurveElements(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        ))
     }
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
         elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))
@@ -758,11 +1291,14 @@ public extension CGPoint {
 
 // MARK: - CoreGraphics drawing shim (Linux)
 //
-// SignalServiceKit and IceCubes render thumbnails, share images, and upload
-// previews into CGContext values obtained from UIGraphicsImageRenderer. Linux
-// now has a small in-memory bitmap backend for fills and image compositing; the
-// broader path/gradient/text surface remains partial and delegates to toolkit
-// backends where available.
+// SignalServiceKit's avatar/thumbnail rendering (AvatarBuilder, UIImage+OWS)
+// draws into a CGContext obtained from a UIGraphicsImageRenderer. CoreGraphics
+// rasterization is unavailable on Linux, so this is an INERT no-op context:
+// nothing is drawn, and the renderer returns a blank placeholder image of the
+// requested size. Color / gradient / path / image arguments are typed `Any?`
+// to avoid coupling drawing to a concrete raster backend and the optional
+// CGGradient/CGPath value-holders. A real raster backend (Cairo/Skia) is a
+// later milestone. HONEST STATUS: avatars render blank on Linux.
 
 public enum CGInterpolationQuality: Int32, Sendable {
     case `default` = 0, none = 1, low = 2, high = 3, medium = 4
@@ -783,7 +1319,7 @@ public struct CGGradientDrawingOptions: OptionSet, Sendable {
     public static let drawsAfterEndLocation = CGGradientDrawingOptions(rawValue: 1 << 1)
 }
 
-public final class CGColorSpace: Equatable {
+public final class CGColorSpace: Equatable, @unchecked Sendable {
     public enum Model: Int32, Sendable {
         case unknown = -1
         case monochrome = 0
@@ -796,26 +1332,57 @@ public final class CGColorSpace: Equatable {
     }
 
     public let name: String?
+    public let model: Model
+    public let numberOfComponents: Int
 
     public init() {
         self.name = nil
+        self.model = .rgb
+        self.numberOfComponents = 3
     }
 
     public init?(name: String) {
         self.name = name
+        let description = Self.quillDescription(for: name)
+        self.model = description.model
+        self.numberOfComponents = description.numberOfComponents
     }
 
-    public var model: Model { .rgb }
-
+    public static let sRGB = "kCGColorSpaceSRGB"
+    public static let extendedSRGB = "kCGColorSpaceExtendedSRGB"
     public static let displayP3 = "kCGColorSpaceDisplayP3"
+    public static let genericGrayGamma2_2 = "kCGColorSpaceGenericGrayGamma2_2"
 
     public static func == (lhs: CGColorSpace, rhs: CGColorSpace) -> Bool {
-        lhs === rhs
+        lhs.name == rhs.name &&
+            lhs.model == rhs.model &&
+            lhs.numberOfComponents == rhs.numberOfComponents
+    }
+
+    fileprivate init(name: String?, model: Model, numberOfComponents: Int) {
+        self.name = name
+        self.model = model
+        self.numberOfComponents = numberOfComponents
+    }
+
+    private static func quillDescription(for name: String) -> (model: Model, numberOfComponents: Int) {
+        switch name {
+        case sRGB, extendedSRGB, displayP3:
+            return (.rgb, 3)
+        case genericGrayGamma2_2:
+            return (.monochrome, 1)
+        default:
+            return (.unknown, 0)
+        }
     }
 }
 
-public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace { CGColorSpace() }
-public func CGColorSpaceCreateDeviceGray() -> CGColorSpace { CGColorSpace() }
+public func CGColorSpaceCreateDeviceRGB() -> CGColorSpace {
+    CGColorSpace(name: nil, model: .rgb, numberOfComponents: 3)
+}
+public func CGColorSpaceCreateDeviceGray() -> CGColorSpace {
+    CGColorSpace(name: nil, model: .monochrome, numberOfComponents: 1)
+}
 
 public struct CGVector: Equatable, Sendable {
     public var dx: CGFloat
@@ -834,15 +1401,152 @@ public struct CGVector: Equatable, Sendable {
 }
 
 public final class CGGradient {
-    /// Inert: no color stops are retained (nothing is drawn on Linux).
-    public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {}
-    public init?(colorsSpace space: CGColorSpace?, colors: Any, locations: UnsafePointer<CGFloat>?) {}
+    fileprivate let quillStops: [QuillGradientStop]
+
+    public init?(colorsSpace space: Any?, colors: Any?, locations: Any?) {
+        _ = space
+        guard let parsedColors = Self.quillColors(from: colors), parsedColors.count >= 2 else {
+            return nil
+        }
+        self.quillStops = Self.quillStops(colors: parsedColors, locations: Self.quillLocations(from: locations, count: parsedColors.count))
+    }
+
+    public init?(colorsSpace space: CGColorSpace?, colors: Any, locations: UnsafePointer<CGFloat>?) {
+        _ = space
+        guard let parsedColors = Self.quillColors(from: colors), parsedColors.count >= 2 else {
+            return nil
+        }
+        let parsedLocations = locations.map { pointer in
+            (0..<parsedColors.count).map { pointer[$0] }
+        }
+        self.quillStops = Self.quillStops(colors: parsedColors, locations: parsedLocations)
+    }
+
+    fileprivate func quillRGBA(at location: CGFloat) -> [CGFloat] {
+        let location = Self.quillClampedUnit(location)
+        guard let first = quillStops.first else {
+            return [0, 0, 0, 1]
+        }
+        guard let last = quillStops.last else {
+            return first.rgba
+        }
+        if location <= first.location {
+            return first.rgba
+        }
+        if location >= last.location {
+            return last.rgba
+        }
+
+        for index in 0..<(quillStops.count - 1) {
+            let lower = quillStops[index]
+            let upper = quillStops[index + 1]
+            guard location >= lower.location, location <= upper.location else {
+                continue
+            }
+            let span = upper.location - lower.location
+            let amount = abs(span) <= 0.000001 ? 0 : (location - lower.location) / span
+            return zip(lower.rgba, upper.rgba).map { start, end in
+                start + (end - start) * amount
+            }
+        }
+
+        return last.rgba
+    }
+
+    private static func quillStops(colors: [RSCGColor], locations: [CGFloat]?) -> [QuillGradientStop] {
+        let resolvedLocations = locations?.count == colors.count
+            ? locations!
+            : quillEvenlySpacedLocations(count: colors.count)
+        return zip(colors, resolvedLocations)
+            .map { color, location in
+                QuillGradientStop(location: quillClampedUnit(location), rgba: quillNormalizedRGBA(color))
+            }
+            .sorted { $0.location < $1.location }
+    }
+
+    private static func quillColors(from colors: Any?) -> [RSCGColor]? {
+        switch colors {
+        case let colors as [RSCGColor]:
+            return colors
+        case let colors as [Any]:
+            let parsed = colors.compactMap { $0 as? RSCGColor }
+            return parsed.count == colors.count ? parsed : nil
+        case let colors as NSArray:
+            let parsed = colors.compactMap { $0 as? RSCGColor }
+            return parsed.count == colors.count ? parsed : nil
+        default:
+            return nil
+        }
+    }
+
+    private static func quillLocations(from locations: Any?, count: Int) -> [CGFloat]? {
+        switch locations {
+        case let locations as [CGFloat]:
+            return locations.count == count ? locations : nil
+        case let locations as [Double]:
+            return locations.count == count ? locations.map { CGFloat($0) } : nil
+        case let locations as [NSNumber]:
+            return locations.count == count ? locations.map { CGFloat(truncating: $0) } : nil
+        case let locations as [Any]:
+            let parsed = locations.compactMap { value -> CGFloat? in
+                switch value {
+                case let value as CGFloat:
+                    return value
+                case let value as Double:
+                    return CGFloat(value)
+                case let value as NSNumber:
+                    return CGFloat(truncating: value)
+                default:
+                    return nil
+                }
+            }
+            return parsed.count == count ? parsed : nil
+        case .none:
+            return nil
+        default:
+            return nil
+        }
+    }
+
+    private static func quillEvenlySpacedLocations(count: Int) -> [CGFloat] {
+        guard count > 1 else {
+            return [0]
+        }
+        return (0..<count).map { CGFloat($0) / CGFloat(count - 1) }
+    }
+
+    private static func quillNormalizedRGBA(_ color: RSCGColor) -> [CGFloat] {
+        let components = color.components ?? [0, 0, 0, 1]
+        let rgba: [CGFloat]
+        switch components.count {
+        case 1:
+            rgba = [components[0], components[0], components[0], 1]
+        case 2:
+            rgba = [components[0], components[0], components[0], components[1]]
+        case 3:
+            rgba = [components[0], components[1], components[2], 1]
+        default:
+            rgba = Array(components.prefix(4))
+        }
+        return rgba.map(quillClampedUnit)
+    }
+
+    private static func quillClampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return Swift.max(0, Swift.min(1, value))
+    }
+}
+
+fileprivate struct QuillGradientStop {
+    var location: CGFloat
+    var rgba: [CGFloat]
 }
 
 // Pixel-format flags for a CGContext bitmap context. Raw values match Apple's
 // <CoreGraphics/CGImage.h> so callers that OR them into a UInt32 bitmapInfo (e.g.
-// BlurHash: byteOrder32Big | premultipliedLast) get the right bits. Inert on
-// Linux -- no real bitmap is allocated.
+// BlurHash: byteOrder32Big | premultipliedLast) get the right bits.
 public struct CGBitmapInfo: OptionSet, Sendable {
     public let rawValue: UInt32
     public init(rawValue: UInt32) { self.rawValue = rawValue }
@@ -895,22 +1599,6 @@ public final class CGContext {
         self.quillBackend = quillBackend
     }
 
-#if os(Linux)
-    public convenience init(quillBitmapSize size: CGSize, scale: CGFloat = 1, opaque: Bool = false) {
-        self.init()
-        let width = max(1, Int((size.width * scale).rounded(.up)))
-        let height = max(1, Int((size.height * scale).rounded(.up)))
-        self.width = width
-        self.height = height
-        self.bitsPerComponent = 8
-        self.bitsPerPixel = 32
-        self.bytesPerRow = width * 4
-        self.bitmapInfo = [.byteOrder32Little, CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)]
-        self.colorSpace = CGColorSpaceCreateDeviceRGB()
-        self.quillBackend = QuillBitmapCGContextBackend(width: width, height: height, opaque: opaque)
-    }
-#endif
-
     public var width: Int = 0
     public var height: Int = 0
     public var bitsPerComponent: Int = 8
@@ -921,12 +1609,1919 @@ public final class CGContext {
     public var textMatrix: CGAffineTransform = .identity
     public var textPosition: CGPoint = .zero
     private var quillBitmapBytes: [UInt8]?
+    private var quillFillRGBA: [CGFloat] = [0, 0, 0, 1]
+    private var quillStrokeRGBA: [CGFloat] = [0, 0, 0, 1]
+    private var quillLineWidth: CGFloat = 1
+    private var quillLineCap: CGLineCap = .butt
+    private var quillLineJoin: CGLineJoin = .miter
+    private var quillMiterLimit: CGFloat = 10
+    private var quillLineDashPhase: CGFloat = 0
+    private var quillLineDashLengths: [CGFloat] = []
+    private var quillAllowsAntialiasing: Bool = true
+    private var quillShouldAntialias: Bool = true
+    private var quillAllowsFontSmoothingState: Bool = true
+    private var quillShouldSmoothFontsState: Bool = true
+    private var quillAllowsFontSubpixelPositioningState: Bool = true
+    private var quillShouldSubpixelPositionFontsState: Bool = true
+    private var quillAllowsFontSubpixelQuantizationState: Bool = true
+    private var quillShouldSubpixelQuantizeFontsState: Bool = true
+    private var quillAlpha: CGFloat = 1
+    private var quillBlendMode: CGBlendMode = .normal
+    private var quillShadow: QuillShadow?
+    private var quillCTM: CGAffineTransform = .identity
+    private var quillClipRegions: [QuillClipRegion] = []
+    private var quillStateStack: [QuillGraphicsState] = []
+    private var quillTransparencyLayerStack: [QuillTransparencyLayer] = []
+    private var quillCurrentPath = CGMutablePath()
+
+    private struct QuillGraphicsState {
+        var fillRGBA: [CGFloat]
+        var strokeRGBA: [CGFloat]
+        var lineWidth: CGFloat
+        var lineCap: CGLineCap
+        var lineJoin: CGLineJoin
+        var miterLimit: CGFloat
+        var lineDashPhase: CGFloat
+        var lineDashLengths: [CGFloat]
+        var allowsAntialiasing: Bool
+        var shouldAntialias: Bool
+        var allowsFontSmoothing: Bool
+        var shouldSmoothFonts: Bool
+        var allowsFontSubpixelPositioning: Bool
+        var shouldSubpixelPositionFonts: Bool
+        var allowsFontSubpixelQuantization: Bool
+        var shouldSubpixelQuantizeFonts: Bool
+        var interpolationQuality: CGInterpolationQuality
+        var alpha: CGFloat
+        var blendMode: CGBlendMode
+        var shadow: QuillShadow?
+        var ctm: CGAffineTransform
+        var clipRegions: [QuillClipRegion]
+    }
+
+    private typealias QuillPixelBounds = (minX: Int, minY: Int, maxX: Int, maxY: Int)
+
+    private struct QuillBitmapImageSource {
+        var width: Int
+        var height: Int
+        var bytesPerRow: Int
+        var pixels: [UInt8]
+    }
+
+    private struct QuillPremultipliedBGRA {
+        var blue: CGFloat
+        var green: CGFloat
+        var red: CGFloat
+        var alpha: CGFloat
+    }
+
+    private struct QuillShadow {
+        var offset: CGSize
+        var blur: CGFloat
+        var colorRGBA: [CGFloat]
+    }
+
+    private struct QuillTransparencyLayer {
+        var parentBytes: [UInt8]
+        var alpha: CGFloat
+        var blendMode: CGBlendMode
+        var shadow: QuillShadow?
+        var clipRegions: [QuillClipRegion]
+    }
+
+    private enum QuillClipRegion {
+        case path(path: CGPath, rule: CGPathFillRule, transform: CGAffineTransform)
+        case mask(rect: CGRect, source: QuillBitmapImageSource, transform: CGAffineTransform)
+    }
+
+    private struct QuillStrokeSegment {
+        var start: CGPoint
+        var end: CGPoint
+        var dashStart: CGFloat
+        var joinsNext: Bool
+
+        var length: CGFloat {
+            let dx = end.x - start.x
+            let dy = end.y - start.y
+            return (dx * dx + dy * dy).squareRoot()
+        }
+    }
+
+    private struct QuillLineDash {
+        var phase: CGFloat
+        var lengths: [CGFloat]
+        var cycleLength: CGFloat
+    }
 
     public init() {}
 
-    /// Bitmap-context initializer. Drawing is still inert without a backend, but
-    /// the supplied pixels are retained so `makeImage()` can return a CGImage
-    /// instead of trapping callers that force-unwrap it.
+    private static func quillResolvedBytesPerRow(
+        width: Int,
+        bitsPerComponent: Int,
+        bytesPerRow: Int
+    ) -> Int? {
+        if bytesPerRow > 0 {
+            return bytesPerRow
+        }
+        guard bitsPerComponent == 8 else {
+            return nil
+        }
+        return quillPixelByteCount(width: width)
+    }
+
+    private static func quillPixelByteCount(width: Int) -> Int? {
+        guard width > 0 else {
+            return nil
+        }
+        let result = width.multipliedReportingOverflow(by: 4)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private static func quillBitmapStorageByteCount(height: Int, bytesPerRow: Int) -> Int? {
+        guard height > 0, bytesPerRow > 0 else {
+            return nil
+        }
+        let result = height.multipliedReportingOverflow(by: bytesPerRow)
+        return result.overflow ? nil : result.partialValue
+    }
+
+    private static func quillSupportsDirectBitmapDrawing(
+        width: Int,
+        height: Int,
+        bitsPerComponent: Int,
+        bitsPerPixel: Int,
+        bytesPerRow: Int
+    ) -> Bool {
+        guard width > 0, height > 0, bitsPerComponent == 8, bitsPerPixel == 32,
+              let minimumBytesPerRow = quillPixelByteCount(width: width)
+        else {
+            return false
+        }
+        return bytesPerRow >= minimumBytesPerRow
+    }
+
+    private var quillCanDrawCurrentBitmap: Bool {
+        Self.quillSupportsDirectBitmapDrawing(
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bitsPerPixel: bitsPerPixel,
+            bytesPerRow: bytesPerRow
+        )
+    }
+
+    private static func quillClampedUnit(_ value: CGFloat) -> CGFloat {
+        guard value.isFinite else {
+            return 0
+        }
+        return Swift.max(0, Swift.min(1, value))
+    }
+
+    private static func quillClampedByte(_ value: CGFloat) -> UInt8 {
+        UInt8((quillClampedUnit(value) * 255).rounded())
+    }
+
+    private static func quillNormalizedFillRGBA(_ rgba: [CGFloat]) -> [CGFloat] {
+        let red = rgba.indices.contains(0) ? rgba[0] : 0
+        let green = rgba.indices.contains(1) ? rgba[1] : 0
+        let blue = rgba.indices.contains(2) ? rgba[2] : 0
+        let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+        return [
+            quillClampedUnit(red),
+            quillClampedUnit(green),
+            quillClampedUnit(blue),
+            quillClampedUnit(alpha),
+        ]
+    }
+
+    private static func quillNormalizedDashLengths(_ lengths: [CGFloat]) -> [CGFloat] {
+        guard !lengths.isEmpty,
+              lengths.allSatisfy({ $0.isFinite && $0 > 0 }) else {
+            return []
+        }
+        return lengths.count.isMultiple(of: 2) ? lengths : lengths + lengths
+    }
+
+    private static func quillBitmapSource(from image: Any) -> QuillBitmapImageSource? {
+        let cgImage: CGImage?
+        switch image {
+        case let image as CGImage:
+            cgImage = image
+        case let image as RSImage:
+            cgImage = image.cgImage
+        default:
+            cgImage = nil
+        }
+
+        guard let cgImage,
+              cgImage.width > 0,
+              cgImage.height > 0,
+              let pixels = cgImage.quillBGRAPixels,
+              let minimumBytesPerRow = quillPixelByteCount(width: cgImage.width),
+              cgImage.quillBytesPerRow >= minimumBytesPerRow,
+              let requiredByteCount = quillBitmapStorageByteCount(
+                height: cgImage.height,
+                bytesPerRow: cgImage.quillBytesPerRow
+              ),
+              pixels.count >= requiredByteCount
+        else {
+            return nil
+        }
+
+        return QuillBitmapImageSource(
+            width: cgImage.width,
+            height: cgImage.height,
+            bytesPerRow: cgImage.quillBytesPerRow,
+            pixels: pixels
+        )
+    }
+
+    private static func quillColor(
+        in source: QuillBitmapImageSource,
+        x: Int,
+        y: Int
+    ) -> QuillPremultipliedBGRA? {
+        guard x >= 0, x < source.width, y >= 0, y < source.height else {
+            return nil
+        }
+
+        let offset = y * source.bytesPerRow + x * 4
+        guard offset + 3 < source.pixels.count else {
+            return nil
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: CGFloat(source.pixels[offset]) / 255,
+            green: CGFloat(source.pixels[offset + 1]) / 255,
+            red: CGFloat(source.pixels[offset + 2]) / 255,
+            alpha: CGFloat(source.pixels[offset + 3]) / 255
+        )
+    }
+
+    private static func quillPremultipliedColor(
+        from rgba: [CGFloat],
+        alphaScale: CGFloat
+    ) -> QuillPremultipliedBGRA? {
+        let red = rgba.indices.contains(0) ? rgba[0] : 0
+        let green = rgba.indices.contains(1) ? rgba[1] : 0
+        let blue = rgba.indices.contains(2) ? rgba[2] : 0
+        let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+        let sourceAlpha = quillClampedUnit(alpha * alphaScale)
+        guard sourceAlpha > 0 else {
+            return nil
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: blue * sourceAlpha,
+            green: green * sourceAlpha,
+            red: red * sourceAlpha,
+            alpha: sourceAlpha
+        )
+    }
+
+    private func quillPremultipliedColor(from rgba: [CGFloat]) -> QuillPremultipliedBGRA? {
+        Self.quillPremultipliedColor(from: rgba, alphaScale: quillAlpha)
+    }
+
+    private func quillPremultipliedFillColor() -> QuillPremultipliedBGRA? {
+        quillPremultipliedColor(from: quillFillRGBA)
+    }
+
+    private func quillPremultipliedStrokeColor() -> QuillPremultipliedBGRA? {
+        quillPremultipliedColor(from: quillStrokeRGBA)
+    }
+
+    private func quillSampleBitmapImage(
+        _ source: QuillBitmapImageSource,
+        unitX: CGFloat,
+        unitY: CGFloat
+    ) -> QuillPremultipliedBGRA? {
+        switch interpolationQuality {
+        case .none:
+            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+            return Self.quillColor(in: source, x: sourceX, y: sourceY)
+        case .default, .low, .medium, .high:
+            let sampleX = source.width == 1
+                ? CGFloat(0)
+                : Swift.max(0, Swift.min(CGFloat(source.width - 1), unitX * CGFloat(source.width) - 0.5))
+            let sampleY = source.height == 1
+                ? CGFloat(0)
+                : Swift.max(0, Swift.min(CGFloat(source.height - 1), unitY * CGFloat(source.height) - 0.5))
+            let x0 = Int(sampleX.rounded(.down))
+            let y0 = Int(sampleY.rounded(.down))
+            let x1 = Swift.min(source.width - 1, x0 + 1)
+            let y1 = Swift.min(source.height - 1, y0 + 1)
+            let tx = sampleX - CGFloat(x0)
+            let ty = sampleY - CGFloat(y0)
+
+            guard let c00 = Self.quillColor(in: source, x: x0, y: y0),
+                  let c10 = Self.quillColor(in: source, x: x1, y: y0),
+                  let c01 = Self.quillColor(in: source, x: x0, y: y1),
+                  let c11 = Self.quillColor(in: source, x: x1, y: y1)
+            else {
+                return nil
+            }
+
+            func interpolate(_ start: CGFloat, _ end: CGFloat, _ amount: CGFloat) -> CGFloat {
+                start + (end - start) * amount
+            }
+
+            let top = QuillPremultipliedBGRA(
+                blue: interpolate(c00.blue, c10.blue, tx),
+                green: interpolate(c00.green, c10.green, tx),
+                red: interpolate(c00.red, c10.red, tx),
+                alpha: interpolate(c00.alpha, c10.alpha, tx)
+            )
+            let bottom = QuillPremultipliedBGRA(
+                blue: interpolate(c01.blue, c11.blue, tx),
+                green: interpolate(c01.green, c11.green, tx),
+                red: interpolate(c01.red, c11.red, tx),
+                alpha: interpolate(c01.alpha, c11.alpha, tx)
+            )
+            return QuillPremultipliedBGRA(
+                blue: interpolate(top.blue, bottom.blue, ty),
+                green: interpolate(top.green, bottom.green, ty),
+                red: interpolate(top.red, bottom.red, ty),
+                alpha: interpolate(top.alpha, bottom.alpha, ty)
+            )
+        }
+    }
+
+    private func quillCompositePremultipliedBGRA(
+        _ source: QuillPremultipliedBGRA,
+        into pixels: UnsafeMutableBufferPointer<UInt8>,
+        at offset: Int
+    ) {
+        Self.quillCompositePremultipliedBGRA(source, into: pixels, at: offset, blendMode: quillBlendMode)
+    }
+
+    private static func quillCompositePremultipliedBGRA(
+        _ source: QuillPremultipliedBGRA,
+        into pixels: UnsafeMutableBufferPointer<UInt8>,
+        at offset: Int,
+        blendMode: CGBlendMode = .normal
+    ) {
+        guard offset >= 0, offset + 3 < pixels.count else {
+            return
+        }
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        if sourceAlpha <= 0, blendMode != .clear {
+            return
+        }
+
+        let destination = QuillPremultipliedBGRA(
+            blue: CGFloat(pixels[offset]) / 255,
+            green: CGFloat(pixels[offset + 1]) / 255,
+            red: CGFloat(pixels[offset + 2]) / 255,
+            alpha: CGFloat(pixels[offset + 3]) / 255
+        )
+        let result = quillBlendedPremultipliedBGRA(source: source, destination: destination, mode: blendMode)
+
+        pixels[offset] = quillClampedByte(result.blue)
+        pixels[offset + 1] = quillClampedByte(result.green)
+        pixels[offset + 2] = quillClampedByte(result.red)
+        pixels[offset + 3] = quillClampedByte(result.alpha)
+    }
+
+    private static func quillBlendedPremultipliedBGRA(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+
+        switch mode {
+        case .clear:
+            return QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 0)
+        case .copy:
+            return source
+        case .sourceIn:
+            return quillPremultiplied(source, multipliedBy: destinationAlpha)
+        case .sourceOut:
+            return quillPremultiplied(source, multipliedBy: 1 - destinationAlpha)
+        case .sourceAtop:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: destinationAlpha),
+                quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+            )
+        case .destinationOver:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha),
+                destination
+            )
+        case .destinationIn:
+            return quillPremultiplied(destination, multipliedBy: sourceAlpha)
+        case .destinationOut:
+            return quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+        case .destinationAtop:
+            return quillAdd(
+                quillPremultiplied(destination, multipliedBy: sourceAlpha),
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha)
+            )
+        case .xor:
+            return quillAdd(
+                quillPremultiplied(source, multipliedBy: 1 - destinationAlpha),
+                quillPremultiplied(destination, multipliedBy: 1 - sourceAlpha)
+            )
+        case .plusLighter:
+            return QuillPremultipliedBGRA(
+                blue: Swift.min(1, source.blue + destination.blue),
+                green: Swift.min(1, source.green + destination.green),
+                red: Swift.min(1, source.red + destination.red),
+                alpha: Swift.min(1, sourceAlpha + destinationAlpha)
+            )
+        case .plusDarker:
+            return QuillPremultipliedBGRA(
+                blue: Swift.max(0, source.blue + destination.blue - 1),
+                green: Swift.max(0, source.green + destination.green - 1),
+                red: Swift.max(0, source.red + destination.red - 1),
+                alpha: Swift.max(0, sourceAlpha + destinationAlpha - 1)
+            )
+        case .normal:
+            return quillSourceOver(source: source, destination: destination)
+        case .hue, .saturation, .color, .luminosity:
+            return quillBlendNonSeparable(source: source, destination: destination, mode: mode)
+        default:
+            return quillBlendSeparable(source: source, destination: destination, mode: mode)
+        }
+    }
+
+    private static func quillSourceOver(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA
+    ) -> QuillPremultipliedBGRA {
+        let inverseSourceAlpha = 1 - quillClampedUnit(source.alpha)
+        return QuillPremultipliedBGRA(
+            blue: source.blue + destination.blue * inverseSourceAlpha,
+            green: source.green + destination.green * inverseSourceAlpha,
+            red: source.red + destination.red * inverseSourceAlpha,
+            alpha: source.alpha + destination.alpha * inverseSourceAlpha
+        )
+    }
+
+    private static func quillBlendSeparable(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+        guard sourceAlpha > 0, destinationAlpha > 0 else {
+            return quillSourceOver(source: source, destination: destination)
+        }
+
+        let sourceColor = quillUnpremultiplied(source)
+        let destinationColor = quillUnpremultiplied(destination)
+        let blended = QuillPremultipliedBGRA(
+            blue: quillBlendChannel(source: sourceColor.blue, destination: destinationColor.blue, mode: mode),
+            green: quillBlendChannel(source: sourceColor.green, destination: destinationColor.green, mode: mode),
+            red: quillBlendChannel(source: sourceColor.red, destination: destinationColor.red, mode: mode),
+            alpha: 1
+        )
+
+        return quillCompositeBlendedColor(
+            blended,
+            source: source,
+            destination: destination,
+            sourceAlpha: sourceAlpha,
+            destinationAlpha: destinationAlpha
+        )
+    }
+
+    private static func quillBlendNonSeparable(
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        mode: CGBlendMode
+    ) -> QuillPremultipliedBGRA {
+        let sourceAlpha = quillClampedUnit(source.alpha)
+        let destinationAlpha = quillClampedUnit(destination.alpha)
+        guard sourceAlpha > 0, destinationAlpha > 0 else {
+            return quillSourceOver(source: source, destination: destination)
+        }
+
+        let sourceColor = quillUnpremultiplied(source)
+        let destinationColor = quillUnpremultiplied(destination)
+        let blended: QuillPremultipliedBGRA
+        switch mode {
+        case .hue:
+            blended = quillSetLuminosity(
+                quillSetSaturation(sourceColor, to: quillSaturation(destinationColor)),
+                to: quillLuminosity(destinationColor)
+            )
+        case .saturation:
+            blended = quillSetLuminosity(
+                quillSetSaturation(destinationColor, to: quillSaturation(sourceColor)),
+                to: quillLuminosity(destinationColor)
+            )
+        case .color:
+            blended = quillSetLuminosity(sourceColor, to: quillLuminosity(destinationColor))
+        case .luminosity:
+            blended = quillSetLuminosity(destinationColor, to: quillLuminosity(sourceColor))
+        default:
+            blended = sourceColor
+        }
+
+        return quillCompositeBlendedColor(
+            blended,
+            source: source,
+            destination: destination,
+            sourceAlpha: sourceAlpha,
+            destinationAlpha: destinationAlpha
+        )
+    }
+
+    private static func quillCompositeBlendedColor(
+        _ blended: QuillPremultipliedBGRA,
+        source: QuillPremultipliedBGRA,
+        destination: QuillPremultipliedBGRA,
+        sourceAlpha: CGFloat,
+        destinationAlpha: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        let sourceScale = sourceAlpha * destinationAlpha
+        return QuillPremultipliedBGRA(
+            blue: source.blue * (1 - destinationAlpha) + destination.blue * (1 - sourceAlpha) + blended.blue * sourceScale,
+            green: source.green * (1 - destinationAlpha) + destination.green * (1 - sourceAlpha) + blended.green * sourceScale,
+            red: source.red * (1 - destinationAlpha) + destination.red * (1 - sourceAlpha) + blended.red * sourceScale,
+            alpha: sourceAlpha + destinationAlpha * (1 - sourceAlpha)
+        )
+    }
+
+    private static func quillBlendChannel(source: CGFloat, destination: CGFloat, mode: CGBlendMode) -> CGFloat {
+        switch mode {
+        case .multiply:
+            return source * destination
+        case .screen:
+            return source + destination - source * destination
+        case .overlay:
+            return destination <= 0.5
+                ? 2 * source * destination
+                : 1 - 2 * (1 - source) * (1 - destination)
+        case .darken:
+            return Swift.min(source, destination)
+        case .lighten:
+            return Swift.max(source, destination)
+        case .colorDodge:
+            return source >= 1 ? 1 : Swift.min(1, destination / (1 - source))
+        case .colorBurn:
+            return source <= 0 ? 0 : 1 - Swift.min(1, (1 - destination) / source)
+        case .softLight:
+            if source <= 0.5 {
+                return destination - (1 - 2 * source) * destination * (1 - destination)
+            }
+            let d = destination <= 0.25
+                ? ((16 * destination - 12) * destination + 4) * destination
+                : destination.squareRoot()
+            return destination + (2 * source - 1) * (d - destination)
+        case .hardLight:
+            return source <= 0.5
+                ? 2 * source * destination
+                : 1 - 2 * (1 - source) * (1 - destination)
+        case .difference:
+            return abs(destination - source)
+        case .exclusion:
+            return source + destination - 2 * source * destination
+        default:
+            return source
+        }
+    }
+
+    private static func quillLuminosity(_ color: QuillPremultipliedBGRA) -> CGFloat {
+        0.3 * color.red + 0.59 * color.green + 0.11 * color.blue
+    }
+
+    private static func quillSaturation(_ color: QuillPremultipliedBGRA) -> CGFloat {
+        Swift.max(color.red, color.green, color.blue) - Swift.min(color.red, color.green, color.blue)
+    }
+
+    private static func quillSetLuminosity(
+        _ color: QuillPremultipliedBGRA,
+        to luminosity: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        let delta = luminosity - quillLuminosity(color)
+        return quillClipColor(QuillPremultipliedBGRA(
+            blue: color.blue + delta,
+            green: color.green + delta,
+            red: color.red + delta,
+            alpha: 1
+        ))
+    }
+
+    private static func quillClipColor(_ color: QuillPremultipliedBGRA) -> QuillPremultipliedBGRA {
+        let luminosity = quillLuminosity(color)
+        let minimum = Swift.min(color.red, color.green, color.blue)
+        let maximum = Swift.max(color.red, color.green, color.blue)
+        var red = color.red
+        var green = color.green
+        var blue = color.blue
+
+        if minimum < 0, luminosity != minimum {
+            red = luminosity + (red - luminosity) * luminosity / (luminosity - minimum)
+            green = luminosity + (green - luminosity) * luminosity / (luminosity - minimum)
+            blue = luminosity + (blue - luminosity) * luminosity / (luminosity - minimum)
+        }
+
+        if maximum > 1, maximum != luminosity {
+            red = luminosity + (red - luminosity) * (1 - luminosity) / (maximum - luminosity)
+            green = luminosity + (green - luminosity) * (1 - luminosity) / (maximum - luminosity)
+            blue = luminosity + (blue - luminosity) * (1 - luminosity) / (maximum - luminosity)
+        }
+
+        return QuillPremultipliedBGRA(
+            blue: quillClampedUnit(blue),
+            green: quillClampedUnit(green),
+            red: quillClampedUnit(red),
+            alpha: 1
+        )
+    }
+
+    private static func quillSetSaturation(
+        _ color: QuillPremultipliedBGRA,
+        to saturation: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        var channels = [
+            (keyPath: \QuillPremultipliedBGRA.red, value: color.red),
+            (keyPath: \QuillPremultipliedBGRA.green, value: color.green),
+            (keyPath: \QuillPremultipliedBGRA.blue, value: color.blue),
+        ].sorted { lhs, rhs in lhs.value < rhs.value }
+
+        if channels[2].value > channels[0].value {
+            channels[1].value = (channels[1].value - channels[0].value) * saturation / (channels[2].value - channels[0].value)
+            channels[2].value = saturation
+        } else {
+            channels[1].value = 0
+            channels[2].value = 0
+        }
+        channels[0].value = 0
+
+        var result = QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 1)
+        for channel in channels {
+            result[keyPath: channel.keyPath] = channel.value
+        }
+        return result
+    }
+
+    private static func quillPremultiplied(
+        _ color: QuillPremultipliedBGRA,
+        multipliedBy alpha: CGFloat
+    ) -> QuillPremultipliedBGRA {
+        let alpha = quillClampedUnit(alpha)
+        return QuillPremultipliedBGRA(
+            blue: color.blue * alpha,
+            green: color.green * alpha,
+            red: color.red * alpha,
+            alpha: color.alpha * alpha
+        )
+    }
+
+    private static func quillAdd(
+        _ lhs: QuillPremultipliedBGRA,
+        _ rhs: QuillPremultipliedBGRA
+    ) -> QuillPremultipliedBGRA {
+        QuillPremultipliedBGRA(
+            blue: lhs.blue + rhs.blue,
+            green: lhs.green + rhs.green,
+            red: lhs.red + rhs.red,
+            alpha: lhs.alpha + rhs.alpha
+        )
+    }
+
+    private static func quillUnpremultiplied(_ color: QuillPremultipliedBGRA) -> QuillPremultipliedBGRA {
+        let alpha = quillClampedUnit(color.alpha)
+        guard alpha > 0 else {
+            return QuillPremultipliedBGRA(blue: 0, green: 0, red: 0, alpha: 0)
+        }
+        return QuillPremultipliedBGRA(
+            blue: quillClampedUnit(color.blue / alpha),
+            green: quillClampedUnit(color.green / alpha),
+            red: quillClampedUnit(color.red / alpha),
+            alpha: alpha
+        )
+    }
+
+    private static func quillPremultipliedColor(
+        _ source: QuillPremultipliedBGRA,
+        multipliedBy alpha: CGFloat
+    ) -> QuillPremultipliedBGRA? {
+        let alpha = quillClampedUnit(alpha)
+        guard alpha > 0 else {
+            return nil
+        }
+        guard alpha < 1 else {
+            return source
+        }
+        return QuillPremultipliedBGRA(
+            blue: source.blue * alpha,
+            green: source.green * alpha,
+            red: source.red * alpha,
+            alpha: source.alpha * alpha
+        )
+    }
+
+    private static func quillNormalizedRect(_ rect: CGRect) -> CGRect? {
+        guard rect.origin.x.isFinite, rect.origin.y.isFinite,
+              rect.size.width.isFinite, rect.size.height.isFinite
+        else {
+            return nil
+        }
+
+        let rectMaxX = rect.origin.x + rect.size.width
+        let rectMaxY = rect.origin.y + rect.size.height
+        guard rectMaxX.isFinite, rectMaxY.isFinite else {
+            return nil
+        }
+
+        let minX = Swift.min(rect.origin.x, rectMaxX)
+        let maxX = Swift.max(rect.origin.x, rectMaxX)
+        let minY = Swift.min(rect.origin.y, rectMaxY)
+        let maxY = Swift.max(rect.origin.y, rectMaxY)
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    private static func quillInverse(_ transform: CGAffineTransform) -> CGAffineTransform? {
+        let determinant = transform.a * transform.d - transform.b * transform.c
+        guard determinant.isFinite, abs(determinant) > 0.000001 else {
+            return nil
+        }
+        return transform.inverted()
+    }
+
+    private func quillPixelBounds(for rect: CGRect) -> QuillPixelBounds? {
+        guard rect.origin.x.isFinite, rect.origin.y.isFinite,
+              rect.size.width.isFinite, rect.size.height.isFinite
+        else {
+            return nil
+        }
+
+        let rectMaxX = rect.origin.x + rect.size.width
+        let rectMaxY = rect.origin.y + rect.size.height
+        guard rectMaxX.isFinite, rectMaxY.isFinite else {
+            return nil
+        }
+
+        let rawMinX = Swift.min(rect.origin.x, rectMaxX)
+        let rawMaxX = Swift.max(rect.origin.x, rectMaxX)
+        let rawMinY = Swift.min(rect.origin.y, rectMaxY)
+        let rawMaxY = Swift.max(rect.origin.y, rectMaxY)
+        guard rawMinX < rawMaxX, rawMinY < rawMaxY else {
+            return nil
+        }
+
+        let imageWidth = CGFloat(width)
+        let imageHeight = CGFloat(height)
+        let minX = Int(Swift.max(0, Swift.min(imageWidth, rawMinX.rounded(.down))))
+        let minY = Int(Swift.max(0, Swift.min(imageHeight, rawMinY.rounded(.down))))
+        let maxX = Int(Swift.max(0, Swift.min(imageWidth, rawMaxX.rounded(.up))))
+        let maxY = Int(Swift.max(0, Swift.min(imageHeight, rawMaxY.rounded(.up))))
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return (minX, minY, maxX, maxY)
+    }
+
+    private func quillDrawBitmapShadow(
+        sourceBounds: QuillPixelBounds,
+        alphaAtDevicePoint: (CGPoint) -> CGFloat
+    ) {
+        guard let shadow = quillShadow,
+              quillCanDrawCurrentBitmap,
+              shadow.offset.width.isFinite,
+              shadow.offset.height.isFinite,
+              let shadowColor = Self.quillPremultipliedColor(from: shadow.colorRGBA, alphaScale: 1),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let blurRadius = quillShadowBlurRadius(shadow.blur)
+        var alphaMask = [CGFloat](repeating: 0, count: width * height)
+        for y in sourceBounds.minY..<sourceBounds.maxY {
+            for x in sourceBounds.minX..<sourceBounds.maxX {
+                let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                let alpha = Self.quillClampedUnit(alphaAtDevicePoint(devicePoint) * quillBitmapClipAlpha(devicePoint))
+                if alpha > 0 {
+                    alphaMask[y * width + x] = alpha
+                }
+            }
+        }
+
+        if blurRadius > 0 {
+            alphaMask = Self.quillBoxBlurredAlphaMask(alphaMask, width: width, height: height, radius: blurRadius)
+        }
+
+        guard let shadowBounds = quillShadowDestinationBounds(
+            sourceBounds: sourceBounds,
+            offset: shadow.offset,
+            blurRadius: blurRadius
+        ) else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+
+            for y in shadowBounds.minY..<shadowBounds.maxY {
+                var offset = y * bytesPerRow + shadowBounds.minX * 4
+                for x in shadowBounds.minX..<shadowBounds.maxX {
+                    let sourceX = Int((CGFloat(x) + 0.5 - shadow.offset.width).rounded(.down))
+                    let sourceY = Int((CGFloat(y) + 0.5 - shadow.offset.height).rounded(.down))
+                    if sourceX >= 0, sourceX < width, sourceY >= 0, sourceY < height {
+                        let maskAlpha = alphaMask[sourceY * width + sourceX]
+                        if maskAlpha > 0 {
+                            let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                            let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                            if let source = Self.quillPremultipliedColor(
+                                shadowColor,
+                                multipliedBy: maskAlpha * clipAlpha
+                            ) {
+                                quillCompositePremultipliedBGRA(source, into: pixels, at: offset)
+                            }
+                        }
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillShadowBlurRadius(_ blur: CGFloat) -> Int {
+        guard blur.isFinite, blur > 0 else {
+            return 0
+        }
+        return Int(Swift.min(CGFloat(Swift.max(width, height)), blur.rounded(.up)))
+    }
+
+    private func quillShadowDestinationBounds(
+        sourceBounds: QuillPixelBounds,
+        offset: CGSize,
+        blurRadius: Int
+    ) -> QuillPixelBounds? {
+        let expansion = CGFloat(blurRadius)
+        let minX = Int(Swift.max(0, Swift.min(
+            CGFloat(width),
+            (CGFloat(sourceBounds.minX) + offset.width - expansion).rounded(.down)
+        )))
+        let minY = Int(Swift.max(0, Swift.min(
+            CGFloat(height),
+            (CGFloat(sourceBounds.minY) + offset.height - expansion).rounded(.down)
+        )))
+        let maxX = Int(Swift.max(0, Swift.min(
+            CGFloat(width),
+            (CGFloat(sourceBounds.maxX) + offset.width + expansion).rounded(.up)
+        )))
+        let maxY = Int(Swift.max(0, Swift.min(
+            CGFloat(height),
+            (CGFloat(sourceBounds.maxY) + offset.height + expansion).rounded(.up)
+        )))
+        guard minX < maxX, minY < maxY else {
+            return nil
+        }
+        return (minX, minY, maxX, maxY)
+    }
+
+    private static func quillBoxBlurredAlphaMask(
+        _ mask: [CGFloat],
+        width: Int,
+        height: Int,
+        radius: Int
+    ) -> [CGFloat] {
+        guard radius > 0, width > 0, height > 0, mask.count >= width * height else {
+            return mask
+        }
+
+        var horizontal = [CGFloat](repeating: 0, count: width * height)
+        for y in 0..<height {
+            var left = 0
+            var right = -1
+            var sum: CGFloat = 0
+            var count = 0
+            for x in 0..<width {
+                let targetRight = Swift.min(width - 1, x + radius)
+                while right < targetRight {
+                    right += 1
+                    sum += mask[y * width + right]
+                    count += 1
+                }
+
+                let targetLeft = Swift.max(0, x - radius)
+                while left < targetLeft {
+                    sum -= mask[y * width + left]
+                    count -= 1
+                    left += 1
+                }
+
+                horizontal[y * width + x] = count > 0 ? sum / CGFloat(count) : 0
+            }
+        }
+
+        var blurred = [CGFloat](repeating: 0, count: width * height)
+        for x in 0..<width {
+            var top = 0
+            var bottom = -1
+            var sum: CGFloat = 0
+            var count = 0
+            for y in 0..<height {
+                let targetBottom = Swift.min(height - 1, y + radius)
+                while bottom < targetBottom {
+                    bottom += 1
+                    sum += horizontal[bottom * width + x]
+                    count += 1
+                }
+
+                let targetTop = Swift.max(0, y - radius)
+                while top < targetTop {
+                    sum -= horizontal[top * width + x]
+                    count -= 1
+                    top += 1
+                }
+
+                blurred[y * width + x] = count > 0 ? Self.quillClampedUnit(sum / CGFloat(count)) : 0
+            }
+        }
+
+        return blurred
+    }
+
+    private func quillCompositeTransparencyLayer(
+        _ layerPixels: [UInt8],
+        using layer: QuillTransparencyLayer
+    ) {
+        guard quillCanDrawCurrentBitmap,
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              layer.parentBytes.count >= requiredByteCount,
+              layerPixels.count >= requiredByteCount
+        else {
+            quillBitmapBytes = layer.parentBytes
+            return
+        }
+
+        quillBitmapBytes = layer.parentBytes
+        quillAlpha = layer.alpha
+        quillBlendMode = layer.blendMode
+        quillShadow = layer.shadow
+        quillClipRegions = layer.clipRegions
+
+        let sourceBounds: QuillPixelBounds = (0, 0, width, height)
+        quillDrawBitmapShadow(sourceBounds: sourceBounds) { devicePoint in
+            let x = Int(devicePoint.x.rounded(.down))
+            let y = Int(devicePoint.y.rounded(.down))
+            guard x >= 0, x < width, y >= 0, y < height else {
+                return 0
+            }
+            let offset = y * bytesPerRow + x * 4
+            guard offset + 3 < layerPixels.count else {
+                return 0
+            }
+            return (CGFloat(layerPixels[offset + 3]) / 255) * layer.alpha
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
+            guard destination.count >= requiredByteCount else {
+                return
+            }
+
+            for y in 0..<height {
+                var offset = y * bytesPerRow
+                for x in 0..<width {
+                    let sourceAlpha = CGFloat(layerPixels[offset + 3]) / 255
+                    if sourceAlpha > 0 {
+                        let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                        let layerSource = QuillPremultipliedBGRA(
+                            blue: CGFloat(layerPixels[offset]) / 255,
+                            green: CGFloat(layerPixels[offset + 1]) / 255,
+                            red: CGFloat(layerPixels[offset + 2]) / 255,
+                            alpha: sourceAlpha
+                        )
+                        if let source = Self.quillPremultipliedColor(
+                            layerSource,
+                            multipliedBy: layer.alpha * quillBitmapClipAlpha(devicePoint)
+                        ) {
+                            quillCompositePremultipliedBGRA(source, into: destination, at: offset)
+                        }
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillFillBitmap(_ rect: CGRect) {
+        guard let source = quillPremultipliedFillColor() else {
+            return
+        }
+        quillFillBitmap(rect, source: source)
+    }
+
+    private func quillFillBitmap(_ rect: CGRect, source: QuillPremultipliedBGRA) {
+        guard quillCanDrawCurrentBitmap,
+              let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { _ in
+            source.alpha
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    if let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
+                    ) {
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillFillBitmapPath(_ path: CGPath, using rule: CGPathFillRule) {
+        guard let source = quillPremultipliedFillColor() else {
+            return
+        }
+        quillFillBitmapPath(path, using: rule, source: source)
+    }
+
+    private func quillFillBitmapPath(_ path: CGPath, using rule: CGPathFillRule, source: QuillPremultipliedBGRA) {
+        let userBounds = path.boundingBoxOfPath
+        guard quillCanDrawCurrentBitmap,
+              !path.isEmpty,
+              !userBounds.isNull,
+              let bounds = quillPixelBounds(for: userBounds.applying(quillCTM)),
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity) ? source.alpha : 0
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    if path.contains(devicePoint.applying(inverseCTM), using: rule, transform: .identity),
+                       let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
+                       ) {
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillStrokeBitmapShape(_ rect: CGRect, addShape: (CGMutablePath, CGRect) -> Void) {
+        guard let userRect = Self.quillNormalizedRect(rect),
+              quillLineWidth.isFinite,
+              quillLineWidth > 0,
+              let source = quillPremultipliedStrokeColor()
+        else {
+            return
+        }
+
+        let halfWidth = quillLineWidth / 2
+        let path = CGMutablePath()
+        addShape(path, CGRect(
+            x: userRect.minX - halfWidth,
+            y: userRect.minY - halfWidth,
+            width: userRect.width + quillLineWidth,
+            height: userRect.height + quillLineWidth
+        ))
+
+        let innerWidth = userRect.width - quillLineWidth
+        let innerHeight = userRect.height - quillLineWidth
+        if innerWidth > 0, innerHeight > 0 {
+            addShape(path, CGRect(
+                x: userRect.minX + halfWidth,
+                y: userRect.minY + halfWidth,
+                width: innerWidth,
+                height: innerHeight
+            ))
+        }
+
+        quillFillBitmapPath(path, using: .evenOdd, source: source)
+    }
+
+    private func quillStrokeBitmapRect(_ rect: CGRect) {
+        quillStrokeBitmapShape(rect) { path, shapeRect in
+            path.addRect(shapeRect)
+        }
+    }
+
+    private func quillStrokeBitmapEllipse(_ rect: CGRect) {
+        quillStrokeBitmapShape(rect) { path, shapeRect in
+            path.addEllipse(in: shapeRect)
+        }
+    }
+
+    private func quillStrokeBitmapPath(_ path: CGPath) {
+        let segments = path
+            .flattenedSubpaths(transform: quillCTM)
+            .flatMap(Self.quillStrokeSegments(in:))
+        quillStrokeBitmapSegments(segments)
+    }
+
+    private func quillStrokeBitmapLineSegments(between points: [CGPoint]) {
+        quillStrokeBitmapSegments(Self.quillStrokeSegments(betweenPairsIn: points, transform: quillCTM))
+    }
+
+    private static func quillStrokeSegments(in subpath: [CGPoint]) -> [QuillStrokeSegment] {
+        guard subpath.count >= 2 else {
+            return []
+        }
+
+        var segments: [QuillStrokeSegment] = []
+        var dashStart: CGFloat = 0
+        for index in 0..<(subpath.count - 1) {
+            let segment = QuillStrokeSegment(
+                start: subpath[index],
+                end: subpath[index + 1],
+                dashStart: dashStart,
+                joinsNext: index < subpath.count - 2
+            )
+            segments.append(segment)
+            dashStart += segment.length
+        }
+        return segments
+    }
+
+    private static func quillStrokeSegments(
+        betweenPairsIn points: [CGPoint],
+        transform: CGAffineTransform
+    ) -> [QuillStrokeSegment] {
+        guard points.count >= 2 else {
+            return []
+        }
+
+        var segments: [QuillStrokeSegment] = []
+        for index in stride(from: 0, to: points.count - 1, by: 2) {
+            segments.append(QuillStrokeSegment(
+                start: points[index].applying(transform),
+                end: points[index + 1].applying(transform),
+                dashStart: 0,
+                joinsNext: false
+            ))
+        }
+        return segments
+    }
+
+    private func quillStrokeBitmapSegments(_ segments: [QuillStrokeSegment]) {
+        guard quillCanDrawCurrentBitmap,
+              let source = quillPremultipliedStrokeColor(),
+              let lineWidth = quillDeviceLineWidth(),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let drawableSegments = segments.filter(Self.quillStrokeSegmentIsFinite)
+        let halfWidth = lineWidth / 2
+        let lineCap = quillLineCap
+        let lineJoin = quillLineJoin
+        let miterLimit = quillMiterLimit
+        let lineDash = quillDeviceLineDash()
+        let boundsExpansion = Self.quillStrokeBoundsExpansion(
+            segments: drawableSegments,
+            halfWidth: halfWidth,
+            lineJoin: lineJoin,
+            miterLimit: miterLimit,
+            lineDash: lineDash
+        )
+        guard let strokeBounds = Self.quillBounds(for: drawableSegments, expandedBy: boundsExpansion),
+              let bounds = quillPixelBounds(for: strokeBounds)
+        else {
+            return
+        }
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            Self.quillStrokeContains(
+                devicePoint,
+                segments: drawableSegments,
+                halfWidth: halfWidth,
+                lineCap: lineCap,
+                lineJoin: lineJoin,
+                miterLimit: miterLimit,
+                lineDash: lineDash
+            ) ? source.alpha : 0
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    if Self.quillStrokeContains(
+                           devicePoint,
+                           segments: drawableSegments,
+                           halfWidth: halfWidth,
+                           lineCap: lineCap,
+                           lineJoin: lineJoin,
+                           miterLimit: miterLimit,
+                           lineDash: lineDash
+                       ),
+                       let clippedSource = Self.quillPremultipliedColor(
+                        source,
+                        multipliedBy: quillBitmapClipAlpha(devicePoint)
+                       ) {
+                        quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDeviceLineWidth() -> CGFloat? {
+        guard quillLineWidth.isFinite, quillLineWidth > 0 else {
+            return nil
+        }
+
+        guard let scale = quillDeviceStrokeScale() else {
+            return nil
+        }
+        return quillLineWidth * scale
+    }
+
+    private func quillDeviceLineDash() -> QuillLineDash? {
+        guard !quillLineDashLengths.isEmpty,
+              let scale = quillDeviceStrokeScale() else {
+            return nil
+        }
+        let lengths = quillLineDashLengths.map { $0 * scale }
+        let cycleLength = lengths.reduce(0, +)
+        guard cycleLength > 0 else {
+            return nil
+        }
+        return QuillLineDash(phase: quillLineDashPhase * scale, lengths: lengths, cycleLength: cycleLength)
+    }
+
+    private func quillDeviceStrokeScale() -> CGFloat? {
+        let xScale = hypot(quillCTM.a, quillCTM.b)
+        let yScale = hypot(quillCTM.c, quillCTM.d)
+        let scale = Swift.max(xScale, yScale)
+        guard scale.isFinite, scale > 0 else {
+            return nil
+        }
+        return scale
+    }
+
+    private static func quillStrokeSegmentIsFinite(_ segment: QuillStrokeSegment) -> Bool {
+        segment.start.x.isFinite && segment.start.y.isFinite &&
+            segment.end.x.isFinite && segment.end.y.isFinite
+    }
+
+    private static func quillStrokeBoundsExpansion(
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        lineJoin: CGLineJoin,
+        miterLimit: CGFloat,
+        lineDash: QuillLineDash?
+    ) -> CGFloat {
+        guard lineDash == nil,
+              lineJoin == .miter,
+              quillHasAngledJoin(segments)
+        else {
+            return halfWidth
+        }
+
+        return halfWidth * Swift.max(1, miterLimit * 2)
+    }
+
+    private static func quillHasAngledJoin(_ segments: [QuillStrokeSegment]) -> Bool {
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            guard CGPath.pointsAreClose(current.end, next.start),
+                  let incoming = CGPath.normalizedVector(from: current.start, to: current.end),
+                  let outgoing = CGPath.normalizedVector(from: next.start, to: next.end)
+            else {
+                continue
+            }
+
+            let cross = incoming.x * outgoing.y - incoming.y * outgoing.x
+            if abs(cross) > 0.0001 {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func quillBounds(
+        for segments: [QuillStrokeSegment],
+        expandedBy expansion: CGFloat
+    ) -> CGRect? {
+        guard expansion.isFinite else {
+            return nil
+        }
+
+        var minX = CGFloat.infinity
+        var minY = CGFloat.infinity
+        var maxX = -CGFloat.infinity
+        var maxY = -CGFloat.infinity
+
+        for segment in segments {
+            minX = Swift.min(minX, Swift.min(segment.start.x, segment.end.x))
+            minY = Swift.min(minY, Swift.min(segment.start.y, segment.end.y))
+            maxX = Swift.max(maxX, Swift.max(segment.start.x, segment.end.x))
+            maxY = Swift.max(maxY, Swift.max(segment.start.y, segment.end.y))
+        }
+
+        guard minX.isFinite, minY.isFinite, maxX.isFinite, maxY.isFinite else {
+            return nil
+        }
+
+        return CGRect(
+            x: minX - expansion,
+            y: minY - expansion,
+            width: maxX - minX + expansion * 2,
+            height: maxY - minY + expansion * 2
+        )
+    }
+
+    private static func quillStrokeContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        lineCap: CGLineCap,
+        lineJoin: CGLineJoin,
+        miterLimit: CGFloat,
+        lineDash: QuillLineDash?
+    ) -> Bool {
+        for segment in segments where quillStrokeContains(
+            point,
+            segment: segment,
+            halfWidth: halfWidth,
+            lineCap: lineCap,
+            lineDash: lineDash
+        ) {
+            return true
+        }
+
+        guard lineDash == nil else {
+            return false
+        }
+
+        switch lineJoin {
+        case .round:
+            return quillRoundJoinContains(point, segments: segments, halfWidth: halfWidth)
+        case .bevel:
+            return quillAngledJoinContains(point, segments: segments, halfWidth: halfWidth, miterLimit: 0)
+        case .miter:
+            return quillAngledJoinContains(point, segments: segments, halfWidth: halfWidth, miterLimit: miterLimit)
+        }
+    }
+
+    private static func quillStrokeContains(
+        _ point: CGPoint,
+        segment: QuillStrokeSegment,
+        halfWidth: CGFloat,
+        lineCap: CGLineCap,
+        lineDash: QuillLineDash?
+    ) -> Bool {
+        let dx = segment.end.x - segment.start.x
+        let dy = segment.end.y - segment.start.y
+        let lengthSquared = dx * dx + dy * dy
+        let halfWidthSquared = halfWidth * halfWidth
+        guard lengthSquared > 0.000001 else {
+            return lineCap == .round && quillDistanceSquared(point, segment.start) <= halfWidthSquared
+        }
+
+        let projection = ((point.x - segment.start.x) * dx + (point.y - segment.start.y) * dy) / lengthSquared
+        switch lineCap {
+        case .butt:
+            guard projection >= 0, projection <= 1 else {
+                return false
+            }
+        case .square:
+            let capExtension = halfWidth / sqrt(lengthSquared)
+            guard projection >= -capExtension, projection <= 1 + capExtension else {
+                return false
+            }
+        case .round:
+            if projection < 0 {
+                return quillDashAllowsEndpoint(segment.dashStart, lineDash: lineDash) &&
+                    quillDistanceSquared(point, segment.start) <= halfWidthSquared
+            }
+            if projection > 1 {
+                return quillDashAllowsEndpoint(segment.dashStart + segment.length, lineDash: lineDash) &&
+                    quillDistanceSquared(point, segment.end) <= halfWidthSquared
+            }
+        }
+
+        if let lineDash {
+            let length = sqrt(lengthSquared)
+            let clampedProjection = Swift.max(0, Swift.min(1, projection))
+            let distanceAlongStroke = segment.dashStart + clampedProjection * length
+            guard quillDashIsVisible(at: distanceAlongStroke, lineDash: lineDash) else {
+                return false
+            }
+        }
+
+        let closest = CGPoint(
+            x: segment.start.x + projection * dx,
+            y: segment.start.y + projection * dy
+        )
+        return quillDistanceSquared(point, closest) <= halfWidthSquared
+    }
+
+    private static func quillRoundJoinContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat
+    ) -> Bool {
+        let halfWidthSquared = halfWidth * halfWidth
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            if CGPath.pointsAreClose(current.end, next.start),
+               quillDistanceSquared(point, current.end) <= halfWidthSquared {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func quillAngledJoinContains(
+        _ point: CGPoint,
+        segments: [QuillStrokeSegment],
+        halfWidth: CGFloat,
+        miterLimit: CGFloat
+    ) -> Bool {
+        for index in segments.indices.dropLast() where segments[index].joinsNext {
+            let current = segments[index]
+            let next = segments[index + 1]
+            guard CGPath.pointsAreClose(current.end, next.start),
+                  let incoming = CGPath.normalizedVector(from: current.start, to: current.end),
+                  let outgoing = CGPath.normalizedVector(from: next.start, to: next.end)
+            else {
+                continue
+            }
+
+            let cross = incoming.x * outgoing.y - incoming.y * outgoing.x
+            guard abs(cross) > 0.0001 else {
+                continue
+            }
+
+            let joint = current.end
+            let outerSide: CGFloat = cross < 0 ? 1 : -1
+            let currentNormal = CGPoint(x: -incoming.y * outerSide, y: incoming.x * outerSide)
+            let nextNormal = CGPoint(x: -outgoing.y * outerSide, y: outgoing.x * outerSide)
+            let currentOuter = CGPoint(
+                x: joint.x + currentNormal.x * halfWidth,
+                y: joint.y + currentNormal.y * halfWidth
+            )
+            let nextOuter = CGPoint(
+                x: joint.x + nextNormal.x * halfWidth,
+                y: joint.y + nextNormal.y * halfWidth
+            )
+
+            if miterLimit <= 0 {
+                if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                    return true
+                }
+                continue
+            }
+
+            guard let miter = quillLineIntersection(
+                point: currentOuter,
+                direction: CGPoint(x: incoming.x, y: incoming.y),
+                otherPoint: nextOuter,
+                otherDirection: CGPoint(x: outgoing.x, y: outgoing.y)
+            ) else {
+                if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                    return true
+                }
+                continue
+            }
+
+            let allowedMiterDistance = miterLimit * halfWidth * 2
+            if quillDistanceSquared(joint, miter) <= allowedMiterDistance * allowedMiterDistance {
+                if quillPointIsInTriangle(point, currentOuter, miter, nextOuter) {
+                    return true
+                }
+            } else if quillPointIsInTriangle(point, joint, currentOuter, nextOuter) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func quillLineIntersection(
+        point: CGPoint,
+        direction: CGPoint,
+        otherPoint: CGPoint,
+        otherDirection: CGPoint
+    ) -> CGPoint? {
+        let denominator = direction.x * otherDirection.y - direction.y * otherDirection.x
+        guard abs(denominator) > 0.0001 else {
+            return nil
+        }
+
+        let dx = otherPoint.x - point.x
+        let dy = otherPoint.y - point.y
+        let scale = (dx * otherDirection.y - dy * otherDirection.x) / denominator
+        return CGPoint(x: point.x + direction.x * scale, y: point.y + direction.y * scale)
+    }
+
+    private static func quillPointIsInTriangle(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint, _ c: CGPoint) -> Bool {
+        let ab = quillSignedArea(point, a, b)
+        let bc = quillSignedArea(point, b, c)
+        let ca = quillSignedArea(point, c, a)
+        let tolerance: CGFloat = 0.0001
+        let hasNegative = ab < -tolerance || bc < -tolerance || ca < -tolerance
+        let hasPositive = ab > tolerance || bc > tolerance || ca > tolerance
+        return !(hasNegative && hasPositive)
+    }
+
+    private static func quillSignedArea(_ point: CGPoint, _ a: CGPoint, _ b: CGPoint) -> CGFloat {
+        (point.x - b.x) * (a.y - b.y) - (a.x - b.x) * (point.y - b.y)
+    }
+
+    private static func quillDashAllowsEndpoint(_ distance: CGFloat, lineDash: QuillLineDash?) -> Bool {
+        guard let lineDash else {
+            return true
+        }
+        return quillDashIsVisible(at: distance, lineDash: lineDash)
+    }
+
+    private static func quillDashIsVisible(at distance: CGFloat, lineDash: QuillLineDash) -> Bool {
+        var position = (distance + lineDash.phase).truncatingRemainder(dividingBy: lineDash.cycleLength)
+        if position < 0 {
+            position += lineDash.cycleLength
+        }
+
+        var isVisible = true
+        for length in lineDash.lengths {
+            if position < length {
+                return isVisible
+            }
+            position -= length
+            isVisible.toggle()
+        }
+        return isVisible
+    }
+
+    private static func quillDistanceSquared(_ lhs: CGPoint, _ rhs: CGPoint) -> CGFloat {
+        let dx = lhs.x - rhs.x
+        let dy = lhs.y - rhs.y
+        return dx * dx + dy * dy
+    }
+
+    private func quillClearBitmap(_ rect: CGRect) {
+        guard quillCanDrawCurrentBitmap,
+              let bounds = quillPixelBounds(for: rect.applying(quillCTM)),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in bounds.minY..<bounds.maxY {
+                var offset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    if clipAlpha >= 0.999 {
+                        pixels[offset] = 0
+                        pixels[offset + 1] = 0
+                        pixels[offset + 2] = 0
+                        pixels[offset + 3] = 0
+                    } else if clipAlpha > 0 {
+                        let remainingAlpha = 1 - clipAlpha
+                        pixels[offset] = Self.quillClampedByte(CGFloat(pixels[offset]) / 255 * remainingAlpha)
+                        pixels[offset + 1] = Self.quillClampedByte(CGFloat(pixels[offset + 1]) / 255 * remainingAlpha)
+                        pixels[offset + 2] = Self.quillClampedByte(CGFloat(pixels[offset + 2]) / 255 * remainingAlpha)
+                        pixels[offset + 3] = Self.quillClampedByte(CGFloat(pixels[offset + 3]) / 255 * remainingAlpha)
+                    }
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDrawBitmapImage(_ image: Any, in rect: CGRect) {
+        guard quillCanDrawCurrentBitmap,
+              let source = Self.quillBitmapSource(from: image),
+              let userRect = Self.quillNormalizedRect(rect),
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let bounds = quillPixelBounds(for: userRect.applying(quillCTM)),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let userMaxX = userRect.origin.x + userRect.size.width
+        let userMaxY = userRect.origin.y + userRect.size.height
+        let globalAlpha = quillAlpha
+
+        quillDrawBitmapShadow(sourceBounds: bounds) { devicePoint in
+            let userPoint = devicePoint.applying(inverseCTM)
+            guard userPoint.x >= userRect.origin.x,
+                  userPoint.x < userMaxX,
+                  userPoint.y >= userRect.origin.y,
+                  userPoint.y < userMaxY
+            else {
+                return 0
+            }
+
+            let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
+            let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
+            guard let sourceColor = quillSampleBitmapImage(source, unitX: unitX, unitY: unitY) else {
+                return 0
+            }
+            return sourceColor.alpha * globalAlpha
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { destination in
+            guard destination.count >= requiredByteCount else {
+                return
+            }
+
+            for y in bounds.minY..<bounds.maxY {
+                var destinationOffset = y * bytesPerRow + bounds.minX * 4
+                for x in bounds.minX..<bounds.maxX {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    guard clipAlpha > 0 else {
+                        destinationOffset += 4
+                        continue
+                    }
+                    let userPoint = devicePoint.applying(inverseCTM)
+                    guard userPoint.x >= userRect.origin.x,
+                          userPoint.x < userMaxX,
+                          userPoint.y >= userRect.origin.y,
+                          userPoint.y < userMaxY
+                    else {
+                        destinationOffset += 4
+                        continue
+                    }
+
+                    let unitX = (userPoint.x - userRect.origin.x) / userRect.size.width
+                    let unitY = (userPoint.y - userRect.origin.y) / userRect.size.height
+                    guard let sampledColor = quillSampleBitmapImage(source, unitX: unitX, unitY: unitY),
+                          let sourceColor = Self.quillPremultipliedColor(sampledColor, multipliedBy: globalAlpha)
+                    else {
+                        destinationOffset += 4
+                        continue
+                    }
+
+                    if let clippedSource = Self.quillPremultipliedColor(sourceColor, multipliedBy: clipAlpha) {
+                        quillCompositePremultipliedBGRA(clippedSource, into: destination, at: destinationOffset)
+                    }
+                    destinationOffset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDrawBitmapGradient(
+        _ gradient: CGGradient,
+        options: CGGradientDrawingOptions,
+        locationForUserPoint: (CGPoint) -> CGFloat?
+    ) {
+        guard quillCanDrawCurrentBitmap,
+              let inverseCTM = Self.quillInverse(quillCTM),
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              quillBitmapBytes != nil
+        else {
+            return
+        }
+
+        let sourceBounds: QuillPixelBounds = (0, 0, width, height)
+        quillDrawBitmapShadow(sourceBounds: sourceBounds) { devicePoint in
+            guard let rawLocation = locationForUserPoint(devicePoint.applying(inverseCTM)),
+                  Self.quillGradientOptionsAllow(rawLocation, options: options)
+            else {
+                return 0
+            }
+            let rgba = gradient.quillRGBA(at: rawLocation)
+            let alpha = rgba.indices.contains(3) ? rgba[3] : 1
+            return Self.quillClampedUnit(alpha * quillAlpha)
+        }
+
+        quillBitmapBytes?.withUnsafeMutableBufferPointer { pixels in
+            guard pixels.count >= requiredByteCount else {
+                return
+            }
+            for y in 0..<height {
+                var offset = y * bytesPerRow
+                for x in 0..<width {
+                    let devicePoint = CGPoint(x: CGFloat(x) + 0.5, y: CGFloat(y) + 0.5)
+                    let clipAlpha = quillBitmapClipAlpha(devicePoint)
+                    guard clipAlpha > 0,
+                          let rawLocation = locationForUserPoint(devicePoint.applying(inverseCTM)),
+                          Self.quillGradientOptionsAllow(rawLocation, options: options),
+                          let source = quillPremultipliedColor(from: gradient.quillRGBA(at: rawLocation)),
+                          let clippedSource = Self.quillPremultipliedColor(source, multipliedBy: clipAlpha)
+                    else {
+                        offset += 4
+                        continue
+                    }
+
+                    quillCompositePremultipliedBGRA(clippedSource, into: pixels, at: offset)
+                    offset += 4
+                }
+            }
+        }
+    }
+
+    private func quillDrawBitmapLinearGradient(
+        _ gradient: CGGradient,
+        start: CGPoint,
+        end: CGPoint,
+        options: CGGradientDrawingOptions
+    ) {
+        let dx = end.x - start.x
+        let dy = end.y - start.y
+        let lengthSquared = dx * dx + dy * dy
+        guard lengthSquared > 0.000001 else {
+            return
+        }
+
+        quillDrawBitmapGradient(gradient, options: options) { point in
+            ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared
+        }
+    }
+
+    private func quillDrawBitmapRadialGradient(
+        _ gradient: CGGradient,
+        startCenter: CGPoint,
+        startRadius: CGFloat,
+        endCenter: CGPoint,
+        endRadius: CGFloat,
+        options: CGGradientDrawingOptions
+    ) {
+        guard startRadius.isFinite, endRadius.isFinite, startRadius >= 0, endRadius >= 0 else {
+            return
+        }
+
+        let centerDelta = CGPoint(x: endCenter.x - startCenter.x, y: endCenter.y - startCenter.y)
+        let radiusDelta = endRadius - startRadius
+        guard abs(centerDelta.x) > 0.000001 || abs(centerDelta.y) > 0.000001 || abs(radiusDelta) > 0.000001 else {
+            return
+        }
+
+        quillDrawBitmapGradient(gradient, options: options) { point in
+            Self.quillRadialGradientLocation(
+                for: point,
+                startCenter: startCenter,
+                startRadius: startRadius,
+                centerDelta: centerDelta,
+                radiusDelta: radiusDelta
+            )
+        }
+    }
+
+    private static func quillGradientOptionsAllow(
+        _ location: CGFloat,
+        options: CGGradientDrawingOptions
+    ) -> Bool {
+        if location < 0, !options.contains(.drawsBeforeStartLocation) {
+            return false
+        }
+        if location > 1, !options.contains(.drawsAfterEndLocation) {
+            return false
+        }
+        return true
+    }
+
+    private static func quillRadialGradientLocation(
+        for point: CGPoint,
+        startCenter: CGPoint,
+        startRadius: CGFloat,
+        centerDelta: CGPoint,
+        radiusDelta: CGFloat
+    ) -> CGFloat? {
+        let px = point.x - startCenter.x
+        let py = point.y - startCenter.y
+        let a = centerDelta.x * centerDelta.x + centerDelta.y * centerDelta.y - radiusDelta * radiusDelta
+        let b = -2 * (px * centerDelta.x + py * centerDelta.y + startRadius * radiusDelta)
+        let c = px * px + py * py - startRadius * startRadius
+
+        if abs(a) <= 0.000001 {
+            guard abs(b) > 0.000001 else {
+                return nil
+            }
+            return -c / b
+        }
+
+        let discriminant = b * b - 4 * a * c
+        guard discriminant >= 0 else {
+            return nil
+        }
+
+        let root = discriminant.squareRoot()
+        let first = (-b - root) / (2 * a)
+        let second = (-b + root) / (2 * a)
+        return quillPreferredGradientRoot(first, second)
+    }
+
+    private static func quillPreferredGradientRoot(_ first: CGFloat, _ second: CGFloat) -> CGFloat? {
+        let candidates = [first, second].filter(\.isFinite)
+        if let inRange = candidates.filter({ $0 >= 0 && $0 <= 1 }).min(by: { abs($0 - 0.5) < abs($1 - 0.5) }) {
+            return inRange
+        }
+        return candidates.min(by: { abs($0 - 0.5) < abs($1 - 0.5) })
+    }
+
+    private func quillBitmapClipAlpha(_ devicePoint: CGPoint) -> CGFloat {
+        guard !quillClipRegions.isEmpty else {
+            return 1
+        }
+
+        var alpha: CGFloat = 1
+        for region in quillClipRegions {
+            alpha *= Self.quillClipAlpha(for: region, at: devicePoint)
+            if alpha <= 0 {
+                return 0
+            }
+        }
+        return Self.quillClampedUnit(alpha)
+    }
+
+    private static func quillClipAlpha(for region: QuillClipRegion, at devicePoint: CGPoint) -> CGFloat {
+        switch region {
+        case let .path(path, rule, transform):
+            return path.contains(devicePoint, using: rule, transform: transform) ? 1 : 0
+        case let .mask(rect, source, transform):
+            guard let inverse = quillInverse(transform) else {
+                return 0
+            }
+            let userPoint = devicePoint.applying(inverse)
+            guard userPoint.x >= rect.minX, userPoint.x < rect.maxX,
+                  userPoint.y >= rect.minY, userPoint.y < rect.maxY
+            else {
+                return 0
+            }
+
+            let unitX = (userPoint.x - rect.minX) / rect.width
+            let unitY = (userPoint.y - rect.minY) / rect.height
+            let sourceX = Swift.max(0, Swift.min(source.width - 1, Int((unitX * CGFloat(source.width)).rounded(.down))))
+            let sourceY = Swift.max(0, Swift.min(source.height - 1, Int((unitY * CGFloat(source.height)).rounded(.down))))
+            let sourceOffset = sourceY * source.bytesPerRow + sourceX * 4
+            guard sourceOffset + 3 < source.pixels.count else {
+                return 0
+            }
+            return CGFloat(source.pixels[sourceOffset + 3]) / 255
+        }
+    }
+
+    private func quillAddClip(_ path: CGPath, using rule: CGPathFillRule) {
+        guard !path.isEmpty else {
+            return
+        }
+
+        quillClipRegions.append(.path(path: path, rule: rule, transform: quillCTM))
+    }
+
+    private func quillAddMaskClip(rect: CGRect, source: QuillBitmapImageSource) {
+        guard let rect = Self.quillNormalizedRect(rect) else {
+            return
+        }
+
+        quillClipRegions.append(.mask(rect: rect, source: source, transform: quillCTM))
+    }
+
+    /// Bitmap-context initializer. The supplied pixels are retained so
+    /// `makeImage()` can return a CGImage instead of trapping callers that
+    /// force-unwrap it. Nil data creates a zero-filled 8-bit BGRA buffer when the
+    /// dimensions describe a supported 32-bpp bitmap.
     public convenience init?(
         data: UnsafeMutableRawPointer?,
         width: Int,
@@ -941,12 +3536,27 @@ public final class CGContext {
         self.height = height
         self.bitsPerComponent = bitsPerComponent
         self.bitsPerPixel = bitsPerComponent * 4
-        self.bytesPerRow = bytesPerRow
+        self.bytesPerRow = Self.quillResolvedBytesPerRow(
+            width: width,
+            bitsPerComponent: bitsPerComponent,
+            bytesPerRow: bytesPerRow
+        ) ?? bytesPerRow
         self.colorSpace = space
         self.bitmapInfo = CGBitmapInfo(rawValue: bitmapInfo)
-        if let data, height > 0, bytesPerRow > 0 {
-            let count = height * bytesPerRow
+        guard width > 0, height > 0, self.bytesPerRow > 0,
+              let count = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: self.bytesPerRow)
+        else { return }
+
+        if let data {
             quillBitmapBytes = Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self), count: count))
+        } else if Self.quillSupportsDirectBitmapDrawing(
+            width: width,
+            height: height,
+            bitsPerComponent: bitsPerComponent,
+            bitsPerPixel: self.bitsPerPixel,
+            bytesPerRow: self.bytesPerRow
+        ) {
+            quillBitmapBytes = Array(repeating: 0, count: count)
         }
     }
 
@@ -974,11 +3584,6 @@ public final class CGContext {
     }
 
     public func makeImage() -> CGImage? {
-        #if os(Linux)
-        if let image = (quillBackend as? QuillCGImageProducingBackend)?.quillMakeImage() {
-            return image
-        }
-        #endif
         let image = CGImage()
         image.width = width
         image.height = height
@@ -988,48 +3593,211 @@ public final class CGContext {
     }
 
     public var interpolationQuality: CGInterpolationQuality = .default
+    public func setInterpolationQuality(_ quality: CGInterpolationQuality) {
+        interpolationQuality = quality
+    }
 
-    public func setFillColor(_ color: Any?) {}
-    public func setFillColor(_ color: RSCGColor) { quillBackend?.setFillColor(quillNormalizedRGBA(color)) }
-    public func setFillColor(_ color: RSCGColor?) { if let color { quillBackend?.setFillColor(quillNormalizedRGBA(color)) } }
-    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setFillColor([red, green, blue, alpha]) }
-    public func setStrokeColor(_ color: Any?) {}
-    public func setStrokeColor(_ color: RSCGColor) { quillBackend?.setStrokeColor(quillNormalizedRGBA(color)) }
-    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) { quillBackend?.setStrokeColor([red, green, blue, alpha]) }
-    public func setLineWidth(_ width: CGFloat) { quillBackend?.setLineWidth(width) }
-    public func setLineCap(_ cap: CGLineCap) { quillBackend?.setLineCap(cap) }
-    public func setLineJoin(_ join: CGLineJoin) { quillBackend?.setLineJoin(join) }
-    public func setMiterLimit(_ limit: CGFloat) {}
-    public func setShadow(offset: CGSize, blur: CGFloat) {}
-    public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {}
-    public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {}
-    public func setShouldAntialias(_ shouldAntialias: Bool) {}
-    public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {}
-    public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {}
-    public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {}
-    public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {}
-    public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {}
-    public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {}
-    public func setAlpha(_ alpha: CGFloat) { quillBackend?.setAlpha(alpha) }
-    public func setBlendMode(_ mode: CGBlendMode) {}
+    public var isPathEmpty: Bool { quillCurrentPath.isEmpty }
+    public var currentPointOfPath: CGPoint { quillCurrentPath.currentPoint }
+    public var pathBoundingBox: CGRect { quillCurrentPath.boundingBoxOfPath }
+    public func copyPath() -> CGPath? {
+        quillCurrentPath.isEmpty ? nil : quillCurrentPath.copy()
+    }
 
-    public func fill(_ rect: CGRect) { quillBackend?.fill(rect) }
-    public func fill(_ rects: [CGRect]) { for r in rects { quillBackend?.fill(r) } }
-    public func fillEllipse(in rect: CGRect) { quillBackend?.fillEllipse(in: rect) }
-    public func fillPath() { quillBackend?.fillPath() }
-    public func fillPath(using rule: CGPathFillRule) { _ = rule }
-    public func clear(_ rect: CGRect) { quillBackend?.clear(rect) }
-    public func stroke(_ rect: CGRect) { quillBackend?.stroke(rect) }
-    public func strokeEllipse(in rect: CGRect) { quillBackend?.strokeEllipse(in: rect) }
-    public func strokeLineSegments(between points: [CGPoint]) { quillBackend?.strokeLineSegments(between: points) }
-    public func strokePath() { quillBackend?.strokePath() }
+    public func setFillColor(_ color: Any?) {
+        if let color = color as? RSCGColor {
+            setFillColor(color)
+        }
+    }
+    public func setFillColor(_ color: RSCGColor) {
+        let rgba = quillNormalizedRGBA(color)
+        quillFillRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setFillColor(rgba)
+    }
+    public func setFillColor(_ color: RSCGColor?) {
+        if let color {
+            setFillColor(color)
+        }
+    }
+    public func setFillColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        let rgba = [red, green, blue, alpha]
+        quillFillRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setFillColor(rgba)
+    }
+    public func setStrokeColor(_ color: Any?) {
+        if let color = color as? RSCGColor {
+            setStrokeColor(color)
+        }
+    }
+    public func setStrokeColor(_ color: RSCGColor) {
+        let rgba = quillNormalizedRGBA(color)
+        quillStrokeRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setStrokeColor(rgba)
+    }
+    public func setStrokeColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+        let rgba = [red, green, blue, alpha]
+        quillStrokeRGBA = Self.quillNormalizedFillRGBA(rgba)
+        quillBackend?.setStrokeColor(rgba)
+    }
+    public func setLineWidth(_ width: CGFloat) {
+        quillLineWidth = width.isFinite ? Swift.max(0, width) : 0
+        quillBackend?.setLineWidth(width)
+    }
+    public func setLineCap(_ cap: CGLineCap) {
+        quillLineCap = cap
+        quillBackend?.setLineCap(cap)
+    }
+    public func setLineJoin(_ join: CGLineJoin) {
+        quillLineJoin = join
+        quillBackend?.setLineJoin(join)
+    }
+    public func setMiterLimit(_ limit: CGFloat) {
+        let sanitizedLimit = limit.isFinite ? Swift.max(0, limit) : 0
+        quillMiterLimit = sanitizedLimit
+        quillBackend?.setMiterLimit(sanitizedLimit)
+    }
+    public func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        let sanitizedLengths = Self.quillNormalizedDashLengths(lengths)
+        quillLineDashPhase = phase.isFinite ? phase : 0
+        quillLineDashLengths = sanitizedLengths
+        quillBackend?.setLineDash(phase: quillLineDashPhase, lengths: sanitizedLengths)
+    }
+    public func setShadow(offset: CGSize, blur: CGFloat) {
+        let colorRGBA: [CGFloat] = [0, 0, 0, CGFloat(1) / 3]
+        quillShadow = QuillShadow(
+            offset: offset,
+            blur: blur,
+            colorRGBA: colorRGBA
+        )
+        quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
+    }
+    public func setShadow(offset: CGSize, blur: CGFloat, color: CGColor?) {
+        guard let color else {
+            quillShadow = nil
+            quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: nil)
+            return
+        }
+        let colorRGBA = Self.quillNormalizedFillRGBA(quillNormalizedRGBA(color))
+        quillShadow = QuillShadow(
+            offset: offset,
+            blur: blur,
+            colorRGBA: colorRGBA
+        )
+        quillBackend?.setShadow(offset: offset, blur: blur, colorRGBA: colorRGBA)
+    }
+    private var quillEffectiveAntialiasing: Bool {
+        quillAllowsAntialiasing && quillShouldAntialias
+    }
+    public var quillEffectiveFontSmoothing: Bool {
+        quillAllowsFontSmoothingState && quillShouldSmoothFontsState
+    }
+    public var quillEffectiveFontSubpixelPositioning: Bool {
+        quillAllowsFontSubpixelPositioningState && quillShouldSubpixelPositionFontsState
+    }
+    public var quillEffectiveFontSubpixelQuantization: Bool {
+        quillAllowsFontSubpixelQuantizationState && quillShouldSubpixelQuantizeFontsState
+    }
+    public func setAllowsAntialiasing(_ allowsAntialiasing: Bool) {
+        quillAllowsAntialiasing = allowsAntialiasing
+        quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
+    }
+    public func setShouldAntialias(_ shouldAntialias: Bool) {
+        quillShouldAntialias = shouldAntialias
+        quillBackend?.setShouldAntialias(quillEffectiveAntialiasing)
+    }
+    public func setAllowsFontSmoothing(_ allowsFontSmoothing: Bool) {
+        quillAllowsFontSmoothingState = allowsFontSmoothing
+    }
+    public func setShouldSmoothFonts(_ shouldSmoothFonts: Bool) {
+        quillShouldSmoothFontsState = shouldSmoothFonts
+    }
+    public func setAllowsFontSubpixelPositioning(_ allowsFontSubpixelPositioning: Bool) {
+        quillAllowsFontSubpixelPositioningState = allowsFontSubpixelPositioning
+    }
+    public func setShouldSubpixelPositionFonts(_ shouldSubpixelPositionFonts: Bool) {
+        quillShouldSubpixelPositionFontsState = shouldSubpixelPositionFonts
+    }
+    public func setAllowsFontSubpixelQuantization(_ allowsFontSubpixelQuantization: Bool) {
+        quillAllowsFontSubpixelQuantizationState = allowsFontSubpixelQuantization
+    }
+    public func setShouldSubpixelQuantizeFonts(_ shouldSubpixelQuantizeFonts: Bool) {
+        quillShouldSubpixelQuantizeFontsState = shouldSubpixelQuantizeFonts
+    }
+    public func setAlpha(_ alpha: CGFloat) {
+        quillAlpha = Self.quillClampedUnit(alpha)
+        quillBackend?.setAlpha(alpha)
+    }
+    public func setBlendMode(_ mode: CGBlendMode) {
+        quillBlendMode = mode
+        quillBackend?.setBlendMode(mode)
+    }
 
-    public func beginPath() { quillBackend?.beginPath() }
-    public func closePath() { quillBackend?.closePath() }
-    public func move(to point: CGPoint) { quillBackend?.move(to: point) }
-    public func addLine(to point: CGPoint) { quillBackend?.addLine(to: point) }
-    public func addRect(_ rect: CGRect) { quillBackend?.addRect(rect) }
-    public func addRects(_ rects: [CGRect]) {}
+    public func fill(_ rect: CGRect) {
+        quillBackend?.fill(rect)
+        quillFillBitmap(rect)
+    }
+    public func fill(_ rects: [CGRect]) { for r in rects { fill(r) } }
+    public func fillEllipse(in rect: CGRect) {
+        quillBackend?.fillEllipse(in: rect)
+        quillFillBitmapPath(CGPath(ellipseIn: rect, transform: nil), using: .winding)
+    }
+    public func fillPath() {
+        quillBackend?.fillPath()
+        quillFillBitmapPath(quillCurrentPath, using: .winding)
+        clearCurrentPath()
+    }
+    public func fillPath(using rule: CGPathFillRule) {
+        quillBackend?.fillPath(using: rule)
+        quillFillBitmapPath(quillCurrentPath, using: rule)
+        clearCurrentPath()
+    }
+    public func clear(_ rect: CGRect) {
+        quillBackend?.clear(rect)
+        quillClearBitmap(rect)
+    }
+    public func stroke(_ rect: CGRect) {
+        quillBackend?.stroke(rect)
+        quillStrokeBitmapRect(rect)
+    }
+    public func strokeEllipse(in rect: CGRect) {
+        quillBackend?.strokeEllipse(in: rect)
+        quillStrokeBitmapEllipse(rect)
+    }
+    public func strokeLineSegments(between points: [CGPoint]) {
+        quillBackend?.strokeLineSegments(between: points)
+        quillStrokeBitmapLineSegments(between: points)
+    }
+    public func strokePath() {
+        quillBackend?.strokePath()
+        quillStrokeBitmapPath(quillCurrentPath)
+        clearCurrentPath()
+    }
+
+    public func beginPath() {
+        quillCurrentPath = CGMutablePath()
+        quillBackend?.beginPath()
+    }
+    public func closePath() {
+        quillCurrentPath.closeSubpath()
+        quillBackend?.closePath()
+    }
+    public func move(to point: CGPoint) {
+        quillCurrentPath.move(to: point)
+        quillBackend?.move(to: point)
+    }
+    public func addLine(to point: CGPoint) {
+        quillCurrentPath.addLine(to: point)
+        quillBackend?.addLine(to: point)
+    }
+    public func addRect(_ rect: CGRect) {
+        quillCurrentPath.addRect(rect)
+        quillBackend?.addRect(rect)
+    }
+    public func addRects(_ rects: [CGRect]) {
+        for rect in rects {
+            addRect(rect)
+        }
+    }
     public func addLines(between points: [CGPoint]) {
         guard let first = points.first else { return }
         move(to: first)
@@ -1037,54 +3805,239 @@ public final class CGContext {
             addLine(to: point)
         }
     }
-    public func addEllipse(in rect: CGRect) { quillBackend?.addEllipse(in: rect) }
-    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {}
-    public func addQuadCurve(to end: CGPoint, control: CGPoint) {}
-    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) { quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise) }
-    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {}
-    public func addPath(_ path: Any?) {}
-    public func clip() { quillBackend?.clip() }
-    public func clip(using rule: CGPathFillRule) { _ = rule }
-    public func clip(to rect: CGRect) { quillBackend?.clip(to: rect) }
-    public func resetClip() {}
-    // CGContext.clip(to:mask:) — clips to a rect using an image mask. Inert on
-    // Linux (no real raster). SSK: AvatarBuilder masks a tinted icon.
-    public func clip(to rect: CGRect, mask image: Any) {}
-
-    public func saveGState() { quillBackend?.saveGState() }
-    public func restoreGState() { quillBackend?.restoreGState() }
-    public func beginTransparencyLayer(auxiliaryInfo: Any?) {}
-    public func endTransparencyLayer() {}
-    public func endPage() {}
-    public func translateBy(x: CGFloat, y: CGFloat) { quillBackend?.translateBy(x: x, y: y) }
-    public func scaleBy(x: CGFloat, y: CGFloat) { quillBackend?.scaleBy(x: x, y: y) }
-    public func rotate(by angle: CGFloat) { quillBackend?.rotate(by: angle) }
-    // `CGAffineTransform` is absent from swift-corelibs Foundation on this
-    // toolchain, so the param is typed `Any` (the op is an inert no-op anyway).
-    public func concatenate(_ transform: Any) {}
-
-    public func draw(_ image: Any, in rect: CGRect) { quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality) }
-    public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {}
-    public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {}
-}
-
-#if os(Linux)
-public enum QuillGraphicsContextStack {
-    nonisolated(unsafe) private static var stack: [CGContext] = []
-
-    public static var current: CGContext? { stack.last }
-
-    public static func push(_ context: CGContext) {
-        stack.append(context)
+    public func addEllipse(in rect: CGRect) {
+        quillCurrentPath.addEllipse(in: rect)
+        quillBackend?.addEllipse(in: rect)
     }
-
-    public static func pop() {
-        if !stack.isEmpty {
-            stack.removeLast()
+    public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
+        quillCurrentPath.addCurve(to: end, control1: control1, control2: control2)
+        quillBackend?.addCurve(to: end, control1: control1, control2: control2)
+    }
+    public func addQuadCurve(to end: CGPoint, control: CGPoint) {
+        quillCurrentPath.addQuadCurve(to: end, control: control)
+        quillBackend?.addQuadCurve(to: end, control: control)
+    }
+    public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+        quillCurrentPath.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
+        quillBackend?.addArc(center: center, radius: radius, startAngle: startAngle, endAngle: endAngle, clockwise: clockwise)
+    }
+    public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
+        let previousCount = quillCurrentPath.elements.count
+        quillCurrentPath.addArc(tangent1End: tangent1End, tangent2End: tangent2End, radius: radius)
+        for element in quillCurrentPath.elements.dropFirst(previousCount) {
+            appendPathElementToBackend(element)
         }
     }
+    public func addPath(_ path: CGPath) {
+        appendPath(path)
+    }
+    public func addPath(_ path: Any?) {
+        guard let path = path as? CGPath else { return }
+        appendPath(path)
+    }
+    private func appendPath(_ path: CGPath) {
+        path.applyWithBlock { elementPointer in
+            let element = elementPointer.pointee
+            switch element.type {
+            case .moveToPoint:
+                move(to: element.points[0])
+            case .addLineToPoint:
+                addLine(to: element.points[0])
+            case .addQuadCurveToPoint:
+                addQuadCurve(to: element.points[1], control: element.points[0])
+            case .addCurveToPoint:
+                addCurve(to: element.points[2], control1: element.points[0], control2: element.points[1])
+            case .closeSubpath:
+                closePath()
+            }
+        }
+    }
+
+    private func appendPathElementToBackend(_ element: CGPathStorageElement) {
+        switch element.type {
+        case .moveToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.move(to: point)
+        case .addLineToPoint:
+            guard let point = element.points.first else { return }
+            quillBackend?.addLine(to: point)
+        case .addQuadCurveToPoint:
+            guard element.points.count >= 2 else { return }
+            quillBackend?.addQuadCurve(to: element.points[1], control: element.points[0])
+        case .addCurveToPoint:
+            guard element.points.count >= 3 else { return }
+            quillBackend?.addCurve(to: element.points[2], control1: element.points[0], control2: element.points[1])
+        case .closeSubpath:
+            quillBackend?.closePath()
+        }
+    }
+    public func clip() {
+        quillBackend?.clip()
+        if let path = quillCurrentPath.copy() {
+            quillAddClip(path, using: .winding)
+        }
+        clearCurrentPath()
+    }
+    public func clip(using rule: CGPathFillRule) {
+        quillBackend?.clip(using: rule)
+        if let path = quillCurrentPath.copy() {
+            quillAddClip(path, using: rule)
+        }
+        clearCurrentPath()
+    }
+    public func clip(to rect: CGRect) {
+        quillBackend?.clip(to: rect)
+        guard let normalizedRect = Self.quillNormalizedRect(rect) else {
+            return
+        }
+
+        quillAddClip(CGPath(rect: normalizedRect, transform: nil), using: .winding)
+    }
+    public func resetClip() {
+        quillClipRegions.removeAll()
+    }
+    public func clip(to rect: CGRect, mask image: Any) {
+        guard let source = Self.quillBitmapSource(from: image) else {
+            return
+        }
+        quillAddMaskClip(rect: rect, source: source)
+    }
+
+    public func saveGState() {
+        quillStateStack.append(QuillGraphicsState(
+            fillRGBA: quillFillRGBA,
+            strokeRGBA: quillStrokeRGBA,
+            lineWidth: quillLineWidth,
+            lineCap: quillLineCap,
+            lineJoin: quillLineJoin,
+            miterLimit: quillMiterLimit,
+            lineDashPhase: quillLineDashPhase,
+            lineDashLengths: quillLineDashLengths,
+            allowsAntialiasing: quillAllowsAntialiasing,
+            shouldAntialias: quillShouldAntialias,
+            allowsFontSmoothing: quillAllowsFontSmoothingState,
+            shouldSmoothFonts: quillShouldSmoothFontsState,
+            allowsFontSubpixelPositioning: quillAllowsFontSubpixelPositioningState,
+            shouldSubpixelPositionFonts: quillShouldSubpixelPositionFontsState,
+            allowsFontSubpixelQuantization: quillAllowsFontSubpixelQuantizationState,
+            shouldSubpixelQuantizeFonts: quillShouldSubpixelQuantizeFontsState,
+            interpolationQuality: interpolationQuality,
+            alpha: quillAlpha,
+            blendMode: quillBlendMode,
+            shadow: quillShadow,
+            ctm: quillCTM,
+            clipRegions: quillClipRegions
+        ))
+        quillBackend?.saveGState()
+    }
+    public func restoreGState() {
+        if let state = quillStateStack.popLast() {
+            quillFillRGBA = state.fillRGBA
+            quillStrokeRGBA = state.strokeRGBA
+            quillLineWidth = state.lineWidth
+            quillLineCap = state.lineCap
+            quillLineJoin = state.lineJoin
+            quillMiterLimit = state.miterLimit
+            quillLineDashPhase = state.lineDashPhase
+            quillLineDashLengths = state.lineDashLengths
+            quillAllowsAntialiasing = state.allowsAntialiasing
+            quillShouldAntialias = state.shouldAntialias
+            quillAllowsFontSmoothingState = state.allowsFontSmoothing
+            quillShouldSmoothFontsState = state.shouldSmoothFonts
+            quillAllowsFontSubpixelPositioningState = state.allowsFontSubpixelPositioning
+            quillShouldSubpixelPositionFontsState = state.shouldSubpixelPositionFonts
+            quillAllowsFontSubpixelQuantizationState = state.allowsFontSubpixelQuantization
+            quillShouldSubpixelQuantizeFontsState = state.shouldSubpixelQuantizeFonts
+            interpolationQuality = state.interpolationQuality
+            quillAlpha = state.alpha
+            quillBlendMode = state.blendMode
+            quillShadow = state.shadow
+            quillCTM = state.ctm
+            quillClipRegions = state.clipRegions
+        }
+        quillBackend?.restoreGState()
+    }
+    public func beginTransparencyLayer(auxiliaryInfo: Any?) {
+        quillBackend?.beginTransparencyLayer(auxiliaryInfo: auxiliaryInfo)
+        guard quillCanDrawCurrentBitmap,
+              let currentBytes = quillBitmapBytes,
+              let requiredByteCount = Self.quillBitmapStorageByteCount(height: height, bytesPerRow: bytesPerRow),
+              currentBytes.count >= requiredByteCount
+        else {
+            return
+        }
+
+        quillTransparencyLayerStack.append(QuillTransparencyLayer(
+            parentBytes: currentBytes,
+            alpha: quillAlpha,
+            blendMode: quillBlendMode,
+            shadow: quillShadow,
+            clipRegions: quillClipRegions
+        ))
+        quillBitmapBytes = Array(repeating: 0, count: requiredByteCount)
+        quillAlpha = 1
+        quillBlendMode = .normal
+        quillShadow = nil
+    }
+    public func endTransparencyLayer() {
+        quillBackend?.endTransparencyLayer()
+        guard let layer = quillTransparencyLayerStack.popLast(),
+              let layerPixels = quillBitmapBytes
+        else {
+            return
+        }
+        quillCompositeTransparencyLayer(layerPixels, using: layer)
+    }
+    public func endPage() {}
+    public func translateBy(x: CGFloat, y: CGFloat) {
+        quillCTM = quillCTM.translatedBy(x: x, y: y)
+        quillBackend?.translateBy(x: x, y: y)
+    }
+    public func scaleBy(x: CGFloat, y: CGFloat) {
+        quillCTM = quillCTM.scaledBy(x: x, y: y)
+        quillBackend?.scaleBy(x: x, y: y)
+    }
+    public func rotate(by angle: CGFloat) {
+        quillCTM = quillCTM.rotated(by: angle)
+        quillBackend?.rotate(by: angle)
+    }
+    public func concatenate(_ transform: CGAffineTransform) {
+        quillCTM = quillCTM.concatenating(transform)
+        quillBackend?.concatenate(transform)
+    }
+    public func concatenate(_ transform: Any) {
+        guard let transform = transform as? CGAffineTransform else { return }
+        concatenate(transform)
+    }
+
+    public func draw(_ image: Any, in rect: CGRect) {
+        quillBackend?.draw(image, in: rect, interpolationQuality: interpolationQuality)
+        quillDrawBitmapImage(image, in: rect)
+    }
+    public func drawLinearGradient(_ gradient: Any?, start: CGPoint, end: CGPoint, options: CGGradientDrawingOptions) {
+        guard let gradient = gradient as? CGGradient else {
+            return
+        }
+        quillDrawBitmapLinearGradient(gradient, start: start, end: end, options: options)
+    }
+    public func drawRadialGradient(_ gradient: Any?, startCenter: CGPoint, startRadius: CGFloat, endCenter: CGPoint, endRadius: CGFloat, options: CGGradientDrawingOptions) {
+        guard let gradient = gradient as? CGGradient else {
+            return
+        }
+        quillDrawBitmapRadialGradient(
+            gradient,
+            startCenter: startCenter,
+            startRadius: startRadius,
+            endCenter: endCenter,
+            endRadius: endRadius,
+            options: options
+        )
+    }
+
+    private func clearCurrentPath() {
+        quillCurrentPath = CGMutablePath()
+    }
 }
-#endif
 
 public typealias CGWindowID = UInt32
 
@@ -1129,7 +4082,7 @@ public func sysctlbyname(
 // SDWebImage's SDAnimatedImage: UIImage. On Apple, UIImage/NSImage are open too.
 public enum QuillResourceLookup {
     public static let commonImageExtensions: [String] = [
-        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg"
+        "png", "jpg", "jpeg", "webp", "gif", "bmp", "tiff", "tif", "svg", "pdf"
     ]
 
     public static func path(
@@ -1154,10 +4107,21 @@ public enum QuillResourceLookup {
                         return url.path
                     }
                 }
+
+                if let assetPath = assetCatalogImagePath(for: name, under: directory) {
+                    return assetPath
+                }
             }
         }
 
         return nil
+    }
+
+    public static func imageSize(forResource name: String) -> CGSize? {
+        guard let path = path(forResource: name, candidateExtensions: commonImageExtensions) else {
+            return nil
+        }
+        return QuillImageMetadata.size(ofFileAt: path)
     }
 
     public static func data(
@@ -1170,6 +4134,31 @@ public enum QuillResourceLookup {
         return FileManager.default.contents(atPath: path)
     }
 
+    public static func localizedString(
+        forKey key: String,
+        tableName: String? = nil,
+        value: String = "",
+        preferredLocalizations: [String] = []
+    ) -> String {
+        guard !key.isEmpty else { return value }
+        let table = (tableName?.isEmpty == false ? tableName! : "Localizable")
+        let roots = localizationRoots() + resourceRoots()
+
+        for localization in localizationCandidates(preferredLocalizations) {
+            for root in roots {
+                for path in localizedStringTablePaths(tableName: table, localization: localization, under: root) {
+                    guard let strings = QuillLocalizedStringTables.table(at: path),
+                          let localized = strings[key] else {
+                        continue
+                    }
+                    return localized
+                }
+            }
+        }
+
+        return value.isEmpty ? key : value
+    }
+
     private static func candidateNames(for name: String, extensions: [String]) -> [String] {
         let url = URL(fileURLWithPath: name)
         guard url.pathExtension.isEmpty else { return [name] }
@@ -1179,6 +4168,151 @@ public enum QuillResourceLookup {
             candidates.append("\(name).\(ext)")
         }
         return candidates
+    }
+
+    private static func assetCatalogImagePath(for name: String, under directory: URL) -> String? {
+        let assetName = URL(fileURLWithPath: name).deletingPathExtension().lastPathComponent
+        guard !assetName.isEmpty else { return nil }
+
+        let catalogRoots = imageCatalogRoots(under: directory)
+        for catalogRoot in catalogRoots {
+            let direct = catalogRoot.appendingPathComponent("\(assetName).imageset", isDirectory: true)
+            if let path = imagePath(inImageset: direct) {
+                return path
+            }
+
+            guard let enumerator = FileManager.default.enumerator(
+                at: catalogRoot,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                continue
+            }
+            for case let url as URL in enumerator where url.lastPathComponent == "\(assetName).imageset" {
+                if let path = imagePath(inImageset: url) {
+                    return path
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func imageCatalogRoots(under directory: URL) -> [URL] {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return []
+        }
+
+        if directory.pathExtension == "xcassets" || fileManager.fileExists(
+            atPath: directory.appendingPathComponent("Contents.json").path
+        ) {
+            return [directory]
+        }
+
+        let children = (try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+        return children.filter { child in
+            child.pathExtension == "xcassets"
+        }
+    }
+
+    private static func imagePath(inImageset imageset: URL) -> String? {
+        let fileManager = FileManager.default
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: imageset.path, isDirectory: &isDirectory),
+              isDirectory.boolValue else {
+            return nil
+        }
+        let contentsURL = imageset.appendingPathComponent("Contents.json")
+        guard let data = try? Data(contentsOf: contentsURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let images = json["images"] as? [[String: Any]] else {
+            return nil
+        }
+
+        for image in images {
+            guard let filename = image["filename"] as? String, !filename.isEmpty else {
+                continue
+            }
+            let imageURL = imageset.appendingPathComponent(filename)
+            var imageIsDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: imageURL.path, isDirectory: &imageIsDirectory),
+               !imageIsDirectory.boolValue {
+                return imageURL.path
+            }
+        }
+        return nil
+    }
+
+    private static func localizationCandidates(_ preferredLocalizations: [String]) -> [String] {
+        var rawCandidates = preferredLocalizations
+        let environment = ProcessInfo.processInfo.environment
+        if let override = environment["QUILLUI_LOCALE"], !override.isEmpty {
+            rawCandidates.append(override)
+        }
+        if let language = environment["LANGUAGE"], !language.isEmpty {
+            rawCandidates += language
+                .split(separator: ":", omittingEmptySubsequences: true)
+                .map(String.init)
+        }
+        if let lang = environment["LANG"], !lang.isEmpty {
+            rawCandidates.append(lang)
+        }
+        rawCandidates += Locale.preferredLanguages
+        rawCandidates += ["en", "Base"]
+
+        var result: [String] = []
+        var seen: Set<String> = []
+        func append(_ value: String) {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            let withoutEncoding = trimmed.split(separator: ".", maxSplits: 1).first.map(String.init) ?? trimmed
+            let withoutModifier = withoutEncoding.split(separator: "@", maxSplits: 1).first.map(String.init) ?? withoutEncoding
+            let normalized = withoutModifier.replacingOccurrences(of: "-", with: "_").lowercased()
+            guard !normalized.isEmpty, seen.insert(normalized).inserted else { return }
+            result.append(normalized)
+            if let language = normalized.split(separator: "_", maxSplits: 1).first,
+               language != normalized,
+               seen.insert(String(language)).inserted {
+                result.append(String(language))
+            }
+        }
+        for candidate in rawCandidates {
+            append(candidate)
+        }
+        return result
+    }
+
+    private static func localizedStringTablePaths(tableName: String, localization: String, under root: URL) -> [String] {
+        let filename = tableName.hasSuffix(".strings") ? tableName : "\(tableName).strings"
+        let lprojName = "\(localization).lproj"
+        var candidates: [URL] = []
+
+        if root.pathExtension.lowercased() == "lproj" {
+            candidates.append(root.appendingPathComponent(filename))
+        } else {
+            candidates.append(root.appendingPathComponent(lprojName, isDirectory: true).appendingPathComponent(filename))
+            candidates.append(root
+                .appendingPathComponent("translations", isDirectory: true)
+                .appendingPathComponent(lprojName, isDirectory: true)
+                .appendingPathComponent(filename))
+        }
+
+        return candidates.map(\.path)
+    }
+
+    private static func localizationRoots() -> [URL] {
+        guard let raw = ProcessInfo.processInfo.environment["QUILLUI_LOCALIZATION_DIRS"] else {
+            return []
+        }
+        return raw
+            .split(separator: ":", omittingEmptySubsequences: true)
+            .map { URL(fileURLWithPath: String($0), isDirectory: true) }
     }
 
     private static func resourceRoots() -> [URL] {
@@ -1236,6 +4370,446 @@ public enum QuillResourceLookup {
     }
 }
 
+private enum QuillLocalizedStringTables {
+    nonisolated(unsafe) private static var cachedTables: [String: [String: String]?] = [:]
+    private static let lock = NSLock()
+
+    static func table(at path: String) -> [String: String]? {
+        lock.lock()
+        if let cached = cachedTables[path] {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
+        let parsed = parseTable(at: path)
+
+        lock.lock()
+        cachedTables[path] = parsed
+        lock.unlock()
+        return parsed
+    }
+
+    private static func parseTable(at path: String) -> [String: String]? {
+        guard FileManager.default.fileExists(atPath: path),
+              let data = FileManager.default.contents(atPath: path) else {
+            return nil
+        }
+        if let plist = try? PropertyListSerialization.propertyList(
+            from: data,
+            options: [],
+            format: nil
+        ) as? [String: String] {
+            return plist
+        }
+        guard let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return parseLooseStrings(text)
+    }
+
+    private static func parseLooseStrings(_ text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        var index = text.startIndex
+
+        func skipWhitespaceAndComments() {
+            while index < text.endIndex {
+                if text[index].isWhitespace {
+                    index = text.index(after: index)
+                    continue
+                }
+                if text[index] == "/" {
+                    let next = text.index(after: index)
+                    guard next < text.endIndex else { return }
+                    if text[next] == "/" {
+                        index = text.index(after: next)
+                        while index < text.endIndex, text[index] != "\n" {
+                            index = text.index(after: index)
+                        }
+                        continue
+                    }
+                    if text[next] == "*" {
+                        index = text.index(after: next)
+                        while index < text.endIndex {
+                            if text[index] == "*" {
+                                let slash = text.index(after: index)
+                                if slash < text.endIndex, text[slash] == "/" {
+                                    index = text.index(after: slash)
+                                    break
+                                }
+                            }
+                            index = text.index(after: index)
+                        }
+                        continue
+                    }
+                }
+                return
+            }
+        }
+
+        func parseQuotedString() -> String? {
+            skipWhitespaceAndComments()
+            guard index < text.endIndex, text[index] == "\"" else { return nil }
+            index = text.index(after: index)
+            var output = ""
+            while index < text.endIndex {
+                let character = text[index]
+                index = text.index(after: index)
+                if character == "\"" {
+                    return output
+                }
+                if character == "\\", index < text.endIndex {
+                    let escaped = text[index]
+                    index = text.index(after: index)
+                    switch escaped {
+                    case "n": output.append("\n")
+                    case "r": output.append("\r")
+                    case "t": output.append("\t")
+                    case "\"": output.append("\"")
+                    case "\\": output.append("\\")
+                    default: output.append(escaped)
+                    }
+                } else {
+                    output.append(character)
+                }
+            }
+            return nil
+        }
+
+        while index < text.endIndex {
+            skipWhitespaceAndComments()
+            guard let key = parseQuotedString() else { break }
+            skipWhitespaceAndComments()
+            guard index < text.endIndex, text[index] == "=" else { break }
+            index = text.index(after: index)
+            guard let value = parseQuotedString() else { break }
+            result[key] = value
+            skipWhitespaceAndComments()
+            if index < text.endIndex, text[index] == ";" {
+                index = text.index(after: index)
+            }
+        }
+
+        return result
+    }
+}
+
+private enum QuillImageMetadata {
+    static func size(ofFileAt path: String) -> CGSize? {
+        let url = URL(fileURLWithPath: path)
+        switch url.pathExtension.lowercased() {
+        case "pdf":
+            return pdfPageSize(at: url)
+        case "png":
+            return pngPixelSize(at: url)
+        default:
+            return nil
+        }
+    }
+
+    private static func pdfPageSize(at url: URL) -> CGSize? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let body = String(decoding: data, as: UTF8.self)
+        let pattern = #"/(?:MediaBox|CropBox)\s*\[\s*([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s+([+-]?\d+(?:\.\d+)?)\s*\]"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: body, range: NSRange(body.startIndex..., in: body)),
+              match.numberOfRanges == 5 else {
+            return nil
+        }
+
+        func number(_ index: Int) -> CGFloat? {
+            guard let range = Range(match.range(at: index), in: body) else { return nil }
+            guard let value = Double(String(body[range])) else { return nil }
+            return CGFloat(value)
+        }
+
+        guard let x0 = number(1), let y0 = number(2), let x1 = number(3), let y1 = number(4) else {
+            return nil
+        }
+        let width = abs(x1 - x0)
+        let height = abs(y1 - y0)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: width, height: height)
+    }
+
+    private static func pngPixelSize(at url: URL) -> CGSize? {
+        guard let data = try? Data(contentsOf: url), data.count >= 24 else { return nil }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        guard Array(data.prefix(signature.count)) == signature else { return nil }
+
+        func uint32(at offset: Int) -> UInt32 {
+            data[offset..<offset + 4].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        }
+
+        let width = uint32(at: 16)
+        let height = uint32(at: 20)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
+
+    static func size(ofData data: Data) -> CGSize? {
+        pngPixelSize(in: data)
+    }
+
+    private static func pngPixelSize(in data: Data) -> CGSize? {
+        guard data.count >= 24 else { return nil }
+        let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+        guard Array(data.prefix(signature.count)) == signature else { return nil }
+
+        func uint32(at offset: Int) -> UInt32 {
+            data[offset..<offset + 4].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        }
+
+        let width = uint32(at: 16)
+        let height = uint32(at: 20)
+        guard width > 0, height > 0 else { return nil }
+        return CGSize(width: CGFloat(width), height: CGFloat(height))
+    }
+}
+
+#if os(Linux)
+public enum QuillRasterImageFormat: String, Sendable {
+    case png
+    case jpeg
+    case tiff
+    case bmp
+}
+
+private enum QuillGdkPixbufBridge {
+    static func decodeCGImage(from source: Data) -> CGImage? {
+        guard let pixbuf = decodePixbuf(from: source) else { return nil }
+        defer { g_object_unref(gpointer(pixbuf)) }
+
+        let width = Int(gdk_pixbuf_get_width(pixbuf))
+        let height = Int(gdk_pixbuf_get_height(pixbuf))
+        let sourceChannels = Int(gdk_pixbuf_get_n_channels(pixbuf))
+        let sourceStride = Int(gdk_pixbuf_get_rowstride(pixbuf))
+        guard width > 0, height > 0, sourceChannels >= 3,
+              let sourcePixels = gdk_pixbuf_get_pixels(pixbuf) else {
+            return nil
+        }
+
+        let bytesPerRow = width * 4
+        var bgra = [UInt8](repeating: 0, count: bytesPerRow * height)
+        for y in 0..<height {
+            let sourceRow = sourcePixels.advanced(by: y * sourceStride)
+            let destinationRow = y * bytesPerRow
+            for x in 0..<width {
+                let sourcePixel = sourceRow.advanced(by: x * sourceChannels)
+                let alpha = sourceChannels >= 4 ? Int(sourcePixel[3]) : 255
+                let destination = destinationRow + x * 4
+                bgra[destination] = premultiply(sourcePixel[2], alpha: alpha)
+                bgra[destination + 1] = premultiply(sourcePixel[1], alpha: alpha)
+                bgra[destination + 2] = premultiply(sourcePixel[0], alpha: alpha)
+                bgra[destination + 3] = UInt8(alpha)
+            }
+        }
+
+        let image = CGImage()
+        image.width = width
+        image.height = height
+        image.quillBytesPerRow = bytesPerRow
+        image.quillBGRAPixels = bgra
+        return image
+    }
+
+    static func encodeBGRAPixels(
+        _ bgra: [UInt8],
+        width: Int,
+        height: Int,
+        bytesPerRow: Int,
+        as format: QuillRasterImageFormat
+    ) -> Data? {
+        guard let pixbuf = pixbufFromBGRA(
+            bgra,
+            width: width,
+            height: height,
+            bytesPerRow: bytesPerRow
+        ) else {
+            return nil
+        }
+        defer { g_object_unref(gpointer(pixbuf)) }
+        return encodePixbuf(pixbuf, as: format)
+    }
+
+    private static func decodePixbuf(from source: Data) -> OpaquePointer? {
+        guard !source.isEmpty, let loader = gdk_pixbuf_loader_new() else { return nil }
+        defer { g_object_unref(gpointer(loader)) }
+
+        let writeOK = source.withUnsafeBytes { (raw: UnsafeRawBufferPointer) -> Bool in
+            guard let base = raw.baseAddress else { return false }
+            var error: UnsafeMutablePointer<GError>? = nil
+            let ok = gdk_pixbuf_loader_write(
+                loader,
+                base.assumingMemoryBound(to: guchar.self),
+                gsize(raw.count),
+                &error
+            )
+            if let error { g_error_free(error) }
+            return ok != 0
+        }
+        guard writeOK else { return nil }
+
+        var closeError: UnsafeMutablePointer<GError>? = nil
+        let closeOK = gdk_pixbuf_loader_close(loader, &closeError)
+        if let closeError { g_error_free(closeError) }
+        guard closeOK != 0, let pixbuf = gdk_pixbuf_loader_get_pixbuf(loader) else {
+            return nil
+        }
+
+        g_object_ref(gpointer(pixbuf))
+        return pixbuf
+    }
+
+    private static func pixbufFromBGRA(
+        _ bgra: [UInt8],
+        width: Int,
+        height: Int,
+        bytesPerRow: Int
+    ) -> OpaquePointer? {
+        guard width > 0, height > 0, bytesPerRow >= width * 4,
+              bgra.count >= bytesPerRow * (height - 1) + width * 4,
+              let pixbuf = gdk_pixbuf_new(
+                GDK_COLORSPACE_RGB,
+                1,
+                8,
+                gint(width),
+                gint(height)
+              ),
+              let destinationPixels = gdk_pixbuf_get_pixels(pixbuf) else {
+            return nil
+        }
+
+        let destinationStride = Int(gdk_pixbuf_get_rowstride(pixbuf))
+        for y in 0..<height {
+            let sourceRow = y * bytesPerRow
+            let destinationRow = destinationPixels.advanced(by: y * destinationStride)
+            for x in 0..<width {
+                let source = sourceRow + x * 4
+                let destination = destinationRow.advanced(by: x * 4)
+                let alpha = bgra[source + 3]
+                destination[0] = unpremultiply(bgra[source + 2], alpha: alpha)
+                destination[1] = unpremultiply(bgra[source + 1], alpha: alpha)
+                destination[2] = unpremultiply(bgra[source], alpha: alpha)
+                destination[3] = alpha
+            }
+        }
+
+        return pixbuf
+    }
+
+    private static func encodePixbuf(
+        _ pixbuf: OpaquePointer,
+        as format: QuillRasterImageFormat
+    ) -> Data? {
+        var encodedPixbuf = pixbuf
+        var ownsEncodedPixbuf = false
+        if format == .jpeg, gdk_pixbuf_get_has_alpha(pixbuf) != 0 {
+            guard let flattened = copyDroppingAlpha(pixbuf) else { return nil }
+            encodedPixbuf = flattened
+            ownsEncodedPixbuf = true
+        }
+        defer {
+            if ownsEncodedPixbuf {
+                g_object_unref(gpointer(encodedPixbuf))
+            }
+        }
+
+        var buffer: UnsafeMutablePointer<gchar>? = nil
+        var bufferSize: gsize = 0
+        var error: UnsafeMutablePointer<GError>? = nil
+        let saveOK = format.rawValue.withCString { typeCString in
+            gdk_pixbuf_save_to_bufferv(
+                encodedPixbuf,
+                &buffer,
+                &bufferSize,
+                typeCString,
+                nil,
+                nil,
+                &error
+            )
+        }
+        if let error { g_error_free(error) }
+        guard saveOK != 0, let buffer else { return nil }
+
+        let result = Data(bytes: UnsafeRawPointer(buffer), count: Int(bufferSize))
+        g_free(buffer)
+        return result
+    }
+
+    private static func copyDroppingAlpha(_ source: OpaquePointer) -> OpaquePointer? {
+        let width = Int(gdk_pixbuf_get_width(source))
+        let height = Int(gdk_pixbuf_get_height(source))
+        guard width > 0, height > 0,
+              let destination = gdk_pixbuf_new(
+                GDK_COLORSPACE_RGB,
+                0,
+                8,
+                gint(width),
+                gint(height)
+              ),
+              let sourcePixels = gdk_pixbuf_get_pixels(source),
+              let destinationPixels = gdk_pixbuf_get_pixels(destination) else {
+            return nil
+        }
+
+        let sourceStride = Int(gdk_pixbuf_get_rowstride(source))
+        let destinationStride = Int(gdk_pixbuf_get_rowstride(destination))
+        let sourceChannels = Int(gdk_pixbuf_get_n_channels(source))
+        guard sourceChannels >= 3 else {
+            g_object_unref(gpointer(destination))
+            return nil
+        }
+
+        for y in 0..<height {
+            let sourceRow = sourcePixels.advanced(by: y * sourceStride)
+            let destinationRow = destinationPixels.advanced(by: y * destinationStride)
+            for x in 0..<width {
+                let sourcePixel = sourceRow.advanced(by: x * sourceChannels)
+                let destinationPixel = destinationRow.advanced(by: x * 3)
+                let alpha = sourceChannels >= 4 ? Int(sourcePixel[3]) : 255
+                destinationPixel[0] = compositeOverWhite(sourcePixel[0], alpha: alpha)
+                destinationPixel[1] = compositeOverWhite(sourcePixel[1], alpha: alpha)
+                destinationPixel[2] = compositeOverWhite(sourcePixel[2], alpha: alpha)
+            }
+        }
+
+        return destination
+    }
+
+    private static func premultiply(_ component: guchar, alpha: Int) -> UInt8 {
+        UInt8((Int(component) * alpha + 127) / 255)
+    }
+
+    private static func unpremultiply(_ component: UInt8, alpha: UInt8) -> guchar {
+        guard alpha > 0 else { return 0 }
+        return guchar(min(255, (Int(component) * 255 + Int(alpha) / 2) / Int(alpha)))
+    }
+
+    private static func compositeOverWhite(_ component: guchar, alpha: Int) -> guchar {
+        let inverseAlpha = 255 - alpha
+        let blended = (Int(component) * alpha + 255 * inverseAlpha + 127) / 255
+        return guchar(blended)
+    }
+}
+
+public func quillEncodeBGRAPixelsToImageData(
+    _ bgra: [UInt8],
+    width: Int,
+    height: Int,
+    bytesPerRow: Int,
+    format: QuillRasterImageFormat
+) -> Data? {
+    QuillGdkPixbufBridge.encodeBGRAPixels(
+        bgra,
+        width: width,
+        height: height,
+        bytesPerRow: bytesPerRow,
+        as: format
+    )
+}
+#endif
+
 public enum QuillImageCompositingOperation: Sendable {
     case copy
     case sourceOver
@@ -1253,9 +4827,6 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public required init?(coder: NSCoder) {
         super.init()
         self.data = coder.decodeObject(forKey: "data") as? Data
-        if let data {
-            quillAdoptDecodedImage(from: data)
-        }
     }
 
     public func encode(with coder: NSCoder) {
@@ -1264,15 +4835,28 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     public init?(data: Data) {
         super.init()
-        quillAdopt(data: data)
+        self.data = data
+        if let size = QuillImageMetadata.size(ofData: data) {
+            self.size = size
+        }
+        #if os(Linux)
+        if let decoded = QuillGdkPixbufBridge.decodeCGImage(from: data) {
+            self.quillBackingCGImage = decoded
+            self.size = CGSize(width: CGFloat(decoded.width), height: CGFloat(decoded.height))
+        }
+        #endif
     }
     public init?(named name: String) {
         super.init()
+        self.quillResourceName = name
         if let data = QuillResourceLookup.data(
             forResource: name,
             candidateExtensions: QuillResourceLookup.commonImageExtensions
         ) {
-            quillAdopt(data: data)
+            self.data = data
+            if let size = QuillResourceLookup.imageSize(forResource: name) {
+                self.size = size
+            }
         } else {
             self.size = CGSize(width: 32, height: 32)
             QuillCompatibilityDiagnostics.shared.record(
@@ -1290,6 +4874,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     public init?(systemName: String, withConfiguration: Any? = nil) {
         super.init()
+        self.quillSystemSymbolName = systemName
         self.size = CGSize(width: 32, height: 32)
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillFoundation",
@@ -1312,23 +4897,38 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
-    public var quillCGImage: CGImage?
-    public var quillScale: CGFloat = 1
-    public var quillOrientation: Orientation = .up
+    public private(set) var quillResourceName: String?
+    public private(set) var quillSystemSymbolName: String?
+    private var quillBackingCGImage: CGImage?
+    private var quillImageScale: CGFloat = 1
+    private var quillFocusContext: CGContext?
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
-    public func pngData() -> Data? {
-        if let quillCGImage, let encoded = QuillBitmapImageCodec.encode(quillCGImage, type: "public.png") {
-            return encoded
-        }
-        return data
-    }
-    public func dataRepresentation() -> Data? { pngData() ?? data }
+    public func pngData() -> Data? { data }
+    public func dataRepresentation() -> Data? { data }
     /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
     /// extension wins wherever both modules are visible; Telegram package
     /// islands that only see QuillFoundation get this passthrough.
     @_disfavoredOverload
-    public var tiffRepresentation: Data? { data }
+    public var tiffRepresentation: Data? {
+        #if os(Linux)
+        if let image = quillBackingCGImage,
+           let pixels = image.quillBGRAPixels,
+           image.width > 0,
+           image.height > 0,
+           image.quillBytesPerRow >= image.width * 4,
+           let encoded = quillEncodeBGRAPixelsToImageData(
+            pixels,
+            width: image.width,
+            height: image.height,
+            bytesPerRow: image.quillBytesPerRow,
+            format: .tiff
+           ) {
+            return encoded
+        }
+        #endif
+        return data
+    }
     public func addRepresentation(_ imageRep: Any) { _ = imageRep }
     public func tinted(with: Any) -> RSImage { self }
     public static func image(with data: Data, imageResultBlock: @escaping (RSImage?) -> Void) {
@@ -1346,35 +4946,107 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 
     open override func copy() -> Any {
         let image = data.flatMap { RSImage(data: $0) } ?? RSImage()
+        image.quillBackingCGImage = quillBackingCGImage
+        image.quillImageScale = quillImageScale
         image.size = size
-        image.quillCGImage = quillCGImage
-        image.quillScale = quillScale
-        image.quillOrientation = quillOrientation
         image.capInsets = capInsets
         image.resizingMode = resizingMode
+        image.quillResourceName = quillResourceName
+        image.quillSystemSymbolName = quillSystemSymbolName
         return image
     }
 
     public func lockFocus() {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage.lockFocus",
-            severity: .warning,
-            message: "NSImage.lockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
-        )
+        quillBeginFocus(flipped: false)
     }
 
     public func lockFocusFlipped(_ flipped: Bool) {
-        _ = flipped
-        lockFocus()
+        quillBeginFocus(flipped: flipped)
     }
 
     public func unlockFocus() {
+        guard let context = quillFocusContext else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.unlockFocus",
+                severity: .warning,
+                message: "NSImage.unlockFocus called without an active Linux focus context."
+            )
+            return
+        }
+
+        if QuillGraphicsContextState.currentContext === context {
+            QuillGraphicsContextState.popContext()
+        }
+        quillBackingCGImage = context.makeImage()
+        quillImageScale = 1
+        data = nil
+        quillFocusContext = nil
+    }
+
+    private func quillBeginFocus(flipped: Bool) {
+        guard quillFocusContext == nil else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus called while this image already has an active Linux focus context."
+            )
+            return
+        }
+
+        let pixelWidth = Int(size.width.rounded(.up))
+        let pixelHeight = Int(size.height.rounded(.up))
+        guard pixelWidth > 0, pixelHeight > 0 else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus requires a positive image size on Linux."
+            )
+            return
+        }
+
+        let bitmapInfo = CGBitmapInfo.byteOrder32Little.rawValue | CGImageAlphaInfo.premultipliedFirst.rawValue
+        guard let context = CGContext(
+            data: nil,
+            width: pixelWidth,
+            height: pixelHeight,
+            bitsPerComponent: 8,
+            bytesPerRow: pixelWidth * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: bitmapInfo
+        ) else {
+            QuillCompatibilityDiagnostics.shared.record(
+                subsystem: "QuillFoundation",
+                operation: "NSImage.lockFocus",
+                severity: .warning,
+                message: "NSImage.lockFocus could not create a Linux bitmap drawing context."
+            )
+            return
+        }
+
+        if let quillBackingCGImage {
+            context.draw(
+                quillBackingCGImage,
+                in: CGRect(origin: .zero, size: CGSize(width: CGFloat(pixelWidth), height: CGFloat(pixelHeight)))
+            )
+        }
+        if flipped {
+            context.translateBy(x: 0, y: CGFloat(pixelHeight))
+            context.scaleBy(x: 1, y: -1)
+        }
+
+        quillFocusContext = context
+        QuillGraphicsContextState.pushContext(context)
+    }
+
+    private func quillRecordImageDrawFallback(_ message: String) {
         QuillCompatibilityDiagnostics.shared.record(
             subsystem: "QuillFoundation",
-            operation: "NSImage.unlockFocus",
+            operation: "NSImage.draw",
             severity: .warning,
-            message: "NSImage.unlockFocus is currently a no-op on Linux; bitmap drawing contexts are not implemented yet."
+            message: message
         )
     }
 
@@ -1384,22 +5056,38 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         operation: QuillImageCompositingOperation,
         fraction: Double
     ) {
-        QuillCompatibilityDiagnostics.shared.record(
-            subsystem: "QuillFoundation",
-            operation: "NSImage.draw",
-            severity: .warning,
-            message: "NSImage.draw is currently a no-op on Linux; image compositing needs a real bitmap backend."
-        )
+        guard let context = QuillGraphicsContextState.currentContext else {
+            quillRecordImageDrawFallback("NSImage.draw skipped because no current bitmap graphics context is active on Linux.")
+            return
+        }
+        guard let sourceImage = cgImage else {
+            quillRecordImageDrawFallback("NSImage.draw skipped because the image has no CGImage bitmap backing on Linux.")
+            return
+        }
+
+        let imageToDraw: CGImage
+        if sourceRect.width > 0, sourceRect.height > 0, let cropped = sourceImage.cropping(to: sourceRect) {
+            imageToDraw = cropped
+        } else {
+            imageToDraw = sourceImage
+        }
+
+        context.saveGState()
+        switch operation {
+        case .copy:
+            context.setBlendMode(.copy)
+        case .sourceOver:
+            context.setBlendMode(.normal)
+        }
+        context.setAlpha(CGFloat(fraction))
+        context.draw(imageToDraw, in: destinationRect)
+        context.restoreGState()
     }
 
-    // MARK: UIImage source-compat surface
+    // MARK: UIImage source-compat surface (Linux placeholders)
     public convenience init?(contentsOfFile path: String) {
-        if let data = FileManager.default.contents(atPath: path) {
-            self.init(data: data)
-        } else {
-            self.init()
-            self.size = CGSize(width: 32, height: 32)
-        }
+        self.init()
+        self.size = CGSize(width: 32, height: 32)
     }
     @_disfavoredOverload
     public convenience init?<T>(_ source: T) {
@@ -1407,28 +5095,18 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         self.size = CGSize(width: 32, height: 32)
         _ = source
     }
-    public func jpegData(compressionQuality: CGFloat) -> Data? {
-        if let quillCGImage,
-           let encoded = QuillBitmapImageCodec.encode(
-               quillCGImage,
-               type: "public.jpeg",
-               compressionQuality: compressionQuality
-           ) {
-            return encoded
-        }
-        return data
-    }
-    public var cgImage: CGImage? { quillCGImage }
+    public func jpegData(compressionQuality: CGFloat) -> Data? { data }
+    public var cgImage: CGImage? { quillBackingCGImage }
     public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
         _ = (rect, context, hints)
         return cgImage
     }
-    public var scale: CGFloat { quillScale }
+    public var scale: CGFloat { quillImageScale }
 
     public enum Orientation: Int, Sendable {
         case up, down, left, right, upMirrored, downMirrored, leftMirrored, rightMirrored
     }
-    public var imageOrientation: Orientation { quillOrientation }
+    public var imageOrientation: Orientation { .up }
 
     /// `UIImage.withHorizontallyFlippedOrientation()` source-compat. On Apple this
     /// returns a copy whose `imageOrientation` is mirrored horizontally. The Linux
@@ -1442,63 +5120,78 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     // `UIImage(named:)!.withTintColor(.white)`. Inert (returns self).
     public func withTintColor(_ color: RSColor) -> RSImage { self }
     public func draw(in rect: CGRect) {
-        #if os(Linux)
-        if let quillCGImage {
-            QuillGraphicsContextStack.current?.draw(quillCGImage, in: rect)
+        guard let context = QuillGraphicsContextState.currentContext,
+              let cgImage
+        else {
+            return
         }
-        #else
-        _ = rect
-        #endif
+        context.draw(cgImage, in: rect)
     }
     public func draw(at point: CGPoint) {
         draw(in: CGRect(origin: point, size: size))
     }
 
     /// `UIImage(cgImage:scale:orientation:)` source-compat. On Linux the backing
-    /// CGImage is opaque (no raster), so this records the requested scale but
-    /// holds a placeholder size; callers that re-encode get an empty image.
+    /// CGImage carries Quill's raw BGRA backing when available.
     public convenience init(cgImage: CGImage, scale: CGFloat = 1, orientation: Orientation = .up) {
         self.init()
-        quillAdopt(cgImage: cgImage, scale: scale, orientation: orientation)
+        let resolvedScale = scale.isFinite && scale > 0 ? scale : 1
+        self.quillBackingCGImage = cgImage
+        self.quillImageScale = resolvedScale
+        self.size = CGSize(
+            width: CGFloat(cgImage.width) / resolvedScale,
+            height: CGFloat(cgImage.height) / resolvedScale
+        )
+        _ = orientation
     }
 
     public convenience init(cgImage: CGImage, size: CGSize) {
         self.init()
-        quillAdopt(cgImage: cgImage, scale: 1, orientation: .up)
+        self.quillBackingCGImage = cgImage
         self.size = size
-    }
-
-    private func quillAdopt(data: Data) {
-        self.data = data
-        quillAdoptDecodedImage(from: data)
-    }
-
-    private func quillAdoptDecodedImage(from data: Data) {
-        if let image = QuillBitmapImageCodec.decode(data) {
-            quillAdopt(cgImage: image, scale: 1, orientation: .up)
-        }
-    }
-
-    private func quillAdopt(cgImage: CGImage, scale: CGFloat, orientation: Orientation) {
-        self.quillCGImage = cgImage
-        self.quillScale = scale == 0 ? 1 : scale
-        self.quillOrientation = orientation
-        self.size = CGSize(
-            width: CGFloat(cgImage.width) / self.quillScale,
-            height: CGFloat(cgImage.height) / self.quillScale
-        )
     }
 }
 public typealias UIImage = RSImage
 
 public struct RSCGColor: Equatable, Sendable {
+    public var colorSpace: CGColorSpace?
     public var components: [CGFloat]?
     public var numberOfComponents: Int { components?.count ?? 0 }
-    public var alpha: CGFloat { components?.last ?? 1 }
+    public var alpha: CGFloat {
+        guard let components, !components.isEmpty else {
+            return 1
+        }
+
+        switch components.count {
+        case 2:
+            return components[1]
+        case 4:
+            return components[3]
+        default:
+            return 1
+        }
+    }
     public static var typeID: UInt { 0 }
 
     public init(components: [CGFloat]?) {
+        self.init(quillColorSpace: nil, components: components)
+    }
+
+    private init(quillColorSpace colorSpace: CGColorSpace?, components: [CGFloat]?) {
+        self.colorSpace = colorSpace
         self.components = components
+    }
+
+    public init?(colorSpace: CGColorSpace, components: UnsafePointer<CGFloat>) {
+        let count = colorSpace.numberOfComponents + 1
+        guard count > 0 else {
+            return nil
+        }
+
+        self.init(
+            quillColorSpace: colorSpace,
+            components: (0..<count).map { components[$0] }
+        )
     }
 
     public static let clear = RSCGColor(components: [0, 0, 0, 0])
@@ -1507,15 +5200,54 @@ public struct RSCGColor: Equatable, Sendable {
 
     /// Apple's sRGB convenience initializer (`CGColor(red:green:blue:alpha:)`).
     public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
-        self.init(components: [red, green, blue, alpha])
+        self.init(
+            quillColorSpace: CGColorSpace(name: CGColorSpace.sRGB),
+            components: [red, green, blue, alpha]
+        )
     }
 
     /// Apple's grayscale convenience initializer.
     public init(gray: CGFloat, alpha: CGFloat) {
-        self.init(components: [gray, gray, gray, alpha])
+        self.init(
+            quillColorSpace: CGColorSpaceCreateDeviceGray(),
+            components: [gray, alpha]
+        )
     }
 }
 public typealias CGColor = RSCGColor
+
+public enum QuillGraphicsContextState {
+    nonisolated(unsafe) private static var contextStack: [CGContext] = []
+    nonisolated(unsafe) private static var fillColorStack: [RSCGColor] = []
+    nonisolated(unsafe) private static var activeFillColor: RSCGColor = .black
+
+    public static var currentContext: CGContext? {
+        contextStack.last
+    }
+
+    public static var currentFillColor: RSCGColor {
+        activeFillColor
+    }
+
+    public static func pushContext(_ context: CGContext) {
+        contextStack.append(context)
+        fillColorStack.append(activeFillColor)
+        activeFillColor = .black
+        context.setFillColor(RSCGColor.black)
+    }
+
+    public static func popContext() {
+        if !contextStack.isEmpty {
+            contextStack.removeLast()
+        }
+        activeFillColor = fillColorStack.popLast() ?? .black
+    }
+
+    public static func setFillColor(_ color: RSCGColor) {
+        activeFillColor = color
+        currentContext?.setFillColor(color)
+    }
+}
 
 public class RSColor: NSObject, @unchecked Sendable {
     // Phase B: real RGBA storage so callers get sensible values back
@@ -1532,25 +5264,6 @@ public class RSColor: NSObject, @unchecked Sendable {
     }
     public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
         self._red = red; self._green = green; self._blue = blue; self._alpha = alpha
-    }
-
-    public override var hash: Int {
-        var hasher = Hasher()
-        hasher.combine(_red)
-        hasher.combine(_green)
-        hasher.combine(_blue)
-        hasher.combine(_alpha)
-        return hasher.finalize()
-    }
-
-    public override func isEqual(_ object: Any?) -> Bool {
-        guard let other = object as? RSColor else {
-            return false
-        }
-        return _red == other._red
-            && _green == other._green
-            && _blue == other._blue
-            && _alpha == other._alpha
     }
 
     /// Apple's UIColor(hue:saturation:brightness:alpha:) -- standard HSB->RGB
@@ -1585,12 +5298,9 @@ public class RSColor: NSObject, @unchecked Sendable {
     }
 
     /// UIColor.setFill() sets this color as the fill color in the current UIKit
-    /// graphics context. On Linux, UIGraphicsImageRenderer and the imperative
-    /// UIGraphics context APIs push a Quill bitmap CGContext here.
+    /// graphics context when a UIGraphics renderer or image context is active.
     public func setFill() {
-        #if os(Linux)
-        QuillGraphicsContextStack.current?.setFillColor(cgColor)
-        #endif
+        QuillGraphicsContextState.setFillColor(cgColor)
     }
 
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
@@ -1616,10 +5326,7 @@ public class RSColor: NSObject, @unchecked Sendable {
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
     public func set() {
-        #if os(Linux)
-        QuillGraphicsContextStack.current?.setFillColor(cgColor)
-        QuillGraphicsContextStack.current?.setStrokeColor(cgColor)
-        #endif
+        setFill()
     }
     public var components: [CGFloat]? { [_red, _green, _blue, _alpha] }
     public var numberOfComponents: Int { 4 }
@@ -1814,7 +5521,19 @@ public extension CGRect {
     func equalTo(_ other: CGRect) -> Bool { self == other }
 
     func applying(_ transform: CGAffineTransform) -> CGRect {
-        offsetBy(dx: transform.tx, dy: transform.ty)
+        guard !isNull else { return self }
+        let points = [
+            CGPoint(x: minX, y: minY).applying(transform),
+            CGPoint(x: maxX, y: minY).applying(transform),
+            CGPoint(x: minX, y: maxY).applying(transform),
+            CGPoint(x: maxX, y: maxY).applying(transform),
+        ]
+        guard let first = points.first else { return self }
+        let minX = points.dropFirst().reduce(first.x) { Swift.min($0, $1.x) }
+        let minY = points.dropFirst().reduce(first.y) { Swift.min($0, $1.y) }
+        let maxX = points.dropFirst().reduce(first.x) { Swift.max($0, $1.x) }
+        let maxY = points.dropFirst().reduce(first.y) { Swift.max($0, $1.y) }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     func fill() {}
@@ -1931,7 +5650,9 @@ public let MSEC_PER_SEC: UInt64 = 1_000
 // MARK: - Localization
 
 #if !os(macOS) && !os(iOS)
-public func NSLocalizedString(_ key: String, comment: String) -> String { key }
+public func NSLocalizedString(_ key: String, comment: String) -> String {
+    QuillResourceLookup.localizedString(forKey: key)
+}
 #endif
 
 // MARK: - SQL placeholder helper

@@ -9,7 +9,7 @@ import SwiftOpenUI
 // the IceCubes shim DOES re-export) as layout-neutral pass-throughs.
 //
 // onHover/allowsHitTesting/textSelection/contentShape/symbolEffect/
-// listRowSeparator/listRowInsets/foregroundStyle live in
+// listRowSeparator/foregroundStyle live in
 // IceCubesDesignSystemModifiers.swift — do NOT duplicate them here.
 
 public extension View {

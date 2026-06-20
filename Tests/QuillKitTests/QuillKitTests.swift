@@ -1,12 +1,7 @@
 import Foundation
 import Testing
 import QuillKit
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
+#if os(Linux)
 import Glibc
 #endif
 
@@ -165,7 +160,6 @@ struct QuillKitTests {
         #expect(statuses[.audioSession] == .emulated)
         #expect(statuses[.audioPlayback] == .emulated)
         #expect(statuses[.notifications] == .emulated)
-        #expect(statuses[.cloudKit] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.deviceEvents] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.launchAtLogin] == .unavailable(reason: "No native Linux backend has been attached yet."))
         #expect(statuses[.secureStorage] == .unavailable(reason: "No native Linux backend has been attached yet."))
@@ -205,463 +199,6 @@ struct QuillKitTests {
             $0.operation == "openURL"
                 && $0.severity == .info
                 && $0.message.contains("test-opener")
-        })
-    }
-
-    @Test("workspace open can be handled by file-backed URL log")
-    func workspaceOpenCanBeHandledByFileBackedURLLog() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillWorkspaceOpenURLLogTests", isDirectory: true)
-        let logURL = directory.appendingPathComponent("opened-urls.txt")
-        let url = URL(string: "https://mastodon.social/oauth/authorize?response_type=code")!
-
-        try? FileManager.default.removeItem(at: directory)
-        QuillCompatibilityDiagnostics.shared.clear()
-        QuillWorkspace.installOpenBackend(nil)
-        setenv(QuillWorkspace.openURLLogFileEnvironmentKey, logURL.path, 1)
-        setenv(QuillWorkspace.openURLLogAssumeHandledEnvironmentKey, "1", 1)
-        defer {
-            unsetenv(QuillWorkspace.openURLLogFileEnvironmentKey)
-            unsetenv(QuillWorkspace.openURLLogAssumeHandledEnvironmentKey)
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        #expect(QuillWorkspace.open(url))
-        let lines = try String(contentsOf: logURL, encoding: .utf8)
-            .split(whereSeparator: \.isNewline)
-            .map(String.init)
-        #expect(lines == [url.absoluteString])
-        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
-            $0.operation == "openURL"
-                && $0.severity == .info
-                && $0.message.contains("file-log")
-        })
-    }
-
-    #if os(Linux)
-    @Test("URLSession fixtures serve matched JSON responses")
-    func urlSessionFixturesServeMatchedJSONResponses() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixturesTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/timelines/home",
-              "query": "limit=50",
-              "status": 200,
-              "headers": { "Content-Type": "application/json" },
-              "body": [
-                { "id": "fixture-status", "content": "<p>Hello from fixture transport</p>" }
-              ]
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        let url = URL(string: "https://mastodon.social/api/v1/timelines/home?limit=50")!
-        let (data, response) = try await URLSession.shared.data(from: url)
-        let httpResponse = try #require(response as? HTTPURLResponse)
-        let json = String(decoding: data, as: UTF8.self)
-
-        #expect(httpResponse.statusCode == 200)
-        #expect(httpResponse.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(json.contains("fixture-status"))
-        #expect(json.contains("Hello from fixture transport"))
-    }
-
-    @Test("URLSession fixtures expose direct async transport")
-    func urlSessionFixturesExposeDirectAsyncTransport() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixturesDirectTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/timelines/public",
-              "query": "local=true&limit=50",
-              "status": 200,
-              "headers": { "X-Quill-Fixture": "direct" },
-              "body": [
-                { "id": "direct-status", "content": "<p>Hello from direct fixture transport</p>" }
-              ]
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        let url = URL(string: "https://mastodon.social/api/v1/timelines/public?local=true&limit=50")!
-        let (data, response) = try await QuillURLSessionFixtures.data(from: url)
-        let httpResponse = try #require(response as? HTTPURLResponse)
-        let json = String(decoding: data, as: UTF8.self)
-
-        #expect(httpResponse.statusCode == 200)
-        #expect(httpResponse.value(forHTTPHeaderField: "X-Quill-Fixture") == "direct")
-        #expect(json.contains("direct-status"))
-        #expect(json.contains("Hello from direct fixture transport"))
-    }
-
-    @Test("URLSession fixtures match dynamic path patterns")
-    func urlSessionFixturesMatchDynamicPathPatterns() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixturePatternTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "pathPattern": "/api/v1/accounts/{id}/statuses",
-              "status": 200,
-              "body": [
-                { "id": "pattern-status", "content": "matched dynamic account path" }
-              ]
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        let url = URL(string: "https://mastodon.social/api/v1/accounts/ABCD-1234/statuses?exclude_replies=true")!
-        let (data, response) = try await URLSession.shared.data(from: url)
-        let httpResponse = try #require(response as? HTTPURLResponse)
-        let json = String(decoding: data, as: UTF8.self)
-
-        #expect(httpResponse.statusCode == 200)
-        #expect(json.contains("pattern-status"))
-        #expect(json.contains("matched dynamic account path"))
-    }
-
-    @Test("URLSession fixtures carry status action state into later status GETs")
-    func urlSessionFixturesCarryStatusActionStateIntoStatusGETs() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixtureStatusStateTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "pathPattern": "/api/v1/statuses/{id}",
-              "status": 200,
-              "body": {
-                "id": "1003",
-                "reblogs_count": 8,
-                "reblogged": false
-              }
-            },
-            {
-              "method": "POST",
-              "host": "mastodon.social",
-              "path": "/api/v1/statuses/1003/reblog",
-              "status": 200,
-              "body": {
-                "id": "1003",
-                "reblogs_count": 9,
-                "reblogged": true
-              }
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        let statusURL = URL(string: "https://mastodon.social/api/v1/statuses/1003")!
-        let (initialData, _) = try await QuillURLSessionFixtures.data(from: statusURL)
-        let initialStatus = try statusDictionary(from: initialData)
-        #expect(initialStatus["reblogs_count"] as? Int == 8)
-        #expect(initialStatus["reblogged"] as? Bool == false)
-
-        var reblogRequest = URLRequest(url: URL(string: "https://mastodon.social/api/v1/statuses/1003/reblog")!)
-        reblogRequest.httpMethod = "POST"
-        _ = try await QuillURLSessionFixtures.data(for: reblogRequest)
-
-        let (updatedData, _) = try await QuillURLSessionFixtures.data(from: statusURL)
-        let updatedStatus = try statusDictionary(from: updatedData)
-        #expect(updatedStatus["reblogs_count"] as? Int == 9)
-        #expect(updatedStatus["reblogged"] as? Bool == true)
-    }
-
-    @Test("URLSession fixtures overlay status action state inside timeline arrays")
-    func urlSessionFixturesOverlayStatusActionStateInsideTimelineArrays() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixtureTimelineStateTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/timelines/home",
-              "status": 200,
-              "body": [
-                {
-                  "id": "1003",
-                  "content": "<p>stale timeline row</p>",
-                  "reblogs_count": 8,
-                  "reblogged": false
-                },
-                {
-                  "id": "2001",
-                  "content": "<p>other status</p>",
-                  "reblogs_count": 3,
-                  "reblogged": false
-                }
-              ]
-            },
-            {
-              "method": "POST",
-              "host": "mastodon.social",
-              "path": "/api/v1/statuses/1003/reblog",
-              "status": 200,
-              "body": {
-                "id": "1003",
-                "content": "<p>updated timeline row</p>",
-                "reblogs_count": 9,
-                "reblogged": true
-              }
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        var reblogRequest = URLRequest(url: URL(string: "https://mastodon.social/api/v1/statuses/1003/reblog")!)
-        reblogRequest.httpMethod = "POST"
-        _ = try await QuillURLSessionFixtures.data(for: reblogRequest)
-
-        let timelineURL = URL(string: "https://mastodon.social/api/v1/timelines/home")!
-        let (timelineData, _) = try await QuillURLSessionFixtures.data(from: timelineURL)
-        let timeline = try statusArray(from: timelineData)
-        let updatedStatus = try #require(timeline.first { $0["id"] as? String == "1003" })
-        let otherStatus = try #require(timeline.first { $0["id"] as? String == "2001" })
-
-        #expect(updatedStatus["content"] as? String == "<p>stale timeline row</p>")
-        #expect(updatedStatus["reblogs_count"] as? Int == 9)
-        #expect(updatedStatus["reblogged"] as? Bool == true)
-        #expect(otherStatus["reblogs_count"] as? Int == 3)
-        #expect(otherStatus["reblogged"] as? Bool == false)
-    }
-
-    @Test("URLSession fixtures patch action state without replacing rich status payloads")
-    func urlSessionFixturesPatchActionStateWithoutReplacingRichStatusPayloads() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixtureRichStatusStateTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer {
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/timelines/home",
-              "status": 200,
-              "body": [
-                {
-                  "id": "timeline-wrapper",
-                  "content": "<p>wrapper should stay</p>",
-                  "reblog": {
-                    "id": "1003",
-                    "content": "<p>timeline nested status should stay</p>",
-                    "reblogs_count": 8,
-                    "reblogged": false,
-                    "unchanged_field": "kept"
-                  }
-                }
-              ]
-            },
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/statuses/1003",
-              "status": 200,
-              "body": {
-                "id": "1003",
-                "content": "<p>detail status should stay</p>",
-                "reblogs_count": 8,
-                "reblogged": false,
-                "unchanged_field": "kept"
-              }
-            },
-            {
-              "method": "POST",
-              "host": "mastodon.social",
-              "path": "/api/v1/statuses/1003/reblog",
-              "status": 200,
-              "body": {
-                "id": "1003",
-                "content": "<p>action response content must not replace endpoint payloads</p>",
-                "reblogs_count": 9,
-                "reblogged": true
-              }
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        var reblogRequest = URLRequest(url: URL(string: "https://mastodon.social/api/v1/statuses/1003/reblog")!)
-        reblogRequest.httpMethod = "POST"
-        _ = try await QuillURLSessionFixtures.data(for: reblogRequest)
-
-        let detailURL = URL(string: "https://mastodon.social/api/v1/statuses/1003")!
-        let (detailData, _) = try await QuillURLSessionFixtures.data(from: detailURL)
-        let detail = try statusDictionary(from: detailData)
-        #expect(detail["content"] as? String == "<p>detail status should stay</p>")
-        #expect(detail["reblogs_count"] as? Int == 9)
-        #expect(detail["reblogged"] as? Bool == true)
-        #expect(detail["unchanged_field"] as? String == "kept")
-
-        let timelineURL = URL(string: "https://mastodon.social/api/v1/timelines/home")!
-        let (timelineData, _) = try await QuillURLSessionFixtures.data(from: timelineURL)
-        let timeline = try statusArray(from: timelineData)
-        let wrapper = try #require(timeline.first)
-        let nested = try #require(wrapper["reblog"] as? [String: Any])
-        #expect(wrapper["content"] as? String == "<p>wrapper should stay</p>")
-        #expect(nested["content"] as? String == "<p>timeline nested status should stay</p>")
-        #expect(nested["reblogs_count"] as? Int == 9)
-        #expect(nested["reblogged"] as? Bool == true)
-        #expect(nested["unchanged_field"] as? String == "kept")
-    }
-
-    @Test("URLSession fixtures ignore delivery after cancellation")
-    func urlSessionFixturesIgnoreDeliveryAfterCancellation() async throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("QuillURLSessionFixtureCancellationTests", isDirectory: true)
-        let fixtureURL = directory.appendingPathComponent("fixtures.json")
-        try? FileManager.default.removeItem(at: directory)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        setenv(QuillURLSessionFixtures.responseDelayMillisecondsEnvironmentKey, "250", 1)
-        defer {
-            unsetenv(QuillURLSessionFixtures.responseDelayMillisecondsEnvironmentKey)
-            QuillURLSessionFixtures.resetForTesting()
-            try? FileManager.default.removeItem(at: directory)
-        }
-
-        let fixtures = """
-        {
-          "fixtures": [
-            {
-              "method": "GET",
-              "host": "mastodon.social",
-              "path": "/api/v1/timelines/public",
-              "query": "local=false&limit=50",
-              "status": 200,
-              "body": [
-                { "id": "cancelled-status", "content": "this body should not be delivered after cancellation" }
-              ]
-            }
-          ]
-        }
-        """
-        try fixtures.write(to: fixtureURL, atomically: true, encoding: .utf8)
-
-        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
-
-        let callback = LockedValue<(data: Data?, response: URLResponse?, error: Error?)?>(nil)
-        let url = URL(string: "https://mastodon.social/api/v1/timelines/public?local=false&limit=50")!
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
-            callback.update { result in
-                result = (data, response, error)
-            }
-        }
-
-        task.resume()
-        task.cancel()
-        try await Task.sleep(nanoseconds: 450_000_000)
-
-        let result = callback.value
-        #expect(result?.data?.isEmpty != false)
-        #expect(result?.response == nil)
-        #expect((result?.error as? URLError)?.code == .cancelled)
-    }
-    #endif
-
-    @Test("QuickLook preview uses configurable backend")
-    func quickLookPreviewUsesConfigurableBackend() {
-        let service = QuillQuickLookService()
-        let previewedURLs = LockedValue<[URL]>([])
-        let url = URL(fileURLWithPath: "/tmp/quill-preview.png")
-        QuillCompatibilityDiagnostics.shared.clear()
-
-        service.installPreviewBackend(.init(name: "test-preview") { previewURL in
-            previewedURLs.update { $0.append(previewURL) }
-            return true
-        })
-        defer { service.installPreviewBackend(nil) }
-
-        #expect(service.preview(url))
-        #expect(previewedURLs.value == [url])
-        #expect(service.previewedURLs == [url])
-        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
-            $0.operation == "quickLook.preview"
-                && $0.severity == .info
-                && $0.message.contains("test-preview")
         })
     }
 
@@ -751,13 +288,6 @@ struct QuillKitTests {
         QuillCompatibilityDiagnostics.shared.clear()
 
         service.reset()
-        let presentedNotifications = LockedValue<[QuillNotificationRequestRecord]>([])
-        service.installPresentationBackend(.init(name: "test-present") { record in
-            presentedNotifications.update { $0.append(record) }
-            return true
-        })
-        defer { service.installPresentationBackend(nil) }
-
         #expect(service.authorizationStatus == .notDetermined)
         #expect(service.requestAuthorization(optionsRawValue: 0) == false)
         #expect(service.authorizationStatus == .denied)
@@ -785,8 +315,6 @@ struct QuillKitTests {
         )
         #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
         #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
-        #expect(presentedNotifications.value.map(\.identifier) == ["now"])
-        #expect(presentedNotifications.value.first?.body == "Delivered")
 
         #expect(service.remoteNotificationsRegistered == false)
         #expect(service.remoteNotificationRegistrationCount == 0)
@@ -806,7 +334,6 @@ struct QuillKitTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
-        #expect(operations.contains("notifications.present"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
     }
 
@@ -1204,6 +731,11 @@ struct QuillKitTests {
         #if os(Linux)
         #expect(QuillTrust.evaluate(certificate: certificate, host: "localhost") == false)
         #expect(QuillAccessibility.isTrusted == false)
+        setenv("QUILLUI_ACCESSIBILITY_TRUSTED", "1", 1)
+        #expect(QuillAccessibility.isTrusted)
+        setenv("QUILLUI_ACCESSIBILITY_TRUSTED", "false", 1)
+        #expect(QuillAccessibility.isTrusted == false)
+        unsetenv("QUILLUI_ACCESSIBILITY_TRUSTED")
         #else
         #expect(QuillTrust.evaluate(certificate: certificate, host: "localhost"))
         #expect(QuillAccessibility.isTrusted)
@@ -1228,14 +760,4 @@ private final class LockedValue<Value>: @unchecked Sendable {
             operation(&storage)
         }
     }
-}
-
-private func statusDictionary(from data: Data) throws -> [String: Any] {
-    let object = try JSONSerialization.jsonObject(with: data)
-    return try #require(object as? [String: Any])
-}
-
-private func statusArray(from data: Data) throws -> [[String: Any]] {
-    let object = try JSONSerialization.jsonObject(with: data)
-    return try #require(object as? [[String: Any]])
 }

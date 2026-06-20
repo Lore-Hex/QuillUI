@@ -219,7 +219,48 @@ path.write_text(text)
 PY
 fi
 
-# (8e) Add tiny same-file Linux factories for Signal conversation preview types.
+# (8e) The DB-backed renderer loads ConversationViewController from inside a
+#      database read transaction. Signal's wallpaper builder asserts main-thread
+#      because it can instantiate UIKit views while resolving wallpaper state.
+#      The render seed has no wallpaper, so use the normal nil/no-wallpaper path
+#      instead of forcing UIKit work onto the DB queue.
+CVC_FILE="$APP/ConversationView/ConversationViewController.swift"
+if [ -f "$CVC_FILE" ]; then
+    python3 - "$CVC_FILE" <<'PY'
+import pathlib, sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text(errors="replace")
+text = text.replace(
+    "static func loadWallpaperViewBuilder(for thread: TSThread, tx: DBReadTransaction) -> WallpaperViewBuilder? {\n"
+    "        return Wallpaper.viewBuilder(for: thread, tx: tx)\n"
+    "    }",
+    "static func loadWallpaperViewBuilder(for thread: TSThread, tx: DBReadTransaction) -> WallpaperViewBuilder? {\n"
+    "        #if os(Linux)\n"
+    "        _ = (thread, tx)\n"
+    "        return nil\n"
+    "        #else\n"
+    "        return Wallpaper.viewBuilder(for: thread, tx: tx)\n"
+    "        #endif\n"
+    "    }",
+)
+text = text.replace(
+    "    ) {\n"
+    "        AssertIsOnMainThread()\n"
+    "\n"
+    "        self.appReadiness = appReadiness",
+    "    ) {\n"
+    "        #if !os(Linux)\n"
+    "        AssertIsOnMainThread()\n"
+    "        #endif\n"
+    "\n"
+    "        self.appReadiness = appReadiness",
+)
+path.write_text(text)
+PY
+fi
+
+# (8f) Add tiny same-file Linux factories for Signal conversation preview types.
 #      Signal keeps a few constructors fileprivate/private to their source file;
 #      app-port files are same module but not same file, so they cannot construct
 #      real render items for smoke previews without these disposable helpers.

@@ -303,10 +303,21 @@ public extension NSColor {
     }
     convenience init?(cgColor: CGColor) {
         let components = cgColor.components ?? [0, 0, 0, 1]
-        let red = components.count > 0 ? components[0] : 0
-        let green = components.count > 1 ? components[1] : red
-        let blue = components.count > 2 ? components[2] : red
-        let alpha = components.count > 3 ? components[3] : 1
+        let red: CGFloat
+        let green: CGFloat
+        let blue: CGFloat
+        let alpha: CGFloat
+        if components.count == 2 {
+            red = components[0]
+            green = components[0]
+            blue = components[0]
+            alpha = components[1]
+        } else {
+            red = components.count > 0 ? components[0] : 0
+            green = components.count > 1 ? components[1] : red
+            blue = components.count > 2 ? components[2] : red
+            alpha = components.count > 3 ? components[3] : 1
+        }
         self.init(red: red, green: green, blue: blue, alpha: alpha)
     }
 

@@ -14,21 +14,42 @@ public final class SCNScene: @unchecked Sendable {
 
     public init() {}
 
-    /// Loading a scene from a URL is a rung-4 concern (it needs the model
-    /// importers). Until then this throws, matching the throwing macOS API
-    /// shape so callers compile unmodified.
     public init(url: URL, options: [SCNSceneSource.LoadingOption: Any]? = nil) throws {
-        throw SCNSceneShimError.loadingUnsupported(url)
+        do {
+            try QuillSceneArchiveCodec.load(Data(contentsOf: url), sourceURL: url, into: self)
+        } catch let error as SCNSceneShimError {
+            throw error
+        } catch {
+            throw SCNSceneShimError.loadingFailed(url, error)
+        }
     }
 
-    public init(named name: String) {
-        // Empty scene; the named-asset catalog is not modeled on QuillOS yet.
+    public convenience init?(named name: String) {
+        self.init(named: name, inDirectory: nil, options: nil)
     }
 
-    /// Exporting a scene to a model file (.scn/.dae/.obj/…) is a rung-4
-    /// concern (it needs the exporters). The API shape matches macOS so
-    /// callers — e.g. Euclid's `Mesh` writers — compile unmodified; it
-    /// reports failure until the exporters land.
+    public convenience init?(
+        named name: String,
+        inDirectory directory: String?,
+        options: [SCNSceneSource.LoadingOption: Any]? = nil
+    ) {
+        guard let url = Self.quillNamedSceneURL(named: name, inDirectory: directory) else { return nil }
+        self.init()
+        do {
+            try QuillSceneArchiveCodec.load(Data(contentsOf: url), sourceURL: url, into: self)
+        } catch {
+            return nil
+        }
+    }
+
+    public func quillStepActions(by deltaTime: TimeInterval) {
+        guard !isPaused else { return }
+        rootNode.quillStepActions(by: deltaTime)
+    }
+
+    /// Writes Quill's deterministic SceneKit archive format. This is not a
+    /// `.scn`/`.dae`/`.obj` exporter; it preserves the scene-graph subset this
+    /// shim can render and reloads through `SCNSceneSource`/`SCNScene(url:)`.
     @discardableResult
     public func write(
         to url: URL,
@@ -36,30 +57,74 @@ public final class SCNScene: @unchecked Sendable {
         delegate: Any? = nil,
         progressHandler: ((Float, Error?, UnsafeMutablePointer<ObjCBool>) -> Void)? = nil
     ) -> Bool {
-        false
+        var stop = ObjCBool(false)
+        progressHandler?(0, nil, &stop)
+        guard !stop.boolValue else { return false }
+
+        do {
+            let data = try QuillSceneArchiveCodec.data(for: self)
+            try data.write(to: url, options: [.atomic])
+            progressHandler?(1, nil, &stop)
+            return !stop.boolValue
+        } catch {
+            progressHandler?(1, error, &stop)
+            return false
+        }
+    }
+
+    private static func quillNamedSceneURL(named name: String, inDirectory directory: String?) -> URL? {
+        guard !name.isEmpty else { return nil }
+
+        var candidates: [URL] = []
+        if name.hasPrefix("/") {
+            candidates.append(URL(fileURLWithPath: name))
+        }
+        if let directory, !directory.isEmpty {
+            candidates.append(URL(fileURLWithPath: directory, isDirectory: true).appendingPathComponent(name))
+        }
+        if let resourceURL = Bundle.main.resourceURL {
+            candidates.append(resourceURL.appendingPathComponent(name))
+        }
+        candidates.append(URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(name))
+
+        return candidates.first { url in
+            var isDirectory = ObjCBool(false)
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue
+        }
     }
 }
 
 public enum SCNSceneShimError: Error, CustomStringConvertible {
     case loadingUnsupported(URL)
+    case loadingFailed(URL, Error)
 
     public var description: String {
         switch self {
         case let .loadingUnsupported(url):
-            return "SCNScene(url:) is not yet supported on QuillOS (\(url.lastPathComponent))"
+            return "SCNScene(url:) cannot load unsupported SceneKit asset format \(url.lastPathComponent); "
+                + "QuillOS currently reads Quill scene archives written by SCNScene.write(to:)."
+        case let .loadingFailed(url, error):
+            return "SCNScene(url:) could not load \(url.lastPathComponent): \(error)"
         }
     }
 }
 
 public final class SCNSceneSource: @unchecked Sendable {
     public enum LoadingOption: String, Hashable, Sendable {
-        case checkConsistency
-        case flattenScene
-        case createNormalsIfAbsent
-        case convertToYUp
-        case convertUnitsToMeters
-        case preserveOriginalTopology
-        case animationImportPolicy
+        case checkConsistency = "kSceneSourceCheckConsistency"
+        case flattenScene = "kSceneSourceFlattenScene"
+        case createNormalsIfAbsent = "kSceneSourceCreateNormalsIfAbsent"
+        case convertToYUp = "kSceneSourceConvertToYUpIfNeeded"
+        case convertUnitsToMeters = "kSceneSourceConvertToUnit"
+        case preserveOriginalTopology = "kSceneSourcePreserveOriginalTopology"
+        case animationImportPolicy = "kSceneSourceAnimationLoadingMode"
+    }
+
+    public enum AnimationImportPolicy: String, Hashable, Sendable {
+        case play = "playOnce"
+        case playRepeatedly
+        case doNotPlay = "keepSeparate"
+        case playUsingSceneTimeBase = "playUsingSceneTime"
     }
 
     public let url: URL?
@@ -69,6 +134,7 @@ public final class SCNSceneSource: @unchecked Sendable {
     }
 
     public func scene(options: [LoadingOption: Any]? = nil) -> SCNScene? {
-        nil
+        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        return try? QuillSceneArchiveCodec.scene(from: data, sourceURL: url)
     }
 }

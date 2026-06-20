@@ -5,6 +5,9 @@ import QuillUIQt
 import SwiftUI
 import Testing
 @testable import QuillUI
+#if os(Linux)
+import Glibc
+#endif
 
 @Suite("QuillUI core library")
 struct QuillUITests {
@@ -199,6 +202,43 @@ struct QuillUITests {
         #expect(sent.count == 1)
     }
 
+    @Test("QuillChatComposer exposes reusable chat composer state")
+    func quillChatComposerState() {
+        var draft = "Hello"
+        let composer = QuillChatComposer(
+            message: Binding(get: { draft }, set: { draft = $0 }),
+            isLoading: true,
+            supportsImages: true,
+            selectedImage: Image(systemName: "photo"),
+            onSend: {}
+        )
+
+        #expect(composer.message == "Hello")
+        #expect(composer.isLoading)
+        #expect(composer.supportsImages)
+        #expect(composer.showsRecording)
+        #expect(composer.selectedImage != nil)
+    }
+
+    @Test("QuillChatComposer exposes binding-backed selected image state")
+    func quillChatComposerBindingSelectedImageState() {
+        var draft = "Describe this"
+        var selectedImage: Image? = Image(systemName: "photo")
+        let composer = QuillChatComposer(
+            message: Binding(get: { draft }, set: { draft = $0 }),
+            supportsImages: true,
+            selectedImage: Binding(get: { selectedImage }, set: { selectedImage = $0 }),
+            onSend: {}
+        )
+
+        #expect(composer.message == "Describe this")
+        #expect(composer.supportsImages)
+        #expect(composer.selectedImage != nil)
+
+        selectedImage = nil
+        #expect(composer.selectedImage == nil)
+    }
+
     // MARK: - QuillMenuAction helpers
 
     @Test("QuillMenuAction builds disabled and selectable menu rows")
@@ -304,6 +344,159 @@ struct QuillUITests {
         #expect(copyChatActions.map(\.systemImage) == ["doc.on.doc", "curlybraces"])
         copyChatActions.forEach { $0.perform() }
         #expect(copiedJSONValues == [false, true])
+
+        struct ChatMessage {
+            var role: String
+            var content: String
+        }
+
+        let chatMessages = [
+            ChatMessage(role: "user", content: "How to center div in HTML?"),
+            ChatMessage(role: "assistant", content: "Use **flexbox** and justify-content.")
+        ]
+        let chatClipboard = QuillClipboard()
+        QuillChatCopy.copyVisibleMessages(chatMessages, asJSON: false, role: \.role, content: \.content, clipboard: chatClipboard)
+        #expect(chatClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        QuillChatCopy.copyVisibleMessages(chatMessages, asJSON: true, role: \.role, content: \.content, clipboard: chatClipboard)
+        #expect(chatClipboard.string()?.contains(#""role":"user""#) == true)
+        #expect(chatClipboard.string()?.contains(#""content":"Use **flexbox** and justify-content.""#) == true)
+
+        var fallbackJSONValues: [Bool] = []
+        QuillChatCopy.copyVisibleMessages([ChatMessage](), asJSON: true, role: \.role, content: \.content, fallback: { fallbackJSONValues.append($0) }, clipboard: chatClipboard)
+        #expect(fallbackJSONValues == [true])
+
+        let rememberedClipboard = QuillClipboard()
+        var rememberedFallbackValues: [Bool] = []
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-remembered-copy",
+            clipboard: rememberedClipboard,
+            environment: [:]
+        ))
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-remembered-copy",
+            clipboard: rememberedClipboard,
+            environment: ["QUILLUI_BACKEND_MAC_REFERENCE": "1"]
+        ))
+        #expect(rememberedClipboard.string()?.contains("User: How to center div in HTML?") == true)
+        #expect(rememberedClipboard.string()?.contains("justify-content") == true)
+
+        let rememberedAction = QuillChatCopy.rememberedVisibleMessageAction(
+            key: "quill.tests.remembered-copy",
+            messages: [ChatMessage](),
+            role: \.role,
+            content: \.content,
+            fallback: { rememberedFallbackValues.append($0) },
+            clipboard: rememberedClipboard
+        )
+        rememberedAction(false)
+        #expect(rememberedFallbackValues == [false])
+
+        _ = QuillChatCopy.rememberedVisibleMessageAction(
+            key: "quill.tests.remembered-copy",
+            messages: chatMessages,
+            role: \.role,
+            content: \.content,
+            fallback: { rememberedFallbackValues.append($0) },
+            clipboard: rememberedClipboard
+        )
+        rememberedAction(false)
+        #expect(rememberedClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        QuillChatCopy.rememberVisibleMessages(
+            key: "quill.tests.remembered-copy",
+            [ChatMessage](),
+            role: \.role,
+            content: \.content
+        )
+        rememberedAction(true)
+        #expect(rememberedClipboard.string()?.contains(#""role":"assistant""#) == true)
+
+        let bridgeCommandClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+        #if os(Linux)
+        let previousRuntimeDirectory = ProcessInfo.processInfo.environment["XDG_RUNTIME_DIR"]
+        let runtimeDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillui-copy-command-\(UUID().uuidString)", isDirectory: true)
+        #expect((try? FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)) != nil)
+        setenv("XDG_RUNTIME_DIR", runtimeDirectory.path, 1)
+        defer {
+            if let previousRuntimeDirectory {
+                setenv("XDG_RUNTIME_DIR", previousRuntimeDirectory, 1)
+            } else {
+                unsetenv("XDG_RUNTIME_DIR")
+            }
+            try? FileManager.default.removeItem(at: runtimeDirectory)
+        }
+
+        let mirroredClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: mirroredClipboard
+        ))
+        let mirroredURL = runtimeDirectory
+            .appendingPathComponent("quill-pasteboard")
+            .appendingPathComponent("Apple.NSGeneralPboard")
+            .appendingPathComponent("types")
+            .appendingPathComponent("public.utf8-plain-text")
+        #expect((try? String(contentsOf: mirroredURL, encoding: .utf8)) == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
+
+        let referenceFallbackClipboard = QuillClipboard()
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-reference-copy",
+            clipboard: referenceFallbackClipboard,
+            environment: ["QUILLUI_BACKEND_MAC_REFERENCE": "1"]
+        ))
+        let referenceFallbackText = try? String(contentsOf: mirroredURL, encoding: .utf8)
+        #expect(referenceFallbackText?.contains("User: How to center div in HTML?") == true)
+        #expect(referenceFallbackText?.contains("align-items: center") == true)
+        #endif
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat as JSON",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string()?.contains(#""role":"user""#) == true)
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Ignored",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(!QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.missing-copy",
+            clipboard: bridgeCommandClipboard,
+            environment: [:]
+        ))
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat as JSON",
+            key: "quill.tests.missing-json-copy",
+            clipboard: bridgeCommandClipboard,
+            environment: ["QUILLUI_QUILL_CHAT_REFERENCE_MODE": "true"]
+        ))
+        #expect(bridgeCommandClipboard.string()?.contains(#""role":"assistant""#) == true)
+
+        QuillChatCopy.rememberVisibleMessages(
+            key: "quill.tests.remembered-copy",
+            [ChatMessage](),
+            role: \.role,
+            content: \.content
+        )
+        #expect(QuillChatCopy.performRememberedCommand(
+            "Copy Chat",
+            key: "quill.tests.remembered-copy",
+            clipboard: bridgeCommandClipboard
+        ))
+        #expect(bridgeCommandClipboard.string() == "User: How to center div in HTML?\n\nAssistant: Use **flexbox** and justify-content.")
 
         struct Model {
             var id: String
@@ -574,15 +767,32 @@ struct QuillUITests {
             onSettings: { tappedSettings = true }
         )
 
-        toggles.forEach { $0.perform() }
         #if os(macOS) || os(Linux)
+        toggles[0].perform()
         #expect(showCompletions)
+        #expect(!showShortcuts)
+        #expect(!showSettings)
+
+        toggles[0].perform()
+        #expect(showCompletions)
+        #expect(!showShortcuts)
+        #expect(!showSettings)
+
+        toggles[1].perform()
+        #expect(!showCompletions)
         #expect(showShortcuts)
-        #else
+        #expect(!showSettings)
+
+        toggles[2].perform()
         #expect(!showCompletions)
         #expect(!showShortcuts)
-        #endif
         #expect(showSettings)
+        #else
+        toggles.forEach { $0.perform() }
+        #expect(!showCompletions)
+        #expect(!showShortcuts)
+        #expect(showSettings)
+        #endif
         #expect(tappedSettings)
     }
 
@@ -599,6 +809,26 @@ struct QuillUITests {
         }
 
         #expect(sidebar.settingsFocusedValue == nil)
+    }
+
+    @Test("QuillDesktopChatUtilitySidebar supports completion sheet startup automation")
+    func quillDesktopChatUtilitySidebarSupportsCompletionSheetStartupAutomation() {
+        #expect(!QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [:]))
+        #expect(!QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START": "0"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_CHAT_SHOW_COMPLETIONS_ON_START": "  yes "
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_QUILL_CHAT_SHOW_COMPLETIONS_ON_START": "TRUE"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_ENCHANTED_SHOW_COMPLETIONS_ON_START": "on"
+        ]))
+        #expect(QuillDesktopChatInitialUtilitySheet.showCompletions(environment: [
+            "QUILLUI_GTK_ENCHANTED_SHOW_COMPLETIONS_ON_START": "1"
+        ]))
     }
 
     @Test("QuillDesktopChatConversationSidebar adapts model history into utility chrome")

@@ -44,9 +44,7 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: NSObject, NSSecureCoding, @unchecked Sendable {
-    public static var supportsSecureCoding: Bool { true }
-
+public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
@@ -62,7 +60,7 @@ public final class UIFont: NSObject, NSSecureCoding, @unchecked Sendable {
     public required init?(coder: NSCoder) {
         let decodedSize = coder.decodeDouble(forKey: "pointSize")
         self.pointSize = decodedSize == 0 ? 17 : CGFloat(decodedSize)
-        self.fontName = coder.decodeObject(of: NSString.self, forKey: "fontName") as String? ?? ".AppleSystemUIFont"
+        self.fontName = coder.decodeObject(forKey: "fontName") as? String ?? ".AppleSystemUIFont"
         self.fontDescriptor = UIFontDescriptor(name: fontName)
         super.init()
     }
@@ -455,6 +453,8 @@ public class UITextRange: NSObject {
         self.end = end
         super.init()
     }
+
+    public var isEmpty: Bool { start.quillUTF16Offset == end.quillUTF16Offset }
 }
 
 @MainActor public protocol UITextViewDelegate: UIScrollViewDelegate {
@@ -479,12 +479,6 @@ public extension UITextViewDelegate {
     @MainActor func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool { true }
     @MainActor func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
     @MainActor func textView(_ textView: UITextView, shouldInteractWith textAttachment: NSTextAttachment, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool { true }
-    /// Bridges the inherited `UIScrollView.delegate` protocol requirement back
-    /// to UIKit's typed `UITextViewDelegate` callback.
-    @MainActor func textViewDidChange(_ textView: Any) {
-        guard let textView = textView as? UITextView else { return }
-        self.textViewDidChange(textView)
-    }
 }
 
 @MainActor public protocol UITextPasteConfigurationSupporting: AnyObject {}
@@ -509,6 +503,7 @@ public final class UITextPasteItem {
     private let quillDefaultLayoutManager = NSLayoutManager()
     private let quillTextStorage = NSTextStorage(string: "")
     private var quillInputAccessoryView: UIView?
+    private var quillIsFirstResponder = false
 
     public weak var pasteDelegate: UITextPasteDelegate?
     public weak var inputDelegate: UITextInputDelegate?
@@ -520,7 +515,11 @@ public final class UITextPasteItem {
 
     open var attributedText: NSAttributedString! {
         get { NSAttributedString(attributedString: textStorage) }
-        set { textStorage.setAttributedString(newValue ?? NSAttributedString(string: "")) }
+        set {
+            let oldText = textStorage.string
+            textStorage.setAttributedString(newValue ?? NSAttributedString(string: ""))
+            quillNotifyTextViewMutation(oldText != textStorage.string)
+        }
     }
     open var selectedRange: NSRange = NSRange(location: 0, length: 0)
     open var selectedTextRange: UITextRange?
@@ -532,10 +531,18 @@ public final class UITextPasteItem {
     open var textStorage: NSTextStorage {
         textContainer.layoutManager?.textStorage ?? quillTextStorage
     }
-    open var textContainerInset: UIEdgeInsets = .zero
-    open var font: UIFont?
-    open var textColor: UIColor?
-    open var textAlignment: NSTextAlignment = .natural
+    open var textContainerInset: UIEdgeInsets = .zero {
+        didSet { quillNotifyTextViewMutation(oldValue != textContainerInset) }
+    }
+    open var font: UIFont? {
+        didSet { quillNotifyTextViewMutation(true) }
+    }
+    open var textColor: UIColor? {
+        didSet { quillNotifyTextViewMutation(true) }
+    }
+    open var textAlignment: NSTextAlignment = .natural {
+        didSet { quillNotifyTextViewMutation(oldValue != textAlignment) }
+    }
     open var linkTextAttributes: [NSAttributedString.Key: Any] = [:]
     open var typingAttributes: [NSAttributedString.Key: Any] = [:]
     open var adjustsFontForContentSizeCategory = false
@@ -543,8 +550,12 @@ public final class UITextPasteItem {
     open var autocorrectionType: UITextAutocorrectionType = .default
     open var spellCheckingType: UITextSpellCheckingType = .default
     open var keyboardAppearance: UIKeyboardAppearance = .default
-    open var isEditable = true
-    open var isSelectable = true
+    open var isEditable = true {
+        didSet { quillNotifyTextViewMutation(oldValue != isEditable) }
+    }
+    open var isSelectable = true {
+        didSet { quillNotifyTextViewMutation(oldValue != isSelectable) }
+    }
     open var isSecureTextEntry = false
     open var dataDetectorTypes: UIDataDetectorTypes = []
     open var supportsAdaptiveImageGlyph = true
@@ -558,6 +569,11 @@ public final class UITextPasteItem {
     open override var inputAccessoryView: UIView? {
         get { quillInputAccessoryView }
         set { quillInputAccessoryView = newValue }
+    }
+    open override var canBecomeFirstResponder: Bool { isEditable || isSelectable }
+    open override var isFirstResponder: Bool { quillIsFirstResponder }
+    private var quillTextViewDelegate: (any UITextViewDelegate)? {
+        delegate as? any UITextViewDelegate
     }
 
     public convenience init() {
@@ -582,6 +598,13 @@ public final class UITextPasteItem {
         super.init(coder: coder)
         quillTextStorage.addLayoutManager(quillDefaultLayoutManager)
         quillDefaultLayoutManager.addTextContainer(container)
+    }
+
+    private func quillNotifyTextViewMutation(_ changed: Bool) {
+        guard changed else { return }
+        invalidateIntrinsicContentSize()
+        quillNotifyViewMutation()
+        superview?.quillNotifySubviewMutation()
     }
 
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -612,9 +635,9 @@ public final class UITextPasteItem {
     }
 
     open func replace(_ textRange: UITextRange, withText replacementText: String) {
-        _ = textRange
-        text = (text ?? "") + replacementText
-        selectedRange = NSRange(location: text.count, length: 0)
+        let start = min(textRange.start.quillUTF16Offset, textRange.end.quillUTF16Offset)
+        let end = max(textRange.start.quillUTF16Offset, textRange.end.quillUTF16Offset)
+        _ = quillReplaceCharacters(in: NSRange(location: start, length: end - start), with: replacementText)
     }
 
     open func unmarkText() {
@@ -628,6 +651,103 @@ public final class UITextPasteItem {
 
     public func select(_ sender: Any?) {
         _ = sender
+    }
+
+    @discardableResult
+    open override func becomeFirstResponder() -> Bool {
+        guard canBecomeFirstResponder else { return false }
+        if quillIsFirstResponder { return true }
+        if let delegate = quillTextViewDelegate, !delegate.textViewShouldBeginEditing(self) { return false }
+        quillIsFirstResponder = true
+        quillTextViewDelegate?.textViewDidBeginEditing(self)
+        return true
+    }
+
+    @discardableResult
+    open override func resignFirstResponder() -> Bool {
+        guard quillIsFirstResponder else { return true }
+        if let delegate = quillTextViewDelegate, !delegate.textViewShouldEndEditing(self) { return false }
+        quillIsFirstResponder = false
+        quillTextViewDelegate?.textViewDidEndEditing(self)
+        return true
+    }
+
+    @discardableResult
+    open func quillReplaceCharacters(in range: NSRange, with replacementText: String) -> Bool {
+        let currentText = text ?? ""
+        let normalizedRange = quillNormalizedRange(range, utf16Length: currentText.utf16.count)
+        guard quillTextViewDelegate?.textView(self, shouldChangeTextIn: normalizedRange, replacementText: replacementText) ?? true else {
+            return false
+        }
+
+        inputDelegate?.textWillChange(self)
+        inputDelegate?.selectionWillChange(self)
+
+        let lower = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location)
+        let upper = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location + normalizedRange.length)
+        let nextText = currentText.replacingCharacters(in: lower..<upper, with: replacementText)
+        text = nextText
+
+        let caret = min(
+            normalizedRange.location + replacementText.utf16.count,
+            nextText.utf16.count
+        )
+        selectedRange = NSRange(location: caret, length: 0)
+        let caretPosition = position(from: beginningOfDocument, offset: caret) ?? endOfDocument
+        selectedTextRange = UITextRange(start: caretPosition, end: caretPosition)
+
+        inputDelegate?.textDidChange(self)
+        quillTextViewDelegate?.textViewDidChange(self)
+        inputDelegate?.selectionDidChange(self)
+        quillTextViewDelegate?.textViewDidChangeSelection(self)
+        return true
+    }
+
+    open func insertText(_ text: String) {
+        _ = quillReplaceCharacters(in: selectedRange, with: text)
+    }
+
+    open func deleteBackward() {
+        let currentText = text ?? ""
+        guard !currentText.isEmpty else { return }
+        let range: NSRange
+        if selectedRange.length > 0 {
+            range = selectedRange
+        } else {
+            let caretOffset = max(0, min(selectedRange.location, currentText.utf16.count))
+            guard caretOffset > 0 else { return }
+            let caretIndex = quillStringIndex(in: currentText, utf16Offset: caretOffset)
+            guard caretIndex > currentText.startIndex else { return }
+            let previousIndex = currentText.index(before: caretIndex)
+            let previousOffset = previousIndex.utf16Offset(in: currentText)
+            range = NSRange(location: previousOffset, length: caretOffset - previousOffset)
+        }
+        _ = quillReplaceCharacters(in: range, with: "")
+    }
+
+    private func quillNormalizedRange(_ range: NSRange, utf16Length: Int) -> NSRange {
+        guard range.location != NSNotFound else {
+            return NSRange(location: utf16Length, length: 0)
+        }
+        let location = max(0, min(range.location, utf16Length))
+        let requestedUpper = range.length > Int.max - range.location
+            ? Int.max
+            : range.location + max(0, range.length)
+        let upper = max(location, min(requestedUpper, utf16Length))
+        return NSRange(location: location, length: upper - location)
+    }
+
+    private func quillStringIndex(in string: String, utf16Offset rawOffset: Int) -> String.Index {
+        guard !string.isEmpty else { return string.startIndex }
+        var offset = max(0, min(rawOffset, string.utf16.count))
+        while offset > 0 {
+            let utf16Index = string.utf16.index(string.utf16.startIndex, offsetBy: offset)
+            if let index = utf16Index.samePosition(in: string) {
+                return index
+            }
+            offset -= 1
+        }
+        return string.startIndex
     }
 }
 
@@ -849,8 +969,19 @@ public struct NSDirectionalEdgeInsets: Equatable, Sendable {
 /// `UISwitch: UIControl`. SSK only references it as a callback parameter type
 /// (`switchDidChange(_ sender: UISwitch)` reading `.isOn`); never instantiated here.
 @MainActor open class UISwitch: UIControl {
-    nonisolated(unsafe) public var isOn: Bool = false
-    public func setOn(_ on: Bool, animated: Bool) { isOn = on }
+    nonisolated(unsafe) public var isOn: Bool = false {
+        didSet {
+            if oldValue != isOn {
+                MainActor.assumeIsolated {
+                    quillNotifyViewMutation()
+                }
+            }
+        }
+    }
+    public func setOn(_ on: Bool, animated: Bool) {
+        _ = animated
+        isOn = on
+    }
 }
 
 @MainActor open class UIInputView: UIView {
@@ -934,7 +1065,15 @@ public final class UIBezierPath: NSObject, NSCopying {
 }
 
 public func UIRectFill(_ rect: CGRect) {
-    UIGraphicsGetCurrentContext()?.fill(rect)
+    #if os(Linux)
+    guard let context = UIGraphicsGetCurrentContext() ?? QuillGraphicsContextState.currentContext else {
+        return
+    }
+    context.setFillColor(QuillGraphicsContextState.currentFillColor)
+    context.fill(rect)
+    #else
+    _ = rect
+    #endif
 }
 
 public enum UIDeviceOrientation: Int, Sendable {
@@ -945,12 +1084,13 @@ public enum UIDeviceOrientation: Int, Sendable {
     public var isValidInterfaceOrientation: Bool { isPortrait || isLandscape }
 }
 
-// MARK: - UIGraphicsImageRenderer (Linux bitmap renderer)
+// MARK: - UIGraphicsImageRenderer (Linux bitmap subset)
 //
-// SignalServiceKit and IceCubes render avatars, resized upload images, and share
-// previews into a renderer context. Linux routes the context through
-// QuillFoundation's in-memory bitmap backend for basic fills and image drawing.
-// Text, gradients, masks, and complex paths remain partial.
+// SignalServiceKit renders avatars/thumbnails into a renderer context. Linux now
+// supports the direct bitmap subset backed by QuillFoundation's 8-bit BGRA
+// CGContext: solid rect fills, clears, and callers that draw through
+// `context.cgContext`. Text and path rasterization still need a richer paint
+// backend.
 //
 // Gated to Linux: macOS has no UIGraphicsImageRenderer and a real CGContext
 // (no `init()`), so this block must not compile there -- keeps the package green
@@ -1019,17 +1159,27 @@ public final class UIGraphicsImageRendererContext {
         self.cgContext = cgContext
         self.format = format
     }
-    public func fill(_ rect: CGRect) { cgContext.fill(rect) }
-    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {
-        _ = blendMode
+    public func fill(_ rect: CGRect) {
         cgContext.fill(rect)
     }
-    public func stroke(_ rect: CGRect) { cgContext.stroke(rect) }
-    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {
-        _ = blendMode
+    public func fill(_ rect: CGRect, blendMode: CGBlendMode) {
+        cgContext.saveGState()
+        cgContext.setBlendMode(blendMode)
+        cgContext.fill(rect)
+        cgContext.restoreGState()
+    }
+    public func stroke(_ rect: CGRect) {
         cgContext.stroke(rect)
     }
-    public func clip(to rect: CGRect) { cgContext.clip(to: rect) }
+    public func stroke(_ rect: CGRect, blendMode: CGBlendMode) {
+        cgContext.saveGState()
+        cgContext.setBlendMode(blendMode)
+        cgContext.stroke(rect)
+        cgContext.restoreGState()
+    }
+    public func clip(to rect: CGRect) {
+        cgContext.clip(to: rect)
+    }
 }
 
 public final class UIGraphicsImageRenderer {
@@ -1044,51 +1194,130 @@ public final class UIGraphicsImageRenderer {
         self.init(size: bounds.size, format: format)
     }
 
-    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) -> CGContext {
-        let context = CGContext(quillBitmapSize: size, scale: format.scale, opaque: format.opaque)
-        QuillGraphicsContextStack.push(context)
-        defer { QuillGraphicsContextStack.pop() }
+    private var resolvedScale: CGFloat {
+        quillResolvedUIGraphicsScale(format.scale)
+    }
+
+    private func runActions(_ actions: (UIGraphicsImageRendererContext) -> Void) -> CGContext? {
+        guard let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) else {
+            let fallback = CGContext()
+            quillPushUIGraphicsContext(fallback, size: size, scale: resolvedScale)
+            defer { quillPopUIGraphicsContext() }
+            actions(UIGraphicsImageRendererContext(cgContext: fallback, format: format))
+            return nil
+        }
+        quillPushUIGraphicsContext(context, size: size, scale: resolvedScale)
+        defer { quillPopUIGraphicsContext() }
         actions(UIGraphicsImageRendererContext(cgContext: context, format: format))
         return context
     }
 
     public func image(_ actions: (UIGraphicsImageRendererContext) -> Void) -> UIImage {
-        let context = runActions(actions)
-        if let image = context.makeImage() {
-            return UIImage(cgImage: image, scale: format.scale, orientation: .up)
+        guard let context = runActions(actions), let cgImage = context.makeImage() else {
+            return UIImage(size: size)
         }
-        return UIImage(size: size)
+        let image = UIImage(cgImage: cgImage, scale: resolvedScale, orientation: .up)
+        image.size = size
+        return image
     }
     public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        image(actions).pngData() ?? Data()
+        _ = runActions(actions)
+        return Data()
     }
     public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        image(actions).jpegData(compressionQuality: quality) ?? Data()
+        _ = quality
+        _ = runActions(actions)
+        return Data()
     }
 }
 
 // MARK: - Imperative UIGraphics* C-API (the pre-UIGraphicsImageRenderer style)
 //
-// AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow.
-// Route it through the same bitmap CGContext stack as UIGraphicsImageRenderer.
+// AvatarBuilder still uses the old Begin/GetCurrentContext/GetImage/End flow. A
+// minimal current-context stack backs it. Gated to Linux (these don't exist on
+// macOS, and CGContext() is Linux-only).
+nonisolated(unsafe) private var _uiGraphicsContextStack: [(context: CGContext, size: CGSize, scale: CGFloat)] = []
+
+private func quillPushUIGraphicsContext(_ context: CGContext, size: CGSize, scale: CGFloat) {
+    _uiGraphicsContextStack.append((context, size, scale))
+    QuillGraphicsContextState.pushContext(context)
+}
+
+private func quillPopUIGraphicsContext() {
+    if !_uiGraphicsContextStack.isEmpty {
+        _uiGraphicsContextStack.removeLast()
+    }
+    QuillGraphicsContextState.popContext()
+}
+
+private func quillResolvedUIGraphicsScale(_ scale: CGFloat) -> CGFloat {
+    scale.isFinite && scale > 0 ? scale : 1
+}
+
+private func quillUIGraphicsPixelDimension(_ value: CGFloat, scale: CGFloat) -> Int? {
+    guard value.isFinite, value > 0 else {
+        return nil
+    }
+    let scaled = (value * scale).rounded(.up)
+    guard scaled.isFinite, scaled > 0, scaled <= CGFloat(Int.max) else {
+        return nil
+    }
+    return Int(scaled)
+}
+
+private func quillMakeUIGraphicsBitmapContext(size: CGSize, scale: CGFloat) -> CGContext? {
+    let resolvedScale = quillResolvedUIGraphicsScale(scale)
+    guard let width = quillUIGraphicsPixelDimension(size.width, scale: resolvedScale),
+          let height = quillUIGraphicsPixelDimension(size.height, scale: resolvedScale)
+    else {
+        return nil
+    }
+    guard let context = CGContext(
+        data: nil,
+        width: width,
+        height: height,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    ) else {
+        return nil
+    }
+    context.scaleBy(x: resolvedScale, y: resolvedScale)
+    return context
+}
+
 public func UIGraphicsBeginImageContextWithOptions(_ size: CGSize, _ opaque: Bool, _ scale: CGFloat) {
-    QuillGraphicsContextStack.push(CGContext(quillBitmapSize: size, scale: scale == 0 ? 1 : scale, opaque: opaque))
+    _ = opaque
+    let resolvedScale = quillResolvedUIGraphicsScale(scale)
+    let context = quillMakeUIGraphicsBitmapContext(size: size, scale: resolvedScale) ?? CGContext()
+    quillPushUIGraphicsContext(context, size: size, scale: resolvedScale)
 }
 public func UIGraphicsBeginImageContext(_ size: CGSize) {
     UIGraphicsBeginImageContextWithOptions(size, false, 1)
 }
 public func UIGraphicsGetCurrentContext() -> CGContext? {
-    QuillGraphicsContextStack.current
+    _uiGraphicsContextStack.last?.context
 }
 public func UIGraphicsGetImageFromCurrentImageContext() -> UIImage? {
-    guard let image = QuillGraphicsContextStack.current?.makeImage() else { return nil }
-    return UIImage(cgImage: image)
+    guard let top = _uiGraphicsContextStack.last else { return nil }
+    guard let cgImage = top.context.makeImage() else {
+        return UIImage(size: top.size)
+    }
+    let image = UIImage(cgImage: cgImage, scale: top.scale, orientation: .up)
+    image.size = top.size
+    return image
 }
 public func UIGraphicsEndImageContext() {
-    QuillGraphicsContextStack.pop()
+    quillPopUIGraphicsContext()
 }
-public func UIGraphicsPushContext(_ context: CGContext) { QuillGraphicsContextStack.push(context) }
-public func UIGraphicsPopContext() { QuillGraphicsContextStack.pop() }
+public func UIGraphicsPushContext(_ context: CGContext) {
+    let size = CGSize(width: CGFloat(context.width), height: CGFloat(context.height))
+    quillPushUIGraphicsContext(context, size: size, scale: 1)
+}
+public func UIGraphicsPopContext() {
+    quillPopUIGraphicsContext()
+}
 #endif
 
 // MARK: - NSTextStorage (TextKit)
@@ -1112,6 +1341,27 @@ open class NSTextStorage: NSMutableAttributedString {
 
     public weak var delegate: AnyObject?
     public private(set) var layoutManagers: [NSLayoutManager] = []
+    public internal(set) var quillUniformFontPointSize: CGFloat?
+
+    public override init(string str: String) {
+        self.quillUniformFontPointSize = nil
+        super.init(string: str)
+    }
+
+    public override init(string str: String, attributes attrs: [NSAttributedString.Key: Any]? = nil) {
+        self.quillUniformFontPointSize = (attrs?[.font] as? UIFont)?.pointSize
+        super.init(string: str, attributes: attrs)
+    }
+
+    public override init(attributedString attrStr: NSAttributedString) {
+        self.quillUniformFontPointSize = nil
+        super.init(attributedString: attrStr)
+    }
+
+    public required init?(coder: NSCoder) {
+        self.quillUniformFontPointSize = nil
+        super.init(coder: coder)
+    }
 
     public func addLayoutManager(_ layoutManager: NSLayoutManager) {
         if !layoutManagers.contains(where: { $0 === layoutManager }) {

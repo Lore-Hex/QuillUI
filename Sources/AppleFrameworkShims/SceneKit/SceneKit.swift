@@ -9,6 +9,7 @@
 //   • SCNLightCamera.swift  — SCNLight, SCNCamera
 //   • SCNNode.swift         — the scene-graph node
 //   • SCNAction.swift       — interpretable action tree
+//   • SCNActionRuntime.swift — deterministic action stepping
 //   • SCNScene.swift        — SCNScene, SCNSceneSource
 //   • SCNSoftwareRenderer.swift — deterministic software render + hit-test pass
 //   • SceneView.swift       — SwiftUI SceneView bridge to the software renderer

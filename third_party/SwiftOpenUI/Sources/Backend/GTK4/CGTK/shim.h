@@ -526,6 +526,13 @@ gtk_swift_scroll_capture_controller(void) {
     return controller;
 }
 
+static inline gpointer
+gtk_swift_key_capture_controller(void) {
+    GtkEventController *controller = gtk_event_controller_key_new();
+    gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE);
+    return controller;
+}
+
 static inline void
 gtk_swift_add_event_controller(GtkWidget *widget, gpointer controller) {
     gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(controller));

@@ -51,6 +51,8 @@ import Foundation
 /// mapper so `view is UITableView` wins over `view is UIView`.
 @MainActor
 public enum UITableViewGtkMapper: UIViewGtkMapper {
+    private static let cardHorizontalMargin: gint = 16
+    private static let defaultGroupedRowHeight: CGFloat = 56
 
     public static func handles(_ view: UIView) -> Bool {
         view is UITableView
@@ -68,6 +70,7 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
         gtk_widget_set_margin_bottom(outer, 18)
 
         let tv = view as! UITableView
+        let rowContentWidth = tableRowContentWidth(for: tv)
         // Guard the data source itself for nil; the optional protocol methods
         // have default impls on Linux, so they're called directly.
         if let ds = tv.dataSource {
@@ -93,13 +96,14 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
 
                 let card = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
                 "qcard".withCString { gtk_widget_add_css_class(card, $0) }
-                gtk_widget_set_margin_start(card, 16)
-                gtk_widget_set_margin_end(card, 16)
+                gtk_widget_set_margin_start(card, cardHorizontalMargin)
+                gtk_widget_set_margin_end(card, cardHorizontalMargin)
                 gtk_widget_set_halign(card, GTK_ALIGN_FILL)
 
                 for row in 0..<rows {
                     let indexPath = IndexPath(row: row, section: section)
                     let cell = ds.tableView(tv, cellForRowAt: indexPath)
+                    prepareCellGeometry(cell, in: tv, at: indexPath, width: rowContentWidth)
                     guard let cellWidget = ctx.render(cell) else { continue }
                     "qcell".withCString { gtk_widget_add_css_class(cellWidget, $0) }
                     gtk_widget_set_hexpand(cellWidget, 1)
@@ -126,6 +130,56 @@ public enum UITableViewGtkMapper: UIViewGtkMapper {
 
         ctx.applyLayerStyle(outer, view)
         return outer
+    }
+
+    private static func tableRowContentWidth(for tableView: UITableView) -> CGFloat {
+        let tableWidth = tableView.bounds.width > 0 ? tableView.bounds.width : tableView.frame.width
+        guard tableWidth > 0, tableWidth.isFinite else {
+            return 358
+        }
+        let cardInsets = CGFloat(cardHorizontalMargin * 2)
+        return max(44, tableWidth - cardInsets)
+    }
+
+    private static func prepareCellGeometry(
+        _ cell: UITableViewCell,
+        in tableView: UITableView,
+        at indexPath: IndexPath,
+        width: CGFloat
+    ) {
+        let height = resolvedRowHeight(for: cell, in: tableView, at: indexPath)
+        cell.frame = CGRect(x: 0, y: 0, width: width, height: height)
+        cell.contentView.frame = cell.bounds
+        cell.contentView.layoutIfNeeded()
+        cell.layoutIfNeeded()
+    }
+
+    private static func resolvedRowHeight(
+        for cell: UITableViewCell,
+        in tableView: UITableView,
+        at indexPath: IndexPath
+    ) -> CGFloat {
+        if let delegate = tableView.delegate as? UITableViewDelegate {
+            let height = delegate.tableView(tableView, heightForRowAt: indexPath)
+            if isExplicitRowHeight(height) {
+                return height
+            }
+        }
+
+        if isExplicitRowHeight(tableView.rowHeight) {
+            return tableView.rowHeight
+        }
+
+        let existingHeight = cell.bounds.height > 0 ? cell.bounds.height : cell.frame.height
+        if isExplicitRowHeight(existingHeight) {
+            return existingHeight
+        }
+
+        return defaultGroupedRowHeight
+    }
+
+    private static func isExplicitRowHeight(_ height: CGFloat) -> Bool {
+        height > 0 && height.isFinite && height != UITableView.automaticDimension
     }
 }
 

@@ -17,12 +17,26 @@ private final class RecordingBackend: QuillCGContextBackend {
     func translateBy(x: CGFloat, y: CGFloat) { rec("translate(\(Int(x)),\(Int(y)))") }
     func scaleBy(x: CGFloat, y: CGFloat) { rec("scale(\(x),\(y))") }
     func rotate(by angle: CGFloat) { rec("rotate") }
+    func concatenate(_ transform: CGAffineTransform) {
+        rec("concat(\(Int(transform.a)),\(Int(transform.d)),\(Int(transform.tx)),\(Int(transform.ty)))")
+    }
     func setFillColor(_ rgba: [CGFloat]) { rec("fillColor\(rgba)") }
     func setStrokeColor(_ rgba: [CGFloat]) { rec("strokeColor\(rgba)") }
     func setLineWidth(_ width: CGFloat) { rec("lineWidth(\(Int(width)))") }
     func setLineCap(_ cap: CGLineCap) { rec("lineCap") }
     func setLineJoin(_ join: CGLineJoin) { rec("lineJoin") }
+    func setMiterLimit(_ limit: CGFloat) { rec("miter(\(Int(limit)))") }
+    func setLineDash(phase: CGFloat, lengths: [CGFloat]) {
+        rec("dash(\(Int(phase)):\(lengths.map { Int($0) }))")
+    }
+    func setShouldAntialias(_ shouldAntialias: Bool) { rec("antialias(\(shouldAntialias))") }
     func setAlpha(_ alpha: CGFloat) { rec("alpha(\(alpha))") }
+    func setBlendMode(_ mode: CGBlendMode) { rec("blend(\(mode))") }
+    func setShadow(offset: CGSize, blur: CGFloat, colorRGBA: [CGFloat]?) {
+        rec(colorRGBA == nil ? "shadow(nil)" : "shadow(\(Int(offset.width)),\(Int(offset.height)))")
+    }
+    func beginTransparencyLayer(auxiliaryInfo: Any?) { rec("beginLayer") }
+    func endTransparencyLayer() { rec("endLayer") }
     func fill(_ rect: CGRect) { rec("fill(\(Int(rect.width))x\(Int(rect.height)))") }
     func fillEllipse(in rect: CGRect) { rec("fillEllipse") }
     func stroke(_ rect: CGRect) { rec("strokeRect") }
@@ -35,11 +49,15 @@ private final class RecordingBackend: QuillCGContextBackend {
     func addLine(to point: CGPoint) { rec("line") }
     func addRect(_ rect: CGRect) { rec("addRect") }
     func addEllipse(in rect: CGRect) { rec("addEllipse") }
+    func addQuadCurve(to end: CGPoint, control: CGPoint) { rec("quad") }
+    func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) { rec("curve") }
     func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat,
                 endAngle: CGFloat, clockwise: Bool) { rec("arc") }
     func fillPath() { rec("fillPath") }
+    func fillPath(using rule: CGPathFillRule) { rec("fillPath(\(rule))") }
     func strokePath() { rec("strokePath") }
     func clip() { rec("clip") }
+    func clip(using rule: CGPathFillRule) { rec("clip(\(rule))") }
     func clip(to rect: CGRect) { rec("clipRect") }
     func draw(_ image: Any, in rect: CGRect, interpolationQuality: CGInterpolationQuality) { rec("drawImage") }
 }
@@ -57,7 +75,18 @@ struct NSViewRepresentableMountTests {
         ctx.saveGState()
         ctx.translateBy(x: 160, y: 120)
         ctx.rotate(by: 0.5)
+        ctx.concatenate(CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 4, ty: 5))
         ctx.restoreGState()
+        ctx.setMiterLimit(7)
+        ctx.setLineDash(phase: 1, lengths: [2, 3])
+        ctx.setAllowsAntialiasing(false)
+        ctx.setShouldAntialias(true)
+        ctx.setAllowsAntialiasing(true)
+        ctx.setBlendMode(.multiply)
+        ctx.setShadow(offset: CGSize(width: 3, height: 4), blur: 0)
+        ctx.beginTransparencyLayer(auxiliaryInfo: nil)
+        ctx.endTransparencyLayer()
+        ctx.setShadow(offset: .zero, blur: 0, color: nil)
 
         #expect(backend.ops == [
             "fillColor[0.0, 0.0, 0.0, 1.0]",
@@ -65,7 +94,63 @@ struct NSViewRepresentableMountTests {
             "save",
             "translate(160,120)",
             "rotate",
+            "concat(2,3,4,5)",
             "restore",
+            "miter(7)",
+            "dash(1:[2, 3])",
+            "antialias(false)",
+            "antialias(false)",
+            "antialias(true)",
+            "blend(multiply)",
+            "shadow(3,4)",
+            "beginLayer",
+            "endLayer",
+            "shadow(nil)",
+        ])
+    }
+
+    @Test func cgContextForwardsPathCurvesToBackend() {
+        let backend = RecordingBackend()
+        let ctx = CGContext(quillBackend: backend)
+
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: 2, y: 0))
+        path.addQuadCurve(to: CGPoint(x: 4, y: 0), control: CGPoint(x: 3, y: 1))
+        path.addCurve(
+            to: CGPoint(x: 8, y: 0),
+            control1: CGPoint(x: 5, y: 2),
+            control2: CGPoint(x: 7, y: 2)
+        )
+        path.closeSubpath()
+
+        ctx.addRects([
+            CGRect(x: 0, y: 0, width: 1, height: 1),
+            CGRect(x: 1, y: 1, width: 2, height: 2),
+        ])
+        ctx.addPath(path)
+        ctx.addQuadCurve(to: CGPoint(x: 1, y: 1), control: CGPoint(x: 0, y: 1))
+        ctx.addCurve(to: CGPoint(x: 3, y: 1), control1: CGPoint(x: 1, y: 2), control2: CGPoint(x: 2, y: 2))
+        ctx.move(to: .zero)
+        ctx.addArc(tangent1End: CGPoint(x: 10, y: 0), tangent2End: CGPoint(x: 10, y: 10), radius: 2)
+        ctx.fillPath(using: .evenOdd)
+        ctx.clip(using: .evenOdd)
+
+        #expect(backend.ops == [
+            "addRect",
+            "addRect",
+            "move",
+            "line",
+            "quad",
+            "curve",
+            "closePath",
+            "quad",
+            "curve",
+            "move",
+            "line",
+            "curve",
+            "fillPath(evenOdd)",
+            "clip(evenOdd)",
         ])
     }
 

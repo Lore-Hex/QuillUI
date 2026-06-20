@@ -54,6 +54,8 @@ enum AppleCompatibilitySmoke {
 
     struct AppKitImageResult {
         var sizeRoundTrip: Bool
+        var focusBitmapCreated: Bool
+        var copyDrawReplacesDestination: Bool
         var namedImagePlaceholder: Bool
         var systemImagePlaceholder: Bool
         var workspaceFileIconPlaceholder: Bool
@@ -757,13 +759,43 @@ enum AppleCompatibilitySmoke {
             let image = NSImage(size: size)
             let sizeRoundTrip = image.size == size
             image.lockFocus()
-            image.draw(
-                in: NSRect(x: 0, y: 0, width: 24, height: 16),
-                from: NSRect(x: 0, y: 0, width: 12, height: 8),
-                operation: .copy,
-                fraction: 0.5
-            )
+            let focusContextActive = QuillGraphicsContextState.currentContext != nil
+            QuillGraphicsContextState.currentContext?.setFillColor(red: 1, green: 0, blue: 0, alpha: 1)
+            QuillGraphicsContextState.currentContext?.fill(NSRect(x: 0, y: 0, width: 24, height: 16))
             image.unlockFocus()
+            let focusImage = image.cgImage
+            let focusBitmapCreated =
+                focusContextActive &&
+                focusImage?.width == 24 &&
+                focusImage?.height == 16 &&
+                focusImage?.quillBGRAPixels?.contains(where: { $0 != 0 }) == true
+
+            let source = NSImage(size: NSSize(width: 4, height: 4))
+            source.lockFocus()
+            QuillGraphicsContextState.currentContext?.setFillColor(red: 1, green: 0, blue: 0, alpha: 0.5)
+            QuillGraphicsContextState.currentContext?.fill(NSRect(x: 0, y: 0, width: 4, height: 4))
+            source.unlockFocus()
+
+            let destination = NSImage(size: NSSize(width: 4, height: 4))
+            destination.lockFocus()
+            QuillGraphicsContextState.currentContext?.setFillColor(red: 0, green: 0, blue: 1, alpha: 1)
+            QuillGraphicsContextState.currentContext?.fill(NSRect(x: 0, y: 0, width: 4, height: 4))
+            source.draw(
+                in: NSRect(x: 0, y: 0, width: 4, height: 4),
+                from: NSRect(x: 0, y: 0, width: 4, height: 4),
+                operation: .copy,
+                fraction: 1
+            )
+            destination.unlockFocus()
+            let copyPixel = destination.cgImage?.quillBGRAPixels?.prefix(4).map(Int.init) ?? []
+            let copyDrawReplacesDestination =
+                copyPixel.count == 4 &&
+                copyPixel[0] <= 8 &&
+                copyPixel[1] <= 8 &&
+                copyPixel[2] >= 100 &&
+                copyPixel[2] <= 160 &&
+                copyPixel[3] >= 100 &&
+                copyPixel[3] <= 160
 
             let namedImage = NSImage(named: "StatusBarIcon")
             let systemImage = NSImage(systemName: "paperplane.fill")
@@ -783,6 +815,8 @@ enum AppleCompatibilitySmoke {
 
             return (
                 sizeRoundTrip: sizeRoundTrip,
+                focusBitmapCreated: focusBitmapCreated,
+                copyDrawReplacesDestination: copyDrawReplacesDestination,
                 namedImagePlaceholder: namedImage?.size == CGSize(width: 32, height: 32),
                 systemImagePlaceholder: systemImage?.size == CGSize(width: 32, height: 32),
                 workspaceFileIconPlaceholder: workspaceFileIcon.size == CGSize(width: 32, height: 32),
@@ -796,6 +830,8 @@ enum AppleCompatibilitySmoke {
 
         return AppKitImageResult(
             sizeRoundTrip: captured.result.sizeRoundTrip,
+            focusBitmapCreated: captured.result.focusBitmapCreated,
+            copyDrawReplacesDestination: captured.result.copyDrawReplacesDestination,
             namedImagePlaceholder: captured.result.namedImagePlaceholder,
             systemImagePlaceholder: captured.result.systemImagePlaceholder,
             workspaceFileIconPlaceholder: captured.result.workspaceFileIconPlaceholder,

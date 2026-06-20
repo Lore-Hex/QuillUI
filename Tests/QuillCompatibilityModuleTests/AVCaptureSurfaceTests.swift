@@ -42,6 +42,7 @@ private final class RecordingDelegate: AVCaptureVideoDataOutputSampleBufferDeleg
     // (Apple's optional-method semantics).
 }
 
+@Suite(.serialized)
 struct AVCaptureSurfaceTests {
 
     @Test func captureSessionGraphAssembles() throws {
@@ -137,12 +138,10 @@ struct AVCaptureSurfaceTests {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         #expect(writer.outputURL == url)
 
-        let width = 4
-        let height = 4
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: width,
-            AVVideoHeightKey: height,
+            AVVideoWidthKey: 1280,
+            AVVideoHeightKey: 720,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: 10_000_000,
                 AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
@@ -167,14 +166,76 @@ struct AVCaptureSurfaceTests {
             return
         }
         writer.startSession(atSourceTime: CMTime(value: 0, timescale: 600))
-        #expect(adaptor.append(CVPixelBuffer(width: width, height: height, pixelFormatType: kCVPixelFormatType_32BGRA),
+        // The appended frame must match the writer's configured geometry
+        // (AVVideoWidthKey/HeightKey above): the Linux ffmpeg-backed encoder
+        // is launched as a fixed-size rawvideo pipe and rejects a mismatched
+        // frame (encoder.appendFrame guards pixelBuffer.width/height == the
+        // configured width/height). A 4x4 buffer only ever "passed" on macOS,
+        // whose shim append path is inert-true. Feed a real 1280x720 frame.
+        #expect(adaptor.append(CVPixelBuffer(width: 1280, height: 720, pixelFormatType: kCVPixelFormatType_32BGRA),
                                withPresentationTime: CMTime(value: 1, timescale: 30)))
         input.markAsFinished()
-        // Deterministic finalize: the callback form finishes on a detached
-        // thread, so await the async overload rather than racing a flag.
+        // finishWriting is asynchronous on both platforms: Apple delivers the
+        // completion off the calling thread, and the Linux shim detaches a
+        // thread that closes the ffmpeg stdin pipe and waitUntilExit()s the
+        // encoder. Await the async form so encoding is fully finalized before
+        // asserting. Reading a plain `var finished` on the next line was a
+        // race that only ever passed on macOS — whose shim path completes
+        // synchronously — and on Linux additionally left the detached encoder
+        // thread running into suite teardown (a likely SIGILL source).
         await writer.finishWriting()
         #expect(writer.status == .completed)
         let movie = try #require(FileManager.default.contents(atPath: url.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
+    @Test("real-time writer can consume synthetic capture frames without manual appends",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterConsumesSyntheticCaptureFramesWithoutManualAppends() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-recording-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        try await withSyntheticCameraEnvironment(width: 96, height: 64, fps: 20) {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external],
+                mediaType: .video,
+                position: .unspecified
+            )
+            let device = try #require(discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" })
+
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 96,
+                AVVideoHeightKey: 64,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 400_000,
+                    AVVideoExpectedSourceFrameRateKey: 20,
+                ],
+            ])
+            input.expectsMediaDataInRealTime = true
+            #expect(writer.canAdd(input))
+            writer.add(input)
+            #expect(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+
+            let session = AVCaptureSession()
+            session.beginConfiguration()
+            session.addInput(try AVCaptureDeviceInput(device: device))
+            session.addOutput(AVCaptureVideoDataOutput())
+            session.commitConfiguration()
+            session.startRunning()
+            try await Task.sleep(nanoseconds: 700_000_000)
+            session.stopRunning()
+
+            input.markAsFinished()
+            await writer.finishWriting()
+            #expect(writer.status == .completed)
+        }
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
         #expect(movie.count > 500)
         #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
     }
@@ -205,6 +266,30 @@ struct AVCaptureSurfaceTests {
 
         // Placeholder CIImages keep the historical "no frame" nil.
         #expect(context.createCGImage(CIImage(), from: .zero) == nil)
+    }
+
+    @Test func cvPixelBufferBaseAddressMutatesStableStorage() throws {
+        let buffer = CVPixelBuffer(width: 2, height: 2, pixelFormatType: kCVPixelFormatType_32BGRA)
+        #expect(CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess)
+        let base = try #require(CVPixelBufferGetBaseAddress(buffer))
+        let bytes = base.assumingMemoryBound(to: UInt8.self)
+        for index in 0..<16 {
+            bytes[index] = UInt8(240 - index)
+        }
+        #expect(CVPixelBufferUnlockBaseAddress(buffer, []) == kCVReturnSuccess)
+
+        let ciImage = CIImage(cvPixelBuffer: buffer)
+        let cgImage = CIContext().createCGImage(ciImage, from: ciImage.extent)
+        #expect(cgImage?.quillBGRAPixels?.prefix(8).map { Int($0) } == [240, 239, 238, 237, 236, 235, 234, 233])
+    }
+
+    static var ffmpegPresent: Bool {
+        if let override = ProcessInfo.processInfo.environment["QUILL_FFMPEG"],
+           FileManager.default.isExecutableFile(atPath: override) {
+            return true
+        }
+        return ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"]
+            .contains { FileManager.default.isExecutableFile(atPath: $0) }
     }
 }
 

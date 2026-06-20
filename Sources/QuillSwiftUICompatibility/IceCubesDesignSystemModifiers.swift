@@ -12,6 +12,18 @@ import QuillFoundation
 // shadow, can see them. HoverEffect, Visibility, TextSelectability, Edge.Set,
 // and AnyTransition already exist elsewhere in this module / SwiftOpenUI.
 // (SymbolEffect — with `.pulse` etc. — is declared in DesignSystemSurfaceCompat.)
+//
+// EVERY modifier here is `@_disfavoredOverload`. QuillUI already declares a
+// *functional* twin for all of these (onHover→OnHoverView, listRowSeparator→
+// ListRowSeparatorView, contentShape→ContentShapeView, …, in QuillUI's
+// UpstreamCompatibility.swift). QuillUI imports the SwiftUI shadow, so when
+// QuillUI's own source compiles it sees BOTH its functional twin and these
+// inert ones — an unqualified call would be "ambiguous use". `@_disfavoredOverload`
+// makes the compiler prefer QuillUI's functional implementation whenever both
+// are visible, while vendored shadow-only consumers (IceCubes, which can't see
+// QuillUI) still bind to these inert fallbacks. Forgetting the attribute on any
+// one of these silently breaks the *core* QuillUI build (and thus all of Linux
+// CI), since this module is always compiled regardless of the IceCubes gate.
 
 public extension View {
     /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored:
@@ -24,10 +36,8 @@ public extension View {
         return self
     }
 
-    /// Interaction hit-test shape. Disfavored because QuillUI declares a
-    /// `contentShape` returning a `ContentShapeView`; callers that see both
-    /// (e.g. the compat-module tests) bind to that richer one, while
-    /// shadow-only vendored source (DesignSystem) uses this inert fallback.
+    /// Interaction hit-test shape. QuillUI declares a functional
+    /// `contentShape` returning a `ContentShapeView`.
     @_disfavoredOverload
     func contentShape<S: Shape>(_ shape: S) -> Self {
         _ = shape

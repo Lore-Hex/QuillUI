@@ -2,6 +2,9 @@
 // AVCaptureSurface.swift. Keep that file as the single owner of session/input/
 // output/connection types so V4L2-backed capture and inert fallback behavior
 // share one ABI surface.
+//
+// Apple re-exports CoreImage through AVFoundation. Mirror that so upstream code
+// that only imports AVFoundation can still resolve CIQRCodeDescriptor.
 
 import Foundation
 import QuartzCore
@@ -36,14 +39,14 @@ public extension AVCaptureDevice {
         case custom = 3
     }
 
-    // DiscoverySession (with init(deviceTypes:mediaType:position:)) is declared
-    // in AVFoundation.swift — one owner. A duplicate here caused "invalid
-    // redeclaration of 'DiscoverySession'".
     public func isFocusModeSupported(_ focusMode: FocusMode) -> Bool { false }
     public func isExposureModeSupported(_ exposureMode: ExposureMode) -> Bool { false }
 
     /// Virtual multi-camera zoom switch-over points — none on Linux.
     public var virtualDeviceSwitchOverVideoZoomFactors: [NSNumber] { [] }
+
+    // DiscoverySession, device identity/configuration storage, and authorization
+    // are declared in AVFoundation.swift.
 }
 
 public extension AVCaptureDevice.DeviceType {
@@ -54,16 +57,7 @@ public extension AVCaptureDevice.DeviceType {
     static let builtInTelephotoCamera = AVCaptureDevice.DeviceType(rawValue: "AVCaptureDeviceTypeBuiltInTelephotoCamera")
 }
 
-// MARK: - Connections + preview layer + video stabilization
-
-public enum AVCaptureVideoStabilizationMode: Int, Sendable {
-    case off = 0
-    case standard = 1
-    case cinematic = 2
-    case cinematicExtended = 3
-    case previewOptimized = 4
-    case auto = -1
-}
+// MARK: - Preview layer
 
 open class AVCaptureVideoPreviewLayer: CALayer {
     public var session: AVCaptureSession?

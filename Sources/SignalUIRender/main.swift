@@ -54,8 +54,25 @@ final class FirstLightViewController: UIViewController {
 func dumpViewTree(_ view: UIView, depth: Int) {
     let indent = String(repeating: "  ", count: depth)
     let f = view.frame
-    var line = "\(indent)\(type(of: view)) frame=(\(Int(f.origin.x)),\(Int(f.origin.y)),\(Int(f.width))x\(Int(f.height))) subviews=\(view.subviews.count)"
+    func safeFrameValue(_ value: CGFloat) -> String {
+        guard value.isFinite else { return String(describing: value) }
+        guard value <= CGFloat(Int.max), value >= CGFloat(Int.min) else {
+            return String(format: "%.3g", Double(value))
+        }
+        return String(Int(value.rounded()))
+    }
+    var line = "\(indent)\(type(of: view)) frame=(\(safeFrameValue(f.origin.x)),\(safeFrameValue(f.origin.y)),\(safeFrameValue(f.width))x\(safeFrameValue(f.height))) subviews=\(view.subviews.count)"
     if let label = view as? UILabel { line += " label=\"\(label.text ?? "")\"" }
+    if let imageView = view as? UIImageView {
+        if let image = imageView.image {
+            let resourceName = image.quillResourceName ?? "-"
+            let systemName = image.quillSystemSymbolName ?? "-"
+            let hasData = image.dataRepresentation() != nil
+            line += " image(resource=\"\(resourceName)\" system=\"\(systemName)\" data=\(hasData) size=\(safeFrameValue(image.size.width))x\(safeFrameValue(image.size.height)))"
+        } else {
+            line += " image=nil"
+        }
+    }
     if let renderedText = view.quillRenderedText { line += " renderedText=\"\(renderedText)\"" }
     if let tv = view as? UITableView {
         let ds = tv.dataSource
@@ -83,6 +100,7 @@ func dumpViewTree(_ view: UIView, depth: Int) {
 func installBaseCSS(windowBackground: String) {
     let css = """
     window { background-color: \(windowBackground); }
+    * { background-color: transparent; }
     box, label, viewport, scrolledwindow, separator { background-color: transparent; }
     label { color: #1C1C1E; }
     .qcard { background-color: #FFFFFF; border-radius: 10px; }
@@ -113,9 +131,20 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
                              windowBackground: String = "#EFEFF4") {
     installBaseCSS(windowBackground: windowBackground)
 
-    // Force the view to load + lay out.
-    vc.loadViewIfNeeded()
-    vc.viewDidLoad()
+    // Force the view to load + lay out. `loadViewIfNeeded()` already calls
+    // `viewDidLoad()` in QuillUIKit, but it also hides the chance to size the
+    // root view before first-load code runs. Size first for unloaded controllers
+    // so UIKit-style layout gates see the host window dimensions.
+    if vc.isViewLoaded {
+        vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+    } else {
+        vc.loadView()
+        if vc.viewIfLoaded == nil {
+            vc.view = UIView()
+        }
+        vc.viewIfLoaded?.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
+        vc.viewDidLoad()
+    }
     vc.view.frame = CGRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
     vc.view.layoutIfNeeded()
 
@@ -151,14 +180,35 @@ guard gtk_init_check() != 0 else {
 //   realapp-link → proves the GTK renderer links SignalApp / ConversationViewController
 //   real-components → real CVItemModel/CVRootComponent/CVCellView render path
 //   ssk-bootstrap → initializes real SSK globals + on-disk SDSDatabaseStorage
+//   real-conversation → seeds storage + launches real ConversationViewController
+//   real-conversation-accepted → launches CVC with a profile-whitelisted thread
 //   (default)    → Signal's REAL OWSTableViewController2 (Settings)
 let selectedDemo = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DEMO"]
-if selectedDemo == "ssk-bootstrap" {
+if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" || selectedDemo == "real-conversation-accepted" {
     DispatchQueue.main.async {
         Task { @MainActor in
-            let vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
-            renderRootViewController(vc, title: "Signal Runtime Bootstrap", width: 620, height: 280,
-                                     windowBackground: "#FFFFFF")
+            let vc: UIViewController
+            let title: String
+            let width: Int
+            let height: Int
+            switch selectedDemo {
+            case "real-conversation":
+                vc = await SignalConversationDemo.makeRealConversationViewController()
+                title = "Signal Real Conversation"
+                width = 760
+                height = 720
+            case "real-conversation-accepted":
+                vc = await SignalConversationDemo.makeAcceptedRealConversationViewController()
+                title = "Signal Accepted Conversation"
+                width = 760
+                height = 720
+            default:
+                vc = await SignalConversationDemo.makeSSKBootstrapProbeViewController()
+                title = "Signal Runtime Bootstrap"
+                width = 620
+                height = 280
+            }
+            renderRootViewController(vc, title: title, width: width, height: height, windowBackground: "#FFFFFF")
             let loop = g_main_loop_new(nil, 0)
             g_main_loop_run(loop)
             g_main_loop_unref(loop)

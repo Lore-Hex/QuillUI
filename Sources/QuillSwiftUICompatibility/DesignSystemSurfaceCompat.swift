@@ -785,6 +785,16 @@ public enum NavigationBarTitleDisplayMode: Sendable {
 
 public typealias ScrollContentBackgroundVisibility = Visibility
 
+public extension View {
+    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self> {
+        recordSwiftUICompatibilityFallback(
+            "scrollContentBackground",
+            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
+        )
+        return ScrollContentBackgroundView(content: self, visibility: visibility)
+    }
+}
+
 public enum ScrollBounceBehavior: Sendable {
     case automatic
     case always
@@ -1671,6 +1681,7 @@ public struct TableColumn<RowValue, Content: View>: View {
 public struct AnyTableColumn<RowValue>: View {
     public var title: String
 
+    @MainActor
     public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
         self.title = column.title
     }
@@ -2524,15 +2535,6 @@ public extension View {
     func navigationTitle<T>(_ title: T) -> Self {
         _ = title
         return self
-    }
-
-    @_disfavoredOverload
-    func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self> {
-        recordSwiftUICompatibilityFallback(
-            "scrollContentBackground",
-            message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
-        )
-        return ScrollContentBackgroundView(content: self, visibility: visibility)
     }
 
     func matchedGeometryEffect<ID: Hashable>(

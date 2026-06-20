@@ -42,20 +42,17 @@ is `Usable` or `Parity`.
 | `SwiftUI` clone layer | `Font.Weight`. | Module boundary and app-facing view/modifier metadata paths are partial; baseline alignments fallback; full layout, diffing, animation, transition, gesture, accessibility, focus, scene, and rendering behavior is incomplete. |
 | `SwiftData` / `QuillData` | `QuillTableMappable` table/name/convert/update helpers, `ModelContext.insert`, `delete`, `save`, and `QuillDataError.description`. | Database scalar conversion, fetches, predicates, configuration, schemas, containers, sorting, and macros are partial or compile-only; migrations, relationships, undo, CloudKit, constraints, predicate lowering, and concurrency are incomplete. |
 | `AppKit` / `QuillAppKit` | Undo execution and registration gates, `NSStringFromRect`, view hierarchy and geometry mutation, child-controller links, window geometry mutation, pasteboard string/data/item storage, menu item models, arranged stack subviews, progress value mutation, pop-up item selection, and selected singleton/property flows. | Most native OS behavior is partial, fallback, compile-only, or incomplete: event loop and dispatch, focus, dialogs, window manager integration, Auto Layout, drawing/layers, accessibility, cursor/event taps, native menus, drag/drop, text layout, document architecture, SwiftUI hosting, status items, popovers, visual effects, animation timing, haptics, sharing, audio, XPC, font discovery, file icons, and workspace services. |
-| `UIKit` / `QuillUIKit` | `UIApplication.shared`. | Aliases, app opening, device metadata, pasteboard, views, hierarchy, notifications, and bitmap image rendering are partial/fallback; constraints, scenes, controllers, navigation, split views, collections, alerts, controls, labels/key commands, lifecycle, layout, events, accessibility, and text input are incomplete. |
+| `UIKit` / `QuillUIKit` | `UIApplication.shared`. | Aliases, app opening, device metadata, pasteboard, views, hierarchy, and notifications are partial/fallback; constraints, scenes, controllers, navigation, split views, collections, alerts, controls, labels/images/key commands, renderer, lifecycle, layout, events, accessibility, and text input are incomplete. |
 | `WebKit` | None yet beyond compile-compatible shapes. | `WKWebView`, configuration, delegates, user scripts, content rules, navigation, HTML rendering, JavaScript, process isolation, and scheme handling are compile-only or incomplete. |
-| `QuickLook` | SwiftUI `.quickLookPreview(_:)` local URL handoff through QuillKit. | `QLPreviewController` and full in-app media preview window/sheet behavior are incomplete. |
-| `ImageIO` | `CGImageSourceCreateWithData`, `CGImageSourceCreateWithDataProvider`, `CGImageSourceCreateWithURL`, `CGImageSourceGetCount`, `CGImageSourceGetType`, `CGImageSourceCreateImageAtIndex`, `CGImageSourceCreateThumbnailAtIndex`, `CGImageSourceCopyPropertiesAtIndex`, `CGImageDestinationCreateWithData`, `CGImageDestinationCreateWithURL`, `CGImageDestinationAddImage`, `CGImageDestinationFinalize`, and `CGImageDestinationCopyImageSource`. | Metadata tags, animated images, EXIF orientation, HEIC-specific decode, color profiles, incremental sources, multi-image destinations, and full destination options are incomplete. |
-| `AuthenticationServices` | `ASWebAuthenticationSession` start, cancel, direct callback delivery, SwiftUI web-auth action handoff, and callback-file bridge for desktop helper processes. | Presentation anchors are compile-only; desktop URL-scheme handler installation, secure storage, and full browser/session parity remain incomplete. |
+| `AuthenticationServices` | None yet beyond compile-compatible shapes. | Web authentication session start is fallback; session cancellation, presentation anchors, callback handling, secure storage, and browser flow parity are incomplete. |
 | `UniformTypeIdentifiers` | App-facing known extension lookup, conforming known extension lookup, common static types, local conformance checks, and preferred extension/MIME metadata for known identifiers. | Identifier parsing remains partial; system registry lookup, dynamic/exported/imported types, tag classes, synthesized dynamic identifiers for unknown extensions, and the full conformance graph need parity work. |
 | `Network` | `IPv4Address`, `IPv6Address`, `NWPathMonitor` initial `currentPath` and pre-start `cancel()`, `NWPath.Status`, `NWPath.UnsatisfiedReason`, `NWPath.supportsIPv4`, `NWPath.supportsIPv6`, `NWPath.supportsDNS`, `NWPath.usesInterfaceType(_:)`, `NWInterface.InterfaceType`, `NWInterface` values returned by scoped address/host parsing, `NWEndpoint.Port` parsing/known constants/properties/debug text/equality/hash behavior, scoped and unscoped `NWEndpoint.Host.init(_:)` classification/description/equality/hash behavior, common `NWEndpoint` host-port/service/Unix path value descriptions, equality, hashing, `NWError.posix(_:)`, `.dns(_:)`, `.tls(_:)`, equality, debug/describing/reflecting/localized text, `NWProtocolTCP.Options` constructor/default/getter/setter surface, `NWProtocolUDP.Options.preferNoChecksum`, `NWProtocolTLS.Options`, `NWProtocolOptions`, `NWParameters.defaultProtocolStack`, `NWParameters.ProtocolStack`, `NWProtocolIP.Options`, IP option enums, `NWParameters.tcp`, `.udp`, `.tls`, `.dtls`, `NWParameters.init(tls:tcp:)`, `init(dtls:udp:)`, `NWParameters.Attribution`, `ExpiredDNSBehavior`, `MultipathServiceType`, `ServiceClass`, parameter policy setters/defaults, and `NWParameters` debug/string text now have Apple-checked `Parity` rows for current tested contracts. `NWPathMonitor.start(queue:)` is `Usable` for a Linux one-shot current-interface snapshot. `NetworkPathInterfaceParityTests` pins the path monitor pre-start state, pre-start cancel state, path helper-query results, path/interface enum string, resolved scoped interface value, Linux start snapshot consistency, equality, and hash contracts. `NetworkIPAddressParityTests` captures the IPv4/IPv6 parser, legacy IPv4 single-component wrapping, dotted octal/hex IPv4 edge cases, data length, classifier-boundary, multicast-scope, IPv4 mapping, empty/unresolved IPv6 scope fallback, string, debug-output, address equality/hash, and `IPv6Address.Scope` raw-value edge matrix observed on Apple Network. `NetworkEndpointPortParityTests` now covers port parser, constant, equality, and hash semantics. `NetworkEndpointHostParityTests` now covers scoped parsed-to-direct host equality/hash, empty/unresolved/malformed scope fallback classification, scoped host-port endpoint equality/hash, and endpoint value text. `NetworkErrorParityTests` covers `NWError` Sendable/Equatable value surface, Darwin POSIX payload text for common network failures, DNS/TLS payload text, Apple localizedDescription formatting, and the intentionally non-Hashable protocol shape. `NetworkParametersParityTests` covers parameter and protocol option constructor/value text, TCP Bool/Int option defaults and setters, UDP checksum-preference defaults and setters, fresh reference identity, Sendable surface, protocol-stack/default-stack/IP option value surfaces, policy enum text, defaults, setter normalization, local endpoint debug formatting, and Apple-matched traffic/multipath/proxy/DNSSEC debug segments. | Continuous live path monitoring, exact Apple path/DNS policy flags, synthetic constructed interfaces, connections, listeners, DNS/TLS transport behavior, UDP/TCP socket behavior, IP packet/socket option effects, and NetworkExtension VPN behavior are incomplete or fallback-only. |
 | `NetworkExtension` | None yet beyond compile/fallback shapes. | Packet flow, VPN lifecycle, tunnel routing, provider hosting, and real tunnel settings are incomplete. |
-| `CloudKit` | `import CloudKit`, `CKContainer.default()`, `CKContainer.accountStatus`, `CKDatabase.save`, `fetch`, `delete`, `perform`, `CKRecord`, record zones, queries, subscriptions, account status, and common error codes compile with explicit unavailable diagnostics. | No iCloud account integration, entitlements, CloudKit Web Services authentication, sync, server change tokens, push subscriptions, conflict resolution, or production OpenCloudKit adapter is wired yet. |
-| `CoreGraphics` | None yet beyond compile/fallback shapes. | Event sources, key state, keyboard events, event posting, pointer events, event taps, and drawing APIs beyond shared geometry are incomplete. |
+| `CoreGraphics` | Swift-corelibs geometry re-export, affine/path value behavior, bitmap `CGContext` fills/strokes/images/gradients/masks, blend modes, shadows, transparency layers, interpolation-quality image sampling/state restore, current-path introspection, font rendering state flags, keyboard/mouse event value surfaces, and Cairo-backed `CGContext` forwarding for paths, fill rules, blend/shadow state, miter limit, and antialias toggles are `Usable` for current geometry, SceneKit interop, image rendering, custom-view drawing, and event-object source compatibility. | Key state, event posting, pointer injection, real event taps, and broad drawing APIs beyond the focused bitmap/Cairo drawing surface are incomplete. |
 | `Security` | `SecRandomCopyBytes`, process-local `SecKeyCreateWithData`, `SecKeyCreateRandomKey`, `SecKeyGeneratePair`, `SecKeyCopyPublicKey`, `SecKeyGetBlockSize`, `SecKeyCopyAttributes`, `SecKeyCopyExternalRepresentation`, metadata-gated `SecKeyIsAlgorithmSupported`, deterministic ECDSA message/digest `SecKeyCreateSignature` and `SecKeyVerifySignature` compatibility, deterministic symmetric ECDH `SecKeyCopyKeyExchangeResult` compatibility, key-exchange parameter constants, synthesized `SecKey` references, `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, `SecItemDelete` generic-password, internet-password, and key-class rows, persistent-reference returns/lookups/deletes, access-control metadata, authentication/use query controls, access-group namespace filters, synchronizable filters, `kSecAttrSynchronizableAny`, server/security-domain/protocol/authentication/port/path endpoint identity, key-item application-tag/application-label/key-class/key-type/key-size/capability metadata, and current keychain constants. | Native secure keychain persistence/access-control enforcement, OS-enforced keychain sharing, real keychain synchronization, cross-process lookup, native key validation/handles, native cryptographic key generation, cryptographically valid sign/verify, native/cryptographically valid key agreement, Secure Enclave behavior, certificate parsing, policy evaluation, platform trust store, and Secure Transport parity are incomplete. |
 | `AVFoundation` / `AVKit` | Speech synthesis lifecycle callback fallback, SolderScope capture-session graph, V4L2 discovery path, and opt-in synthetic camera frame delivery. | Audio session policy, playback, audio engine graph processing, taps, buffers, formats, video rendering, media decoding, broad camera hardware coverage, and real media I/O are incomplete. |
 | `Speech` | Configurable authorization, recognizer availability, recognition-result delivery, request buffer counting, and task cancellation state. | Native microphone/audio capture, native transcription, and audio bridge behavior are incomplete. |
-| `PhotosUI` / `Photos` | Local Linux `Photos` fallback saves `UIImage` assets, fetches `PHAsset` rows, loads image data/resized thumbnails through `PHImageManager`, file-backed `PhotosPickerItem` values load Transferable file imports through `NSItemProvider`, and `.photosPicker` modifiers write file-backed items from shared Linux URL selections. | Authorization is deterministic; native photo-library picker UI, native picker item providers, and real system photo-library integration are incomplete. |
+| `PhotosUI` / `Photos` | None yet beyond compile-compatible shapes. | Photo-library authorization, asset fetching, picker UI, transferable item loading, and photo service behavior are incomplete. |
 | `Charts`, `StoreKit`, `TipKit` | None yet beyond compile-compatible shapes. | Chart marks/rendering/axes/scales/interaction/accessibility, product lookup, purchases, transactions, subscriptions, tip rules, persistence, display frequency, and popovers are incomplete. |
 | `Observation` | None yet at `Usable`; `@Observable` lowering is partial. | Tracking, invalidation, access lists, registrar behavior, and observation parity are incomplete. |
 | `ApplicationServices` | None yet at `Usable`; process trust check is partial. | Accessibility tree inspection, mutation, notifications, app targeting, and attribute access are incomplete. |
@@ -76,11 +73,9 @@ table covers the local Apple-package clone layer.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `import SwiftUI` | Partial | Resolves to `SwiftOpenUI` plus `QuillSwiftUICompatibility`; it intentionally does not ambiently re-export `QuillUI` to avoid AppKit symbol collisions. |
-| `WindowGroup(for:)`, `OpenWindowAction.callAsFunction(value:)`, `OpenWindowAction.callAsFunction(id:value:)` | Partial-real | Value-based window scenes defer at startup, preserve their `Binding<Value?>` content factory through sizing/resizability modifiers, and GTK opens a top-level window with the requested value bound into content. Scene phase, restoration/refocus, exact chrome, and full command/window-manager parity remain incomplete. |
 | `Font.Weight` | Usable | Local typealias to `FontWeight`; enough for app source compatibility. |
 | `VerticalAlignment.firstTextBaseline` | Fallback | Maps to `.top`; true text-baseline metrics are incomplete. |
 | `VerticalAlignment.lastTextBaseline` | Fallback | Maps to `.bottom`; true text-baseline metrics are incomplete. |
-| `.fileImporter(isPresented:allowedContentTypes:onCompletion:)` and multi-selection overload | Partial-real | Uses shared `QuillFileImporter` URL selection on Linux with test, environment, and desktop command backends; validates selected filename extensions against `UTType` and clears the presentation binding after attempting selection. Native GTK/Qt dialog parity and security-scoped URL semantics are incomplete. |
 | Common view declarations, modifiers, focus wrappers, menu/picker/list metadata | Partial | Covered through `SwiftOpenUI`, QuillUI metadata, and focused source-contract tests. |
 | Layout, diffing, animation, transition, gesture, accessibility, focus routing, multi-window semantics | Incomplete | These are the main blockers between Usable and Parity. |
 
@@ -127,26 +122,6 @@ The Linux `SwiftData` product re-exports `QuillData`.
 | `SortDescriptor.init(_:order:)` | Partial | Stores key-path/order metadata for supported fetches. |
 | SQLite snapshot helpers | Compile-only | Present as zero/no-op stubs. |
 | Migrations, relationships, undo, CloudKit, rich schema constraints, full predicate lowering | Incomplete | Required for SwiftData Parity. |
-
-## CloudKit
-
-The Linux `CloudKit` product is a QuillUI shim that exposes common
-CloudKit-shaped types while every networked operation reports unavailable.
-OpenCloudKit (`https://github.com/cocologics/OpenCloudKit`) is the documented
-candidate backend because it is an MIT Swift wrapper around CloudKit Web
-Services with a Linux OpenSSL dependency path. QuillUI does not link it by
-default yet; the next implementation step is an adapter that maps
-`CKContainer`/`CKDatabase` calls to OpenCloudKit after configuration and
-authentication are represented in QuillKit.
-
-| API or function | Linux status | Notes |
-| --- | --- | --- |
-| `import CloudKit` | Compile-only | Linux product resolves to `Sources/AppleFrameworkShims/CloudKit`. |
-| `CKContainer.default()` / `CKContainer(identifier:)` | Compile-only | Creates local container objects with public/private/shared database handles. |
-| `CKContainer.accountStatus(completionHandler:)` | Fallback | Returns `.couldNotDetermine` with `CKError(.serviceUnavailable)` and records an OpenCloudKit diagnostic. |
-| `CKDatabase.save`, `fetch`, `delete`, `perform`, subscription save | Fallback | Completion handlers are called synchronously with `CKError(.serviceUnavailable)`. |
-| `CKRecord`, `CKRecord.ID`, `CKRecordZone.ID`, `CKAsset`, `CKQuery`, subscriptions | Compile-only | Value surface for app source compatibility; no remote persistence yet. |
-| iCloud account, entitlements, CloudKit Web Services auth, sync, push, conflicts | Incomplete | Requires the OpenCloudKit adapter and app-configurable credentials. |
 
 ## AppKit
 
@@ -256,8 +231,6 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | API or function | Linux status | Notes |
 | --- | --- | --- |
 | `UIImage`, `UIColor`, `UIFont`, `UIScreen` aliases | Partial | Map to AppKit types when importable, otherwise to QuillFoundation fallbacks. |
-| `UIImage(data:)`, `init(contentsOfFile:)`, `init(cgImage:)`, `cgImage`, `pngData()`, `jpegData(compressionQuality:)`, `draw(in:)`, `draw(at:)` | Partial-real | Decode/encode/draw common bitmap formats through QuillFoundation's gdk-pixbuf-backed codec and bitmap `CGContext`; EXIF orientation, animated images, HEIC, color profiles, and full UIKit compositing remain incomplete. |
-| `UIGraphicsImageRenderer.image`, `pngData`, `jpegData`, legacy `UIGraphicsBeginImageContext*`, `UIGraphicsGetImageFromCurrentImageContext`, `UIColor.setFill`, and `UIRectFill` | Partial-real | Produces real bitmap pixels for IceCubes image resize/fill/upload paths; text drawing, gradients, masks, complex paths/transforms, blend modes, and clipping parity are incomplete. |
 | `UIApplication.shared` | Usable | Singleton shape exists. |
 | `UIApplication.open(_:options:completionHandler:)` | Partial | Uses `NSWorkspace` on Apple platforms and `QuillWorkspace.open` on Linux; completion receives the compatibility backend result. |
 | `UIApplication.registerForRemoteNotifications()` / `unregisterForRemoteNotifications()` / `isRegisteredForRemoteNotifications` | Partial | Routes through `QuillNotificationService` process-local registration state; no native APNs/device-token registration exists on Linux. |
@@ -283,8 +256,8 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIControl.setTitle(_:for:)` and value/action helpers | Compile-only | Property shape only. |
 | `UIImageView`, `UILabel`, `UIKeyCommand` initializers | Compile-only | Source compatibility only. |
 | `UNUserNotificationCenter.requestAuthorization(...)` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
-| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial-real | Tracks categories, immediate deliveries, non-repeating time-interval deliveries, scheduled pending requests, and removals; local deliveries route through QuillKit's injectable desktop presentation backend and Linux `notify-send` when available. |
-| UIKit layout engine, advanced rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
+| `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial | Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet. |
+| UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
 
 ## WebKit
 
@@ -306,43 +279,18 @@ The Linux `WebKit` product re-exports `QuillShims`; WebKit behavior is in
 | `WKNavigationAction.request`, `WKNavigationActionPolicy`, preferences, webpage preferences | Compile-only | Metadata/property shapes only. |
 | HTML rendering, navigation, JavaScript execution, process isolation, content rules | Incomplete | Required for WebKit Parity. |
 
-## QuickLook
-
-| API or function | Linux status | Notes |
-| --- | --- | --- |
-| `View.quickLookPreview(_:)` | Partial-real | Non-nil URL bindings route through `QuillQuickLookService` and are cleared after the preview attempt to avoid repeated launches during backend rebuilds. |
-| `QLPreviewController` | Compile-only | Type surface only; no native preview controller behavior yet. |
-| Native preview windows, sheets, and IceCubes selected-media viewer state | Incomplete | Required for full QuickLook parity. |
-
-## ImageIO
-
-The Linux `ImageIO` product backs the app-facing subset with gdk-pixbuf.
-
-| API or function | Linux status | Notes |
-| --- | --- | --- |
-| `CGImageSourceCreateWithData`, `CGImageSourceCreateWithDataProvider`, `CGImageSourceCreateWithURL` | Partial-real | Decodes valid local image data/files and stores the source bytes plus detected UTI. |
-| `CGImageSourceGetCount`, `CGImageSourceGetType` | Partial-real | Single-frame sources report count `1`; type detection covers PNG, JPEG, GIF, TIFF, WebP, and BMP where gdk-pixbuf supports them. |
-| `CGImageSourceCreateImageAtIndex` | Partial-real | Index `0` returns a `CGImage` carrying dimensions, BGRA pixels, row bytes, and UTI. Other indexes return nil. |
-| `CGImageSourceCreateThumbnailAtIndex` | Partial-real | Honors `kCGImageSourceThumbnailMaxPixelSize` for aspect-preserving downsampled thumbnails. |
-| `CGImageSourceCopyPropertiesAtIndex` | Partial-real | Returns dimensions, alpha, depth, RGB color model, and upright orientation for valid decoded images. |
-| `CGImageDestinationCreateWithData`, `CGImageDestinationCreateWithURL`, `CGImageDestinationAddImage`, `CGImageDestinationFinalize`, `CGImageDestinationCopyImageSource` | Partial-real | Writes the first `CGImage` to PNG, JPEG, or TIFF data/files. JPEG output composites alpha over white. |
-| `CGImage.cropping(to:)` for decoded images | Partial-real | Copies BGRA pixel regions and preserves UTI when source pixels exist; historical blank-image fallback remains for placeholder images. |
-| Metadata tags, animated frames, EXIF orientation, HEIC/color profiles, incremental sources, multi-image destinations, and destination options | Incomplete | Required for deeper Photos/QuickLook/media parity. |
-
 ## AuthenticationServices
 
-The Linux `AuthenticationServices` product provides the shared web-auth session
-surface used by SwiftUI's `webAuthenticationSession` environment action.
+The Linux `AuthenticationServices` product re-exports `QuillShims`; the usable
+subset lives in `QuillUIKit`.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)` | Partial-real | Stores the authorization URL, callback scheme, and completion handler. |
-| `ASWebAuthenticationSession.start()` | Partial-real | Opens the authorization URL through QuillKit's shared Linux URL opener and keeps the session active for callback delivery. |
-| `ASWebAuthenticationSession.cancel()` | Partial-real | Completes active sessions with `canceledLogin`. |
-| `ASWebAuthenticationSession.handleCallbackURL(_:)` | Partial-real | QuillUI Linux extension that lets desktop URL-scheme plumbing or tests deliver OAuth callback URLs to the active session. |
-| `ASWebAuthenticationSession` callback file bridge | Partial-real | Active Linux sessions can monitor `QUILLUI_WEB_AUTH_CALLBACK_FILE` or a test-injected callback file and consume the newest matching URL line while ignoring stale contents. This gives desktop URL-scheme helper processes a reusable handoff path into the running app. |
+| `ASWebAuthenticationSession.init(url:callbackURLScheme:completionHandler:)` | Compile-only | Stores shape only; callback is not driven by a browser flow. |
+| `ASWebAuthenticationSession.start()` | Fallback | Returns true without performing authentication. |
+| `ASWebAuthenticationSession.cancel()` | Compile-only | No-op. |
 | `ASWebAuthenticationPresentationContextProviding.presentationAnchor(for:)` | Compile-only | Protocol shape only. |
-| Desktop URL-scheme handler installation and secure session storage | Incomplete | Required for full AuthenticationServices parity. |
+| Real browser authentication, callback URL handling, secure session storage | Incomplete | Required for AuthenticationServices Parity. |
 
 ## UniformTypeIdentifiers
 
@@ -412,12 +360,23 @@ surface used by SwiftUI's `webAuthenticationSession` environment action.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `CGEventSource.init?(stateID:)` | Compile-only | Source object shape only. |
+| `CGFloat` / `CGPoint` / `CGSize` / `CGRect` re-export | Usable | Direct `import CoreGraphics` geometry files can use the Swift-corelibs Foundation value types through this module. |
+| `CGAffineTransform` constructors / concatenation / inversion / `CGPoint.applying(_:)` | Usable | Pure affine math used by app geometry and path transforms; focused CoreGraphics tests cover transform application through paths. |
+| `CGPathElement` / `CGPathElementType` / `CGPath.applyWithBlock` | Usable | Recorded path elements expose Apple-shaped point counts for move, line, quad, cubic, and close callbacks. |
+| `CGPath.copy(using:)`, `CGPath(rect:transform:)`, `CGPath(roundedRect:cornerWidth:cornerHeight:transform:)`, and `CGMutablePath` rect/ellipse/line/quad/cubic/arc recording | Usable | Transform-aware path copies and constructors preserve inspectable element data; rounded rectangles, ellipses, center/radius arcs, and tangent arcs record cubic curves instead of rectangle/no-op fallbacks. |
+| `CGPath.isEmpty`, `currentPoint`, `boundingBox`, `boundingBoxOfPath`, `contains(_:using:transform:)` | Usable | Current app-facing path value behavior covers emptiness, close-subpath current points, control-point bounds, tight curve-extrema path bounds, boundary hits, transforms, winding fill, even-odd holes, and flattened curve containment. It is not a full Apple path rasterizer. |
+| `CGContext.isPathEmpty`, `currentPointOfPath`, `pathBoundingBox`, `copyPath()` | Usable | The Linux context keeps an inspectable current path even without a drawing backend; path-consuming `fillPath`, `strokePath`, and path-based `clip` clear it. |
+| `CGContext.addRects`, `addPath`, `addQuadCurve`, `addCurve`, `addArc(tangent1End:tangent2End:radius:)`, `fillPath(using:)`, `clip(using:)` | Usable | The Linux drawing shim forwards rect lists, path element streams, direct quad/cubic curves, and tangent-arc line/cubic expansions into the pluggable Cairo backend, including even-odd/winding fill-rule selection for fill and clip. These calls also update the context's shadow current path for source-compatible introspection. This is scoped backend forwarding, not full CoreGraphics raster parity. |
+| `CGContext` bitmap/state drawing (`fill`, `stroke`, `draw`, gradients, masks, blend modes, shadows, transparency layers, interpolation quality, miter limit, antialias/font toggles) | Usable | Direct bitmap contexts now cover current app/image-rendering needs, including separable/non-separable blend modes, alpha masks, blurred shadows, transparency-layer compositing, nearest/bilinear image sampling through interpolation quality, and saved/restored font smoothing/subpixel/interpolation state. GTK and Qt Cairo backends receive fill/stroke/path/image drawing state, including blend mode, shadow, miter limit, and effective antialiasing. Cairo shadow blur remains approximate/no-blur in the toolkit backend. |
+| `CGEventSource.init?(stateID:)` | Usable value surface | Source objects retain the requested state identifier. |
 | `CGEventSource.keyState(_:key:)` | Fallback | Records diagnostic and returns false. |
-| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Compile-only | Event object shape only. |
+| `CGEventType`, `CGMouseButton`, and `CGEventField` | Usable value surface | Apple-raw event type, mouse button, and common mouse/keyboard/scroll field constants are pinned by CoreGraphics tests. |
+| `CGEventMask`, `CGEventTapPlacement`, and `CGEventTapOptions` | Usable value surface | Apple-shaped event mask raw type and event-tap placement/options constants are available for source compatibility. No native event tap is installed. |
+| `CGEvent.init?(keyboardEventSource:virtualKey:keyDown:)` | Usable value surface | Keyboard events retain source, virtual key, key-down state, flags, Apple-shaped type, keycode field, and unicode keyboard payloads. |
+| `CGEvent.init?(mouseEventSource:mouseType:mouseCursorPosition:mouseButton:)`, `type`, `location`, `getIntegerValueField(_:)`, `setIntegerValueField(_:value:)` | Usable value surface | Mouse events retain source, event type, cursor location, and mutable integer fields such as button number/click/delta values. This is object-level value storage only, not native pointer injection. |
 | `CGEvent.post(tap:)` | Fallback | Records diagnostic, no synthetic input. |
-| `CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)` | Compile-only | No-op. |
-| Real event taps, keyboard state, pointer events, drawing APIs beyond imported Foundation/CoreFoundation geometry | Incomplete | Required for CoreGraphics Parity. |
+| `CGEvent.keyboardSetUnicodeString(stringLength:unicodeString:)`, `keyboardGetUnicodeString(maxStringLength:actualStringLength:unicodeString:)` | Usable value surface | Unicode payloads round-trip on the event object with Apple-shaped truncation/readback semantics; no native event posting. |
+| Real event taps, keyboard state, native pointer/keyboard injection, and broad drawing APIs beyond focused geometry/path/context forwarding | Incomplete | Required for CoreGraphics Parity. |
 
 ## Security
 
@@ -493,19 +452,10 @@ surface used by SwiftUI's `webAuthenticationSession` environment action.
 
 | API or function | Linux status | Notes |
 | --- | --- | --- |
-| `PhotosPickerItem.init()` / `init(fileURL:)` | Partial | Default items preserve shape; file-backed items keep a local URL and synthesize an item identifier from the filename. |
-| `PhotosPickerItem.loadTransferable(type:)` | Partial-real | File-backed local items delegate to `NSItemProvider.loadTransferable`, covering IceCubes image/GIF/movie `FileRepresentation` imports; real photo-library item providers are not implemented yet. |
+| `PhotosPickerItem.init()` | Compile-only | Item shape only. |
 | `PhotosPicker.init(selection:label:)` | Compile-only | Returns label body; no picker. |
-| `.photosPicker(isPresented:selection:maxSelectionCount:matching:photoLibrary:)` modifiers | Partial-real | Consume shared `QuillFileImporter` selections, filter image/video extensions by `PHPickerFilter`, honor current max-selection behavior, clear the presentation binding, and write file-backed `PhotosPickerItem` values into the binding. Native photo-library UI/provider behavior remains incomplete. |
-| `Photos` product import | Partial | Exposes Linux `Photos` shapes backed by QuillFoundation image data and QuillKit diagnostics. |
-| `PHPhotoLibrary.authorizationStatus(for:)` / `requestAuthorization(for:)` | Fallback | Deterministically returns `.authorized` for current desktop workflows; no native permission prompt or limited-library state. |
-| `UIImageWriteToSavedPhotosAlbum(_:_::_:)` | Partial | Saves encodable `UIImage` bytes into the local Quill photo-library directory; selector callback semantics are incomplete. |
-| `PHAssetCreationRequest.creationRequestForAsset(...)` | Partial | Saves images and local image/video files immediately and returns a placeholder identifier; full transaction semantics inside `performChanges` are incomplete. |
-| `PHAsset.fetchAssets(with:options:)` | Partial | Reads local Quill photo-library files, filters by media type, applies first sort direction and fetch limit. |
-| `PHFetchResult.count`, `object(at:)`, and `enumerateObjects` | Partial | In-memory result collection for local assets. |
-| `PHImageManager.requestImageDataAndOrientation` | Partial | Loads stored local image bytes and reports known UTI plus `.up` orientation; EXIF orientation, iCloud/network access, degraded callbacks, and cancellation semantics are incomplete. |
-| `PHImageManager.requestImage` / `cancelImageRequest` | Partial | Loads stored local images and can resize to target size; request IDs are returned, but cancellation is a no-op and delivery/caching semantics are incomplete. |
-| Native photo-library picker UI, native picker item providers, real photo-library service integration, limited-library permissions, video thumbnails | Incomplete | Required for Photos parity. |
+| `Photos` product import | Compile-only | Re-exports shared shims only. |
+| Photo-library authorization, asset fetching, picker UI, transferable item loading | Incomplete | Required for Photos parity. |
 
 ## Charts
 
@@ -580,7 +530,6 @@ surface used by SwiftUI's `webAuthenticationSession` environment action.
 | --- | --- | --- |
 | OpenCombine re-export | Partial | Broad Combine surface comes from OpenCombine, not local Apple SDK code. |
 | `AnyPublisher.init()` where `Failure == Never` | Usable | Creates an empty publisher. |
-| `DispatchQueue`/`RunLoop`/`OperationQueue` scheduler overloads | Partial-real | Apple-spelled `debounce`, `delay`, `receive(on:)`, `subscribe(on:)`, and `throttle` route to OpenCombine's `.ocombine` scheduler wrappers so app code can keep using `DispatchQueue.main` style calls. |
 | `Publishers.Merge` local implementation | Partial | Current merge behavior exists, but full Apple Combine edge-case parity is incomplete. |
 | Backpressure, scheduler, demand, cancellation, and operator fuzz parity | Incomplete | Required before claiming Combine Parity. |
 

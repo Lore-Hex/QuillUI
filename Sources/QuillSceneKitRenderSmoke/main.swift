@@ -57,8 +57,37 @@ struct QuillSceneKitRenderSmoke {
         let clippedCameraStats = PixelStats(renderClippedCameraScene())
         try require(clippedCameraStats.nonBlackPixels == 0, "clipped-camera render unexpectedly produced pixels: \(clippedCameraStats)")
 
+        let nearClippedTriangleStats = PixelStats(renderNearClippedTriangleScene())
+        try require(
+            nearClippedTriangleStats.greenDominantPixels > 900,
+            "near-clipped triangle did not render visible green pixels: \(nearClippedTriangleStats)"
+        )
+
+        let nearClippedLineStats = PixelStats(renderNearClippedLineScene())
+        try require(
+            nearClippedLineStats.greenDominantPixels > 40,
+            "near-clipped line did not render visible green pixels: \(nearClippedLineStats)"
+        )
+
+        let intersectingTriangleImage = renderIntersectingTriangleScene()
+        let intersectingTriangleStats = PixelStats(intersectingTriangleImage)
+        try require(intersectingTriangleStats.redDominantPixels > 400, "z-buffer scene lost near red pixels: \(intersectingTriangleStats)")
+        try require(intersectingTriangleStats.greenDominantPixels > 400, "z-buffer scene lost near green pixels: \(intersectingTriangleStats)")
+        try require(
+            PixelStats.dominantColor(atX: 80, y: 88, in: intersectingTriangleImage) == .red,
+            "z-buffer scene did not draw near red triangle below intersection: \(intersectingTriangleStats)"
+        )
+        try require(
+            PixelStats.dominantColor(atX: 80, y: 42, in: intersectingTriangleImage) == .green,
+            "z-buffer scene did not keep green triangle in front above intersection: \(intersectingTriangleStats)"
+        )
+
+        try runPublicMatrixTransformSmoke()
+        try runParametricPrimitiveSmoke()
+        try runMaterialSmoke()
         try runCameraControlSmoke()
         try runHitTestSmoke()
+        try runActionSmoke()
 
         log("SceneKit render smoke passed")
         log("sphere: \(sphereStats)")
@@ -67,6 +96,9 @@ struct QuillSceneKitRenderSmoke {
         log("side camera: \(sideCameraStats)")
         log("away camera: \(awayCameraStats)")
         log("clipped camera: \(clippedCameraStats)")
+        log("near-clipped triangle: \(nearClippedTriangleStats)")
+        log("near-clipped line: \(nearClippedLineStats)")
+        log("intersecting triangles: \(intersectingTriangleStats)")
 
         if ProcessInfo.processInfo.environment["QUILLUI_SCENEKIT_GTK_SMOKE"] == "1" {
             try runGTKSceneViewSmoke()
@@ -183,6 +215,215 @@ struct QuillSceneKitRenderSmoke {
         return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
     }
 
+    private static func renderNearClippedTriangleScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -0.9, 0),
+                SCNVector3(1.2, -0.9, 0),
+                SCNVector3(0, 1.2, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderNearClippedLineScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let geometry = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(0, -1, 0),
+                SCNVector3(0, 1, 3.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1], primitiveType: .line)]
+        )
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.zNear = 1
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func renderIntersectingTriangleScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let redCrossing = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -1.0, 1.0),
+                SCNVector3(1.2, -1.0, 1.0),
+                SCNVector3(0, 1.0, -2.5),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        redCrossing.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: redCrossing))
+
+        let greenFlat = SCNGeometry(
+            sources: [SCNGeometrySource(vertices: [
+                SCNVector3(-1.2, -1.0, 0),
+                SCNVector3(1.2, -1.0, 0),
+                SCNVector3(0, 1.0, 0),
+            ])],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        greenFlat.firstMaterial?.diffuse.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: greenFlat))
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3.2
+        camera.zFar = 10
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func runPublicMatrixTransformSmoke() throws {
+        let translation = SCNMatrix4MakeTranslation(1, 2, 3)
+        try require(translation.m14 == 0, "translation matrix used m14 instead of SceneKit m41 layout")
+        try require(translation.m41 == 1 && translation.m42 == 2 && translation.m43 == 3, "translation matrix lost m41/m42/m43")
+
+        let node = SCNNode()
+        node.position = SCNVector3(1, 2, 3)
+        node.scale = SCNVector3(2, 3, 4)
+        try require(node.transform.m41 == 1 && node.transform.m42 == 2 && node.transform.m43 == 3, "component transform lost translation")
+        try require(node.transform.m11 == 2 && node.transform.m22 == 3 && node.transform.m33 == 4, "component transform lost scale")
+
+        node.transform = SCNMatrix4MakeTranslation(5, 6, 7)
+        try require(node.position == SCNVector3(5, 6, 7), "assigned transform did not update node position")
+        try require(node.scale == SCNVector3(1, 1, 1), "assigned translation transform changed node scale")
+
+        node.transform = SCNMatrix4MakeRotation(.pi / 2, 0, 1, 0)
+        let quarterTurn = CGFloat(2).squareRoot() / 2
+        try require(abs(abs(node.orientation.y) - quarterTurn) < 0.0001, "assigned rotation transform did not update node orientation y")
+        try require(abs(abs(node.orientation.w) - quarterTurn) < 0.0001, "assigned rotation transform did not update node orientation w")
+
+        let inverse = SCNMatrix4Invert(translation)
+        try require(abs(inverse.m41 + 1) < 0.0001, "translation inverse lost x offset")
+        try require(abs(inverse.m42 + 2) < 0.0001, "translation inverse lost y offset")
+        try require(abs(inverse.m43 + 3) < 0.0001, "translation inverse lost z offset")
+
+        let image = renderPublicMatrixTransformScene()
+        let stats = PixelStats(image)
+        try require(stats.redDominantPixels > 200, "public node transform matrix render stayed mostly black: \(stats)")
+        try require(stats.bounds.minX > 95, "public node transform matrix did not move the object right: \(stats)")
+        try require(stats.bounds.maxX > 110, "public node transform matrix produced too-small shifted bounds: \(stats)")
+        log("public matrix transform smoke passed \(stats)")
+    }
+
+    private static func renderPublicMatrixTransformScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let sphere = SCNSphere(radius: 0.35)
+        sphere.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let sphereNode = SCNNode(geometry: sphere)
+        sphereNode.transform = SCNMatrix4MakeTranslation(1, 0, 0)
+        scene.rootNode.addChildNode(sphereNode)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 4
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func runParametricPrimitiveSmoke() throws {
+        try requireRedPixels(
+            renderParametricGeometry(SCNCone(topRadius: 0.15, bottomRadius: 0.9, height: 1.7)),
+            minimumPixels: 500,
+            label: "cone"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNCapsule(capRadius: 0.45, height: 1.8)),
+            minimumPixels: 450,
+            label: "capsule"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNTube(innerRadius: 0.35, outerRadius: 0.8, height: 1.5)),
+            minimumPixels: 400,
+            label: "tube"
+        )
+        try requireRedPixels(
+            renderParametricGeometry(SCNTorus(ringRadius: 0.65, pipeRadius: 0.25)),
+            minimumPixels: 550,
+            label: "torus"
+        )
+    }
+
+    private static func renderParametricGeometry(_ geometry: SCNGeometry) -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        geometry.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let cameraNode = SCNNode()
+        cameraNode.camera = SCNCamera()
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 160, height: 120, pointOfView: cameraNode)
+    }
+
+    private static func requireRedPixels(
+        _ image: CGImage,
+        minimumPixels: Int,
+        label: String
+    ) throws {
+        let stats = PixelStats(image)
+        try require(stats.nonBlackPixels >= minimumPixels, "\(label) render stayed mostly black: \(stats)")
+        try require(stats.redDominantPixels >= minimumPixels, "\(label) render did not produce red pixels: \(stats)")
+    }
+
+    private static func runMaterialSmoke() throws {
+        let zeroIntensity = SCNSphere(radius: 1)
+        zeroIntensity.firstMaterial?.diffuse.intensity = 0
+        let zeroIntensityStats = PixelStats(renderParametricGeometry(zeroIntensity))
+        try require(
+            zeroIntensityStats.nonBlackPixels == 0,
+            "zero diffuse intensity unexpectedly rendered pixels: \(zeroIntensityStats)"
+        )
+
+        let transparent = SCNSphere(radius: 1)
+        transparent.firstMaterial?.transparency = 0
+        let transparentStats = PixelStats(renderParametricGeometry(transparent))
+        try require(
+            transparentStats.nonBlackPixels == 0,
+            "transparent material unexpectedly rendered pixels: \(transparentStats)"
+        )
+    }
+
     @MainActor
     private static func runCameraControlSmoke() throws {
         let scene = makeSphereScene()
@@ -265,6 +506,54 @@ struct QuillSceneKitRenderSmoke {
         log("hitTest smoke passed hits=\(hits.count)")
     }
 
+    private static func runActionSmoke() throws {
+        let scene = SCNScene()
+        let movingNode = SCNNode()
+        scene.rootNode.addChildNode(movingNode)
+        var sequenceCompletions = 0
+        movingNode.runAction(.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 1),
+            .rotateBy(x: 0, y: .pi, z: 0, duration: 1),
+            .scale(by: 2, duration: 1),
+        ])) {
+            sequenceCompletions += 1
+        }
+
+        scene.quillStepActions(by: 1.5)
+        try require(abs(movingNode.position.x - 1) < 0.0001, "sequence action lost completed move")
+        try require(abs(movingNode.eulerAngles.y - .pi / 2) < 0.0001, "sequence action did not sample partial rotation")
+        try require(movingNode.scale == SCNVector3(1, 1, 1), "sequence action scaled before reaching scale step")
+        try require(sequenceCompletions == 0, "sequence action completed before its final step")
+
+        scene.quillStepActions(by: 1.5)
+        try require(abs(movingNode.eulerAngles.y - .pi) < 0.0001, "sequence action did not finish rotation")
+        try require(movingNode.scale == SCNVector3(2, 2, 2), "sequence action did not finish scale")
+        try require(!movingNode.hasActions, "sequence action did not clear when complete")
+        try require(sequenceCompletions == 1, "sequence action completion did not fire once")
+
+        let groupNode = SCNNode()
+        groupNode.runAction(.group([
+            .move(by: SCNVector3(4, 0, 0), duration: 2),
+            .fadeOpacity(to: 0.25, duration: 1),
+        ]))
+        groupNode.quillStepActions(by: 1)
+        try require(abs(groupNode.position.x - 2) < 0.0001, "group action did not sample partial move")
+        try require(abs(groupNode.opacity - 0.25) < 0.0001, "group action did not complete short fade")
+        try require(groupNode.hasActions, "group action cleared before longest child completed")
+
+        let repeated = SCNNode()
+        let pattern = SCNAction.sequence([
+            .move(by: SCNVector3(1, 0, 0), duration: 0.01),
+            .rotateBy(x: 0, y: 0.5, z: 0, duration: 0.01),
+        ])
+        repeated.runAction(SCNAction.repeat(pattern, count: 300))
+        repeated.quillStepActions(by: pattern.duration * 300)
+        try require(abs(repeated.position.x - 300) < 0.0001, "composite repeat did not apply all completed move cycles")
+        try require(abs(repeated.eulerAngles.y - 150) < 0.0001, "composite repeat did not apply all completed rotate cycles")
+        try require(!repeated.hasActions, "finite repeat did not clear when complete")
+        log("action smoke passed")
+    }
+
     @MainActor
     private static func runGTKSceneViewSmoke() throws {
         log("GTK SceneView smoke starting")
@@ -329,6 +618,27 @@ private struct PixelStats: CustomStringConvertible {
         case .red: redDominantPixels
         case .green: greenDominantPixels
         }
+    }
+
+    static func dominantColor(atX x: Int, y: Int, in image: CGImage) -> DominantPixelColor? {
+        guard let pixels = image.quillBGRAPixels else { return nil }
+        let stride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : image.width * 4
+        guard x >= 0, x < image.width, y >= 0, y < image.height, stride >= image.width * 4 else {
+            return nil
+        }
+
+        let offset = y * stride + x * 4
+        guard offset + 3 < pixels.count else { return nil }
+        let b = Int(pixels[offset])
+        let g = Int(pixels[offset + 1])
+        let r = Int(pixels[offset + 2])
+        if r > g * 2, r > b * 2 {
+            return .red
+        }
+        if g > r * 2, g > b * 2 {
+            return .green
+        }
+        return nil
     }
 }
 
