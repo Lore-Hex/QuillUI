@@ -113,10 +113,16 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             // avatar): pin the size and DON'T let the distribution stretch it
             // (otherwise a `.fill` row turns the circle into an ellipse). Auto
             // Layout views arrive at .zero and fall through to the expand logic.
+            // When the stack's cross-axis alignment is `.fill`, ignore stale
+            // pre-layout widths so row stacks can receive the full column width.
             if child.frame.width > 0,
                child.frame.height > 0,
+               !crossFills,
+               !shouldForceMainAxisExpansion(child),
                shouldHonorArrangedSubviewFixedFrame(child) {
                 gtk_widget_set_size_request(childWidget, gint(child.frame.width), gint(child.frame.height))
+                gtk_widget_set_hexpand(childWidget, 0)
+                gtk_widget_set_vexpand(childWidget, 0)
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
                 gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
                 gtk_box_append(boxPointer(box), childWidget)
@@ -135,8 +141,9 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             } else {
                 // Horizontal stack: main = horizontal (bounded → may fill),
                 // cross = vertical (natural height, never vexpand).
-                if mainAxisFills,
-                   (mainAxisExpandsAllChildren || shouldExpandAlongMainAxis(child, isVertical: isVertical)) {
+                if shouldForceMainAxisExpansion(child)
+                    || (mainAxisFills
+                        && (mainAxisExpandsAllChildren || shouldExpandAlongMainAxis(child, isVertical: isVertical))) {
                     gtk_widget_set_hexpand(childWidget, 1)
                     gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
                     boxWantsHExpand = true
@@ -155,6 +162,11 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
     private static func shouldExpandAlongMainAxis(_ child: UIView, isVertical: Bool) -> Bool {
         let axis: NSLayoutConstraint.Axis = isVertical ? .vertical : .horizontal
         return child.contentHuggingPriority(for: axis).rawValue <= NSLayoutConstraint.Priority.defaultLow.rawValue
+    }
+
+    private static func shouldForceMainAxisExpansion(_ child: UIView) -> Bool {
+        child.accessibilityIdentifier == "qspacer"
+            || child.accessibilityIdentifier == "qclass:qfield"
     }
 
     private static func shouldHonorArrangedSubviewFixedFrame(_ child: UIView) -> Bool {
@@ -245,16 +257,13 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         let subviews = view.subviews
 
         // Auto Layout isn't solved in this renderer (verdict approach A: sidestep
-        // the constraint solver). So most views arrive with `.zero` frames. Only
-        // use absolute GtkFixed positioning when SOME subview actually carries a
-        // real frame; otherwise frame-positioning would collapse everything to
-        // (0,0)×0 (invisible). With no usable frames, fall back to a vertical
-        // GtkBox so children stack at their natural size and are visible — this is
-        // what makes Signal's constraint-built screens (e.g. the table filling its
-        // controller view, a cell's label/icon row) actually render.
-        let hasRealFrames = subviews.contains { $0.frame.width > 0 && $0.frame.height > 0 }
-
-        if hasRealFrames {
+        // the constraint solver). So most views arrive with `.zero` frames. Use
+        // absolute GtkFixed positioning only when the parent itself has explicit
+        // geometry or a child is actually positioned away from the origin.
+        // Otherwise a plain wrapper whose child was measured at (0,0) would pin
+        // the child to its natural width instead of letting GTK flow it full-width
+        // (Signal's chat rows and composer use those wrapper shapes heavily).
+        if shouldUseFixedLayout(for: view, subviews: subviews) {
             let fixed = gtk_fixed_new()!
             applyViewSize(to: fixed, from: view)
             appendFixedSubviews(to: fixed, view: view, ctx: ctx)
@@ -280,6 +289,19 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         return box
     }
 
+    private static func shouldUseFixedLayout(for view: UIView, subviews: [UIView]) -> Bool {
+        let parentSize = view.bounds.size != .zero ? view.bounds.size : view.frame.size
+        let parentHasExplicitSize = parentSize.width > 0 || parentSize.height > 0
+        if parentHasExplicitSize {
+            return subviews.contains { $0.frame.width > 0 && $0.frame.height > 0 }
+        }
+
+        return subviews.contains { child in
+            (child.frame.origin.x != 0 || child.frame.origin.y != 0)
+                && (child.frame.width > 0 || child.frame.height > 0)
+        }
+    }
+
     private static func appendFixedSubviews(
         to fixed: GtkWidgetPtr,
         view: UIView,
@@ -288,7 +310,7 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         let fixedPtr = UnsafeMutableRawPointer(fixed).assumingMemoryBound(to: GtkFixed.self)
         for child in subviewsInLayerOrder(view.subviews) {
             guard let childWidget = ctx.render(child) else { continue }
-            let frame = child.frame
+            let frame = centeredBadgeChildFrame(child.frame, child: child, parent: view)
             gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
             if frame.width > 0 || frame.height > 0 {
                 gtk_widget_set_size_request(
@@ -298,6 +320,29 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
                 )
             }
         }
+    }
+
+    private static func centeredBadgeChildFrame(_ frame: CGRect, child: UIView, parent: UIView) -> CGRect {
+        guard parent.layer.cornerRadius > 0,
+              parent.subviews.count == 1,
+              child === parent.subviews.first,
+              frame.origin == .zero,
+              frame.width > 0,
+              frame.height > 0 else {
+            return frame
+        }
+
+        let parentSize = parent.bounds.size != .zero ? parent.bounds.size : parent.frame.size
+        guard parentSize.width > 0, parentSize.height > 0 else {
+            return frame
+        }
+
+        return CGRect(
+            x: max(0, (parentSize.width - frame.width) / 2),
+            y: max(0, (parentSize.height - frame.height) / 2),
+            width: frame.width,
+            height: frame.height
+        )
     }
 
     private static func installGenericFixedMutationBridge(

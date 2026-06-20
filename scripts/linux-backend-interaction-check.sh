@@ -341,6 +341,7 @@ path.write_bytes(base64.b64decode(
 ))
 PY
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file")
+  app_environment+=("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1")
 fi
 quillui_append_backend_selection_start_environment \
   app_environment \
