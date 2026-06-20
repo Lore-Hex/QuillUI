@@ -237,7 +237,7 @@ quill_chat_functional_composer_click_y() {
   fi
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 135))}"
+    printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 310))}"
   else
     printf '%s\n' "${QUILLUI_FUNCTIONAL_COMPOSER_CLICK_Y:-$((window_y + window_height - 80))}"
   fi

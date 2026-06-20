@@ -1015,7 +1015,7 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quill_chat_functional_composer_click_y()"))
         #expect(functionalScript.contains("window_width * 34 / 100"))
         #expect(functionalScript.contains("quillui_is_quill_chat_mac_reference_product \"$PRODUCT\""))
-        #expect(functionalScript.contains("window_height - 135"))
+        #expect(functionalScript.contains("window_height - 310"))
         #expect(functionalScript.contains("window_height - 80"))
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
