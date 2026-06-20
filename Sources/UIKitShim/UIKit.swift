@@ -523,12 +523,12 @@ public final class UITextPasteItem {
     public weak var inputDelegate: UITextInputDelegate?
 
     open var text: String! {
-        get { attributedText?.string ?? "" }
+        get { textStorage.string }
         set { attributedText = NSAttributedString(string: newValue ?? "") }
     }
 
     open var attributedText: NSAttributedString! {
-        get { NSAttributedString(attributedString: textStorage) }
+        get { quillAttributedTextSnapshot() }
         set {
             let oldText = textStorage.string
             textStorage.setAttributedString(newValue ?? NSAttributedString(string: ""))
@@ -620,10 +620,31 @@ public final class UITextPasteItem {
         quillNotifyViewMutation()
     }
 
+    private func quillAttributedTextSnapshot() -> NSAttributedString {
+        let storage = textStorage
+        let utf16Length = storage.string.utf16.count
+        guard utf16Length > 0 else { return NSAttributedString(string: "") }
+
+        let snapshot = NSMutableAttributedString(string: storage.string)
+        var cursor = 0
+        while cursor < utf16Length {
+            var effectiveRange = NSRange(location: cursor, length: 1)
+            let attributes = storage.attributes(at: cursor, effectiveRange: &effectiveRange)
+            let clampedRange = quillNormalizedRange(effectiveRange, utf16Length: utf16Length)
+            if clampedRange.length > 0 {
+                snapshot.setAttributes(attributes, range: clampedRange)
+                cursor = max(cursor + 1, clampedRange.location + clampedRange.length)
+            } else {
+                cursor += 1
+            }
+        }
+        return snapshot
+    }
+
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
-        let lines = max(1, ceil(Double((attributedText?.string ?? text ?? "").count) * 8.5 / width))
+        let lines = max(1, ceil(Double(textStorage.string.count) * 8.5 / width))
         return CGSize(width: width, height: CGFloat(lines) * lineHeight * 1.35)
     }
 
@@ -687,7 +708,7 @@ public final class UITextPasteItem {
 
     @discardableResult
     open func quillReplaceCharacters(in range: NSRange, with replacementText: String) -> Bool {
-        let currentText = text ?? ""
+        let currentText = textStorage.string
         let normalizedRange = quillNormalizedRange(range, utf16Length: currentText.utf16.count)
         guard quillTextViewDelegate?.textView(self, shouldChangeTextIn: normalizedRange, replacementText: replacementText) ?? true else {
             return false

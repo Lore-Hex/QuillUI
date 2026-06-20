@@ -64,7 +64,7 @@ quillui_functional_click_at() {
   local settle_sleep="${QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP:-0.15}"
   local hold_sleep="${QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP:-0.08}"
 
-  quillui_functional_xdotool mousemove --sync "$x" "$y"
+  quillui_functional_xdotool mousemove "$x" "$y"
   sleep "$settle_sleep"
   quillui_functional_xdotool mousedown 1
   sleep "$hold_sleep"
@@ -339,7 +339,7 @@ detail_left = divider_x + 1
 detail_width = right - detail_left + 1
 
 composer = None
-for y in range(top + int(app_height * 0.86), bottom + 1):
+for y in range(top + int(app_height * 0.74), bottom + 1):
     candidates = [
         segment
         for segment in image.segments_at(
@@ -384,6 +384,7 @@ PY
 
 quill_chat_functional_composer_click_points() {
   {
+    quill_chat_functional_detected_composer_click_points
     local click_x
     local click_y
     while IFS= read -r click_y; do
@@ -391,7 +392,6 @@ quill_chat_functional_composer_click_points() {
         printf '%s %s\n' "$click_x" "$click_y"
       done < <(quill_chat_functional_composer_click_x_candidates)
     done < <(quill_chat_functional_composer_click_y_candidates)
-    quill_chat_functional_detected_composer_click_points
   } | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
     !seen[$1 "," $2]++ {
       print

@@ -1020,6 +1020,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP"))
         #expect(functionalScript.contains("xdotool \"$@\""))
+        #expect(functionalScript.contains("quillui_functional_xdotool mousemove \"$x\" \"$y\""))
+        #expect(!functionalScript.contains("quillui_functional_xdotool mousemove --sync \"$x\" \"$y\""))
         #expect(functionalScript.contains("windowactivate --sync"))
         #expect(functionalScript.contains("windowfocus --sync"))
         #expect(functionalScript.contains("quillui_functional_default_display()"))
@@ -1041,6 +1043,20 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_COMPOSER_PROBE"))
         #expect(functionalScript.contains("verify-backend-screenshot.py"))
         #expect(functionalScript.contains("mac_reference_composer_pixel"))
+        #expect(functionalScript.contains("top + int(app_height * 0.74)"))
+        if let composerPointsRange = functionalScript.range(of: "quill_chat_functional_composer_click_points() {"),
+           let detectedRange = functionalScript.range(
+            of: "quill_chat_functional_detected_composer_click_points",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ),
+           let fallbackRange = functionalScript.range(
+            of: "while IFS= read -r click_y",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ) {
+            #expect(detectedRange.lowerBound < fallbackRange.lowerBound)
+        } else {
+            Issue.record("Functional composer points should try detected coordinates before static fallbacks")
+        }
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
         #expect(functionalScript.contains("launch_app_instance()"))
