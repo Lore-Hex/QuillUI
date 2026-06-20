@@ -65,6 +65,35 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         // expand to fill the cross axis.
         let (crossAlign, crossFills) = crossAxisAlignment(stack.alignment)
 
+        let boxWantsHExpand = appendArrangedSubviews(
+            to: box,
+            stack: stack,
+            isVertical: isVertical,
+            mainAxisFills: mainAxisFills,
+            crossAlign: crossAlign,
+            crossFills: crossFills,
+            ctx: ctx
+        )
+
+        // Propagate only horizontal expansion up so an enclosing container hands
+        // the box the window width to fill.
+        if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
+
+        installStackMutationBridge(on: box, stack: stack, ctx: ctx)
+        ctx.applyLayerStyle(box, view)
+        return box
+    }
+
+    @discardableResult
+    private static func appendArrangedSubviews(
+        to box: GtkWidgetPtr,
+        stack: UIStackView,
+        isVertical: Bool,
+        mainAxisFills: Bool,
+        crossAlign: GtkAlign,
+        crossFills: Bool,
+        ctx: UIKitGtkRenderContext
+    ) -> Bool {
         var boxWantsHExpand = false
 
         // The VERTICAL axis is unbounded in this renderer (content flows
@@ -112,12 +141,38 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
             gtk_box_append(boxPointer(box), childWidget)
         }
 
-        // Propagate only horizontal expansion up so an enclosing container hands
-        // the box the window width to fill.
-        if boxWantsHExpand { gtk_widget_set_hexpand(box, 1) }
+        return boxWantsHExpand
+    }
 
-        ctx.applyLayerStyle(box, view)
-        return box
+    private static func installStackMutationBridge(
+        on box: GtkWidgetPtr,
+        stack: UIStackView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        stack.quillSubviewMutationHandler = { updatedView in
+            guard let updatedStack = updatedView as? UIStackView else { return }
+            clearBoxChildren(box)
+            let isVertical = (updatedStack.axis == .vertical)
+            let mainAxisFills: Bool
+            switch updatedStack.distribution {
+            case .fill, .fillEqually, .fillProportionally:
+                mainAxisFills = true
+            case .equalSpacing, .equalCentering:
+                mainAxisFills = false
+            }
+            let (crossAlign, crossFills) = crossAxisAlignment(updatedStack.alignment)
+            let boxWantsHExpand = appendArrangedSubviews(
+                to: box,
+                stack: updatedStack,
+                isVertical: isVertical,
+                mainAxisFills: mainAxisFills,
+                crossAlign: crossAlign,
+                crossFills: crossFills,
+                ctx: ctx
+            )
+            gtk_widget_set_hexpand(box, boxWantsHExpand ? 1 : 0)
+            gtk_widget_queue_resize(box)
+        }
     }
 
     /// Translate a UIStackView.Alignment into a cross-axis GtkAlign plus a flag
@@ -195,25 +250,10 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         applyViewSize(to: box, from: view)
         for child in subviews {
             guard let childWidget = ctx.render(child) else { continue }
-            if isBadge {
-                gtk_widget_set_hexpand(childWidget, 1)
-                gtk_widget_set_vexpand(childWidget, 1)
-                gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
-                gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
-            } else {
-                gtk_widget_set_hexpand(childWidget, 1)
-                gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
-                // Scroll views / tables grow to fill remaining vertical space;
-                // plain content keeps its natural height and stacks from the top.
-                if child is UIScrollView {
-                    gtk_widget_set_vexpand(childWidget, 1)
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
-                } else {
-                    gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
-                }
-            }
+            configureGenericBoxChild(childWidget, for: child, isBadge: isBadge)
             gtk_box_append(boxPointer(box), childWidget)
         }
+        installGenericBoxMutationBridge(on: box, view: view, isBadge: isBadge, ctx: ctx)
         ctx.applyLayerStyle(box, view)
         return box
     }
@@ -248,5 +288,52 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
                 return lhsZ < rhsZ
             }
             .map(\.element)
+    }
+
+    private static func configureGenericBoxChild(
+        _ childWidget: GtkWidgetPtr,
+        for child: UIView,
+        isBadge: Bool
+    ) {
+        if isBadge {
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_vexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
+            gtk_widget_set_valign(childWidget, GTK_ALIGN_CENTER)
+        } else {
+            gtk_widget_set_hexpand(childWidget, 1)
+            gtk_widget_set_halign(childWidget, GTK_ALIGN_FILL)
+            // Scroll views / tables grow to fill remaining vertical space;
+            // plain content keeps its natural height and stacks from the top.
+            if child is UIScrollView {
+                gtk_widget_set_vexpand(childWidget, 1)
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_FILL)
+            } else {
+                gtk_widget_set_valign(childWidget, GTK_ALIGN_START)
+            }
+        }
+    }
+
+    private static func installGenericBoxMutationBridge(
+        on box: GtkWidgetPtr,
+        view: UIView,
+        isBadge: Bool,
+        ctx: UIKitGtkRenderContext
+    ) {
+        view.quillSubviewMutationHandler = { updatedView in
+            clearBoxChildren(box)
+            for child in updatedView.subviews {
+                guard let childWidget = ctx.render(child) else { continue }
+                configureGenericBoxChild(childWidget, for: child, isBadge: isBadge)
+                gtk_box_append(boxPointer(box), childWidget)
+            }
+            gtk_widget_queue_resize(box)
+        }
+    }
+}
+
+private func clearBoxChildren(_ box: GtkWidgetPtr) {
+    while let child = gtk_widget_get_first_child(box) {
+        gtk_box_remove(boxPointer(box), child)
     }
 }

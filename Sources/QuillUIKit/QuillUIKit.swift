@@ -512,6 +512,10 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
             if oldValue.size != frame.size {
                 setNeedsLayout()
             }
+            if oldValue != frame {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
+            }
             #if os(Linux)
             _layer?.frame = frame
             #endif
@@ -521,6 +525,10 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         didSet {
             if oldValue.size != bounds.size {
                 setNeedsLayout()
+            }
+            if oldValue != bounds {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
             }
             #if os(Linux)
             _layer?.bounds = bounds
@@ -585,6 +593,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         _layer?.removeFromSuperlayer()
         #endif
         oldSuperview?.setNeedsLayout()
+        oldSuperview?.quillNotifySubviewMutation()
     }
     // `open` (not just `public`): a classic overridable Apple UIView property
     // — Signal subclasses override backgroundColor with didSet observers.
@@ -602,6 +611,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         // place (so overrides can observe the new child).
         didAddSubview(view)
         setNeedsLayout()
+        quillNotifySubviewMutation()
     }
 
     // MARK: Subview observation hooks
@@ -656,6 +666,7 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
         // Apple fires didAddSubview for every insertion path.
         didAddSubview(view)
         setNeedsLayout()
+        quillNotifySubviewMutation()
     }
 
     /// Apple requires `siblingSubview` to already be a child (behavior is
@@ -792,10 +803,17 @@ public struct UIWindowLevel: RawRepresentable, Equatable, Comparable, Sendable {
     public func quillNotifyViewMutation() {
         quillViewMutationHandler?(self)
     }
+    public var quillSubviewMutationHandler: ((UIView) -> Void)?
+    public func quillNotifySubviewMutation() {
+        quillSubviewMutationHandler?(self)
+    }
 
     open var isHidden: Bool = false {
         didSet {
-            if oldValue != isHidden { quillNotifyViewMutation() }
+            if oldValue != isHidden {
+                quillNotifyViewMutation()
+                superview?.quillNotifySubviewMutation()
+            }
         }
     }
     open var isUserInteractionEnabled: Bool = true {

@@ -93,6 +93,14 @@ public typealias GtkWidgetPtr = UnsafeMutablePointer<GtkWidget>
                 isSensitive = updatedView.isUserInteractionEnabled
             }
             gtk_widget_set_sensitive(widget, isSensitive ? 1 : 0)
+            let size = updatedView.bounds.size != .zero ? updatedView.bounds.size : updatedView.frame.size
+            if size.width > 0 || size.height > 0 {
+                gtk_widget_set_size_request(
+                    widget,
+                    size.width > 0 ? gint(size.width) : -1,
+                    size.height > 0 ? gint(size.height) : -1
+                )
+            }
         }
         view.quillNotifyViewMutation()
     }

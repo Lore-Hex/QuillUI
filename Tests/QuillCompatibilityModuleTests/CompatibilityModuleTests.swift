@@ -770,6 +770,50 @@ struct CompatibilityModuleTests {
         #expect(controlEvents == 1)
     }
 
+    @Test("UIView subtree mutation hook observes child visibility geometry and stack arrangement changes")
+    @MainActor
+    func uiViewSubviewMutationHookObservesRenderableTreeChanges() {
+        let parent = UIView()
+        let child = UIView(frame: CGRect(x: 0, y: 0, width: 10, height: 10))
+        var childCounts: [Int] = []
+        parent.quillSubviewMutationHandler = { updatedParent in
+            childCounts.append(updatedParent.subviews.count)
+        }
+
+        parent.addSubview(child)
+        #expect(childCounts.last == 1)
+
+        childCounts.removeAll()
+        child.isHidden = true
+        #expect(!childCounts.isEmpty)
+
+        childCounts.removeAll()
+        child.frame = CGRect(x: 4, y: 5, width: 20, height: 18)
+        #expect(!childCounts.isEmpty)
+
+        childCounts.removeAll()
+        child.removeFromSuperview()
+        #expect(childCounts.last == 0)
+
+        let stack = UIStackView()
+        var arrangedCounts: [Int] = []
+        stack.quillSubviewMutationHandler = { updatedStack in
+            arrangedCounts.append((updatedStack as? UIStackView)?.arrangedSubviews.count ?? -1)
+        }
+
+        let arranged = UILabel()
+        stack.addArrangedSubview(arranged)
+        #expect(arrangedCounts.contains(1))
+
+        arrangedCounts.removeAll()
+        stack.spacing = 12
+        #expect(arrangedCounts.last == 1)
+
+        arrangedCounts.removeAll()
+        stack.removeArrangedSubview(arranged)
+        #expect(arrangedCounts.last == 0)
+    }
+
     @Test("Quill localization resolves Apple strings resources")
     @MainActor
     func quillLocalizationResolvesAppleStringsResources() throws {
