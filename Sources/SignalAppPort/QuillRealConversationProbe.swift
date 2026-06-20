@@ -300,18 +300,18 @@ private enum SeedMode {
     var incomingText: String {
         switch self {
         case .pendingRequest:
-            return "Hey, this is the real ConversationViewController loading from Signal storage."
+            return "Hey, I just sent this from the seeded Signal storage path."
         case .accepted:
-            return "The accepted-thread path should show Signal's real composer instead of message-request actions."
+            return "Hey, can you review the latest Signal render on Linux?"
         }
     }
 
     var outgoingText: String {
         switch self {
         case .pendingRequest:
-            return "And this reply is a real TSOutgoingMessage rendered through CVC."
+            return "It is rendering through the real ConversationViewController."
         case .accepted:
-            return "This reply keeps the same real CVC message pipeline while exercising the input toolbar."
+            return "Yes. The real conversation view, message bubbles, and composer are on screen now."
         }
     }
 
