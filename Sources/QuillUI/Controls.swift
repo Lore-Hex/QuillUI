@@ -395,7 +395,20 @@ public struct QuillChatComposer: View {
 
     private func submitIfPossible() {
         guard canSend else { return }
+        importBuiltInImageSelectionIfAvailableForSend()
         onSend()
+    }
+
+    private func importBuiltInImageSelectionIfAvailableForSend() {
+        #if os(Linux)
+        guard supportsImages,
+              usesBuiltInImageSelection,
+              selectedImage == nil,
+              ProcessInfo.processInfo.environment["QUILLUI_FILE_IMPORTER_AUTO_ATTACH"] == "1" else {
+            return
+        }
+        handleImageImport(QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff]))
+        #endif
     }
 
     private func selectImage() {

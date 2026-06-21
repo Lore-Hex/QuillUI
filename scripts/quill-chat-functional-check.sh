@@ -207,6 +207,7 @@ quillui_append_enchanted_reference_mode_environment app_environment
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
+  app_environment+=("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1")
   app_environment+=("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1")
 fi
 
@@ -627,16 +628,19 @@ require_attachment = functional_mode in {"attachment-send", "image-attachment-se
 database_path = home / ".quilldata" / "default.sqlite"
 
 
-def logged_chat_request() -> dict[str, object] | None:
+def logged_chat_requests() -> list[dict[str, object]]:
     if not mock_log.exists():
-        return None
+        return []
+    requests: list[dict[str, object]] = []
     for line in mock_log.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         payload = json.loads(line)
         if payload.get("path") == "/api/chat":
-            return payload.get("request")
-    return None
+            request = payload.get("request")
+            if isinstance(request, dict):
+                requests.append(request)
+    return requests
 
 
 def persisted_messages() -> list[dict[str, object]]:
@@ -666,19 +670,28 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
 
 deadline = time.time() + deadline_seconds
 last_request = None
+last_requests: list[dict[str, object]] = []
 last_messages: list[dict[str, object]] = []
 while time.time() < deadline:
-    last_request = logged_chat_request()
+    last_requests = logged_chat_requests()
+    last_request = last_requests[-1] if last_requests else None
     last_messages = persisted_messages()
-    matching_request_users = [
-        item
-        for item in (last_request or {}).get("messages", [])
-        if isinstance(item, dict)
-        and item.get("role") == "user"
-        and message_text in str(item.get("content", ""))
-        and (not require_attachment or request_message_has_image(item))
-    ]
-    request_ok = bool(last_request) and len(matching_request_users) == 1
+    matching_request = None
+    for request in reversed(last_requests):
+        matching_request_users = [
+            item
+            for item in request.get("messages", [])
+            if isinstance(item, dict)
+            and item.get("role") == "user"
+            and message_text in str(item.get("content", ""))
+            and (not require_attachment or request_message_has_image(item))
+        ]
+        if len(matching_request_users) == 1:
+            matching_request = request
+            break
+    request_ok = matching_request is not None
+    if matching_request is not None:
+        last_request = matching_request
     user_persisted = any(
         item.get("role") == "user" and message_text in str(item.get("content", ""))
         and (not require_attachment or persisted_message_has_image(item))

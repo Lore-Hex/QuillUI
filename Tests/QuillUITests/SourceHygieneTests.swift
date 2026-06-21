@@ -1303,6 +1303,8 @@ struct SourceHygieneTests {
         #expect(controls.contains(".fileImporter("))
         #expect(controls.contains(".onDrop(of: [.image]"))
         #expect(controls.contains("QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff])"))
+        #expect(controls.contains("importBuiltInImageSelectionIfAvailableForSend()"))
+        #expect(controls.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH"))
         #expect(controls.contains("handleImageImport"))
         #expect(controls.contains("handleImageDrop"))
         #expect(controls.contains(".onSubmit"))
