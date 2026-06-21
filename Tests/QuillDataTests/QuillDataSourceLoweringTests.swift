@@ -1167,6 +1167,9 @@ struct QuillDataSourceLoweringTests {
         #expect(mockOllama.contains("self.path == \"/api/tags\""))
         #expect(mockOllama.contains("self.path != \"/api/chat\""))
         #expect(mockOllama.contains("application/x-ndjson"))
+        #expect(mockOllama.contains("self.send_header(\"Connection\", \"close\")"))
+        #expect(mockOllama.contains("self.wfile.flush()"))
+        #expect(mockOllama.contains("self.close_connection = True"))
 
         let parityWorkflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
@@ -1520,6 +1523,9 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(conversationStoreRule.contains("if !currentMessageBuffer.isEmpty"))
         #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
+        #expect(conversationStoreRule.contains("let bufferedContent = currentMessageBuffer"))
+        #expect(conversationStoreRule.contains("self.messages[lastIndex].content.append(bufferedContent)"))
+        #expect(conversationStoreRule.contains("try? await self.swiftDataService.updateMessage(updatedMessage)"))
         #expect(conversationStoreRule.contains("var pendingMessages = conversation.messages.sorted"))
         #expect(conversationStoreRule.contains("pendingMessages.append(userMessage)"))
         #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))

@@ -8,6 +8,8 @@ s~    private func handleComplete\(\) \{
         }
         lastMesasge.error = false~g;
 
+s~            throttler\.throttle \{ \[weak self\] in\n                guard let self = self else \{ return \}\n                let lastIndex = self\.messages\.count - 1\n                self\.messages\[lastIndex\]\.content\.append\(currentMessageBuffer\)\n                currentMessageBuffer = ""\n            \}~            let bufferedContent = currentMessageBuffer\n            currentMessageBuffer = ""\n            let lastIndex = self.messages.count - 1\n            self.messages[lastIndex].content.append(bufferedContent)\n            let updatedMessage = self.messages[lastIndex]\n            Task(priority: .background) {\n                try? await self.swiftDataService.updateMessage(updatedMessage)\n            }~g;
+
 s~        let assistantMessage = MessageSD\(content: "", role: "assistant"\)
         assistantMessage\.conversation = conversation
         

@@ -53,16 +53,22 @@ class MockOllamaHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(data)
+        self.wfile.flush()
+        self.close_connection = True
 
     def write_ndjson(self, payloads: list[object]) -> None:
         data = "".join(json.dumps(payload) + "\n" for payload in payloads).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/x-ndjson")
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("Connection", "close")
         self.end_headers()
         self.wfile.write(data)
+        self.wfile.flush()
+        self.close_connection = True
 
 
 class MockOllamaServer(ThreadingHTTPServer):
