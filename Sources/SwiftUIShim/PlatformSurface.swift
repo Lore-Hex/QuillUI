@@ -1,5 +1,6 @@
 import CoreTransferable
 import Foundation
+import AppKit
 import SwiftOpenUI
 import UIKit
 
@@ -95,6 +96,14 @@ private final class SwiftUIShimImageDataCache: @unchecked Sendable {
 }
 
 public extension Image {
+    init(nsImage: NSImage) {
+        if let data = nsImage.data, !data.isEmpty {
+            self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
+        } else {
+            self.init(systemName: "photo")
+        }
+    }
+
     init(uiImage: UIImage) {
         if let data = uiImage.data, !data.isEmpty {
             self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
