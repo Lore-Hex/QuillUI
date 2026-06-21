@@ -327,6 +327,7 @@ struct QuillDataSourceLoweringTests {
             "--max-rewrite-lines", "137"
         ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
+        #expect(passing.output.contains("scripts/profiles/generic-swiftui.sh"))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
         #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has "))

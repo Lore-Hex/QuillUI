@@ -33,7 +33,10 @@ uses explicit Linux backends for platform behavior.
 - App ports may depend on core libraries, source-lowered upstream code, and
   app-specific fixture targets.
 - Profiles may call shared scripts, but shared scripts must not know app names
-  except through explicit profile arguments.
+  except through explicit profile arguments. New app investigations should start
+  with `generic-swiftui`; create an app-named profile only for source-shape
+  exceptions that cannot be expressed as reusable QuillUI/QuillKit/QuillData
+  behavior.
 - Backend targets may depend on C bridges and rendering libraries, but app code
   should see a QuillUI/QuillKit capability rather than raw GTK/Qt details.
 - Agent infrastructure is operational tooling only. Treat it like CI/devops,

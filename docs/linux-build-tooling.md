@@ -28,6 +28,14 @@ lowering profiles:
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
+Use `--profile generic-swiftui` for a first pass against a new app such as
+QuillCode. It copies the supplied source tree into the build work directory,
+runs only the shared SwiftData, SwiftUI, AppKit, ObjC-interop, and import
+lowering helpers, and then assembles the generated SwiftPM package. It must not
+contain app-specific rewrites; app-specific source-shape fixes belong in a
+named profile only after the missing behavior cannot be moved into QuillUI,
+QuillKit, QuillData, or the shared SwiftSyntax lowerers.
+
 The profile boundary matters. QuillUI should become a broadly reusable
 compatibility library, but source lowering is not universal yet. Different
 apps need different macro, platform, package, and service bridges. The generic
@@ -124,8 +132,9 @@ for reporting, but SwiftPM resolves the Qt-only QuillUI manifest and links only
 copy and compile the lowered source tree with the compatibility products.
 
 Reusable fallback behavior should live in library targets, not in profiles.
-The current `enchanted-full-source` profile keeps only app/source-shape wiring
-for accessibility, hotkeys, updater, panel, and USB launcher names; the Linux
+The `generic-swiftui` profile contains no app/source-shape rewrites. The current
+`enchanted-full-source` profile keeps only app/source-shape wiring for
+accessibility, hotkeys, updater, panel, and USB launcher names; the Linux
 fallback implementations live in `QuillKit` and `QuillUI`.
 
 `scripts/build-quill-chat-linux.sh` is now only a convenience wrapper:

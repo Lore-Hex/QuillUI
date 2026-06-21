@@ -3448,6 +3448,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
             encoding: .utf8
         )
+        let genericProfileSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/generic-swiftui.sh"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
         #expect(source.contains("QUILLUI_GENERATED_BACKEND_FACADE"))
@@ -3495,6 +3499,13 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("--artifact-path-file"))
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
+        #expect(genericProfileSource.contains("scripts/run-quill-source-lower.sh"))
+        #expect(genericProfileSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
+        #expect(genericProfileSource.contains("scripts/generate-swiftui-linux-package.sh"))
+        #expect(genericProfileSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1"))
+        #expect(genericProfileSource.contains("generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
+        #expect(!genericProfileSource.contains("Enchanted"))
+        #expect(!genericProfileSource.contains("QuillCode"))
         #expect(packageSource.contains("scripts/build-swiftui-linux-app.sh"))
         #expect(packageSource.contains("QUILLUI_APP_BACKEND_FACADE:-gtk"))
         #expect(packageSource.contains("QUILLUI_APP_ID"))
