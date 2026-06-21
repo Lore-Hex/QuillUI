@@ -3479,6 +3479,8 @@ struct SourceHygieneTests {
         #expect(source.contains("target_resources='            resources: [.copy(\"Resources\")],"))
         #expect(source.contains("$target_resources"))
         #expect(source.contains("source_target_dependencies="))
+        #expect(source.contains(".product(name: \"Network\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
         #expect(source.contains("target_dependencies=\"$(printf '%s,\\n"))
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")' \"$source_target_dependencies\")\""))
         #expect(source.contains("if [[ \"$BACKEND_FACADE\" != \"qt\" ]]"))

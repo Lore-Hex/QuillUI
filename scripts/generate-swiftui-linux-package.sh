@@ -206,6 +206,8 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "Sparkle", package: "QuillUI"),
                 .product(name: "ApplicationServices", package: "QuillUI"),
                 .product(name: "CoreGraphics", package: "QuillUI"),
+                .product(name: "Network", package: "QuillUI"),
+                .product(name: "CryptoKit", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
                 .product(name: "os", package: "QuillUI"),
                 .product(name: "QuillUI", package: "QuillUI"),

@@ -59,6 +59,10 @@ assembly to `scripts/generate-swiftui-linux-package.sh`. That helper owns the
 reusable SwiftPM package shape: copying lowered sources, adding the QuillUI
 compatibility products, optionally generating the backend-selected `@main`,
 patching the pinned SwiftOpenUI checkout, and running `swift build`.
+The generated package links the framework-named compatibility products that
+new desktop apps commonly import, including SwiftUI, AppKit, UniformTypeIdentifiers,
+Network, CryptoKit, ApplicationServices, CoreGraphics, QuillKit, QuillData, and
+QuillShims.
 
 Profiles can also reuse the generic source-lowering helpers before package
 assembly:
