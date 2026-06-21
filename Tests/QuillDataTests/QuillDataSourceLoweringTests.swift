@@ -392,7 +392,10 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux"))
-        #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen"))
+        #expect(!workflow.contains(".build-linux-offscreen"))
+        #expect(workflow.contains("timeout-minutes: 15"))
+        #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter imageRendererOffscreenPipelineProducesRealPNG"))
     }
 
     @Test("Package exports generated app compatibility products")

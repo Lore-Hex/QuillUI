@@ -124,7 +124,10 @@ jobs:
         run: scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps
 
       - name: GTK offscreen ImageRenderer smoke
-        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+        timeout-minutes: 15
+        env:
+          TEST_RUN_TIMEOUT: "180"
+        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter imageRendererOffscreenPipelineProducesRealPNG
 
       # The full upstream gluonfield/enchanted source tree now
       # compiles + links + backend-renders end-to-end through the
