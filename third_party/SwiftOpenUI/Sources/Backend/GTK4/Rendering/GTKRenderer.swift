@@ -1796,9 +1796,9 @@ private func gtkRenderFallbackHStack(
 
     let gtkAlign: GtkAlign
     switch alignment {
-    case .top:    gtkAlign = GTK_ALIGN_START
+    case .top, .firstTextBaseline: gtkAlign = GTK_ALIGN_START
     case .center: gtkAlign = GTK_ALIGN_CENTER
-    case .bottom: gtkAlign = GTK_ALIGN_END
+    case .bottom, .lastTextBaseline: gtkAlign = GTK_ALIGN_END
     }
 
     for widget in children {
@@ -8642,9 +8642,9 @@ extension SafeAreaInsetView: GTKRenderable, GTKDescribable {
             }
         case .vertical(let vAlign):
             switch vAlign {
-            case .top:    crossAlign = GTK_ALIGN_START
+            case .top, .firstTextBaseline: crossAlign = GTK_ALIGN_START
             case .center: crossAlign = GTK_ALIGN_CENTER
-            case .bottom: crossAlign = GTK_ALIGN_END
+            case .bottom, .lastTextBaseline: crossAlign = GTK_ALIGN_END
             }
         }
 

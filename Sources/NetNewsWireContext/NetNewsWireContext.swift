@@ -22,22 +22,55 @@ public struct CGRect: Sendable {
 }
 #endif
 
-@MainActor public var appDelegate: AppDelegate!
+@MainActor public var appDelegate: AppDelegate! = AppDelegate()
 
-@MainActor public class AppDelegate: NSObject {
+@MainActor public func appDelegateUnreadCount() -> Int {
+    appDelegate?.unreadCount ?? 0
+}
+
+public final class AppDelegate {
+    public struct AddFeedRequest {
+        public let urlString: String?
+        public let name: String?
+        public let account: AnyObject?
+        public let folder: AnyObject?
+
+        public init(urlString: String?, name: String?, account: AnyObject?, folder: AnyObject?) {
+            self.urlString = urlString
+            self.name = name
+            self.account = account
+            self.folder = folder
+        }
+    }
+
     public var unreadCount = 0
+    public private(set) var addFeedRequests = [AddFeedRequest]()
+    public private(set) var removedMainWindows = [AnyObject]()
+    public var lastAddFeedRequest: AddFeedRequest? { addFeedRequests.last }
 
-    public override init() {
-        super.init()
+    public init() {}
+
+    public func addFeed(_ urlString: String?, name: String? = nil, account: AnyObject? = nil, folder: AnyObject? = nil) {
+        addFeedRequests.append(AddFeedRequest(urlString: urlString, name: name, account: account, folder: folder))
+    }
+
+    public func resetAddFeedRequests() {
+        addFeedRequests.removeAll()
+    }
+
+    public func removeMainWindow(_ windowController: AnyObject) {
+        removedMainWindows.append(windowController)
     }
 }
 
 public class AppDefaults: @unchecked Sendable {
     public static let shared = AppDefaults()
+    public static let defaultThemeName = "Default"
     public var unreadCount = 0
     public var lastImageCacheFlushDate: Date?
     public var isArticleContentJavascriptEnabled = true
     public var articleTextSize = AppDefaultsArticleTextSize.medium
+    public var currentThemeName: String?
     public var refreshInterval = AppDefaultsRefreshInterval.every30Minutes
     public var timelineIconSize = 40
     public var timelineNumberOfLines = 2

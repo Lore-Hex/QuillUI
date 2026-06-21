@@ -1,4 +1,3 @@
-@_exported import QuillRS
 import Foundation
 
 // Tidemark is the upstream NetNewsWire/Ranchero Markdown-to-HTML

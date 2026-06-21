@@ -100,6 +100,25 @@ private final class EventOrderRecorder: @unchecked Sendable {
     }
 }
 
+private final class LockedDurations: @unchecked Sendable {
+    private let lock = NSLock()
+    private var defaultDuration: CFTimeInterval = .nan
+    private var scopedDuration: CFTimeInterval = .nan
+
+    func set(default defaultDuration: CFTimeInterval, scoped scopedDuration: CFTimeInterval) {
+        lock.lock()
+        self.defaultDuration = defaultDuration
+        self.scopedDuration = scopedDuration
+        lock.unlock()
+    }
+
+    var snapshot: (default: CFTimeInterval, scoped: CFTimeInterval) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (defaultDuration, scopedDuration)
+    }
+}
+
 /// Display-link target. The source-lowering pass turns #selector(...) into an
 /// opaque Selector token and delivery happens via QuillSelectorDispatching,
 /// so this is exactly the shape real lowered Signal/Telegram code presents.
@@ -287,6 +306,35 @@ final class CAAnimationTimingTests: XCTestCase {
                            "outer transaction's value must be restored after the inner commit")
             CATransaction.commit()
         }
+    }
+
+    func testTransactionStateIsPerThread() {
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(1.25)
+        XCTAssertEqual(CATransaction.animationDuration(), 1.25, accuracy: 1e-9)
+
+        let backgroundChecked = expectation(description: "background transaction state checked")
+        let durations = LockedDurations()
+        DispatchQueue.global().async {
+            let defaultDuration = CATransaction.animationDuration()
+            CATransaction.begin()
+            CATransaction.setAnimationDuration(0.75)
+            let scopedDuration = CATransaction.animationDuration()
+            CATransaction.commit()
+            durations.set(default: defaultDuration, scoped: scopedDuration)
+            backgroundChecked.fulfill()
+        }
+
+        wait(for: [backgroundChecked], timeout: 5.0)
+        let checked = durations.snapshot
+        let checkedDefault = checked.default
+        let checkedScoped = checked.scoped
+        XCTAssertEqual(checkedDefault, 0.25, accuracy: 1e-9,
+                       "background thread must not inherit the main thread's open transaction")
+        XCTAssertEqual(checkedScoped, 0.75, accuracy: 1e-9)
+        XCTAssertEqual(CATransaction.animationDuration(), 1.25, accuracy: 1e-9,
+                       "main thread transaction state must survive background transaction work")
+        CATransaction.commit()
     }
 
     // 7. setCompletionBlock with NO explicit begin participates in the

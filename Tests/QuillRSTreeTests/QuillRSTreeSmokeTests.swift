@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import AppKit
+import RSTree
 @testable import QuillRSTree
 
 /// Smoke tests for the vendored upstream RSTree module. Pins
@@ -40,6 +42,26 @@ struct QuillRSTreeSmokeTests {
                 }
             }
             return nil
+        }
+    }
+
+    final class NodeOutlineDataSource: NSObject, NSOutlineViewDataSource {
+        let rootNode: Node
+
+        init(rootNode: Node) {
+            self.rootNode = rootNode
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, numberOfChildrenOfItem item: Any?) -> Int {
+            (item as? Node ?? rootNode).numberOfChildNodes
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, child index: Int, ofItem item: Any?) -> Any {
+            (item as? Node ?? rootNode).childNodes[index]
+        }
+
+        func outlineView(_ outlineView: NSOutlineView, isItemExpandable item: Any) -> Bool {
+            (item as? Node)?.canHaveChildNodes ?? false
         }
     }
 
@@ -102,5 +124,36 @@ struct QuillRSTreeSmokeTests {
         // matches NSTreeController's convention.
         #expect(a.indexPath == IndexPath(indexes: [0, 0]))
         #expect(b.indexPath == IndexPath(indexes: [0, 1]))
+    }
+
+    @MainActor
+    @Test("RSTree NSOutlineView extension reveals and selects represented objects")
+    func outlineRevealAndSelectRepresentedObject() {
+        let root = Folder("root", [
+            Folder("Dev", [
+                Feed("Swift Blog", "https://swift.org/atom.xml"),
+            ]),
+            Feed("Daring Fireball", "https://daringfireball.net/feeds/main"),
+        ])
+        let delegate = TreeDelegate()
+        let rootNode = Node(representedObject: root as AnyObject, parent: nil)
+        rootNode.canHaveChildNodes = true
+        let controller = TreeController(delegate: delegate, rootNode: rootNode)
+        let folderNode = controller.rootNode.childNodes[0]
+        let feedNode = folderNode.childNodes[0]
+        let feed = feedNode.representedObject as AnyObject
+
+        let outline = NSOutlineView()
+        let dataSource = NodeOutlineDataSource(rootNode: controller.rootNode)
+        outline.dataSource = dataSource
+        outline.reloadData()
+
+        withExtendedLifetime((delegate, dataSource)) {
+            #expect(outline.numberOfRows == 2)
+            #expect(outline.revealAndSelectRepresentedObject(feed, controller))
+            #expect(outline.isItemExpanded(folderNode))
+            #expect(outline.selectedItems.first === feedNode)
+            #expect(outline.selectedRow == outline.row(forItem: feedNode))
+        }
     }
 }

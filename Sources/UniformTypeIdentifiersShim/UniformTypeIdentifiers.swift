@@ -44,6 +44,7 @@ public struct UTType: Hashable, Sendable {
 
     public static let item = UTType("public.item")!
     public static let content = UTType("public.content")!
+    public static let compositeContent = UTType("public.composite-content")!
     public static let data = UTType("public.data")!
     public static let text = UTType("public.text")!
     public static let plainText = UTType("public.plain-text")!
@@ -52,10 +53,12 @@ public struct UTType: Hashable, Sendable {
     public static let html = UTType("public.html")!
     public static let xml = UTType("public.xml")!
     public static let json = UTType("public.json")!
+    public static let propertyList = UTType("com.apple.property-list")!
     public static let url = UTType("public.url")!
     public static let fileURL = UTType("public.file-url")!
     public static let directory = UTType("public.directory")!
     public static let folder = UTType("public.folder")!
+    public static let applicationBundle = UTType("com.apple.application-bundle")!
     public static let image = UTType("public.image")!
     public static let png = UTType("public.png")!
     public static let jpeg = UTType("public.jpeg")!
@@ -104,6 +107,7 @@ public struct UTType: Hashable, Sendable {
 
     private static let parentIdentifiersByIdentifier: [String: Set<String>] = [
         UTType.content.identifier: [UTType.item.identifier],
+        UTType.compositeContent.identifier: [UTType.content.identifier],
         UTType.data.identifier: [UTType.content.identifier],
         UTType.text.identifier: [UTType.data.identifier],
         UTType.plainText.identifier: [UTType.text.identifier],
@@ -112,10 +116,12 @@ public struct UTType: Hashable, Sendable {
         UTType.html.identifier: [UTType.text.identifier],
         UTType.xml.identifier: [UTType.text.identifier],
         UTType.json.identifier: [UTType.text.identifier],
+        UTType.propertyList.identifier: [UTType.data.identifier],
         UTType.url.identifier: [UTType.data.identifier],
         UTType.fileURL.identifier: [UTType.url.identifier],
         UTType.directory.identifier: [UTType.item.identifier],
         UTType.folder.identifier: [UTType.directory.identifier],
+        UTType.applicationBundle.identifier: [UTType.directory.identifier],
         UTType.image.identifier: [UTType.data.identifier],
         UTType.png.identifier: [UTType.image.identifier],
         UTType.jpeg.identifier: [UTType.image.identifier],
@@ -151,6 +157,7 @@ public struct UTType: Hashable, Sendable {
         "text": .plainText,
         "rtf": .rtf,
         "xml": .xml,
+        "plist": .propertyList,
         "url": .url,
         "pdf": .pdf,
         "otf": .font,
@@ -170,6 +177,7 @@ public struct UTType: Hashable, Sendable {
         UTType.html.identifier: "html",
         UTType.xml.identifier: "xml",
         UTType.json.identifier: "json",
+        UTType.propertyList.identifier: "plist",
         UTType.url.identifier: "url",
         UTType.png.identifier: "png",
         UTType.jpeg.identifier: "jpeg",
@@ -192,6 +200,7 @@ public struct UTType: Hashable, Sendable {
         UTType.html.identifier: "text/html",
         UTType.xml.identifier: "application/xml",
         UTType.json.identifier: "application/json",
+        UTType.propertyList.identifier: "application/x-plist",
         UTType.png.identifier: "image/png",
         UTType.jpeg.identifier: "image/jpeg",
         UTType.tiff.identifier: "image/tiff",
@@ -216,6 +225,7 @@ public struct UTType: Hashable, Sendable {
         UTType.html.identifier: "HTML",
         UTType.xml.identifier: "XML",
         UTType.json.identifier: "JSON",
+        UTType.propertyList.identifier: "property list",
         UTType.url.identifier: "URL",
         UTType.fileURL.identifier: "file URL",
         UTType.directory.identifier: "directory",
@@ -245,6 +255,7 @@ public struct UTType: Hashable, Sendable {
         "application/xml": .xml,
         "text/xml": .xml,
         "application/json": .json,
+        "application/x-plist": .propertyList,
         "image/png": .png,
         "image/jpeg": .jpeg,
         "image/jpg": .jpeg,

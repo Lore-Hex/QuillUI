@@ -9,6 +9,7 @@ public struct Grid<Content: View>: View {
     public let columns: Int
     public let hSpacing: Int
     public let vSpacing: Int
+    public let alignment: Alignment
     public let content: Content
     public let useExplicitRows: Bool
 
@@ -17,6 +18,7 @@ public struct Grid<Content: View>: View {
         self.columns = max(1, columns)
         self.hSpacing = max(0, spacing)
         self.vSpacing = max(0, spacing)
+        self.alignment = .center
         self.content = content()
         self.useExplicitRows = false
     }
@@ -26,6 +28,22 @@ public struct Grid<Content: View>: View {
         self.columns = 0
         self.hSpacing = max(0, horizontalSpacing)
         self.vSpacing = max(0, verticalSpacing)
+        self.alignment = .center
+        self.content = content()
+        self.useExplicitRows = true
+    }
+
+    /// SwiftUI-shaped explicit row initializer with whole-grid alignment.
+    public init(
+        alignment: Alignment = .center,
+        horizontalSpacing: Int = 0,
+        verticalSpacing: Int = 0,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.columns = 0
+        self.hSpacing = max(0, horizontalSpacing)
+        self.vSpacing = max(0, verticalSpacing)
+        self.alignment = alignment
         self.content = content()
         self.useExplicitRows = true
     }

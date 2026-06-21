@@ -12,6 +12,8 @@ public enum VerticalAlignment {
     case top
     case center
     case bottom
+    case firstTextBaseline
+    case lastTextBaseline
 
     public init(_ id: any AlignmentID.Type) {
         _ = id

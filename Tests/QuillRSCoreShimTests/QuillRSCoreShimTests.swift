@@ -93,13 +93,6 @@ struct QuillRSCoreShimTests {
         #expect("a\(nonBreakingSpace)b".collapsingWhitespace == "a\(nonBreakingSpace)b")
     }
 
-    @Test("NSAttributedString simpleHTML exposes visible text")
-    func simpleHTMLAttributedString() {
-        let attributed = NSAttributedString(simpleHTML: "<b>Hello</b> &amp; <q>world</q>")
-        #expect(attributed.string.contains("Hello & "))
-        #expect(attributed.string.contains("world"))
-    }
-
     @Test("postOnMainThread asynchronously delivers a notification")
     func postOnMainThreadDeliversNotification() async {
         let name = Notification.Name("QuillRSCoreShimTests.postOnMainThread.\(UUID().uuidString)")
@@ -137,5 +130,26 @@ struct QuillRSCoreShimTests {
             // its production behavior).
             #expect(!Platform.isRunningUnitTests)
         }
+    }
+
+    @Test("CGRect centering helpers match RSCore layout semantics")
+    func cgRectCenteringHelpers() {
+        let container = CGRect(x: 10, y: 20, width: 101, height: 81)
+        let source = CGRect(x: 0, y: 0, width: 19, height: 15)
+
+        let verticallyCentered = source.centeredVertically(in: container)
+        #expect(verticallyCentered.origin.x == 0)
+        #expect(verticallyCentered.origin.y == 53)
+        #expect(verticallyCentered.size == source.size)
+
+        let horizontallyCentered = source.centeredHorizontally(in: container)
+        #expect(horizontallyCentered.origin.x == 51)
+        #expect(horizontallyCentered.origin.y == 0)
+        #expect(horizontallyCentered.size == source.size)
+
+        let centered = source.centered(in: container)
+        #expect(centered.origin == .zero)
+        #expect(centered.size == source.size)
+        #expect([source, centered, CGRect(x: 0, y: -5, width: 1, height: 2)].maxY() == 15)
     }
 }

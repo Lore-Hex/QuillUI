@@ -16,21 +16,84 @@ public typealias OSType = UInt32
 public typealias AEEventClass = FourCharCode
 public typealias AEEventID = FourCharCode
 public typealias AEKeyword = FourCharCode
+public typealias DescType = FourCharCode
 
 // Real four-char-code values (for faithfulness; never actually compared on Linux).
 public let kCoreEventClass: AEEventClass = 0x6165_7674   // 'aevt'
 public let kAEOpenApplication: AEEventID = 0x6F61_7070   // 'oapp'
 public let kAEQuitApplication: AEEventID = 0x7175_6974   // 'quit'
 public let keySenderPIDAttr: AEKeyword = 0x7370_6964     // 'spid'
+public let kInternetEventClass: AEEventClass = 0x4755_524C // 'GURL'
+public let kAEGetURL: AEEventID = 0x4755_524C             // 'GURL'
+public let keyDirectObject: AEKeyword = 0x2D2D_2D2D       // '----'
+public let keyAEInsertHere: AEKeyword = 0x696E_7368       // 'insh'
+
+public extension String {
+    var fourCharCode: FourCharCode {
+        precondition(count == 4)
+        return unicodeScalars.reduce(UInt32(0)) { ($0 << 8) + $1.value }
+    }
+}
+
+public extension Int {
+    var fourCharCode: FourCharCode {
+        UInt32(self)
+    }
+}
 
 /// Minimal NSAppleEventDescriptor shadow: the detectors read `eventClass`/`eventID`,
 /// fetch an attribute descriptor by keyword, and read its `int32Value` (the sender PID).
 open class NSAppleEventDescriptor {
-    public init() {}
-    open var eventClass: AEEventClass { 0 }
-    open var eventID: AEEventID { 0 }
-    open var int32Value: Int32 { 0 }
-    open func attributeDescriptor(forKeyword keyword: AEKeyword) -> NSAppleEventDescriptor? { nil }
+    private var attributes: [AEKeyword: NSAppleEventDescriptor] = [:]
+    private var parameters: [AEKeyword: NSAppleEventDescriptor] = [:]
+
+    open var eventClass: AEEventClass
+    open var eventID: AEEventID
+    open var descriptorType: DescType
+    open var int32Value: Int32
+    open var stringValue: String?
+
+    public init(
+        eventClass: AEEventClass = 0,
+        eventID: AEEventID = 0,
+        descriptorType: DescType = 0,
+        int32Value: Int32 = 0,
+        stringValue: String? = nil
+    ) {
+        self.eventClass = eventClass
+        self.eventID = eventID
+        self.descriptorType = descriptorType
+        self.int32Value = int32Value
+        self.stringValue = stringValue
+    }
+
+    public convenience init(string: String) {
+        self.init(descriptorType: 0x7574_6638, stringValue: string) // 'utf8'
+    }
+
+    public static func record() -> NSAppleEventDescriptor {
+        NSAppleEventDescriptor(descriptorType: 0x7265_636F) // 'reco'
+    }
+
+    open func attributeDescriptor(forKeyword keyword: AEKeyword) -> NSAppleEventDescriptor? {
+        attributes[keyword]
+    }
+
+    open func setAttribute(_ descriptor: NSAppleEventDescriptor?, forKeyword keyword: AEKeyword) {
+        attributes[keyword] = descriptor
+    }
+
+    open func paramDescriptor(forKeyword keyword: AEKeyword) -> NSAppleEventDescriptor? {
+        parameters[keyword]
+    }
+
+    open func setParam(_ descriptor: NSAppleEventDescriptor, forKeyword keyword: AEKeyword) {
+        parameters[keyword] = descriptor
+    }
+
+    open func forKeyword(_ keyword: AEKeyword) -> NSAppleEventDescriptor? {
+        parameters[keyword] ?? attributes[keyword]
+    }
 }
 
 /// NSAppleEventManager shadow — AppDelegate reads `.shared().currentAppleEvent` to get
@@ -40,6 +103,18 @@ open class NSAppleEventManager: @unchecked Sendable {
     public static func shared() -> NSAppleEventManager { _shared }
     public init() {}
     open var currentAppleEvent: NSAppleEventDescriptor? { nil }
+    public private(set) var installedHandlers: [InstalledAppleEventHandler] = []
+
+    public struct InstalledAppleEventHandler: Sendable, Equatable {
+        public let selector: Selector
+        public let eventClass: AEEventClass
+        public let eventID: AEEventID
+    }
+
+    open func setEventHandler(_ handler: Any, andSelector selector: Selector, forEventClass eventClass: AEEventClass, andEventID eventID: AEEventID) {
+        _ = handler
+        installedHandlers.append(InstalledAppleEventHandler(selector: selector, eventClass: eventClass, eventID: eventID))
+    }
 }
 
 // Darwin-only C APIs the detectors call. Linux has no exact equivalents

@@ -861,9 +861,9 @@ public func webHorizontalAlignmentDescriptor(_ alignment: HorizontalAlignment) -
 
 public func webVerticalAlignmentDescriptor(_ alignment: VerticalAlignment) -> WebVerticalAlignmentDescriptor {
     switch alignment {
-    case .top: return .top
+    case .top, .firstTextBaseline: return .top
     case .center: return .center
-    case .bottom: return .bottom
+    case .bottom, .lastTextBaseline: return .bottom
     }
 }
 

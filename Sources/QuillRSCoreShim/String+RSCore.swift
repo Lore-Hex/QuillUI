@@ -22,8 +22,32 @@
 //
 
 import Foundation
+import CryptoKit
 
 public extension String {
+
+	func hmacUsingSHA1(key: String) -> String {
+		let signature = HMAC<Insecure.SHA1>.authenticationCode(
+			for: Data(self.utf8),
+			using: SymmetricKey(data: Data(key.utf8))
+		)
+		return MD5.hexString(Array(signature))
+	}
+
+	func htmlByAddingLink(_ link: String, className: String? = nil) -> String {
+		if let className = className {
+			return "<a class=\"\(className)\" href=\"\(link)\">\(self)</a>"
+		}
+		return "<a href=\"\(link)\">\(self)</a>"
+	}
+
+	static func htmlWithLink(_ link: String) -> String {
+		link.htmlByAddingLink(link)
+	}
+
+	func convertingToPlainText() -> String {
+		strippingHTML()
+	}
 
 	/// Trims leading and trailing whitespace and collapses other whitespace into a single space.
 	///
@@ -66,6 +90,47 @@ public extension String {
 
 	var trimmingWhitespace: String {
 		self.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+	}
+
+	private func containsAnyCharacter(from charset: CharacterSet) -> Bool {
+		self.rangeOfCharacter(from: charset) != nil
+	}
+
+	private var mayBeIPv6URL: Bool {
+		self.range(of: "\\[[0-9a-fA-F:]+\\]", options: .regularExpression) != nil
+	}
+
+	private var hostMayBeLocalhost: Bool {
+		guard let components = URLComponents(string: self) else { return false }
+
+		if let host = components.host {
+			return host == "localhost"
+		}
+
+		if self == "localhost" || self.hasPrefix("localhost/") || self.hasPrefix("localhost:") {
+			return true
+		}
+
+		if components.path.split(separator: "/", omittingEmptySubsequences: false).first == "localhost" {
+			return true
+		}
+
+		return false
+	}
+
+	var mayBeURL: Bool {
+		let s = self.trimmingWhitespace
+
+		if s.isEmpty || (!s.contains(".") && !s.mayBeIPv6URL && !s.hostMayBeLocalhost) {
+			return false
+		}
+
+		let banned = CharacterSet.whitespacesAndNewlines.union(.controlCharacters).union(.illegalCharacters)
+		if s.containsAnyCharacter(from: banned) {
+			return false
+		}
+
+		return true
 	}
 
 	/// Normalizes a feed URL string.
@@ -166,5 +231,10 @@ public extension String {
 	func prepending(tabCount: Int) -> String {
 		let tabs = String(repeating: "\t", count: tabCount)
 		return "\(tabs)\(self)"
+	}
+
+	/// Returns the string with `http://` or `https://` removed from the beginning.
+	var strippingHTTPOrHTTPSScheme: String {
+		self.stripping(prefix: "http://").stripping(prefix: "https://")
 	}
 }

@@ -39,15 +39,18 @@ struct NSTableViewModelTests {
     @Test("selectRowIndexes accepts in-range rows; out-of-range is ignored; deselectAll clears")
     func tableSelection() {
         let tv = NSTableView()
-        tv.dataSource = TableSource(rows: 5)
-        tv.reloadData()
-        tv.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
-        #expect(tv.selectedRowIndexes.contains(2))
-        // Row 99 is beyond numberOfRows → not selected.
-        tv.selectRowIndexes(IndexSet(integer: 99), byExtendingSelection: false)
-        #expect(!tv.selectedRowIndexes.contains(99))
-        tv.deselectAll(nil)
-        #expect(tv.selectedRowIndexes.isEmpty)
+        let src = TableSource(rows: 5)
+        tv.dataSource = src
+        withExtendedLifetime(src) {
+            tv.reloadData()
+            tv.selectRowIndexes(IndexSet(integer: 2), byExtendingSelection: false)
+            #expect(tv.selectedRowIndexes.contains(2))
+            // Row 99 is beyond numberOfRows → not selected.
+            tv.selectRowIndexes(IndexSet(integer: 99), byExtendingSelection: false)
+            #expect(!tv.selectedRowIndexes.contains(99))
+            tv.deselectAll(nil)
+            #expect(tv.selectedRowIndexes.isEmpty)
+        }
     }
 
     // MARK: - NSOutlineView
@@ -79,22 +82,25 @@ struct NSTableViewModelTests {
     @Test("outline shows roots; expanding reveals children one level down; collapsing hides them")
     func outlineExpandCollapse() {
         let ov = NSOutlineView()
-        ov.dataSource = TreeSource()
-        ov.reloadData()
-        #expect(ov.numberOfRows == 2)                       // A, B
-        #expect(ov.item(atRow: 0) as? String == "A")
-        #expect(ov.isExpandable("A"))
-        #expect(!ov.isExpandable("B"))
+        let src = TreeSource()
+        ov.dataSource = src
+        withExtendedLifetime(src) {
+            ov.reloadData()
+            #expect(ov.numberOfRows == 2)                       // A, B
+            #expect(ov.item(atRow: 0) as? String == "A")
+            #expect(ov.isExpandable("A"))
+            #expect(!ov.isExpandable("B"))
 
-        ov.expandItem("A")
-        ov.reloadData()
-        #expect(ov.numberOfRows == 4)                       // A, A1, A2, B
-        #expect(ov.item(atRow: 1) as? String == "A1")
-        #expect(ov.level(forRow: 0) == 0)
-        #expect(ov.level(forRow: 1) == 1)
+            ov.expandItem("A")
+            ov.reloadData()
+            #expect(ov.numberOfRows == 4)                       // A, A1, A2, B
+            #expect(ov.item(atRow: 1) as? String == "A1")
+            #expect(ov.level(forRow: 0) == 0)
+            #expect(ov.level(forRow: 1) == 1)
 
-        ov.collapseItem("A")
-        ov.reloadData()
-        #expect(ov.numberOfRows == 2)
+            ov.collapseItem("A")
+            ov.reloadData()
+            #expect(ov.numberOfRows == 2)
+        }
     }
 }

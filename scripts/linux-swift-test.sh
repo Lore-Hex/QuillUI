@@ -7,6 +7,10 @@ SWIFT_TEST_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --nnw-upstream)
+      export QUILLUI_NNW_UPSTREAM=1
+      shift
+      ;;
     --scratch-path)
       if [[ $# -lt 2 ]]; then
         echo "--scratch-path requires a value" >&2
@@ -25,6 +29,33 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "${QUILLUI_NNW_UPSTREAM:-0}" != "1" ]]; then
+  for ((i = 0; i < ${#SWIFT_TEST_ARGS[@]}; i++)); do
+    filter=""
+    case "${SWIFT_TEST_ARGS[$i]}" in
+      --filter)
+        if ((i + 1 < ${#SWIFT_TEST_ARGS[@]})); then
+          filter="${SWIFT_TEST_ARGS[$((i + 1))]}"
+        fi
+        ;;
+      --filter=*)
+        filter="${SWIFT_TEST_ARGS[$i]#--filter=}"
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    if [[ "$filter" == *NetNewsWireMacCoreTests* || "$filter" == *NetNewsWireSharedCoreTests* ]]; then
+      cat >&2 <<'EOF'
+NetNewsWire upstream tests are outside the default Linux package graph.
+Pass --nnw-upstream or set QUILLUI_NNW_UPSTREAM=1 so the filtered run cannot pass with zero tests.
+EOF
+      exit 64
+    fi
+  done
+fi
 
 "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
 
@@ -57,15 +88,66 @@ done
     esac
   done
 
+  EXTRA_BUILD_ARGS=()
+  EXTRA_TEST_ARGS=()
+
+  # The full Linux package test bundle is large enough that the default BFD
+  # linker can OOM or emit unsupported relocation errors late in the build,
+  # after the useful compile work has already succeeded. Prefer lld whenever it
+  # is available; callers can set QUILLUI_SWIFT_TEST_USE_LLD=0 to opt out.
+  use_lld="${QUILLUI_SWIFT_TEST_USE_LLD:-1}"
+  has_linker_choice=0
+  for a in ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"}; do
+    case "$a" in
+      -use-ld=*|--use-ld=*|*use-ld=*) has_linker_choice=1 ;;
+    esac
+  done
+  if [[ "$use_lld" != "0" && "$use_lld" != "off" && $has_linker_choice -eq 0 ]]; then
+    if command -v ld.lld >/dev/null 2>&1; then
+      EXTRA_BUILD_ARGS+=("-Xswiftc" "-use-ld=lld")
+      EXTRA_TEST_ARGS+=("-Xswiftc" "-use-ld=lld")
+      echo "=== Using ld.lld for Linux Swift test links ==="
+    elif [[ "$use_lld" == "required" ]]; then
+      echo "QUILLUI_SWIFT_TEST_USE_LLD=required but ld.lld was not found" >&2
+      exit 69
+    fi
+  fi
+
+  # Index-store writes are not needed for CI/test execution and have caused
+  # corrupted JSON noise under memory pressure. Keep it disabled unless the
+  # caller explicitly passed an index-store option or opted out via env.
+  disable_index_store="${QUILLUI_SWIFT_TEST_DISABLE_INDEX_STORE:-1}"
+  has_index_store_choice=0
+  for a in ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"}; do
+    case "$a" in
+      --auto-index-store|--enable-index-store|--disable-index-store) has_index_store_choice=1 ;;
+    esac
+  done
+  if [[ "$disable_index_store" != "0" && "$disable_index_store" != "off" && $has_index_store_choice -eq 0 ]]; then
+    EXTRA_BUILD_ARGS+=("--disable-index-store")
+    EXTRA_TEST_ARGS+=("--disable-index-store")
+  fi
+
   set +e
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
+    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} ${EXTRA_BUILD_ARGS[@]+"${EXTRA_BUILD_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test-build.log"
   build_status=${PIPESTATUS[0]}
   if [[ $build_status -ne 0 ]]; then
     set -e
     echo "=== Test build failed with exit code $build_status ==="
     exit $build_status
+  fi
+
+  # swift-corelibs-foundation does not synthesize an app bundle for Linux
+  # test executables. If the repo has app-style Info.plist metadata, place it
+  # beside the built executable directory so Bundle.main.object(forInfoDictionaryKey:)
+  # behaves like AppKit code expects during compatibility tests.
+  if [[ -f "$ROOT_DIR/Info.plist" ]]; then
+    bin_path="$(swift build --scratch-path "$SCRATCH_PATH" --show-bin-path ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} ${EXTRA_BUILD_ARGS[@]+"${EXTRA_BUILD_ARGS[@]}"} 2>/dev/null || true)"
+    if [[ -n "$bin_path" && -d "$bin_path" ]]; then
+      cp "$ROOT_DIR/Info.plist" "$bin_path/Info.plist"
+    fi
   fi
 
   # Pre-build the isolated SwiftSyntax source-lowering tool ONCE, untimed, and
@@ -121,7 +203,7 @@ done
   timeout --signal=KILL "$TEST_RUN_TIMEOUT" \
     stdbuf -oL -eL \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift test --skip-build --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
+    swift test --skip-build --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} ${EXTRA_TEST_ARGS[@]+"${EXTRA_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
   status=${PIPESTATUS[0]}
   set -e

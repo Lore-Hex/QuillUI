@@ -22,10 +22,11 @@
 //  QuillPaint. Concretely:
 //    - display() never fabricates a CGContext; it forwards to the delegate.
 //    - render(in:) is inert.
-//    - presentation() returns the model layer (there are no interpolated
-//      in-flight values to snapshot), so model == presentation.
-//    - frame and coordinate conversion ignore `transform` (documented at the
-//      members); bounds.origin scroll offsets ARE honored.
+//    - presentation() returns a model-value snapshot. There are not yet
+//      interpolated in-flight values to sample, but callers do get a distinct
+//      layer instance with the current model state.
+//    - frame, coordinate conversion, and hit testing honor the layer transform
+//      and bounds.origin scroll offsets.
 //    - Implicit actions are NOT auto-dispatched on property mutation;
 //      explicit animations added via add(_:forKey:) run through the module's
 //      animation engine, which provides real asynchronous completion timing
@@ -158,6 +159,90 @@ public struct CACornerMask: OptionSet, Sendable {
     public static let layerMaxXMaxYCorner = CACornerMask(rawValue: 1 << 3)
 }
 
+// MARK: - Animation storage
+
+private struct CALayerAnimationEntry {
+    var key: String
+    var animation: CAAnimation
+}
+
+private struct CALayerAnimationAddResult {
+    var usedKey: String
+    var replaced: CALayerAnimationEntry?
+}
+
+private final class CALayerAnimationStore: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [CALayerAnimationEntry] = []
+    private var keyCounter: Int = 0
+
+    func add(_ animation: CAAnimation, forKey key: String?) -> CALayerAnimationAddResult {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let usedKey: String
+        var replaced: CALayerAnimationEntry?
+        if let key {
+            usedKey = key
+            if let index = entries.firstIndex(where: { $0.key == key }) {
+                replaced = entries.remove(at: index)
+            }
+        } else {
+            keyCounter += 1
+            usedKey = "quill.animation.\(keyCounter)"
+        }
+
+        entries.append(CALayerAnimationEntry(key: usedKey, animation: animation))
+        return CALayerAnimationAddResult(usedKey: usedKey, replaced: replaced)
+    }
+
+    func animation(forKey key: String) -> CAAnimation? {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries.first(where: { $0.key == key })?.animation
+    }
+
+    func keys() -> [String]? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !entries.isEmpty else { return nil }
+        return entries.map(\.key)
+    }
+
+    func remove(forKey key: String) -> CALayerAnimationEntry? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let index = entries.firstIndex(where: { $0.key == key }) else { return nil }
+        return entries.remove(at: index)
+    }
+
+    func removeAll() -> [CALayerAnimationEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        let removed = entries
+        entries.removeAll()
+        return removed
+    }
+
+    func removeCompleted(key: String) {
+        lock.lock()
+        entries.removeAll { $0.key == key }
+        lock.unlock()
+    }
+
+    func removeDisplaced(key: String, animation: CAAnimation) {
+        lock.lock()
+        entries.removeAll { $0.key == key && $0.animation === animation }
+        lock.unlock()
+    }
+
+    func snapshot() -> [CALayerAnimationEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries
+    }
+}
+
 // MARK: - CALayer
 
 open class CALayer: NSObject, CAMediaTiming {
@@ -171,9 +256,13 @@ open class CALayer: NSObject, CAMediaTiming {
     /// Apple's presentation/shadow-copy initializer: copies every model
     /// property when `layer` is a CALayer. Hierarchy (sublayers/superlayer)
     /// and in-flight animations are NOT copied, matching Apple's contract.
-    public init(layer: Any) {
+    public required init(layer: Any) {
         super.init()
         guard let other = layer as? CALayer else { return }
+        copyModelProperties(from: other)
+    }
+
+    private func copyModelProperties(from other: CALayer) {
         // Geometry
         bounds = other.bounds
         position = other.position
@@ -268,18 +357,15 @@ open class CALayer: NSObject, CAMediaTiming {
         return false
     }
 
-    /// Computed from bounds/position/anchorPoint per Apple's definition.
-    /// LIMITATION: `transform` is ignored — Apple folds the transform into
-    /// the returned frame; nothing consumes the transform on Linux yet.
-    /// (On Apple, setting frame with a non-identity transform is undefined.)
+    /// Computed from bounds/position/anchorPoint/transform per Apple's model:
+    /// it is the bounding box, in the superlayer coordinate space, of the
+    /// transformed bounds rectangle. Setting frame while `transform` is not the
+    /// identity remains undefined on Apple; the shim keeps the practical model
+    /// behavior of updating the untransformed bounds size and anchor-derived
+    /// position.
     open var frame: CGRect {
         get {
-            let size = bounds.size
-            return CGRect(
-                x: position.x - anchorPoint.x * size.width,
-                y: position.y - anchorPoint.y * size.height,
-                width: size.width,
-                height: size.height)
+            return CALayer.boundingBox(of: bounds, transformedBy: localToSuperlayerTransform(includeParentSublayerTransform: false))
         }
         set {
             bounds.size = newValue.size
@@ -379,44 +465,45 @@ open class CALayer: NSObject, CAMediaTiming {
 
     open var actions: [String: CAAction]?
 
-    open func addSublayer(_ layer: CALayer) {
-        layer.removeFromSuperlayer()
-        _sublayers.append(layer)
+    private func adoptDetachedSublayer(_ layer: CALayer, at index: Int) {
+        _sublayers.insert(layer, at: min(max(index, 0), _sublayers.count))
         layer.superlayer = self
         setNeedsLayout()
     }
 
-    open func insertSublayer(_ layer: CALayer, at idx: UInt32) {
+    private func adoptSublayer(_ layer: CALayer, at index: Int) {
         layer.removeFromSuperlayer()
-        let index = min(Int(idx), _sublayers.count)
-        _sublayers.insert(layer, at: index)
-        layer.superlayer = self
-        setNeedsLayout()
+        adoptDetachedSublayer(layer, at: index)
+    }
+
+    open func addSublayer(_ layer: CALayer) {
+        adoptSublayer(layer, at: _sublayers.count)
+    }
+
+    open func insertSublayer(_ layer: CALayer, at idx: UInt32) {
+        adoptSublayer(layer, at: Int(idx))
     }
 
     open func insertSublayer(_ layer: CALayer, below sibling: CALayer?) {
         layer.removeFromSuperlayer()
         if let sibling = sibling, let index = _sublayers.firstIndex(where: { $0 === sibling }) {
-            _sublayers.insert(layer, at: index)
+            adoptDetachedSublayer(layer, at: index)
         } else {
-            _sublayers.insert(layer, at: 0)
+            adoptDetachedSublayer(layer, at: 0)
         }
-        layer.superlayer = self
-        setNeedsLayout()
     }
 
     open func insertSublayer(_ layer: CALayer, above sibling: CALayer?) {
         layer.removeFromSuperlayer()
         if let sibling = sibling, let index = _sublayers.firstIndex(where: { $0 === sibling }) {
-            _sublayers.insert(layer, at: index + 1)
+            adoptDetachedSublayer(layer, at: index + 1)
         } else {
-            _sublayers.append(layer)
+            adoptDetachedSublayer(layer, at: _sublayers.count)
         }
-        layer.superlayer = self
-        setNeedsLayout()
     }
 
     open func replaceSublayer(_ oldLayer: CALayer, with newLayer: CALayer) {
+        guard oldLayer !== newLayer else { return }
         guard oldLayer.superlayer === self else { return }
         newLayer.removeFromSuperlayer()
         guard let index = _sublayers.firstIndex(where: { $0 === oldLayer }) else { return }
@@ -435,46 +522,55 @@ open class CALayer: NSObject, CAMediaTiming {
 
     // MARK: Coordinate conversion
     //
-    // LIMITATION: conversion ignores `transform`/`sublayerTransform` (nothing
-    // applies them yet) but DOES honor bounds.origin scroll offsets, so
-    // scroll-layer-style content offsets convert correctly. A nil layer
-    // argument means the root (absolute) coordinate space.
+    // A nil layer argument means the root (absolute) coordinate space. The
+    // transform chain maps each layer's bounds coordinates into its superlayer,
+    // including bounds.origin scroll offsets, anchor point, transform, and the
+    // parent sublayerTransform where one exists.
 
-    /// Offset from this layer's bounds space to the root coordinate space:
-    /// per hop, content shifts by frame.origin - bounds.origin.
-    private func absoluteOffset() -> CGPoint {
-        var x: CGFloat = 0
-        var y: CGFloat = 0
+    private func localToSuperlayerTransform(includeParentSublayerTransform: Bool) -> CATransform3D {
+        let size = bounds.size
+        var t = CATransform3DMakeTranslation(
+            -bounds.origin.x - anchorPoint.x * size.width,
+            -bounds.origin.y - anchorPoint.y * size.height,
+            -anchorPointZ)
+        t = CATransform3DConcat(t, transform)
+        if includeParentSublayerTransform, let parent = superlayer {
+            t = CATransform3DConcat(t, parent.sublayerTransform)
+        }
+        t = CATransform3DConcat(t, CATransform3DMakeTranslation(position.x, position.y, zPosition))
+        return t
+    }
+
+    private func localToRootTransform() -> CATransform3D {
+        var t = CATransform3DIdentity
         var node: CALayer? = self
         while let layer = node {
-            let frame = layer.frame
-            x += frame.origin.x - layer.bounds.origin.x
-            y += frame.origin.y - layer.bounds.origin.y
+            t = CATransform3DConcat(t, layer.localToSuperlayerTransform(includeParentSublayerTransform: true))
             node = layer.superlayer
         }
-        return CGPoint(x: x, y: y)
+        return t
     }
 
     open func convert(_ p: CGPoint, from l: CALayer?) -> CGPoint {
-        let from = l?.absoluteOffset() ?? .zero
-        let to = absoluteOffset()
-        return CGPoint(x: p.x + from.x - to.x, y: p.y + from.y - to.y)
+        let sourceToRoot = l?.localToRootTransform() ?? CATransform3DIdentity
+        let rootToSelf = CATransform3DInvert(localToRootTransform())
+        return CALayer.project(p, through: CATransform3DConcat(sourceToRoot, rootToSelf))
     }
 
     open func convert(_ p: CGPoint, to l: CALayer?) -> CGPoint {
-        let from = absoluteOffset()
-        let to = l?.absoluteOffset() ?? .zero
-        return CGPoint(x: p.x + from.x - to.x, y: p.y + from.y - to.y)
+        let selfToRoot = localToRootTransform()
+        let rootToTarget = CATransform3DInvert(l?.localToRootTransform() ?? CATransform3DIdentity)
+        return CALayer.project(p, through: CATransform3DConcat(selfToRoot, rootToTarget))
     }
 
     open func convert(_ r: CGRect, from l: CALayer?) -> CGRect {
-        let origin = convert(r.origin, from: l)
-        return CGRect(x: origin.x, y: origin.y, width: r.size.width, height: r.size.height)
+        let points = CALayer.corners(of: r).map { convert($0, from: l) }
+        return CALayer.boundingBox(of: points)
     }
 
     open func convert(_ r: CGRect, to l: CALayer?) -> CGRect {
-        let origin = convert(r.origin, to: l)
-        return CGRect(x: origin.x, y: origin.y, width: r.size.width, height: r.size.height)
+        let points = CALayer.corners(of: r).map { convert($0, to: l) }
+        return CALayer.boundingBox(of: points)
     }
 
     /// Identity on Linux: all layers share one clock. Speed/timeOffset time
@@ -501,10 +597,7 @@ open class CALayer: NSObject, CAMediaTiming {
     /// no sublayer claims it.
     open func hitTest(_ p: CGPoint) -> CALayer? {
         guard !isHidden else { return nil }
-        let frame = self.frame
-        let local = CGPoint(
-            x: p.x - frame.origin.x + bounds.origin.x,
-            y: p.y - frame.origin.y + bounds.origin.y)
+        let local = convert(p, from: superlayer)
         guard CALayer.rect(bounds, contains: local) else { return nil }
         for sublayer in _sublayers.reversed() {
             if let hit = sublayer.hitTest(local) {
@@ -519,6 +612,46 @@ open class CALayer: NSObject, CAMediaTiming {
         return p.x >= r.origin.x && p.y >= r.origin.y
             && p.x < r.origin.x + r.size.width
             && p.y < r.origin.y + r.size.height
+    }
+
+    private static func corners(of rect: CGRect) -> [CGPoint] {
+        [
+            CGPoint(x: rect.minX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.minY),
+            CGPoint(x: rect.maxX, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.maxY),
+        ]
+    }
+
+    private static func project(_ point: CGPoint, through t: CATransform3D) -> CGPoint {
+        let x = point.x
+        let y = point.y
+        let rx = x * t.m11 + y * t.m21 + t.m41
+        let ry = x * t.m12 + y * t.m22 + t.m42
+        let rw = x * t.m14 + y * t.m24 + t.m44
+        guard rw != 0, rw.isFinite else {
+            return CGPoint(x: rx, y: ry)
+        }
+        return CGPoint(x: rx / rw, y: ry / rw)
+    }
+
+    private static func boundingBox(of rect: CGRect, transformedBy t: CATransform3D) -> CGRect {
+        boundingBox(of: corners(of: rect).map { project($0, through: t) })
+    }
+
+    private static func boundingBox(of points: [CGPoint]) -> CGRect {
+        guard var minX = points.first?.x,
+              var minY = points.first?.y,
+              var maxX = points.first?.x,
+              var maxY = points.first?.y
+        else { return .zero }
+        for point in points.dropFirst() {
+            minX = Swift.min(minX, point.x)
+            minY = Swift.min(minY, point.y)
+            maxX = Swift.max(maxX, point.x)
+            maxY = Swift.max(maxY, point.y)
+        }
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 
     // MARK: Display bookkeeping
@@ -619,25 +752,16 @@ open class CALayer: NSObject, CAMediaTiming {
     // DispatchQueue.main and calls back into _animationDidComplete(key:) for
     // animations with isRemovedOnCompletion.
 
-    nonisolated(unsafe) private var animationEntries: [(key: String, animation: CAAnimation)] = []
-    private var animationKeyCounter: Int = 0
+    private let animationStore = CALayerAnimationStore()
 
     open func add(_ anim: CAAnimation, forKey key: String?) {
-        let usedKey: String
-        if let key = key {
-            usedKey = key
-            // Adding under an existing key replaces (and cancels) the old
-            // animation, per Apple.
-            if let index = animationEntries.firstIndex(where: { $0.key == usedKey }) {
-                let old = animationEntries.remove(at: index)
-                QuartzCoreAnimationEngine.didRemove(old.animation, forKey: old.key, from: self)
-            }
-        } else {
-            animationKeyCounter += 1
-            usedKey = "quill.animation.\(animationKeyCounter)"
+        let result = animationStore.add(anim, forKey: key)
+        // Adding under an existing key replaces (and cancels) the old
+        // animation, per Apple.
+        if let old = result.replaced {
+            QuartzCoreAnimationEngine.didRemove(old.animation, forKey: old.key, from: self)
         }
-        animationEntries.append((key: usedKey, animation: anim))
-        QuartzCoreAnimationEngine.didAdd(anim, forKey: usedKey, to: self)
+        QuartzCoreAnimationEngine.didAdd(anim, forKey: result.usedKey, to: self)
     }
 
     /// Non-Apple convenience kept for existing QuillUI call sites.
@@ -647,24 +771,20 @@ open class CALayer: NSObject, CAMediaTiming {
     }
 
     open func animation(forKey key: String) -> CAAnimation? {
-        return animationEntries.first(where: { $0.key == key })?.animation
+        return animationStore.animation(forKey: key)
     }
 
     open func animationKeys() -> [String]? {
-        guard !animationEntries.isEmpty else { return nil }
-        return animationEntries.map { $0.key }
+        return animationStore.keys()
     }
 
     open func removeAnimation(forKey key: String) {
-        guard let index = animationEntries.firstIndex(where: { $0.key == key }) else { return }
-        let entry = animationEntries.remove(at: index)
+        guard let entry = animationStore.remove(forKey: key) else { return }
         QuartzCoreAnimationEngine.didRemove(entry.animation, forKey: entry.key, from: self)
     }
 
     open func removeAllAnimations() {
-        let entries = animationEntries
-        animationEntries.removeAll()
-        for entry in entries {
+        for entry in animationStore.removeAll() {
             QuartzCoreAnimationEngine.didRemove(entry.animation, forKey: entry.key, from: self)
         }
     }
@@ -673,7 +793,7 @@ open class CALayer: NSObject, CAMediaTiming {
     /// finished. Drops only the bookkeeping entry; must NOT re-enter the
     /// engine (the engine already knows it completed).
     internal func _animationDidComplete(key: String) {
-        animationEntries.removeAll { $0.key == key }
+        animationStore.removeCompleted(key: key)
     }
 
     /// Engine → layer: this animation OBJECT was re-added elsewhere (Apple
@@ -682,7 +802,7 @@ open class CALayer: NSObject, CAMediaTiming {
     /// reporting it, and deinit must not cancel the new owner's schedule.
     /// Identity-checked so a same-key replace never strips a fresh entry.
     internal func _animationWasDisplaced(key: String, animation: CAAnimation) {
-        animationEntries.removeAll { $0.key == key && $0.animation === animation }
+        animationStore.removeDisplaced(key: key, animation: animation)
     }
 
     deinit {
@@ -695,19 +815,20 @@ open class CALayer: NSObject, CAMediaTiming {
         // owns — an animation object re-added to ANOTHER layer must keep
         // running there (the engine re-keyed it to the new owner).
         let ownership = ObjectIdentifier(self)
-        for entry in animationEntries {
+        for entry in animationStore.snapshot() {
             QuartzCoreAnimationEngine.cancelForLayerDeinit(entry.animation, ownedBy: ownership)
         }
-        animationEntries.removeAll()
+        _ = animationStore.removeAll()
     }
 
     // MARK: Presentation / model
 
-    /// Model == presentation on Linux: with no render server there are no
-    /// interpolated in-flight values to snapshot, so the model layer itself
-    /// is returned. (Apple returns a copy with animated values applied.)
+    /// Returns a distinct model-value snapshot. With no render server there
+    /// are not yet interpolated in-flight values to sample, but callers relying
+    /// on Apple's "presentation layer is a separate layer object" behavior get
+    /// the right ownership and subclass shape.
     open func presentation() -> Self? {
-        return self
+        return Self(layer: self)
     }
 
     open func model() -> Self {
@@ -777,7 +898,7 @@ open class CALayer: NSObject, CAMediaTiming {
     open var autoreverses: Bool = false
     open var fillMode: CAMediaTimingFillMode = .removed
 
-    fileprivate static func scalar(_ value: Any?) -> CGFloat? {
+    internal static func scalar(_ value: Any?) -> CGFloat? {
         if let n = value as? NSNumber { return CGFloat(n.doubleValue) }
         if let v = value as? CGFloat { return v }
         if let v = value as? Double { return CGFloat(v) }
@@ -786,10 +907,21 @@ open class CALayer: NSObject, CAMediaTiming {
         return nil
     }
 
-    fileprivate static func boolean(_ value: Any?) -> Bool? {
+    internal static func boolean(_ value: Any?) -> Bool? {
         if let n = value as? NSNumber { return n.boolValue }
         if let b = value as? Bool { return b }
         return nil
+    }
+
+    /// Subclasses override these hooks to extend mini-KVC while keeping the
+    /// base CALayer protocol witness centralized in this file.
+    open func quillValueForSubclassKey(_ key: String) -> Any? {
+        return nil
+    }
+
+    @discardableResult
+    open func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        return false
     }
 }
 
@@ -821,7 +953,7 @@ extension CALayer: QuillKeyValueCoding {
         case "hidden": return NSNumber(value: isHidden)
         case "shadowOpacity": return NSNumber(value: shadowOpacity)
         case "shadowRadius": return NSNumber(value: Double(shadowRadius))
-        default: return nil
+        default: return quillValueForSubclassKey(key)
         }
     }
 
@@ -895,7 +1027,7 @@ extension CALayer: QuillKeyValueCoding {
         case "shadowRadius":
             if let v = CALayer.scalar(value) { shadowRadius = v }
         default:
-            break // Unknown key: deliberate no-op (no exception machinery).
+            _ = quillSetValue(value, forSubclassKey: key)
         }
     }
 

@@ -298,6 +298,10 @@ public final class AVAudioSession: @unchecked Sendable {
     public override init() {
         super.init()
     }
+
+    public required init(layer: Any) {
+        super.init(layer: layer)
+    }
 }
 
 public enum AVPlayerAudiovisualBackgroundPlaybackPolicy: Sendable {
@@ -626,6 +630,20 @@ open class AVSampleBufferDisplayLayer: CALayer, @preconcurrency AVQueuedSampleBu
     public var isReadyForMoreMediaData: Bool = true
     public var status: AVQueuedSampleBufferRenderingStatus = .unknown
     public var sampleBufferRenderer: AVQueuedSampleBufferRendering { self }
+
+    public override init() {
+        super.init()
+    }
+
+    public required init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? AVSampleBufferDisplayLayer else { return }
+        controlTimebase = other.controlTimebase
+        videoGravity = other.videoGravity
+        preventsCapture = other.preventsCapture
+        isReadyForMoreMediaData = other.isReadyForMoreMediaData
+        status = other.status
+    }
 
     public func enqueue(_ sampleBuffer: CMSampleBuffer) {}
     public func flush() {}

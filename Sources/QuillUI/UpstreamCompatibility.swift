@@ -205,9 +205,8 @@ public enum TextSelectability: Sendable {
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
 
 // `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
-// live in `QuillSwiftUICompatibility`, which both `QuillUI` and
-// the Linux `SwiftUI` shadow re-export. Keeping one defining
-// module avoids ambiguous uses in code that imports both modules.
+// are native SwiftOpenUI cases; renderer/layout backends currently
+// approximate them as top/bottom until text baseline metrics land.
 
 public extension GridItem.Size {
     static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {

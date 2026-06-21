@@ -37,45 +37,92 @@ struct NSOutlineViewTreeTests {
         }
     }
 
-    private func makeOutline() -> NSOutlineView {
+    final class GroupDelegate: NSObject, NSOutlineViewDelegate {
+        func outlineView(_ outlineView: NSOutlineView, isGroupItem item: Any) -> Bool {
+            (item as? String) == "A"
+        }
+    }
+
+    private struct OutlineFixture {
+        let outline: NSOutlineView
+        let source: NestedTreeSource
+    }
+
+    private func makeOutline() -> OutlineFixture {
         let ov = NSOutlineView()
-        ov.dataSource = NestedTreeSource()
+        let source = NestedTreeSource()
+        ov.dataSource = source
         ov.reloadData()
-        return ov
+        return OutlineFixture(outline: ov, source: source)
     }
 
     @Test("nested expansion reveals deeper levels in order")
     func nestedExpansion() {
-        let ov = makeOutline()
-        #expect(ov.numberOfRows == 2)                       // A, B
-        ov.expandItem("A"); ov.reloadData()
-        #expect(ov.numberOfRows == 4)                       // A, A1, A2, B
-        ov.expandItem("A1"); ov.reloadData()
-        #expect(ov.numberOfRows == 5)                       // A, A1, A1a, A2, B
-        #expect(ov.item(atRow: 2) as? String == "A1a")
-        #expect(ov.level(forRow: 2) == 2)
+        let fixture = makeOutline()
+        withExtendedLifetime(fixture.source) {
+            let ov = fixture.outline
+            #expect(ov.numberOfRows == 2)                       // A, B
+            ov.expandItem("A"); ov.reloadData()
+            #expect(ov.numberOfRows == 4)                       // A, A1, A2, B
+            ov.expandItem("A1"); ov.reloadData()
+            #expect(ov.numberOfRows == 5)                       // A, A1, A1a, A2, B
+            #expect(ov.item(atRow: 2) as? String == "A1a")
+            #expect(ov.level(forRow: 2) == 2)
+        }
     }
 
     @Test("collapsing a node preserves its children's expanded state")
     func collapsePreservesChildState() {
-        let ov = makeOutline()
-        ov.expandItem("A"); ov.expandItem("A1"); ov.reloadData()
-        #expect(ov.numberOfRows == 5)
-        ov.collapseItem("A"); ov.reloadData()
-        #expect(ov.numberOfRows == 2)                       // A, B
-        #expect(ov.isItemExpanded("A1"))                    // A1's state preserved
-        ov.expandItem("A"); ov.reloadData()
-        #expect(ov.numberOfRows == 5)                       // A1 comes back already-expanded
+        let fixture = makeOutline()
+        withExtendedLifetime(fixture.source) {
+            let ov = fixture.outline
+            ov.expandItem("A"); ov.expandItem("A1"); ov.reloadData()
+            #expect(ov.numberOfRows == 5)
+            ov.collapseItem("A"); ov.reloadData()
+            #expect(ov.numberOfRows == 2)                       // A, B
+            #expect(ov.isItemExpanded("A1"))                    // A1's state preserved
+            ov.expandItem("A"); ov.reloadData()
+            #expect(ov.numberOfRows == 5)                       // A1 comes back already-expanded
+        }
     }
 
     @Test("collapseChildren collapses descendants too")
     func collapseChildrenCollapsesDescendants() {
-        let ov = makeOutline()
-        ov.expandItem("A"); ov.expandItem("A1"); ov.reloadData()
-        #expect(ov.numberOfRows == 5)
-        ov.collapseItem("A", collapseChildren: true); ov.reloadData()
-        #expect(!ov.isItemExpanded("A1"))
-        ov.expandItem("A"); ov.reloadData()
-        #expect(ov.numberOfRows == 4)                       // A, A1, A2, B — A1a stays hidden
+        let fixture = makeOutline()
+        withExtendedLifetime(fixture.source) {
+            let ov = fixture.outline
+            ov.expandItem("A"); ov.expandItem("A1"); ov.reloadData()
+            #expect(ov.numberOfRows == 5)
+            ov.collapseItem("A", collapseChildren: true); ov.reloadData()
+            #expect(!ov.isItemExpanded("A1"))
+            ov.expandItem("A"); ov.reloadData()
+            #expect(ov.numberOfRows == 4)                       // A, A1, A2, B — A1a stays hidden
+        }
+    }
+
+    @Test("selectedItems, group lookup, row size, and removeItems mirror AppKit model behavior")
+    func selectionAndItemRemoval() {
+        let fixture = makeOutline()
+        let delegate = GroupDelegate()
+        withExtendedLifetime((fixture.source, delegate)) {
+            let ov = fixture.outline
+            ov.delegate = delegate
+            ov.allowsMultipleSelection = true
+            ov.rowSizeStyle = .large
+            ov.expandItem("A")
+            ov.reloadData()
+
+            #expect(ov.effectiveRowSizeStyle == .large)
+            #expect(ov.isGroupItem("A"))
+            #expect(!ov.isGroupItem("A1"))
+
+            ov.selectRowIndexes(IndexSet([1, 2]), byExtendingSelection: false)
+            #expect(ov.selectedItems.compactMap { $0 as? String } == ["A1", "A2"])
+
+            ov.removeItems(at: IndexSet(integer: 0), inParent: "A", withAnimation: .slideDown)
+            #expect(ov.numberOfRows == 3)
+            #expect(ov.row(forItem: "A1") == -1)
+            #expect(ov.item(atRow: 1) as? String == "A2")
+        }
     }
 }

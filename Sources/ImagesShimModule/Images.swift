@@ -3,6 +3,13 @@ import Articles
 import NNWAccount  // NNW's Account target (bare "Account" is the IceCubes lane)
 import RSCore
 
+public extension Notification.Name {
+    static let imageDidBecomeAvailable = Notification.Name("ImageDidBecomeAvailableNotification")
+    static let FaviconDidBecomeAvailable = Notification.Name("FaviconDidBecomeAvailableNotification")
+    static let AvatarDidBecomeAvailable = Notification.Name("AvatarDidBecomeAvailableNotification")
+    static let feedIconDidBecomeAvailable = Notification.Name("FeedIconDidBecomeAvailable")
+}
+
 extension RSImage {
     public static let maxIconPixelSize = Int(ceil(48.0 * RSScreen.maxScreenScale))
 }
@@ -195,5 +202,20 @@ public enum IconSize: Int, CaseIterable, Sendable {
 
     public func emptyCache() {
         iconsByAuthor.removeAll()
+    }
+}
+
+@MainActor public final class ImageMetadataDatabase {
+    public static let shared = ImageMetadataDatabase()
+
+    public let databasePath = AppConfig.dataFolder.appendingPathComponent("ImageMetadata.db").path
+    private var vacuumCount = 0
+
+    public func vacuum() {
+        vacuumCount += 1
+    }
+
+    public func quillVacuumCount() -> Int {
+        vacuumCount
     }
 }

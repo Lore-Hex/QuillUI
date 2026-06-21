@@ -106,7 +106,7 @@ open class CAShapeLayer: CALayer {
     /// Apple's built-in subclasses copy their own state in init(layer:) —
     /// the contract custom subclasses rely on when they override it and
     /// call super.
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CAShapeLayer else { return }
         path = other.path
@@ -121,6 +121,59 @@ open class CAShapeLayer: CALayer {
         lineJoin = other.lineJoin
         lineDashPhase = other.lineDashPhase
         lineDashPattern = other.lineDashPattern
+    }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "path": return path
+        case "fillColor": return fillColor
+        case "fillRule": return fillRule
+        case "strokeColor": return strokeColor
+        case "strokeStart": return NSNumber(value: Double(strokeStart))
+        case "strokeEnd": return NSNumber(value: Double(strokeEnd))
+        case "lineWidth": return NSNumber(value: Double(lineWidth))
+        case "miterLimit": return NSNumber(value: Double(miterLimit))
+        case "lineCap": return lineCap
+        case "lineJoin": return lineJoin
+        case "lineDashPhase": return NSNumber(value: Double(lineDashPhase))
+        case "lineDashPattern": return lineDashPattern
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "path":
+            path = value as? CGPath
+        case "fillColor":
+            fillColor = value is NSNull ? nil : value as? CGColor
+        case "fillRule":
+            if let v = value as? CAShapeLayerFillRule { fillRule = v }
+            else if let raw = value as? String { fillRule = CAShapeLayerFillRule(rawValue: raw) }
+        case "strokeColor":
+            strokeColor = value is NSNull ? nil : value as? CGColor
+        case "strokeStart":
+            if let v = CALayer.scalar(value) { strokeStart = v }
+        case "strokeEnd":
+            if let v = CALayer.scalar(value) { strokeEnd = v }
+        case "lineWidth":
+            if let v = CALayer.scalar(value) { lineWidth = v }
+        case "miterLimit":
+            if let v = CALayer.scalar(value) { miterLimit = v }
+        case "lineCap":
+            if let v = value as? CAShapeLayerLineCap { lineCap = v }
+            else if let raw = value as? String { lineCap = CAShapeLayerLineCap(rawValue: raw) }
+        case "lineJoin":
+            if let v = value as? CAShapeLayerLineJoin { lineJoin = v }
+            else if let raw = value as? String { lineJoin = CAShapeLayerLineJoin(rawValue: raw) }
+        case "lineDashPhase":
+            if let v = CALayer.scalar(value) { lineDashPhase = v }
+        case "lineDashPattern":
+            lineDashPattern = value as? [NSNumber]
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
     }
 }
 
@@ -165,7 +218,7 @@ open class CAGradientLayer: CALayer {
 
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CAGradientLayer else { return }
         colors = other.colors
@@ -173,6 +226,36 @@ open class CAGradientLayer: CALayer {
         startPoint = other.startPoint
         endPoint = other.endPoint
         type = other.type
+    }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "colors": return colors
+        case "locations": return locations
+        case "startPoint": return startPoint
+        case "endPoint": return endPoint
+        case "type": return type
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "colors":
+            colors = value as? [Any]
+        case "locations":
+            locations = value as? [NSNumber]
+        case "startPoint":
+            if let v = value as? CGPoint { startPoint = v }
+        case "endPoint":
+            if let v = value as? CGPoint { endPoint = v }
+        case "type":
+            if let v = value as? CAGradientLayerType { type = v }
+            else if let raw = value as? String { type = CAGradientLayerType(rawValue: raw) }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
     }
 }
 
@@ -244,7 +327,7 @@ open class CATextLayer: CALayer {
 
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CATextLayer else { return }
         string = other.string
@@ -256,6 +339,46 @@ open class CATextLayer: CALayer {
         alignmentMode = other.alignmentMode
         allowsFontSubpixelQuantization = other.allowsFontSubpixelQuantization
     }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "string": return string
+        case "font": return font
+        case "fontSize": return NSNumber(value: Double(fontSize))
+        case "foregroundColor": return foregroundColor
+        case "wrapped", "isWrapped": return NSNumber(value: isWrapped)
+        case "truncationMode": return truncationMode
+        case "alignmentMode": return alignmentMode
+        case "allowsFontSubpixelQuantization": return NSNumber(value: allowsFontSubpixelQuantization)
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "string":
+            string = value is NSNull ? nil : value
+        case "font":
+            font = value is NSNull ? nil : value
+        case "fontSize":
+            if let v = CALayer.scalar(value) { fontSize = v }
+        case "foregroundColor":
+            foregroundColor = value is NSNull ? nil : value as? CGColor
+        case "wrapped", "isWrapped":
+            if let v = CALayer.boolean(value) { isWrapped = v }
+        case "truncationMode":
+            if let v = value as? CATextLayerTruncationMode { truncationMode = v }
+            else if let raw = value as? String { truncationMode = CATextLayerTruncationMode(rawValue: raw) }
+        case "alignmentMode":
+            if let v = value as? CATextLayerAlignmentMode { alignmentMode = v }
+            else if let raw = value as? String { alignmentMode = CATextLayerAlignmentMode(rawValue: raw) }
+        case "allowsFontSubpixelQuantization":
+            if let v = CALayer.boolean(value) { allowsFontSubpixelQuantization = v }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
+    }
 }
 
 // MARK: - CAEmitterCell
@@ -265,10 +388,8 @@ open class CATextLayer: CALayer {
 /// Model-only on Linux today: the Apple-typed parameter set is stored so
 /// particle configurations survive round-trips and animation key paths
 /// resolve; QuillPaint's particle pass will simulate/draw them later.
-/// Known gap: Apple's CAEmitterCell also conforms to CAMediaTiming
-/// (beginTime/duration scheduling of cells); not modeled here yet.
 /// `open` (matching Apple) — the previous shim's `final` broke subclassers.
-open class CAEmitterCell: NSObject {
+open class CAEmitterCell: NSObject, CAMediaTiming {
     open var name: String?
 
     /// The particle image (a CGImage on Apple). Typed `Any?` per Apple.
@@ -328,6 +449,15 @@ open class CAEmitterCell: NSObject {
 
     /// Cell style dictionary, per Apple's surface. Stored, not interpreted.
     open var style: [AnyHashable: Any]?
+
+    open var beginTime: CFTimeInterval = 0
+    open var duration: CFTimeInterval = 0
+    open var speed: Float = 1
+    open var timeOffset: CFTimeInterval = 0
+    open var repeatCount: Float = 0
+    open var repeatDuration: CFTimeInterval = 0
+    open var autoreverses: Bool = false
+    open var fillMode: CAMediaTimingFillMode = .removed
 }
 
 // MARK: - CAEmitterLayer string constants
@@ -412,7 +542,7 @@ open class CAEmitterLayer: CALayer {
 
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CAEmitterLayer else { return }
         emitterCells = other.emitterCells
@@ -430,6 +560,69 @@ open class CAEmitterLayer: CALayer {
         scale = other.scale
         spin = other.spin
         seed = other.seed
+    }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "emitterCells": return emitterCells
+        case "emitterPosition": return emitterPosition
+        case "emitterZPosition": return NSNumber(value: Double(emitterZPosition))
+        case "emitterSize": return emitterSize
+        case "emitterDepth": return NSNumber(value: Double(emitterDepth))
+        case "emitterShape": return emitterShape
+        case "emitterMode": return emitterMode
+        case "renderMode": return renderMode
+        case "preservesDepth": return NSNumber(value: preservesDepth)
+        case "birthRate": return NSNumber(value: birthRate)
+        case "lifetime": return NSNumber(value: lifetime)
+        case "velocity": return NSNumber(value: velocity)
+        case "scale": return NSNumber(value: scale)
+        case "spin": return NSNumber(value: spin)
+        case "seed": return NSNumber(value: seed)
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "emitterCells":
+            emitterCells = value as? [CAEmitterCell]
+        case "emitterPosition":
+            if let v = value as? CGPoint { emitterPosition = v }
+        case "emitterZPosition":
+            if let v = CALayer.scalar(value) { emitterZPosition = v }
+        case "emitterSize":
+            if let v = value as? CGSize { emitterSize = v }
+        case "emitterDepth":
+            if let v = CALayer.scalar(value) { emitterDepth = v }
+        case "emitterShape":
+            if let v = value as? CAEmitterLayerEmitterShape { emitterShape = v }
+            else if let raw = value as? String { emitterShape = CAEmitterLayerEmitterShape(rawValue: raw) }
+        case "emitterMode":
+            if let v = value as? CAEmitterLayerEmitterMode { emitterMode = v }
+            else if let raw = value as? String { emitterMode = CAEmitterLayerEmitterMode(rawValue: raw) }
+        case "renderMode":
+            if let v = value as? CAEmitterLayerRenderMode { renderMode = v }
+            else if let raw = value as? String { renderMode = CAEmitterLayerRenderMode(rawValue: raw) }
+        case "preservesDepth":
+            if let v = CALayer.boolean(value) { preservesDepth = v }
+        case "birthRate":
+            if let v = CALayer.scalar(value) { birthRate = Float(v) }
+        case "lifetime":
+            if let v = CALayer.scalar(value) { lifetime = Float(v) }
+        case "velocity":
+            if let v = CALayer.scalar(value) { velocity = Float(v) }
+        case "scale":
+            if let v = CALayer.scalar(value) { scale = Float(v) }
+        case "spin":
+            if let v = CALayer.scalar(value) { spin = Float(v) }
+        case "seed":
+            if let n = value as? NSNumber { seed = n.uint32Value }
+            else if let v = value as? UInt32 { seed = v }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
     }
 }
 
@@ -467,7 +660,7 @@ open class CAReplicatorLayer: CALayer {
 
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CAReplicatorLayer else { return }
         instanceCount = other.instanceCount
@@ -480,6 +673,49 @@ open class CAReplicatorLayer: CALayer {
         instanceBlueOffset = other.instanceBlueOffset
         instanceAlphaOffset = other.instanceAlphaOffset
     }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "instanceCount": return NSNumber(value: instanceCount)
+        case "instanceDelay": return NSNumber(value: instanceDelay)
+        case "instanceTransform": return instanceTransform
+        case "preservesDepth": return NSNumber(value: preservesDepth)
+        case "instanceColor": return instanceColor
+        case "instanceRedOffset": return NSNumber(value: instanceRedOffset)
+        case "instanceGreenOffset": return NSNumber(value: instanceGreenOffset)
+        case "instanceBlueOffset": return NSNumber(value: instanceBlueOffset)
+        case "instanceAlphaOffset": return NSNumber(value: instanceAlphaOffset)
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "instanceCount":
+            if let n = value as? NSNumber { instanceCount = n.intValue }
+            else if let v = value as? Int { instanceCount = v }
+        case "instanceDelay":
+            if let v = CALayer.scalar(value) { instanceDelay = CFTimeInterval(v) }
+        case "instanceTransform":
+            if let v = value as? CATransform3D { instanceTransform = v }
+            else if let boxed = value as? NSValue { instanceTransform = boxed.caTransform3DValue }
+        case "preservesDepth":
+            if let v = CALayer.boolean(value) { preservesDepth = v }
+        case "instanceColor":
+            instanceColor = value is NSNull ? nil : value as? CGColor
+        case "instanceRedOffset":
+            if let v = CALayer.scalar(value) { instanceRedOffset = Float(v) }
+        case "instanceGreenOffset":
+            if let v = CALayer.scalar(value) { instanceGreenOffset = Float(v) }
+        case "instanceBlueOffset":
+            if let v = CALayer.scalar(value) { instanceBlueOffset = Float(v) }
+        case "instanceAlphaOffset":
+            if let v = CALayer.scalar(value) { instanceAlphaOffset = Float(v) }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
+    }
 }
 
 // MARK: - CATransformLayer
@@ -490,7 +726,7 @@ open class CAReplicatorLayer: CALayer {
 open class CATransformLayer: CALayer {
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
     }
 }
@@ -522,7 +758,7 @@ open class CAScrollLayer: CALayer {
 
     public override init() { super.init() }
 
-    public override init(layer: Any) {
+    public required init(layer: Any) {
         super.init(layer: layer)
         guard let other = layer as? CAScrollLayer else { return }
         scrollMode = other.scrollMode
@@ -531,10 +767,39 @@ open class CAScrollLayer: CALayer {
     /// Scrolls so that `p` becomes the bounds origin.
     open func scroll(to p: CGPoint) { bounds.origin = p }
 
-    /// Scrolls so that `r`'s origin becomes the bounds origin. (Apple
-    /// scrolls minimally to make `r` visible; the shim uses the simple,
-    /// deterministic model until visibility is renderer-defined.)
-    open func scroll(to r: CGRect) { bounds.origin = r.origin }
+    /// Scrolls minimally so `r` becomes visible inside the current bounds.
+    open func scroll(to r: CGRect) {
+        var origin = bounds.origin
+        if r.minX < bounds.minX {
+            origin.x = r.minX
+        } else if r.maxX > bounds.maxX {
+            origin.x = r.maxX - bounds.width
+        }
+        if r.minY < bounds.minY {
+            origin.y = r.minY
+        } else if r.maxY > bounds.maxY {
+            origin.y = r.maxY - bounds.height
+        }
+        bounds.origin = origin
+    }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "scrollMode": return scrollMode
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "scrollMode":
+            if let v = value as? CAScrollLayerScrollMode { scrollMode = v }
+            else if let raw = value as? String { scrollMode = CAScrollLayerScrollMode(rawValue: raw) }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
+    }
 }
 
 // MARK: - CAMetalLayer
@@ -552,6 +817,19 @@ open class CAMetalLayer: CALayer {
     open var framebufferOnly: Bool = true
     open var presentsWithTransaction: Bool = false
     open var drawableSize: CGSize = CGSize(width: 1, height: 1)
+
+    public override init() { super.init() }
+
+    public required init(layer: Any) {
+        super.init(layer: layer)
+        guard let other = layer as? CAMetalLayer else { return }
+        device = other.device
+        pixelFormat = other.pixelFormat
+        framebufferOnly = other.framebufferOnly
+        presentsWithTransaction = other.presentsWithTransaction
+        drawableSize = other.drawableSize
+    }
+
     open func nextDrawable() -> CAMetalDrawable? {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: pixelFormat,
@@ -561,5 +839,31 @@ open class CAMetalLayer: CALayer {
         )
         let texture = device?.makeTexture(descriptor: descriptor) ?? QuillMTLTexture(descriptor: descriptor)
         return QuillMetalDrawable(texture: texture)
+    }
+
+    open override func quillValueForSubclassKey(_ key: String) -> Any? {
+        switch key {
+        case "pixelFormat": return pixelFormat
+        case "framebufferOnly": return NSNumber(value: framebufferOnly)
+        case "presentsWithTransaction": return NSNumber(value: presentsWithTransaction)
+        case "drawableSize": return drawableSize
+        default: return super.quillValueForSubclassKey(key)
+        }
+    }
+
+    open override func quillSetValue(_ value: Any?, forSubclassKey key: String) -> Bool {
+        switch key {
+        case "pixelFormat":
+            if let v = value as? MTLPixelFormat { pixelFormat = v }
+        case "framebufferOnly":
+            if let v = CALayer.boolean(value) { framebufferOnly = v }
+        case "presentsWithTransaction":
+            if let v = CALayer.boolean(value) { presentsWithTransaction = v }
+        case "drawableSize":
+            if let v = value as? CGSize { drawableSize = v }
+        default:
+            return super.quillSetValue(value, forSubclassKey: key)
+        }
+        return true
     }
 }

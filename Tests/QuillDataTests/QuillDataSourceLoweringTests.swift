@@ -366,8 +366,17 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(wrapper.contains("SCRATCH_PATH=\".build-linux\""))
         #expect(wrapper.contains("--scratch-path=*"))
+        #expect(wrapper.contains("--nnw-upstream"))
+        #expect(wrapper.contains("export QUILLUI_NNW_UPSTREAM=1"))
+        #expect(wrapper.contains("NetNewsWire upstream tests are outside the default Linux package graph."))
+        #expect(wrapper.contains("NetNewsWireMacCoreTests"))
+        #expect(wrapper.contains("NetNewsWireSharedCoreTests"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+        #expect(wrapper.contains("QUILLUI_SWIFT_TEST_USE_LLD"))
+        #expect(wrapper.contains("-use-ld=lld"))
+        #expect(wrapper.contains("QUILLUI_SWIFT_TEST_DISABLE_INDEX_STORE"))
+        #expect(wrapper.contains("--disable-index-store"))
         // The wrapper builds the test bundle first (untimed) then runs it with
         // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
         // wedge the CI step. Both invocations pass the scratch path through.
@@ -440,6 +449,10 @@ struct QuillDataSourceLoweringTests {
         #expect(manifest.contains("dependencies: quillWireGuardCoreDependencies"))
         #expect(manifest.contains("dependencies: quillWireGuardUIDependencies"))
         #expect(manifest.contains("dependencies: quillWireGuardQtDependencies"))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.Downloader.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerConnection.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerLauncher.xpc\""))
+        #expect(manifest.contains("\"Resources/org.sparkle-project.InstallerStatus.xpc\""))
     }
 
     @Test("visual smoke exposes opt-in Mac reference landmarks")

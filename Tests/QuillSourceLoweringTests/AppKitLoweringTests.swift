@@ -16,6 +16,22 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("func buttonClicked()"))
     }
 
+    @Test("@IBAction methods are stripped and included in target-action dispatch")
+    func ibactionMethodsDispatch() {
+        let source = """
+        class TimelineViewController: NSViewController {
+            @IBAction func copy(_ sender: Any?) {}
+            @IBAction func selectNextDown(_ sender: Any?) {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("@IBAction"))
+        #expect(lowered.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(lowered.contains(#"case "copy(_:)": copy(sender)"#))
+        #expect(lowered.contains(#"case "selectNextDown(_:)": selectNextDown(sender)"#))
+        #expect(lowered.contains("default: super.quillPerform(selector, with: sender)"))
+    }
+
     @Test("Panel manager-style AppKit source strips Objective-C attributes")
     func panelManagerObjCAttributesStrip() {
         let source = """
@@ -387,6 +403,30 @@ struct AppKitLoweringTests {
         #expect(loweredSub.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
         #expect(!loweredSub.contains("QuillSelectorDispatching"))
         #expect(loweredSub.contains("default: super.quillPerform(selector, with: sender)"))
+    }
+
+    @Test("Cross-file: @IBAction base action gives subclass an override witness")
+    func injectsOverrideThroughCrossFileIBActionBase() throws {
+        let tmp = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("appkit-ibaction-hier-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        let baseURL = tmp.appendingPathComponent("Base.swift")
+        let subURL = tmp.appendingPathComponent("Sub.swift")
+        try "class Base: NSObject { @IBAction func copy(_ sender: Any?) {} }"
+            .write(to: baseURL, atomically: true, encoding: .utf8)
+        try "class Sub: Base { @IBAction func selectNextDown(_ sender: Any?) {} }"
+            .write(to: subURL, atomically: true, encoding: .utf8)
+
+        _ = try AppKitLowering().lowerInPlace(sourceDir: tmp)
+        let loweredBase = try String(contentsOf: baseURL, encoding: .utf8)
+        let loweredSub = try String(contentsOf: subURL, encoding: .utf8)
+
+        #expect(loweredBase.contains("class Base: NSObject, QuillSelectorDispatching"))
+        #expect(loweredBase.contains(#"case "copy(_:)": copy(sender)"#))
+        #expect(loweredSub.contains("public override func quillPerform(_ selector: Selector, with sender: Any?)"))
+        #expect(loweredSub.contains(#"case "selectNextDown(_:)": selectNextDown(sender)"#))
+        #expect(!loweredSub.contains("QuillSelectorDispatching"))
     }
 
     @Test("Sender param casts: Any? passes through, AnyObject? optional-casts, AnyObject force-casts")

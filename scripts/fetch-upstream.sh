@@ -1869,6 +1869,238 @@ public enum CloudKitStatsError: LocalizedError {
     }
 }
 
+public enum CloudKitStatsFetchStatus {
+    case idle
+    case fetching
+    case completed
+    case canceled
+    case error(Error)
+
+    public var isFetching: Bool {
+        if case .fetching = self {
+            return true
+        }
+        return false
+    }
+
+    public var isCompleted: Bool {
+        if case .completed = self {
+            return true
+        }
+        return false
+    }
+
+    public var fetchError: Error? {
+        if case .error(let error) = self {
+            return error
+        }
+        return nil
+    }
+}
+
+public enum CloudKitCleanUpStatus {
+    case idle
+    case cleaning(CloudKitCleanUpProgress)
+    case completed(CloudKitCleanUpProgress)
+    case canceled(CloudKitCleanUpProgress)
+    case error(Error)
+
+    public var isCleaning: Bool {
+        if case .cleaning = self {
+            return true
+        }
+        return false
+    }
+
+    public var isCompleted: Bool {
+        if case .completed = self {
+            return true
+        }
+        return false
+    }
+
+    public var isCanceled: Bool {
+        if case .canceled = self {
+            return true
+        }
+        return false
+    }
+
+    public var progress: CloudKitCleanUpProgress? {
+        switch self {
+        case .cleaning(let progress), .completed(let progress), .canceled(let progress):
+            return progress
+        case .idle, .error:
+            return nil
+        }
+    }
+
+    public var isActive: Bool {
+        switch self {
+        case .idle:
+            return false
+        case .cleaning, .completed, .canceled, .error:
+            return true
+        }
+    }
+
+    public var cleanUpError: Error? {
+        if case .error(let error) = self {
+            return error
+        }
+        return nil
+    }
+}
+
+@MainActor public final class CloudKitStatsViewModel {
+    public var stats = CloudKitStats.empty {
+        didSet {
+            onChange?()
+        }
+    }
+
+    public var fetchStatus = CloudKitStatsFetchStatus.idle {
+        didSet {
+            onChange?()
+        }
+    }
+
+    public var cleanUpStatus = CloudKitCleanUpStatus.idle {
+        didSet {
+            onChange?()
+        }
+    }
+
+    public var onChange: (() -> Void)?
+    public private(set) var cleanUpPlanIsStale = false
+
+    private var fetchTask: Task<Void, Never>?
+    private var fetchSerialNumber = 0
+    private var cleanUpTask: Task<Void, Never>?
+
+    public var cleanUpPlan: CloudKitCleanUpPlan {
+        let syncUnreadContent = AccountManager.shared.syncArticleContentForUnreadArticles
+        return stats.cleanUpPlan(syncUnreadContent: syncUnreadContent)
+    }
+
+    public var canCleanUp: Bool {
+        fetchStatus.isCompleted && (cleanUpPlanIsStale || !cleanUpPlan.isEmpty) && !cleanUpStatus.isCleaning
+    }
+
+    public var statsText: String {
+        """
+        Status Records: \(formattedCount(stats.statusCount))
+          Starred: \(formattedCount(stats.starredStatusCount))
+          Unread: \(formattedCount(stats.unreadStatusCount))
+          Read: \(formattedCount(stats.readStatusCount))
+        Article Content Records: \(formattedCount(stats.articleCount))
+          Starred: \(formattedCount(stats.starredArticleCount))
+          Unread: \(formattedCount(stats.unreadArticleCount))
+          Read: \(formattedCount(stats.readArticleCount))
+        """
+    }
+
+    public var cleanUpStatsText: String {
+        guard let progress = cleanUpStatus.progress else {
+            return ""
+        }
+
+        var lines = [String]()
+        if progress.readContentDeleted > 0 {
+            lines.append("Read Content Deleted: \(formattedCount(progress.readContentDeleted))")
+        }
+        if progress.unreadContentDeleted > 0 {
+            lines.append("Unread Content Deleted: \(formattedCount(progress.unreadContentDeleted))")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    public init() {
+    }
+
+    public func fetch() {
+        guard let account = AccountManager.shared.iCloudAccount else {
+            fetchStatus = .error(CloudKitStatsError.noiCloudAccount)
+            return
+        }
+
+        fetchTask?.cancel()
+        fetchStatus = .fetching
+        cleanUpStatus = .idle
+        cleanUpPlanIsStale = false
+        stats = .empty
+
+        fetchSerialNumber += 1
+        let serialNumber = fetchSerialNumber
+
+        fetchTask = Task {
+            do {
+                let stats = try await account.fetchCloudKitStats { partialStats in
+                    guard self.fetchSerialNumber == serialNumber else {
+                        return
+                    }
+                    self.stats = partialStats
+                }
+                guard self.fetchSerialNumber == serialNumber else {
+                    return
+                }
+                self.stats = stats
+                fetchStatus = .completed
+            } catch {
+                guard self.fetchSerialNumber == serialNumber else {
+                    return
+                }
+                fetchStatus = .error(error)
+            }
+        }
+    }
+
+    public func cancelFetch() {
+        fetchSerialNumber += 1
+        fetchTask?.cancel()
+        fetchTask = nil
+        fetchStatus = .canceled
+    }
+
+    public func cancelCleanUp() {
+        cleanUpTask?.cancel()
+        cleanUpTask = nil
+        cleanUpPlanIsStale = true
+        if let progress = cleanUpStatus.progress {
+            cleanUpStatus = .canceled(progress)
+        }
+    }
+
+    public func cleanUp() {
+        guard let account = AccountManager.shared.iCloudAccount else {
+            cleanUpStatus = .error(CloudKitStatsError.noiCloudAccount)
+            return
+        }
+
+        cleanUpStatus = .cleaning(CloudKitCleanUpProgress(phase: .deletingReadContent, staleStatusDeleted: 0, readContentDeleted: 0, unreadContentDeleted: 0))
+        cleanUpTask = Task {
+            do {
+                try await account.cleanUpCloudKit(dryRun: false) { progress in
+                    self.cleanUpStatus = .cleaning(progress)
+                    if progress.phase == .completed {
+                        self.cleanUpPlanIsStale = true
+                        self.cleanUpStatus = .completed(progress)
+                    }
+                }
+            } catch {
+                if !cleanUpStatus.isCanceled {
+                    cleanUpPlanIsStale = true
+                    cleanUpStatus = .error(error)
+                }
+            }
+        }
+    }
+
+    private func formattedCount(_ count: Int) -> String {
+        NumberFormatter.localizedString(from: NSNumber(value: count), number: .decimal)
+    }
+}
+
 @MainActor final class CloudKitAccountDelegate: AccountDelegate {
     weak var account: Account?
     let behaviors: AccountBehaviors = []
@@ -1951,13 +2183,1696 @@ for path in account_dir.rglob("*.swift"):
         "saveQueue.add(self, #selector(saveToDiskIfNeeded))",
         "saveQueue.add { [weak self] in\n\t\t\t\t\tself?.saveToDiskIfNeeded()\n\t\t\t\t}",
     )
+    if path.name == "Account.swift":
+        src = src.replace("precondition(Thread.isMainThread)", "quillAccountPreconditionMainThread()")
+        src = src.replace("assert(Thread.isMainThread)", "quillAccountAssertMainThread()")
+        helper = '''
+
+private func quillAccountPreconditionMainThread() {
+\t#if !os(Linux)
+\tprecondition(Thread.isMainThread)
+\t#endif
+}
+
+private func quillAccountAssertMainThread() {
+\t#if !os(Linux)
+\tassert(Thread.isMainThread)
+\t#endif
+}
+'''
+        if "private func quillAccountPreconditionMainThread()" not in src:
+            src = src.rstrip() + helper + "\n"
+    if path.name == "AccountManager.swift":
+        src = src.replace("precondition(Thread.isMainThread)", "quillAccountManagerPreconditionMainThread()")
+        src = src.replace("assert(Thread.isMainThread)", "quillAccountManagerAssertMainThread()")
+        helper = '''
+
+private func quillAccountManagerPreconditionMainThread() {
+\t#if !os(Linux)
+\tprecondition(Thread.isMainThread)
+\t#endif
+}
+
+private func quillAccountManagerAssertMainThread() {
+\t#if !os(Linux)
+\tassert(Thread.isMainThread)
+\t#endif
+}
+'''
+        if "private func quillAccountManagerPreconditionMainThread()" not in src:
+            src = src.rstrip() + helper + "\n"
     path.write_text(src)
 
 print("patched NetNewsWire Account Linux lowering")
 PY
     fi
 
+    echo "==> lowering netnewswire main-thread pthread assertions for Linux MainActor"
+    python3 - "$UPSTREAM_DIR/netnewswire" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+pattern = re.compile(r"^([ \t]*)assert\(Thread\.isMainThread\)$")
+
+for path in root.rglob("*.swift"):
+    lines = path.read_text().splitlines(keepends=True)
+    output: list[str] = []
+
+    for line in lines:
+        match = pattern.match(line.rstrip("\n"))
+        previous = output[-1].strip() if output else ""
+        if match and previous != "#if !os(Linux)":
+            indent = match.group(1)
+            newline = "\n" if line.endswith("\n") else ""
+            output.append(f"{indent}#if !os(Linux)\n")
+            output.append(line)
+            output.append(f"{indent}#endif{newline}")
+        else:
+            output.append(line)
+
+    src = "".join(lines)
+    updated = "".join(output)
+    if updated != src:
+        path.write_text(updated)
+
+print("patched NetNewsWire main-thread assertions")
+PY
+
     local shared_dir="$UPSTREAM_DIR/netnewswire/Shared"
+    local shared_support_dir="$shared_dir/QuillSupport"
+    local shared_resource_helper="$shared_support_dir/NetNewsWireResource.swift"
+    if [[ -d "$shared_dir" && ! -f "$shared_resource_helper" ]]; then
+        echo "==> adding netnewswire Shared resource lookup support"
+        mkdir -p "$shared_support_dir"
+cat > "$shared_resource_helper" <<'SWIFT'
+#if os(Linux)
+import AppKit
+#else
+import Foundation
+#endif
+
+public enum NetNewsWireResource {
+	public static func path(forResource name: String, ofType ext: String) -> String? {
+		if let path = Bundle.module.path(forResource: name, ofType: ext) {
+			return path
+		}
+		if let path = Bundle.main.path(forResource: name, ofType: ext) {
+			return path
+		}
+		#if os(Linux)
+		return QuillResourceLookup.path(forResource: name, candidateExtensions: [ext])
+		#else
+		return nil
+		#endif
+	}
+
+	public static func url(forResource name: String, withExtension ext: String) -> URL? {
+		if let path = path(forResource: name, ofType: ext) {
+			return URL(fileURLWithPath: path)
+		}
+		return nil
+	}
+}
+SWIFT
+    fi
+    local mac_app_defaults="$UPSTREAM_DIR/netnewswire/Mac/AppDefaults.swift"
+    if [[ -f "$mac_app_defaults" ]] && ! grep -q '^import NetNewsWireSharedCore' "$mac_app_defaults"; then
+        echo "==> lowering netnewswire Mac AppDefaults imports for Linux SwiftPM"
+        python3 - "$mac_app_defaults" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import AppKit\n",
+    "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched Mac AppDefaults NetNewsWireSharedCore import")
+PY
+    fi
+
+    local mac_browser="$UPSTREAM_DIR/netnewswire/Mac/Browser.swift"
+    if [[ -f "$mac_browser" ]] && ! grep -q '^import AppKit' "$mac_browser"; then
+        echo "==> lowering netnewswire Mac Browser imports for Linux SwiftPM"
+        python3 - "$mac_browser" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Foundation\n",
+    "import Foundation\n#if os(Linux)\nimport AppKit\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched Mac Browser AppKit import")
+PY
+    fi
+
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        local mac_dir="$UPSTREAM_DIR/netnewswire/Mac"
+        if [[ -d "$mac_dir" ]] && grep -rqE '#selector|@objc|@IBAction|@IBOutlet|@IBInspectable|@NSManaged' "$mac_dir" 2>/dev/null; then
+            echo "==> lowering netnewswire Mac AppKit target-action syntax for Linux"
+            ( cd "$ROOT_DIR" && "$ROOT_DIR/scripts/run-quill-appkit-lower.sh" "$mac_dir" )
+        fi
+    fi
+
+    local timeline_view_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Timeline/TimelineViewController.swift"
+    if [[ -f "$timeline_view_controller" ]] && ! grep -q '^enum TimelineSourceMode' "$timeline_view_controller"; then
+        echo "==> patching netnewswire TimelineViewController split-target support"
+        python3 - "$timeline_view_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+anchor = "enum TimelineShowFeedName: Sendable {\n\tcase none\n\tcase byline\n\tcase feed\n}\n\n"
+if anchor not in src:
+    raise SystemExit("TimelineShowFeedName anchor not found")
+src = src.replace(
+    anchor,
+    anchor + "enum TimelineSourceMode {\n\tcase regular\n\tcase search\n}\n\n",
+    1,
+)
+path.write_text(src)
+print("patched TimelineSourceMode split-target support")
+PY
+    fi
+    if [[ -f "$timeline_view_controller" ]] && grep -q 'markArticles(Set(\[article\]), statusKey: \\.read, flag: true)' "$timeline_view_controller"; then
+        echo "==> patching netnewswire TimelineViewController selection markArticles qualification"
+        python3 - "$timeline_view_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "markArticles(Set([article]), statusKey: .read, flag: true)",
+    "NetNewsWireSharedCore.markArticles(Set([article]), statusKey: .read, flag: true)",
+    1,
+)
+path.write_text(src)
+print("patched TimelineViewController selection markArticles qualification")
+PY
+    fi
+    local timeline_container_view_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Timeline/TimelineContainerViewController.swift"
+    if [[ -f "$timeline_container_view_controller" ]] && ! grep -q '^import NetNewsWireSharedCore' "$timeline_container_view_controller"; then
+        echo "==> patching netnewswire TimelineContainer split-target import"
+        python3 - "$timeline_container_view_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Articles\n",
+    "import Articles\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched TimelineContainer split-target import")
+PY
+    fi
+
+    local add_feed_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/AddFeed/AddFeedController.swift"
+    if [[ -f "$add_feed_controller" ]] && ! grep -q '^import NetNewsWireSharedCore' "$add_feed_controller"; then
+        echo "==> patching netnewswire AddFeedController split-target import"
+        python3 - "$add_feed_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import RSParser\n\n",
+    "import RSParser\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n\n",
+    1,
+)
+path.write_text(src)
+print("patched AddFeedController split-target import")
+PY
+    fi
+
+    local add_feed_window_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/AddFeed/AddFeedWindowController.swift"
+    if [[ -f "$add_feed_window_controller" ]] && ! grep -q '^import NetNewsWireSharedCore' "$add_feed_window_controller"; then
+        echo "==> patching netnewswire AddFeedWindowController split-target import"
+        python3 - "$add_feed_window_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Account\n\n",
+    "import Account\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n\n",
+    1,
+)
+path.write_text(src)
+print("patched AddFeedWindowController split-target import")
+PY
+    fi
+
+    local timeline_contextual_menus="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Timeline/TimelineViewController+ContextualMenus.swift"
+    if [[ -f "$timeline_contextual_menus" ]] && ! grep -q '^import NetNewsWireSharedCore' "$timeline_contextual_menus"; then
+        echo "==> patching netnewswire Timeline contextual menus split-target import"
+        python3 - "$timeline_contextual_menus" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Account\n\n",
+    "import Account\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n\n",
+    1,
+)
+path.write_text(src)
+print("patched Timeline contextual menus split-target import")
+PY
+    fi
+    if [[ -f "$timeline_contextual_menus" ]] && grep -q 'articles.first!.feed' "$timeline_contextual_menus"; then
+        echo "==> patching netnewswire Timeline contextual feed lookup"
+        python3 - "$timeline_contextual_menus" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "if articles.count == 1, let feed = articles.first!.feed {",
+    "if articles.count == 1, let article = articles.first, let feed = article.account?.existingFeed(withFeedID: article.feedID) {",
+    1,
+)
+path.write_text(src)
+print("patched Timeline contextual feed lookup")
+PY
+    fi
+
+    local mac_support_dir="$UPSTREAM_DIR/netnewswire/Mac/QuillSupport"
+    local mac_app_delegate="$UPSTREAM_DIR/netnewswire/Mac/AppDelegate.swift"
+    if [[ -f "$mac_app_delegate" ]]; then
+        echo "==> lowering netnewswire Mac AppDelegate for Linux split target"
+        python3 - "$mac_app_delegate" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import AppKit\nimport Foundation\n" not in src:
+    src = src.replace(
+        "import AppKit\n",
+        "import AppKit\nimport Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n",
+        1,
+    )
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import UserNotifications\n",
+        "#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\nimport UserNotifications\n",
+        1,
+    )
+src = src.replace("@main\n@MainActor final class AppDelegate", "#if !os(Linux)\n@main\n#endif\n@MainActor final class AppDelegate", 1)
+src = src.replace(
+    '\t\t\tlet htmlFile = Bundle(for: type(of: self)).path(forResource: "KeyboardShortcuts", ofType: "html")!',
+    '''\t\t\t#if os(Linux)
+\t\t\tguard let htmlFile = Bundle.module.path(forResource: "KeyboardShortcuts", ofType: "html") else {
+\t\t\t\treturn
+\t\t\t}
+\t\t\t#else
+\t\t\tlet htmlFile = Bundle(for: type(of: self)).path(forResource: "KeyboardShortcuts", ofType: "html")!
+\t\t\t#endif''',
+    1,
+)
+path.write_text(src)
+print("patched AppDelegate split-target support")
+PY
+    fi
+
+    local mac_account_log_color="$mac_support_dir/AccountTypeLogColor.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" && ! -f "$mac_account_log_color" ]]; then
+        echo "==> adding netnewswire Mac AccountType log-color support for split SwiftPM target"
+        mkdir -p "$mac_support_dir"
+cat > "$mac_account_log_color" <<'SWIFT'
+import AppKit
+import Account
+
+private func quillAccountLogColor(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat = 1) -> NSColor {
+	return NSColor(red: red, green: green, blue: blue, alpha: alpha)
+}
+
+extension AccountType {
+	var logColor: NSColor {
+		switch self {
+		case .onMyMac:
+			return quillAccountLogColor(red: 0.38, green: 0.38, blue: 0.40)
+		case .cloudKit:
+			return quillAccountLogColor(red: 0.686, green: 0.322, blue: 0.871)
+		case .feedly:
+			return quillAccountLogColor(red: 0.204, green: 0.780, blue: 0.349)
+		case .feedbin:
+			return quillAccountLogColor(red: 0.0, green: 0.478, blue: 1.0)
+		case .newsBlur:
+			return quillAccountLogColor(red: 1.0, green: 0.584, blue: 0.0)
+		case .freshRSS:
+			return quillAccountLogColor(red: 0.353, green: 0.784, blue: 0.980)
+		case .inoreader:
+			return quillAccountLogColor(red: 0.635, green: 0.518, blue: 0.369)
+		case .bazQux:
+			return quillAccountLogColor(red: 0.345, green: 0.337, blue: 0.839)
+		case .theOldReader:
+			return quillAccountLogColor(red: 1.0, green: 0.176, blue: 0.333)
+		}
+	}
+}
+SWIFT
+    fi
+
+    local mac_notification_support="$mac_support_dir/NotificationNameSupport.swift"
+    if [[ -f "$mac_notification_support" ]]; then
+        echo "==> removing obsolete netnewswire Mac notification-name support"
+        rm -f "$mac_notification_support"
+    fi
+
+    local mac_open_panel_extras_support="$mac_support_dir/NSOpenPanelExtrasSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" && ! -f "$mac_open_panel_extras_support" ]]; then
+        echo "==> adding netnewswire Mac NSOpenPanel extras support for split SwiftPM target"
+        mkdir -p "$mac_support_dir"
+cat > "$mac_open_panel_extras_support" <<'SWIFT'
+import AppKit
+
+extension NSOpenPanel {
+    func acceptOPML() {
+        allowedFileTypes = ["opml", "xml"]
+    }
+}
+SWIFT
+    fi
+
+    local mac_opml_support="$mac_support_dir/OPMLSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" && ! -f "$mac_opml_support" ]]; then
+        echo "==> adding netnewswire Mac OPML split-target support"
+        mkdir -p "$mac_support_dir"
+cat > "$mac_opml_support" <<'SWIFT'
+import Account
+import RSCore
+import UniformTypeIdentifiers
+
+extension UTType {
+    static let opml = UTType("org.opml.opml")!
+}
+
+@MainActor
+struct OPMLExporter {
+    static func OPMLString(with account: Account, title: String) -> String {
+        let escapedTitle = title.escapingSpecialXMLCharacters
+        let openingText =
+            """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- OPML generated by NetNewsWire -->
+            <opml version="1.1">
+                <head>
+                    <title>\(escapedTitle)</title>
+                </head>
+            <body>
+
+            """
+
+        let middleText = account.OPMLString(indentLevel: 0)
+
+        let closingText =
+            """
+                </body>
+            </opml>
+            """
+
+        return openingText + middleText + closingText
+    }
+}
+SWIFT
+    fi
+
+    local mac_sharing_support="$mac_support_dir/SharingServiceSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" && ! -f "$mac_sharing_support" ]]; then
+        echo "==> adding netnewswire Mac sharing-service split-target support"
+        mkdir -p "$mac_support_dir"
+cat > "$mac_sharing_support" <<'SWIFT'
+import AppKit
+
+extension TimelineViewController {
+	func contextualMenuForClickedRows() -> NSMenu? {
+		nil
+	}
+}
+SWIFT
+    fi
+
+    local mac_send_to_support="$mac_support_dir/SendToCommandSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" ]]; then
+        echo "==> adding netnewswire Mac send-to command split-target support"
+        mkdir -p "$mac_support_dir"
+cat > "$mac_send_to_support" <<'SWIFT'
+import AppKit
+import Articles
+import NetNewsWireSharedCore
+import RSCore
+
+@MainActor final class SendToMarsEditCommand: SendToCommand {
+	let title = "MarsEdit"
+	let image: RSImage? = Assets.Images.marsEdit
+
+	private let marsEditApps = [
+		UserApp(bundleID: "com.red-sweater.marsedit5"),
+		UserApp(bundleID: "com.red-sweater.marsedit4"),
+		UserApp(bundleID: "com.red-sweater.marsedit")
+	]
+
+	func canSendObject(_ object: Any?, selectedText: String?) -> Bool {
+		appToUse() != nil
+	}
+
+	func sendObject(_ object: Any?, selectedText: String?) {
+		guard canSendObject(object, selectedText: selectedText),
+			  let article = (object as? ArticlePasteboardWriter)?.article,
+			  let app = appToUse() else {
+			return
+		}
+
+		Task {
+			guard await app.launchIfNeeded(), app.bringToFront() else {
+				return
+			}
+			send(article, to: app)
+		}
+	}
+}
+
+private extension SendToMarsEditCommand {
+	func send(_ article: Article, to app: UserApp) {
+		guard let targetDescriptor = app.targetDescriptor() else {
+			return
+		}
+
+		let body = article.contentHTML ?? article.contentText ?? article.summary
+		let authorName = article.authors?.first?.name
+		let sender = SendToBlogEditorApp(
+			targetDescriptor: targetDescriptor,
+			title: article.title,
+			body: body,
+			summary: article.summary,
+			link: article.externalLink,
+			permalink: article.link,
+			subject: nil,
+			creator: authorName,
+			commentsURL: nil,
+			guid: article.uniqueID,
+			sourceName: article.feed?.nameForDisplay,
+			sourceHomeURL: article.feed?.homePageURL,
+			sourceFeedURL: article.feed?.url
+		)
+		sender.send()
+	}
+
+	func appToUse() -> UserApp? {
+		for app in marsEditApps {
+			app.updateStatus()
+		}
+		return marsEditApps.first(where: \.isRunning)
+			?? marsEditApps.first(where: \.existsOnDisk)
+	}
+}
+
+@MainActor final class SendToMicroBlogCommand: SendToCommand {
+	let title = "Micro.blog"
+	let image: RSImage? = Assets.Images.microblog
+
+	private let microBlogApp = UserApp(bundleID: "blog.micro.mac")
+
+	func canSendObject(_ object: Any?, selectedText: String?) -> Bool {
+		microBlogApp.updateStatus()
+		guard microBlogApp.existsOnDisk,
+			  let article = (object as? ArticlePasteboardWriter)?.article,
+			  article.preferredLink != nil else {
+			return false
+		}
+		return true
+	}
+
+	func sendObject(_ object: Any?, selectedText: String?) {
+		guard canSendObject(object, selectedText: selectedText),
+			  let article = (object as? ArticlePasteboardWriter)?.article else {
+			return
+		}
+
+		Task {
+			guard await microBlogApp.launchIfNeeded(), microBlogApp.bringToFront() else {
+				return
+			}
+
+			let urlQueryDictionary = ["text": article.attributionString + article.linkString]
+			guard let urlQueryString = urlQueryDictionary.urlQueryString,
+				  let url = URL(string: "microblog://post?" + urlQueryString) else {
+				return
+			}
+			NSWorkspace.shared.open(url)
+		}
+	}
+}
+
+@MainActor private extension Article {
+	var attributionString: String {
+		if let feedName = feed?.nameForDisplay, let authorName = authors?.first?.name {
+			return feedName + ", " + authorName + ": "
+		}
+		if let feedName = feed?.nameForDisplay {
+			return feedName + ": "
+		}
+		return ""
+	}
+
+	var linkString: String {
+		if let title, let link = preferredLink {
+			return "[" + title + "](" + link + ")"
+		}
+		if let preferredLink {
+			return preferredLink
+		}
+		if let title {
+			return title
+		}
+		return ""
+	}
+}
+SWIFT
+    fi
+
+    local current_activity_window="$UPSTREAM_DIR/netnewswire/Mac/CurrentActivity/CurrentActivityWindowController.swift"
+    if [[ -f "$current_activity_window" ]] && ! grep -q '^import NetNewsWireSharedCore' "$current_activity_window"; then
+        echo "==> patching netnewswire Mac CurrentActivity split-target import"
+        python3 - "$current_activity_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import ActivityLog\nimport RSWeb\n",
+    "import ActivityLog\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\nimport RSWeb\n",
+    1,
+)
+path.write_text(src)
+print("patched CurrentActivityWindowController NetNewsWireSharedCore import")
+PY
+    fi
+
+    local activity_log_window="$UPSTREAM_DIR/netnewswire/Mac/ActivityLog/ActivityLogWindowController.swift"
+    if [[ -f "$activity_log_window" ]]; then
+        echo "==> patching netnewswire Mac ActivityLog split-target view model use"
+        python3 - "$activity_log_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import ActivityLog\n",
+        "import ActivityLog\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace(
+    "for segment in ActivityLogViewModel.segments(for: activity) {",
+    "for segment in NetNewsWireSharedCore.ActivityLogViewModel.segments(for: activity) {",
+    1,
+)
+src = src.replace(
+    "func nsColor(for color: ActivityLogTextColor) -> NSColor {",
+    "func nsColor(for color: NetNewsWireSharedCore.ActivityLogTextColor) -> NSColor {",
+    1,
+)
+src = src.replace(
+    "func fontWeight(for weight: ActivityLogTextWeight) -> NSFont.Weight {",
+    "func fontWeight(for weight: NetNewsWireSharedCore.ActivityLogTextWeight) -> NSFont.Weight {",
+    1,
+)
+path.write_text(src)
+print("patched ActivityLogWindowController view model import/use")
+PY
+    fi
+
+    local account_stats_window="$UPSTREAM_DIR/netnewswire/Mac/AccountStats/AccountStatsWindowController.swift"
+    if [[ -f "$account_stats_window" ]] && ! grep -q '^import NetNewsWireSharedCore' "$account_stats_window"; then
+        echo "==> patching netnewswire Mac AccountStats split-target import"
+        python3 - "$account_stats_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Account\nimport RSCore\n",
+    "import Account\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\nimport RSCore\n",
+    1,
+)
+src = src.replace(
+    "\t\t\tawait appDelegate.vacuumAllDatabases()\n",
+    "\t\t\tawait AccountManager.shared.vacuumAllDatabases()\n",
+    1,
+)
+path.write_text(src)
+print("patched AccountStatsWindowController NetNewsWireSharedCore import")
+PY
+    fi
+
+    local dinosaurs_window="$UPSTREAM_DIR/netnewswire/Mac/Dinosaurs/DinosaursWindowController.swift"
+    if [[ -f "$dinosaurs_window" ]]; then
+        echo "==> patching netnewswire Mac Dinosaurs split-target import"
+        python3 - "$dinosaurs_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import Account\nimport RSCore\n",
+        "import Account\n#if os(Linux)\nimport Images\nimport NetNewsWireSharedCore\n#endif\nimport RSCore\n",
+        1,
+    )
+elif "import Images" not in src:
+    src = src.replace(
+        "#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        "#if os(Linux)\nimport Images\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace("descriptor.key", "descriptor.quillKey")
+path.write_text(src)
+print("patched DinosaursWindowController NetNewsWireSharedCore import")
+PY
+    fi
+
+    local cloudkit_stats_layout="$UPSTREAM_DIR/netnewswire/Mac/CloudKitStats/CloudKitStatsLayout.swift"
+    if [[ -f "$cloudkit_stats_layout" ]]; then
+        echo "==> patching netnewswire Mac CloudKitStatsLayout split-target lowering"
+        python3 - "$cloudkit_stats_layout" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "static let starColor = Assets.Colors.star",
+    "static let starColor = NSColor(red: 1.00, green: 0.68, blue: 0.16, alpha: 1)",
+    1,
+)
+src = src.replace("@MainActor static func makeDivider", "static func makeDivider")
+src = src.replace("@MainActor static func makeLabelWithIcon", "static func makeLabelWithIcon")
+src = src.replace("@MainActor static func configureValueLabel", "static func configureValueLabel")
+path.write_text(src)
+print("patched CloudKitStatsLayout split-target lowering")
+PY
+    fi
+
+    local cloudkit_stats_scan_vc="$UPSTREAM_DIR/netnewswire/Mac/CloudKitStats/Scan/CloudKitStatsScanViewController.swift"
+    if [[ -f "$cloudkit_stats_scan_vc" ]]; then
+        echo "==> patching netnewswire Mac CloudKitStatsScanViewController CloudKit lowering"
+        python3 - "$cloudkit_stats_scan_vc" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import AppKit\nimport CloudKit\nimport Account\nimport CloudKitSync\n",
+    "import AppKit\n#if !os(Linux)\nimport CloudKit\n#endif\nimport Account\n#if !os(Linux)\nimport CloudKitSync\n#endif\n",
+    1,
+)
+src = src.replace(
+    """\t\thasShownErrorAlert = true
+\t\tlet displayError: Error
+\t\tif fetchError is CKError {
+\t\t\tdisplayError = CloudKitError(fetchError)
+\t\t} else {
+\t\t\tdisplayError = fetchError
+\t\t}
+""",
+    """\t\thasShownErrorAlert = true
+\t\tlet displayError: Error
+#if os(Linux)
+\t\tdisplayError = fetchError
+#else
+\t\tif fetchError is CKError {
+\t\t\tdisplayError = CloudKitError(fetchError)
+\t\t} else {
+\t\t\tdisplayError = fetchError
+\t\t}
+#endif
+""",
+    1,
+)
+path.write_text(src)
+print("patched CloudKitStatsScanViewController CloudKit lowering")
+PY
+    fi
+
+    local inspector_window="$UPSTREAM_DIR/netnewswire/Mac/Inspector/InspectorWindowController.swift"
+    if [[ -f "$inspector_window" ]]; then
+        echo "==> patching netnewswire Mac InspectorWindowController storyboard lowering"
+        python3 - "$inspector_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    """\t\treturn storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier(identifier)) as! InspectorViewController
+""",
+    """#if os(Linux)
+\t\tswitch identifier {
+\t\tcase "Feed":
+\t\t\treturn FeedInspectorViewController()
+\t\tcase "Folder":
+\t\t\treturn FolderInspectorViewController()
+\t\tcase "BuiltinSmartFeed":
+\t\t\treturn BuiltinSmartFeedInspectorViewController()
+\t\tdefault:
+\t\t\treturn NothingInspectorViewController()
+\t\t}
+#else
+\t\treturn storyboard.instantiateController(withIdentifier: NSStoryboard.SceneIdentifier(identifier)) as! InspectorViewController
+#endif
+""",
+    1,
+)
+path.write_text(src)
+print("patched InspectorWindowController storyboard lowering")
+PY
+    fi
+
+    local inspector_builtin="$UPSTREAM_DIR/netnewswire/Mac/Inspector/BuiltinSmartFeedInspectorViewController.swift"
+    if [[ -f "$inspector_builtin" ]] && ! grep -q '^import NetNewsWireSharedCore' "$inspector_builtin"; then
+        echo "==> patching netnewswire Mac BuiltinSmartFeedInspector split-target import"
+        python3 - "$inspector_builtin" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import AppKit\n",
+    "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched BuiltinSmartFeedInspector split-target import")
+PY
+    fi
+
+    local inspector_feed="$UPSTREAM_DIR/netnewswire/Mac/Inspector/FeedInspectorViewController.swift"
+    if [[ -f "$inspector_feed" ]] && ! grep -q '^import NetNewsWireSharedCore' "$inspector_feed"; then
+        echo "==> patching netnewswire Mac FeedInspector split-target import"
+        python3 - "$inspector_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Images\n",
+    "import Images\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched FeedInspector split-target import")
+PY
+    fi
+
+    local preferences_general="$UPSTREAM_DIR/netnewswire/Mac/Preferences/General/GeneralPrefencesViewController.swift"
+    if [[ -f "$preferences_general" ]]; then
+        echo "==> patching netnewswire Mac GeneralPreferences split-target import"
+        python3 - "$preferences_general" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import AppKit\n",
+        "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace("\tfunc commonInit() {", "\tnonisolated func commonInit() {", 1)
+src = src.replace(
+    "name: NSApplication.willBecomeActiveNotification",
+    'name: Notification.Name("NSApplicationWillBecomeActiveNotification")',
+    1,
+)
+path.write_text(src)
+print("patched GeneralPreferences split-target import")
+PY
+    fi
+
+    local preferences_window="$UPSTREAM_DIR/netnewswire/Mac/Preferences/PreferencesWindowController.swift"
+    if [[ -f "$preferences_window" ]] && ! grep -q '^import NetNewsWireSharedCore' "$preferences_window"; then
+        echo "==> patching netnewswire Mac PreferencesWindow split-target import"
+        python3 - "$preferences_window" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import AppKit\n",
+    "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched PreferencesWindow split-target import")
+PY
+    fi
+
+    local shared_assets="$shared_dir/Assets.swift"
+    if [[ -f "$shared_assets" ]]; then
+        echo "==> exposing netnewswire Shared Assets surface for Mac Preferences slice"
+        python3 - "$shared_assets" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "public struct Assets {" not in src:
+    src = src.replace("struct Assets {", "public struct Assets {", 1)
+if "\tpublic struct Images {" not in src:
+    src = src.replace("\tstruct Images {", "\tpublic struct Images {", 1)
+for name in ("preferencesToolbarAccounts", "preferencesToolbarGeneral", "preferencesToolbarAdvanced"):
+    if f"\t\tpublic static var {name}" not in src:
+        src = src.replace(f"\t\tstatic var {name}", f"\t\tpublic static var {name}", 1)
+for name in (
+    "accountBazQux",
+    "accountCloudKit",
+    "articleExtractorError",
+    "articleExtractorOn",
+    "articleExtractorOff",
+    "accountFeedbin",
+    "accountFeedly",
+    "accountFreshRSS",
+    "accountInoreader",
+    "accountNewsBlur",
+    "accountTheOldReader",
+    "accountLocal",
+    "starOpen",
+    "starClosed",
+    "markAllAsRead",
+    "nextUnread",
+    "share",
+):
+    if f"\t\tpublic static var {name}" not in src:
+        src = src.replace(f"\t\tstatic var {name}", f"\t\tpublic static var {name}", 1)
+linux_extension = '''#if os(Linux)
+public extension Assets.Images {
+\tstatic var accountLocal: RSImage { RSImage(named: "accountLocal")! }
+\tstatic var addNewSidebarItem: RSImage { RSImage(symbol: "plus")! }
+\tstatic var articleTheme: RSImage { RSImage(symbol: "doc.richtext")! }
+\tstatic var cleanUp: RSImage { RSImage(symbol: "bubbles.and.sparkles")! }
+\tstatic var filterActive: RSImage { RSImage(symbol: "line.horizontal.3.decrease.circle.fill")! }
+\tstatic var filterInactive: RSImage { RSImage(symbol: "line.horizontal.3.decrease.circle")! }
+\tstatic var preferencesToolbarAccounts: RSImage { RSImage(symbol: "at")! }
+\tstatic var preferencesToolbarGeneral: RSImage { RSImage(symbol: "gearshape")! }
+\tstatic var preferencesToolbarAdvanced: RSImage { RSImage(symbol: "gearshape.2")! }
+\tstatic var delete: RSImage { RSImage(symbol: "xmark.bin")! }
+\tstatic var marsEdit: RSImage { RSImage(named: "MarsEditIcon")! }
+\tstatic var microblog: RSImage { RSImage(named: "MicroblogIcon")! }
+\tstatic var markAllAsReadMenu: RSImage { RSImage(named: "markAllAsRead")! }
+\tstatic var notification: RSImage { RSImage(symbol: "bell.badge")! }
+\tstatic var openInBrowser: RSImage { RSImage(symbol: "safari")! }
+\tstatic var readClosed: RSImage { RSImage(symbol: "largecircle.fill.circle")! }
+\tstatic var readOpen: RSImage { RSImage(symbol: "circle")! }
+\tstatic var refresh: RSImage { RSImage(symbol: "arrow.clockwise")! }
+\tstatic var rename: RSImage { RSImage(symbol: "pencil")! }
+\tstatic var timelineStarSelected: RSImage { RSImage(named: "timelineStar")!.tinted(with: RSColor.white) }
+\tstatic var timelineStarUnselected: RSImage { RSImage(named: "timelineStar")!.tinted(with: Assets.Colors.star) }
+\tstatic var swipeMarkUnstarred: RSImage { RSImage(symbol: "star")! }
+\tstatic var swipeMarkStarred: RSImage { RSImage(symbol: "star.fill")! }
+\tstatic var swipeMarkRead: RSImage { RSImage(symbol: "circle")! }
+\tstatic var swipeMarkUnread: RSImage { RSImage(symbol: "largecircle.fill.circle")! }
+}
+
+public extension Assets.Colors {
+\tstatic var timelineSeparator: RSColor { RSColor(named: "timelineSeparatorColor")! }
+\tstatic var sidebarUnreadCountBackground: RSColor { RSColor(named: "SidebarUnreadCountBackground")! }
+\tstatic var sidebarUnreadCountText: RSColor { RSColor(named: "SidebarUnreadCountText")! }
+}
+#endif
+
+'''
+if "public extension Assets.Images" not in src:
+    anchor = "extension RSImage {\n"
+    if anchor not in src:
+        raise SystemExit("Assets RSImage extension anchor not found")
+    src = src.replace(anchor, linux_extension + anchor, 1)
+else:
+    image_extension_anchor = "public extension Assets.Images {\n"
+    missing_image_aliases = [
+        '\tstatic var accountLocal: RSImage { RSImage(named: "accountLocal")! }\n',
+        '\tstatic var addNewSidebarItem: RSImage { RSImage(symbol: "plus")! }\n',
+        '\tstatic var articleTheme: RSImage { RSImage(symbol: "doc.richtext")! }\n',
+        '\tstatic var cleanUp: RSImage { RSImage(symbol: "bubbles.and.sparkles")! }\n',
+        '\tstatic var filterActive: RSImage { RSImage(symbol: "line.horizontal.3.decrease.circle.fill")! }\n',
+        '\tstatic var filterInactive: RSImage { RSImage(symbol: "line.horizontal.3.decrease.circle")! }\n',
+        '\tstatic var preferencesToolbarAccounts: RSImage { RSImage(symbol: "at")! }\n',
+        '\tstatic var preferencesToolbarGeneral: RSImage { RSImage(symbol: "gearshape")! }\n',
+        '\tstatic var preferencesToolbarAdvanced: RSImage { RSImage(symbol: "gearshape.2")! }\n',
+        '\tstatic var delete: RSImage { RSImage(symbol: "xmark.bin")! }\n',
+        '\tstatic var marsEdit: RSImage { RSImage(named: "MarsEditIcon")! }\n',
+        '\tstatic var microblog: RSImage { RSImage(named: "MicroblogIcon")! }\n',
+        '\tstatic var markAllAsReadMenu: RSImage { RSImage(named: "markAllAsRead")! }\n',
+        '\tstatic var notification: RSImage { RSImage(symbol: "bell.badge")! }\n',
+        '\tstatic var openInBrowser: RSImage { RSImage(symbol: "safari")! }\n',
+        '\tstatic var readClosed: RSImage { RSImage(symbol: "largecircle.fill.circle")! }\n',
+        '\tstatic var readOpen: RSImage { RSImage(symbol: "circle")! }\n',
+        '\tstatic var refresh: RSImage { RSImage(symbol: "arrow.clockwise")! }\n',
+        '\tstatic var rename: RSImage { RSImage(symbol: "pencil")! }\n',
+        '\tstatic var timelineStarSelected: RSImage { RSImage(named: "timelineStar")!.tinted(with: RSColor.white) }\n',
+        '\tstatic var timelineStarUnselected: RSImage { RSImage(named: "timelineStar")!.tinted(with: Assets.Colors.star) }\n',
+        '\tstatic var swipeMarkUnstarred: RSImage { RSImage(symbol: "star")! }\n',
+        '\tstatic var swipeMarkStarred: RSImage { RSImage(symbol: "star.fill")! }\n',
+        '\tstatic var swipeMarkRead: RSImage { RSImage(symbol: "circle")! }\n',
+        '\tstatic var swipeMarkUnread: RSImage { RSImage(symbol: "largecircle.fill.circle")! }\n',
+    ]
+    if image_extension_anchor not in src:
+        raise SystemExit("Assets Linux Images extension anchor not found")
+    for alias in missing_image_aliases:
+        if alias not in src:
+            src = src.replace(image_extension_anchor, image_extension_anchor + alias, 1)
+    missing_color_aliases = [
+        '\tstatic var iconDarkBackground: RSColor { RSColor(named: "iconDarkBackgroundColor")! }\n',
+        '\tstatic var iconLightBackground: RSColor { RSColor(named: "iconLightBackgroundColor")! }\n',
+        '\tstatic var timelineSeparator: RSColor { RSColor(named: "timelineSeparatorColor")! }\n',
+        '\tstatic var sidebarUnreadCountBackground: RSColor { RSColor(named: "SidebarUnreadCountBackground")! }\n',
+        '\tstatic var sidebarUnreadCountText: RSColor { RSColor(named: "SidebarUnreadCountText")! }\n',
+    ]
+    if "public extension Assets.Colors" not in src:
+        src = src.replace(
+            "#endif\n\nextension RSImage {\n",
+            "public extension Assets.Colors {\n" + "".join(missing_color_aliases) + "}\n#endif\n\nextension RSImage {\n",
+            1,
+        )
+    else:
+        color_extension_anchor = "public extension Assets.Colors {\n"
+        if color_extension_anchor not in src:
+            raise SystemExit("Assets Linux Colors extension anchor not found")
+        for alias in missing_color_aliases:
+            name = alias.split("static var ", 1)[1].split(":", 1)[0]
+            if f"static var {name}" not in src:
+                src = src.replace(color_extension_anchor, color_extension_anchor + alias, 1)
+src = src.replace(
+    '\tstatic var timelineStarSelected: RSImage { RSImage(symbol: "star.fill")!.tinted(with: RSColor.white) }\n',
+    '\tstatic var timelineStarSelected: RSImage { RSImage(named: "timelineStar")!.tinted(with: RSColor.white) }\n',
+)
+src = src.replace(
+    '\tstatic var timelineStarUnselected: RSImage { RSImage(symbol: "star.fill")!.tinted(with: Assets.Colors.star) }\n',
+    '\tstatic var timelineStarUnselected: RSImage { RSImage(named: "timelineStar")!.tinted(with: Assets.Colors.star) }\n',
+)
+path.write_text(src)
+print("patched Assets visibility")
+PY
+    fi
+
+    local article_extractor_button="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/ArticleExtractorButton.swift"
+    if [[ -f "$article_extractor_button" ]] && ! grep -q 'NetNewsWireSharedCore' "$article_extractor_button"; then
+        echo "==> lowering netnewswire Mac ArticleExtractorButton split-target import"
+        python3 - "$article_extractor_button" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import AppKit\n", "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n", 1)
+path.write_text(src)
+print("patched ArticleExtractorButton split-target import")
+PY
+    fi
+
+    local main_window_icon_view="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/IconView.swift"
+    if [[ -f "$main_window_icon_view" ]] && ! grep -q 'NetNewsWireSharedCore' "$main_window_icon_view"; then
+        echo "==> lowering netnewswire Mac IconView split-target import"
+        python3 - "$main_window_icon_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import Images\n", "import Images\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n", 1)
+path.write_text(src)
+print("patched IconView split-target import")
+PY
+    fi
+
+    local detail_status_bar_view="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/DetailStatusBarView.swift"
+    if [[ -f "$detail_status_bar_view" ]] && ! grep -q '^import RSCore' "$detail_status_bar_view"; then
+        echo "==> lowering netnewswire Mac DetailStatusBarView split-target import"
+        python3 - "$detail_status_bar_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import Articles\n", "import Articles\n#if os(Linux)\nimport RSCore\n#endif\n", 1)
+path.write_text(src)
+print("patched DetailStatusBarView split-target import")
+PY
+    fi
+
+    local detail_icon_scheme_handler="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/DetailIconSchemeHandler.swift"
+    if [[ -f "$detail_icon_scheme_handler" ]] && ! grep -q '^import NetNewsWireSharedCore' "$detail_icon_scheme_handler"; then
+        echo "==> lowering netnewswire Mac DetailIconSchemeHandler split-target import"
+        python3 - "$detail_icon_scheme_handler" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("import Articles\n", "import Articles\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n", 1)
+path.write_text(src)
+print("patched DetailIconSchemeHandler split-target import")
+PY
+    fi
+
+    for detail_controller in \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/DetailViewController.swift" \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/DetailWebViewController.swift"
+    do
+        if [[ -f "$detail_controller" ]] && ! grep -q 'import NetNewsWireSharedCore' "$detail_controller"; then
+            echo "==> lowering netnewswire Mac $(basename "$detail_controller") split-target import"
+            python3 - "$detail_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import RSWeb\n" in src:
+    src = src.replace("import RSWeb\n", "import RSWeb\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n", 1)
+elif "import Images\n" in src:
+    src = src.replace("import Images\n", "import Images\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n", 1)
+else:
+    raise SystemExit("Detail split-target import anchor not found")
+path.write_text(src)
+print("patched Detail split-target import")
+PY
+        fi
+    done
+
+    local detail_keyboard_delegate="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/Keyboard/DetailKeyboardDelegate.swift"
+    if [[ -f "$detail_keyboard_delegate" ]] && grep -q 'DetailKeyboardShortcuts", ofType: "plist")!' "$detail_keyboard_delegate"; then
+        echo "==> lowering netnewswire Mac DetailKeyboardDelegate resource fallback"
+        python3 - "$detail_keyboard_delegate" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+"""\t\tlet f = Bundle.main.path(forResource: \"DetailKeyboardShortcuts\", ofType: \"plist\")!\n\t\tlet rawShortcuts = NSArray(contentsOfFile: f)! as! [[String: Any]]\n""",
+"""\t\tlet rawShortcuts: [[String: Any]]\n\t\tif let f = Bundle.main.path(forResource: \"DetailKeyboardShortcuts\", ofType: \"plist\"),\n\t\t   let shortcuts = NSArray(contentsOfFile: f) as? [[String: Any]] {\n\t\t\trawShortcuts = shortcuts\n\t\t} else {\n\t\t\trawShortcuts = []\n\t\t}\n""",
+1,
+)
+path.write_text(src)
+print("patched DetailKeyboardDelegate resource fallback")
+PY
+    fi
+
+    local sidebar_keyboard_delegate="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/Keyboard/SidebarKeyboardDelegate.swift"
+    if [[ -f "$sidebar_keyboard_delegate" ]]; then
+        echo "==> lowering netnewswire Mac SidebarKeyboardDelegate split-target surface"
+        python3 - "$sidebar_keyboard_delegate" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "\n#if os(Linux)\nfinal class SidebarViewController: NSViewController {}\n#endif\n",
+    "\n",
+    1,
+)
+src = src.replace(
+"""\t\tlet f = Bundle.main.path(forResource: \"SidebarKeyboardShortcuts\", ofType: \"plist\")!\n\t\tlet rawShortcuts = NSArray(contentsOfFile: f)! as! [[String: Any]]\n""",
+"""\t\tlet rawShortcuts: [[String: Any]]\n\t\tif let f = Bundle.main.path(forResource: \"SidebarKeyboardShortcuts\", ofType: \"plist\"),\n\t\t   let shortcuts = NSArray(contentsOfFile: f) as? [[String: Any]] {\n\t\t\trawShortcuts = shortcuts\n\t\t} else {\n\t\t\trawShortcuts = []\n\t\t}\n""",
+1,
+)
+path.write_text(src)
+print("patched SidebarKeyboardDelegate split-target surface")
+PY
+    fi
+
+    for keyboard_loader in \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Detail/Keyboard/DetailKeyboardDelegate.swift" \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/Keyboard/SidebarKeyboardDelegate.swift" \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Timeline/Keyboard/TimelineKeyboardDelegate.swift" \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Keyboard/MainWindowKeyboardHandler.swift"
+    do
+        if [[ -f "$keyboard_loader" ]]; then
+            echo "==> lowering netnewswire Mac $(basename "$keyboard_loader") keyboard resource lookup"
+            python3 - "$keyboard_loader" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+resource_names = {
+    "DetailKeyboardDelegate.swift": "DetailKeyboardShortcuts",
+    "SidebarKeyboardDelegate.swift": "SidebarKeyboardShortcuts",
+    "TimelineKeyboardDelegate.swift": "TimelineKeyboardShortcuts",
+    "MainWindowKeyboardHandler.swift": "GlobalKeyboardShortcuts",
+}
+resource_name = resource_names.get(path.name)
+if resource_name is None:
+    raise SystemExit(f"unknown keyboard loader: {path}")
+
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import RSCore\n",
+        "import RSCore\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+
+resource_lookup = f'''		let rawShortcuts: [[String: Any]]
+		#if os(Linux)
+		let shortcutsPath = NetNewsWireResource.path(forResource: "{resource_name}", ofType: "plist")
+		#else
+		let shortcutsPath = Bundle.main.path(forResource: "{resource_name}", ofType: "plist")
+		#endif
+		if let f = shortcutsPath,
+		   let shortcuts = NSArray(contentsOfFile: f) as? [[String: Any]] {{
+			rawShortcuts = shortcuts
+		}} else {{
+			rawShortcuts = []
+		}}
+'''
+force_unwrap_lookup = f'''		let f = Bundle.main.path(forResource: "{resource_name}", ofType: "plist")!
+		let rawShortcuts = NSArray(contentsOfFile: f)! as! [[String: Any]]
+'''
+bundle_fallback_lookup = f'''		let rawShortcuts: [[String: Any]]
+		if let f = Bundle.main.path(forResource: "{resource_name}", ofType: "plist"),
+		   let shortcuts = NSArray(contentsOfFile: f) as? [[String: Any]] {{
+			rawShortcuts = shortcuts
+		}} else {{
+			rawShortcuts = []
+		}}
+'''
+
+if "NetNewsWireResource.path(forResource:" not in src:
+    if force_unwrap_lookup in src:
+        src = src.replace(force_unwrap_lookup, resource_lookup, 1)
+    elif bundle_fallback_lookup in src:
+        src = src.replace(bundle_fallback_lookup, resource_lookup, 1)
+    else:
+        raise SystemExit(f"keyboard shortcut lookup pattern not found in {path}")
+
+path.write_text(src)
+print(f"patched {path.name} keyboard resource lookup")
+PY
+        fi
+    done
+
+    local nnw3_accessory_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/NNW3/NNW3OpenPanelAccessoryViewController.swift"
+    if [[ -f "$nnw3_accessory_controller" ]] && ! grep -q 'override func loadView()' "$nnw3_accessory_controller"; then
+        echo "==> lowering netnewswire Mac NNW3 accessory view controller nib fallback"
+        python3 - "$nnw3_accessory_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+"""\trequired init?(coder: NSCoder) {\n\t\tpreconditionFailure(\"NNW3OpenPanelAccessoryViewController.init(coder) not implemented by design.\")\n\t}\n\n\toverride func viewDidLoad() {\n""",
+"""\trequired init?(coder: NSCoder) {\n\t\tpreconditionFailure(\"NNW3OpenPanelAccessoryViewController.init(coder) not implemented by design.\")\n\t}\n\n\t#if os(Linux)\n\toverride func loadView() {\n\t\tlet contentView = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 32))\n\t\tlet popup = NSPopUpButton(frame: contentView.bounds, pullsDown: false)\n\t\tpopup.autoresizingMask = [.width, .height]\n\t\tcontentView.addSubview(popup)\n\t\taccountPopUpButton = popup\n\t\tview = contentView\n\t}\n\t#endif\n\n\toverride func viewDidLoad() {\n""",
+1,
+)
+path.write_text(src)
+print("patched NNW3OpenPanelAccessoryViewController nib fallback")
+PY
+    fi
+
+    local small_icon_provider="$shared_dir/Extensions/SmallIconProvider.swift"
+    if [[ -f "$small_icon_provider" ]]; then
+        echo "==> exposing netnewswire Shared SmallIconProvider for Mac sidebar slice"
+        python3 - "$small_icon_provider" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("protocol SmallIconProvider {", "public protocol SmallIconProvider {", 1)
+src = src.replace("\tvar smallIcon: IconImage? {", "\tpublic var smallIcon: IconImage? {")
+path.write_text(src)
+print("patched SmallIconProvider visibility")
+PY
+    fi
+
+    local pseudo_feed="$shared_dir/SmartFeeds/PseudoFeed.swift"
+    if [[ -f "$pseudo_feed" ]]; then
+        echo "==> exposing netnewswire Shared PseudoFeed for Mac sidebar slice"
+        python3 - "$pseudo_feed" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("protocol PseudoFeed:", "public protocol PseudoFeed:")
+path.write_text(src)
+print("patched PseudoFeed visibility")
+PY
+	    fi
+
+    for sidebar_controller in \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/SidebarViewController.swift" \
+        "$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/SidebarViewController+ContextualMenus.swift"
+    do
+        if [[ -f "$sidebar_controller" ]] && ! grep -q '^import NetNewsWireSharedCore' "$sidebar_controller"; then
+            echo "==> patching netnewswire Mac $(basename "$sidebar_controller") split-target import"
+            python3 - "$sidebar_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if path.name.endswith("+ContextualMenus.swift"):
+    src = src.replace(
+        "import UserNotifications\n",
+        "import UserNotifications\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+else:
+    src = src.replace(
+        "import Images\n",
+        "import Images\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+path.write_text(src)
+print(f"patched {path.name} split-target import")
+PY
+        fi
+    done
+
+    local main_window_controller="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/MainWindowController.swift"
+    if [[ -f "$main_window_controller" ]]; then
+        echo "==> patching netnewswire Mac MainWindowController split-target support"
+        python3 - "$main_window_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import RSCore\n",
+        "import RSCore\n#if os(Linux)\nimport NetNewsWireContext\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace(
+    "\nenum TimelineSourceMode {\n\tcase regular, search\n}\n",
+    "\n",
+    1,
+)
+src = src.replace(
+    "appDelegate.removeMainWindow(self)",
+    "NetNewsWireContext.appDelegate.removeMainWindow(self)",
+    1,
+)
+src = src.replace(
+    "window?.title = appName\n\t\t\tsetSubtitle(appDelegate.unreadCount)",
+    'window?.title = "NetNewsWire"\n\t\t\tsetSubtitle(NetNewsWireContext.appDelegateUnreadCount())',
+    1,
+)
+src = src.replace(
+    "articles.first?.feed?.readerViewAlwaysEnabled == true",
+    "articles.first?.quillMainWindowFeed?.readerViewAlwaysEnabled == true",
+    1,
+)
+src = src.replace(
+    "currentTimelineViewController?.selectedArticles.first?.feed != nil",
+    "currentTimelineViewController?.selectedArticles.first?.quillMainWindowFeed != nil",
+    1,
+)
+src = src.replace(
+    "let button = ArticleExtractorButton()",
+    "let button = ArticleExtractorButton(frame: .zero)",
+    1,
+)
+path.write_text(src)
+print("patched MainWindowController split-target support")
+PY
+    fi
+
+    local app_delegate_support="$mac_support_dir/AppDelegateSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" ]]; then
+        echo "==> adding netnewswire Mac AppDelegate support"
+        mkdir -p "$mac_support_dir"
+cat > "$app_delegate_support" <<'SWIFT'
+import AppKit
+import NetNewsWireSharedCore
+
+extension MainWindowController {
+	var isDisplayingSheet: Bool {
+		window?.attachedSheet != nil
+	}
+}
+
+extension HelpURL {
+	@MainActor func open() {
+		guard let url = URL(string: rawValue) else { return }
+		NSWorkspace.shared.open(url)
+	}
+}
+SWIFT
+    fi
+
+    local main_window_article_support="$mac_support_dir/MainWindowArticleSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" ]]; then
+        echo "==> adding netnewswire Mac main-window article/feed support"
+        mkdir -p "$mac_support_dir"
+cat > "$main_window_article_support" <<'SWIFT'
+import AppKit
+import Account
+import Articles
+
+extension Article {
+	@MainActor var quillMainWindowFeed: Feed? {
+		AccountManager.shared.existingAccount(accountID: accountID)?.existingFeed(withFeedID: feedID)
+	}
+}
+
+SWIFT
+    fi
+
+    local scripting_app_delegate_support="$mac_support_dir/ScriptingAppDelegateSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" ]]; then
+        echo "==> adding netnewswire Mac scripting app-delegate protocol support"
+        mkdir -p "$mac_support_dir"
+cat > "$scripting_app_delegate_support" <<'SWIFT'
+import Account
+import Articles
+
+@MainActor protocol AppDelegateAppleEvents {
+	func installAppleEventHandlers()
+	func getURL(_ event: NSAppleEventDescriptor, _ withReplyEvent: NSAppleEventDescriptor)
+}
+
+@MainActor protocol ScriptingAppDelegate {
+	var scriptingCurrentArticle: Article? { get }
+	var scriptingSelectedArticles: [Article] { get }
+	var scriptingSelectedFeeds: [Feed] { get }
+	var scriptingMainWindowController: ScriptingMainWindowController? { get }
+}
+
+extension AppDelegate: AppDelegateAppleEvents {
+	func installAppleEventHandlers() {}
+	func getURL(_ event: NSAppleEventDescriptor, _ withReplyEvent: NSAppleEventDescriptor) {
+		_ = event
+		_ = withReplyEvent
+	}
+}
+SWIFT
+    fi
+
+    local scripting_main_window_support="$mac_support_dir/ScriptingMainWindowControllerSupport.swift"
+    if [[ -d "$UPSTREAM_DIR/netnewswire/Mac" && ! -f "$scripting_main_window_support" ]]; then
+        echo "==> adding netnewswire Mac scripting main-window protocol support"
+        mkdir -p "$mac_support_dir"
+cat > "$scripting_main_window_support" <<'SWIFT'
+import Articles
+import Account
+
+@MainActor protocol ScriptingMainWindowController {
+    var scriptingCurrentArticle: Article? { get }
+    var scriptingSelectedArticles: [Article] { get }
+    var scriptingSelectedFeeds: [Feed] { get }
+}
+SWIFT
+    fi
+
+	    local sidebar_outline_view="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/SidebarOutlineView.swift"
+	    if [[ -f "$sidebar_outline_view" ]]; then
+	        echo "==> patching netnewswire Mac SidebarOutlineView split-target support"
+	        python3 - "$sidebar_outline_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import RSTree\n",
+        "import RSTree\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+path.write_text(src)
+print("patched SidebarOutlineView split-target support")
+PY
+	    fi
+
+	    local sidebar_outline_data_source="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/SidebarOutlineDataSource.swift"
+	    if [[ -f "$sidebar_outline_data_source" ]] && grep -q 'appDelegate.addFeed(draggedFeed.url' "$sidebar_outline_data_source"; then
+	        echo "==> lowering netnewswire Mac SidebarOutlineDataSource app delegate service"
+	        python3 - "$sidebar_outline_data_source" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireContext" not in src:
+    src = src.replace("import Account\n", "import Account\nimport NetNewsWireContext\n", 1)
+src = src.replace(
+    "appDelegate.addFeed(draggedFeed.url, name: draggedFeed.editedName ?? draggedFeed.name, account: account, folder: nil)",
+    "NetNewsWireContext.appDelegate.addFeed(draggedFeed.url, name: draggedFeed.editedName ?? draggedFeed.name, account: account, folder: nil)",
+    1,
+)
+src = src.replace(
+    "appDelegate.addFeed(draggedFeed.url, name: draggedFeed.editedName ?? draggedFeed.name, account: account, folder: folder)",
+    "NetNewsWireContext.appDelegate.addFeed(draggedFeed.url, name: draggedFeed.editedName ?? draggedFeed.name, account: account, folder: folder)",
+    1,
+)
+path.write_text(src)
+print("patched SidebarOutlineDataSource app delegate service lowering")
+PY
+	    fi
+
+	    local unread_count_view="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/UnreadCountView.swift"
+	    if [[ -f "$unread_count_view" ]]; then
+	        echo "==> patching netnewswire Mac UnreadCountView split-target support"
+	        python3 - "$unread_count_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if "import NetNewsWireSharedCore" not in src:
+    src = src.replace(
+        "import AppKit\n",
+        "import AppKit\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace(
+    "\tprivate static var textSizeCache = [Int: NSSize]()",
+    "\tprivate static var textSizeCache: [Int: NSSize] = [:]",
+    1,
+)
+path.write_text(src)
+print("patched UnreadCountView split-target support")
+PY
+    fi
+
+    local sidebar_status_bar_view="$UPSTREAM_DIR/netnewswire/Mac/MainWindow/Sidebar/SidebarStatusBarView.swift"
+    if [[ -f "$sidebar_status_bar_view" ]] && ! grep -q 'progressInfo.numberCompleted) of' "$sidebar_status_bar_view"; then
+        echo "==> patching netnewswire Mac SidebarStatusBarView Linux formatter"
+        python3 - "$sidebar_status_bar_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old = '''\t\tlet formatString = NSLocalizedString("%@ of %@", comment: "Status bar progress")
+\t\tlet s = String(format: formatString, NSNumber(value: progressInfo.numberCompleted), NSNumber(value: progressInfo.numberOfTasks))
+'''
+new = '''\t\tlet formatString = NSLocalizedString("%@ of %@", comment: "Status bar progress")
+#if os(Linux)
+\t\tlet s = "\\(progressInfo.numberCompleted) of \\(progressInfo.numberOfTasks)"
+#else
+\t\tlet s = String(format: formatString, NSNumber(value: progressInfo.numberCompleted), NSNumber(value: progressInfo.numberOfTasks))
+#endif
+'''
+if old not in src:
+    raise SystemExit("SidebarStatusBarView formatter pattern not found")
+src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched SidebarStatusBarView Linux formatter")
+PY
+    fi
+
+    local account_type_helpers="$shared_dir/AccountType+Helpers.swift"
+    if [[ -f "$account_type_helpers" ]] && ! grep -q '^public extension AccountType' "$account_type_helpers"; then
+        echo "==> exposing netnewswire AccountType helpers for Mac Preferences Accounts slice"
+        python3 - "$account_type_helpers" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text().replace("extension AccountType {", "public extension AccountType {", 1)
+path.write_text(src)
+print("patched AccountType helper visibility")
+PY
+    fi
+
+    local add_cloudkit_account="$shared_dir/Settings/AddCloudKitAccount.swift"
+    if [[ -f "$add_cloudkit_account" ]] && ! grep -q '^public enum AddCloudKitAccountError' "$add_cloudkit_account"; then
+        echo "==> exposing netnewswire AddCloudKitAccount helpers for Mac Preferences Accounts slice"
+        python3 - "$add_cloudkit_account" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    "enum AddCloudKitAccountError": "public enum AddCloudKitAccountError",
+    "\tvar errorDescription": "\tpublic var errorDescription",
+    "\tvar recoverySuggestion": "\tpublic var recoverySuggestion",
+    "\tvar recoveryOptions": "\tpublic var recoveryOptions",
+    "\tfunc attemptRecovery": "\tpublic func attemptRecovery",
+    "struct AddCloudKitAccountUtilities": "public struct AddCloudKitAccountUtilities",
+    "\tstatic var isiCloudDriveEnabled": "\tpublic static var isiCloudDriveEnabled",
+    "\t@MainActor static func openiCloudSettings": "\t@MainActor public static func openiCloudSettings",
+}
+for old, new in replacements.items():
+    src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched AddCloudKitAccount visibility")
+PY
+    fi
+
+    local accounts_add_cloudkit="$UPSTREAM_DIR/netnewswire/Mac/Preferences/Accounts/AccountsAddCloudKitWindowController.swift"
+    if [[ -f "$accounts_add_cloudkit" ]] && ! grep -q '^import NetNewsWireSharedCore' "$accounts_add_cloudkit"; then
+        echo "==> patching netnewswire AccountsAddCloudKit split-target import"
+        python3 - "$accounts_add_cloudkit" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Account\n",
+    "import Account\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched AccountsAddCloudKit split-target import")
+PY
+    fi
+
+    local accounts_reader_api="$UPSTREAM_DIR/netnewswire/Mac/Preferences/Accounts/AccountsReaderAPIWindowController.swift"
+    if [[ -f "$accounts_reader_api" ]] && ! grep -q '^import NetNewsWireSharedCore' "$accounts_reader_api"; then
+        echo "==> patching netnewswire AccountsReaderAPI split-target import"
+        python3 - "$accounts_reader_api" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import Secrets\n",
+    "import Secrets\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched AccountsReaderAPI split-target import")
+PY
+    fi
+
+    local add_accounts_view="$UPSTREAM_DIR/netnewswire/Mac/Preferences/Accounts/AddAccountsView.swift"
+    if [[ -f "$add_accounts_view" ]] && ! grep -q '^import NetNewsWireSharedCore' "$add_accounts_view"; then
+        echo "==> patching netnewswire AddAccountsView split-target import"
+        python3 - "$add_accounts_view" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import RSCore\n",
+    "import RSCore\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched AddAccountsView split-target import")
+PY
+    fi
+
+    local article_themes_manager="$shared_dir/ArticleStyles/ArticleThemesManager.swift"
+    if [[ -f "$article_themes_manager" ]]; then
+        echo "==> exposing netnewswire ArticleThemesManager for Mac Preferences slice"
+        python3 - "$article_themes_manager" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    "extension Notification.Name": "public extension Notification.Name",
+    "final class ArticleThemesManager": "public final class ArticleThemesManager",
+    "\tstatic let shared": "\tpublic static let shared",
+    "\tlet folderPath": "\tpublic let folderPath",
+    "\tlet presentedItemOperationQueue": "\tpublic let presentedItemOperationQueue",
+    "\tlet presentedItemURL": "\tpublic let presentedItemURL",
+    "\tvar currentThemeName": "\tpublic var currentThemeName",
+    "\tvar currentTheme": "\tpublic var currentTheme",
+    "\tvar themeNames": "\tpublic var themeNames",
+    "\t@MainActor func start()": "\t@MainActor public func start()",
+    "\tfunc presentedSubitemDidChange": "\tpublic func presentedSubitemDidChange",
+    "\tfunc themeExists": "\tpublic func themeExists",
+    "\tfunc importTheme": "\tpublic func importTheme",
+    "\tfunc articleThemeWithThemeName": "\tpublic func articleThemeWithThemeName",
+}
+for old, new in replacements.items():
+    if new not in src:
+        src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched ArticleThemesManager visibility")
+PY
+    fi
+
+    local article_text_size="$shared_dir/Article Rendering/ArticleTextSize.swift"
+    if [[ -f "$article_text_size" ]] && grep -q '^enum ArticleTextSize' "$article_text_size"; then
+        echo "==> exposing netnewswire ArticleTextSize for Mac AppDefaults slice"
+        python3 - "$article_text_size" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text().replace("enum ArticleTextSize", "public enum ArticleTextSize", 1)
+path.write_text(src)
+print("patched ArticleTextSize visibility")
+PY
+    fi
+
+    local refresh_interval="$shared_dir/Timer/RefreshInterval.swift"
+    if [[ -f "$refresh_interval" ]] && grep -q '^enum RefreshInterval' "$refresh_interval"; then
+        echo "==> exposing netnewswire RefreshInterval for Mac AppDefaults slice"
+        python3 - "$refresh_interval" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text().replace("enum RefreshInterval", "public enum RefreshInterval", 1)
+path.write_text(src)
+print("patched RefreshInterval visibility")
+PY
+    fi
+
     if [[ -d "$shared_dir" ]] && grep -rqE 'NSSortDescriptor\(key:|sortDescriptor(\?)?\.key' "$shared_dir" 2>/dev/null; then
         echo "==> lowering netnewswire Shared Foundation compatibility"
         ( cd "$ROOT_DIR" && swift run quill-lower-foundation "$shared_dir" )
@@ -2035,6 +3950,54 @@ print("patched ArticleStringFormatter selector observer lowering")
 PY
     fi
 
+    local mac_share_view_controller="$UPSTREAM_DIR/netnewswire/Mac/ShareExtension/ShareViewController.swift"
+    if [[ -f "$mac_share_view_controller" ]] && ! grep -q '^import NetNewsWireSharedCore' "$mac_share_view_controller"; then
+        echo "==> lowering netnewswire Mac ShareViewController split-target import"
+        python3 - "$mac_share_view_controller" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace(
+    "import os\n",
+    "import os\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+    1,
+)
+path.write_text(src)
+print("patched ShareViewController NetNewsWireSharedCore import")
+PY
+    fi
+
+    for scripting_file in "$UPSTREAM_DIR"/netnewswire/Mac/Scripting/*.swift; do
+        if [[ -f "$scripting_file" ]]; then
+            echo "==> lowering netnewswire Mac scripting source: ${scripting_file#$UPSTREAM_DIR/netnewswire/Mac/}"
+            python3 - "$scripting_file" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+if path.name in {"AppDelegate+Scriptability.swift", "Article+Scriptability.swift", "Feed+Scriptability.swift"} and "import NetNewsWireSharedCore" not in src:
+    if "import Articles\n" not in src:
+        raise SystemExit(f"Articles import not found in {path}")
+    src = src.replace(
+        "import Articles\n",
+        "import Articles\n#if os(Linux)\nimport NetNewsWireSharedCore\n#endif\n",
+        1,
+    )
+src = src.replace("nonisolated override var objectSpecifier", "nonisolated var objectSpecifier")
+src = src.replace("Task { @MainActor in", "Task<Void, Never> { @MainActor in")
+src = src.replace(
+    "guard let parentFeed = self.article.feed else {",
+    "guard let parentFeed = AccountManager.shared.existingAccount(accountID: self.article.accountID)?.existingFeed(withFeedID: self.article.feedID) else {",
+)
+path.write_text(src)
+print(f"patched {path.name} scripting lowering")
+PY
+        fi
+    done
+
     local default_feeds_importer="$shared_dir/Importers/DefaultFeedsImporter.swift"
     if [[ -f "$default_feeds_importer" ]] && grep -q 'Bundle.main.url(forResource: "DefaultFeeds"' "$default_feeds_importer"; then
         echo "==> lowering netnewswire Shared DefaultFeedsImporter resource lookup"
@@ -2047,7 +4010,7 @@ src = path.read_text()
 src = src.replace(
     'let defaultFeedsURL = Bundle.main.url(forResource: "DefaultFeeds", withExtension: "opml")!',
     '''#if os(Linux)
-\t\tguard let defaultFeedsURL = Bundle.module.url(forResource: "DefaultFeeds", withExtension: "opml") else {
+\t\tguard let defaultFeedsURL = NetNewsWireResource.url(forResource: "DefaultFeeds", withExtension: "opml") else {
 \t\t\treturn
 \t\t}
 #else
@@ -2055,8 +4018,114 @@ src = src.replace(
 #endif''',
     1,
 )
+src = src.replace(
+    "AccountManager.shared.defaultAccount.importOPML(defaultFeedsURL) { _ in }",
+    "account.importOPML(defaultFeedsURL) { _ in }",
+    1,
+)
 path.write_text(src)
-print("patched DefaultFeedsImporter Bundle.module lookup")
+print("patched DefaultFeedsImporter resource lookup")
+PY
+    fi
+
+    local shared_share_dir="$shared_dir/ShareExtension"
+    if [[ -d "$shared_share_dir" ]]; then
+        echo "==> lowering netnewswire Shared ShareExtension split-target access"
+        python3 - "$shared_share_dir" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+
+def rewrite(name, replacements):
+    path = root / name
+    if not path.exists():
+        return
+    src = path.read_text()
+    for old, new in replacements:
+        src = src.replace(old, new, 1)
+    path.write_text(src)
+
+rewrite("ExtensionFeedAddRequest.swift", [
+    ("struct ExtensionFeedAddRequest: Codable {", "public struct ExtensionFeedAddRequest: Codable {"),
+    ("""\tlet name: String?
+\tlet feedURL: URL
+\tlet destinationContainerID: ContainerIdentifier
+""", """\tpublic let name: String?
+\tpublic let feedURL: URL
+\tpublic let destinationContainerID: ContainerIdentifier
+
+\tpublic init(name: String?, feedURL: URL, destinationContainerID: ContainerIdentifier) {
+\t\tself.name = name
+\t\tself.feedURL = feedURL
+\t\tself.destinationContainerID = destinationContainerID
+\t}
+"""),
+])
+
+rewrite("ExtensionContainers.swift", [
+    ("protocol ExtensionContainer: Codable {", "public protocol ExtensionContainer: Codable {"),
+    ("struct ExtensionContainers: Codable {", "public struct ExtensionContainers: Codable {"),
+    ("\tlet accounts: [ExtensionAccount]", "\tpublic let accounts: [ExtensionAccount]"),
+    ("\tvar flattened: [ExtensionContainer] {", "\tpublic var flattened: [ExtensionContainer] {"),
+    ("\tfunc findAccount(forName name: String) -> ExtensionAccount? {", "\tpublic func findAccount(forName name: String) -> ExtensionAccount? {"),
+    ("struct ExtensionAccount: ExtensionContainer {", "public struct ExtensionAccount: ExtensionContainer {"),
+    ("""\tlet name: String
+\tlet accountID: String
+\tlet type: AccountType
+\tlet disallowFeedInRootFolder: Bool
+\tlet containerID: ContainerIdentifier?
+\tlet folders: [ExtensionFolder]
+""", """\tpublic let name: String
+\tpublic let accountID: String
+\tpublic let type: AccountType
+\tpublic let disallowFeedInRootFolder: Bool
+\tpublic let containerID: ContainerIdentifier?
+\tpublic let folders: [ExtensionFolder]
+"""),
+    ("\t@MainActor init(account: Account) {", "\t@MainActor public init(account: Account) {"),
+    ("\tnonisolated init(from decoder: Decoder) throws {", "\tnonisolated public init(from decoder: Decoder) throws {"),
+    ("\tnonisolated func encode(to encoder: Encoder) throws {", "\tnonisolated public func encode(to encoder: Encoder) throws {"),
+    ("\tfunc findFolder(forName name: String) -> ExtensionFolder? {", "\tpublic func findFolder(forName name: String) -> ExtensionFolder? {"),
+    ("struct ExtensionFolder: ExtensionContainer {", "public struct ExtensionFolder: ExtensionContainer {"),
+    ("""\tlet accountName: String
+\tlet accountID: String
+\tlet name: String
+\tlet containerID: ContainerIdentifier?
+""", """\tpublic let accountName: String
+\tpublic let accountID: String
+\tpublic let name: String
+\tpublic let containerID: ContainerIdentifier?
+"""),
+    ("\t@MainActor init(folder: Folder) {", "\t@MainActor public init(folder: Folder) {"),
+])
+
+rewrite("ExtensionContainersFile.swift", [
+    ("@MainActor final class ExtensionContainersFile {", "@MainActor public final class ExtensionContainersFile {"),
+    ("\tstatic let shared = ExtensionContainersFile()", "\tpublic static let shared = ExtensionContainersFile()"),
+    ("\tfunc start() {", "\tpublic func start() {"),
+    ("\tstatic func read() -> ExtensionContainers? {", "\tpublic static func read() -> ExtensionContainers? {"),
+])
+
+rewrite("ExtensionFeedAddRequestFile.swift", [
+    ("final class ExtensionFeedAddRequestFile: NSObject, NSFilePresenter, Sendable {", "public final class ExtensionFeedAddRequestFile: NSObject, NSFilePresenter, Sendable {"),
+    ("\tstatic let shared = ExtensionFeedAddRequestFile()", "\tpublic static let shared = ExtensionFeedAddRequestFile()"),
+    ("\tvar presentedItemURL: URL? {", "\tpublic var presentedItemURL: URL? {"),
+    ("\tvar presentedItemOperationQueue: OperationQueue {", "\tpublic var presentedItemOperationQueue: OperationQueue {"),
+    ("\tfunc start() {", "\tpublic func start() {"),
+    ("\tfunc presentedItemDidChange() {", "\tpublic func presentedItemDidChange() {"),
+    ("\tfunc resume() {", "\tpublic func resume() {"),
+    ("\tfunc suspend() {", "\tpublic func suspend() {"),
+    ("\tstatic func save(_ feedAddRequest: ExtensionFeedAddRequest) {", "\tpublic static func save(_ feedAddRequest: ExtensionFeedAddRequest) {"),
+])
+
+rewrite("ShareDefaultContainer.swift", [
+    ("@MainActor struct ShareDefaultContainer {", "@MainActor public struct ShareDefaultContainer {"),
+    ("\tstatic func defaultContainer(containers: ExtensionContainers) -> ExtensionContainer? {", "\tpublic static func defaultContainer(containers: ExtensionContainers) -> ExtensionContainer? {"),
+    ("\tstatic func saveDefaultContainer(_ container: ExtensionContainer) {", "\tpublic static func saveDefaultContainer(_ container: ExtensionContainer) {"),
+])
+
+print("patched Shared ShareExtension public split-target surface")
 PY
     fi
 
@@ -2161,6 +4230,510 @@ print("patched ExtensionFeedAddRequestFile app-group lowering")
 PY
     fi
 
+    local widget_data_decoder="$shared_dir/Widget/WidgetDataDecoder.swift"
+    if [[ -f "$widget_data_decoder" ]] && grep -q 'as! String' "$widget_data_decoder"; then
+        echo "==> lowering netnewswire Shared WidgetDataDecoder app-group lookup"
+        python3 - "$widget_data_decoder" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old = '''		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as! String
+'''
+new = '''		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as? String ?? "group.com.ranchero.NetNewsWire"
+'''
+if old not in src:
+    raise SystemExit("WidgetDataDecoder app-group pattern not found")
+src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched WidgetDataDecoder app-group lowering")
+PY
+    fi
+
+    local widget_data_encoder="$shared_dir/Widget/WidgetDataEncoder.swift"
+    if [[ -f "$widget_data_encoder" ]] && grep -q 'unable to create appGroup' "$widget_data_encoder"; then
+        echo "==> lowering netnewswire Shared WidgetDataEncoder app-group lookup"
+        python3 - "$widget_data_encoder" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old = '''		guard let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as? String else {
+			Self.logger.error("WidgetDataEncoder: unable to create appGroup")
+			return nil
+		}
+'''
+new = '''		let appGroup = Bundle.main.object(forInfoDictionaryKey: "AppGroup") as? String ?? "group.com.ranchero.NetNewsWire"
+'''
+if old not in src:
+    raise SystemExit("WidgetDataEncoder app-group pattern not found")
+src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched WidgetDataEncoder app-group lowering")
+PY
+    fi
+
+    local fetch_request_operation="$shared_dir/Timeline/FetchRequestOperation.swift"
+    if [[ -f "$fetch_request_operation" ]] && grep -q '#if os(macOS)' "$fetch_request_operation"; then
+        echo "==> lowering netnewswire Shared FetchRequestOperation desktop branch for Linux"
+        python3 - "$fetch_request_operation" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old = "#if os(macOS)"
+new = "#if os(macOS) || os(Linux)"
+if old not in src:
+    raise SystemExit("FetchRequestOperation desktop branch pattern not found")
+src = src.replace(old, new, 1)
+src = src.replace("\t\tprecondition(Thread.isMainThread)", "\t\tquillFetchOperationPreconditionMainThread()")
+src = src.replace("\t\t\t\tprecondition(Thread.isMainThread)", "\t\t\t\tquillFetchOperationPreconditionMainThread()")
+helper = '''
+
+private func quillFetchOperationPreconditionMainThread() {
+\t#if !os(Linux)
+\tprecondition(Thread.isMainThread)
+\t#endif
+}
+'''
+if "private func quillFetchOperationPreconditionMainThread()" not in src:
+    src = src.rstrip() + helper + "\n"
+path.write_text(src)
+print("patched FetchRequestOperation desktop branch lowering")
+PY
+    fi
+
+    local fetch_request_queue="$shared_dir/Timeline/FetchRequestQueue.swift"
+    if [[ -f "$fetch_request_queue" ]] && grep -q 'precondition(Thread.isMainThread)' "$fetch_request_queue"; then
+        echo "==> lowering netnewswire Shared FetchRequestQueue main-thread preconditions for Linux"
+        python3 - "$fetch_request_queue" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("\t\tprecondition(Thread.isMainThread)", "\t\tquillFetchQueuePreconditionMainThread()")
+helper = '''
+
+private func quillFetchQueuePreconditionMainThread() {
+\t#if !os(Linux)
+\tprecondition(Thread.isMainThread)
+\t#endif
+}
+'''
+if "private func quillFetchQueuePreconditionMainThread()" not in src:
+    src = src.rstrip() + helper + "\n"
+path.write_text(src)
+print("patched FetchRequestQueue main-thread precondition lowering")
+PY
+    fi
+
+    local article_theme="$shared_dir/ArticleStyles/ArticleTheme.swift"
+    if [[ -f "$article_theme" ]]; then
+        echo "==> exposing netnewswire ArticleTheme for Mac Preferences slice"
+        python3 - "$article_theme" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    "struct ArticleTheme": "public struct ArticleTheme",
+    "\tstatic let defaultTheme": "\tpublic static let defaultTheme",
+    "\tstatic let nnwThemeSuffix": "\tpublic static let nnwThemeSuffix",
+    "\tvar name": "\tpublic var name",
+}
+for old, new in replacements.items():
+    if new not in src:
+        src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched ArticleTheme visibility")
+PY
+    fi
+
+    if [[ -f "$article_theme" ]] && grep -q 'Bundle.main.path(forResource: "core"' "$article_theme"; then
+        echo "==> lowering netnewswire Shared ArticleTheme resource lookup"
+        python3 - "$article_theme" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    'let corePath = Bundle.main.path(forResource: "core", ofType: "css")!':
+        'let corePath = Bundle.module.path(forResource: "core", ofType: "css") ?? Bundle.main.path(forResource: "core", ofType: "css")!',
+    'let stylesheetPath = Bundle.main.path(forResource: "stylesheet", ofType: "css")!':
+        'let stylesheetPath = Bundle.module.path(forResource: "stylesheet", ofType: "css") ?? Bundle.main.path(forResource: "stylesheet", ofType: "css")!',
+    'let templatePath = Bundle.main.path(forResource: "template", ofType: "html")!':
+        'let templatePath = Bundle.module.path(forResource: "template", ofType: "html") ?? Bundle.main.path(forResource: "template", ofType: "html")!',
+    'let coreURL = Bundle.main.url(forResource: "core", withExtension: "css")!':
+        'let coreURL = Bundle.module.url(forResource: "core", withExtension: "css") ?? Bundle.main.url(forResource: "core", withExtension: "css")!',
+}
+for old, new in replacements.items():
+    if old not in src:
+        raise SystemExit(f"ArticleTheme resource pattern not found: {old}")
+    src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched ArticleTheme resource lowering")
+PY
+    fi
+
+    local article_renderer="$shared_dir/Article Rendering/ArticleRenderer.swift"
+    if [[ -f "$article_renderer" ]] && ! grep -q 'public struct ArticleRenderer' "$article_renderer"; then
+        echo "==> lowering netnewswire Shared ArticleRenderer split-target visibility"
+        python3 - "$article_renderer" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    "@MainActor struct ArticleRenderer": "@MainActor public struct ArticleRenderer",
+    "\ttypealias Rendering = ": "\tpublic typealias Rendering = ",
+    "\tstruct Page {": "\tpublic struct Page {",
+    "\t\tlet url: URL": "\t\tpublic let url: URL",
+    "\t\tlet baseURL: URL": "\t\tpublic let baseURL: URL",
+    "\t\tlet html: String": "\t\tpublic let html: String",
+    "\tstatic var imageIconScheme": "\tpublic static var imageIconScheme",
+    "\tstatic var blank": "\tpublic static var blank",
+    "\tstatic var page": "\tpublic static var page",
+    "\tstatic func articleHTML": "\tpublic static func articleHTML",
+    "\tstatic func multipleSelectionHTML": "\tpublic static func multipleSelectionHTML",
+    "\tstatic func loadingHTML": "\tpublic static func loadingHTML",
+    "\tstatic func noSelectionHTML": "\tpublic static func noSelectionHTML",
+    "\tstatic func noContentHTML": "\tpublic static func noContentHTML",
+}
+for old, new in replacements.items():
+    src = src.replace(old, new, 1)
+old_init = '''\t\tinit(name: String) {
+\t\t\turl = Bundle.main.url(forResource: name, withExtension: "html")!
+\t\t\tbaseURL = url.deletingLastPathComponent()
+\t\t\thtml = try! String(contentsOfFile: url.path, encoding: .utf8)
+\t\t}
+'''
+new_init = '''\t\tinit(name: String) {
+\t\t\tif let resourceURL = Bundle.module.url(forResource: name, withExtension: "html") ?? Bundle.main.url(forResource: name, withExtension: "html") {
+\t\t\t\turl = resourceURL
+\t\t\t\tbaseURL = resourceURL.deletingLastPathComponent()
+\t\t\t\thtml = (try? String(contentsOfFile: resourceURL.path, encoding: .utf8)) ?? Self.fallbackHTML(name: name)
+\t\t\t} else {
+\t\t\t\tlet fallbackURL = URL(fileURLWithPath: "/tmp/\\(name).html")
+\t\t\t\turl = fallbackURL
+\t\t\t\tbaseURL = fallbackURL.deletingLastPathComponent()
+\t\t\t\thtml = Self.fallbackHTML(name: name)
+\t\t\t}
+\t\t}
+
+\t\tprivate static func fallbackHTML(name: String) -> String {
+\t\t\tif name == "page" {
+\t\t\t\treturn """
+\t\t\t\t<!doctype html>
+\t\t\t\t<html>
+\t\t\t\t<head><meta charset="utf-8"><title>[[title]]</title><style>[[style]]</style></head>
+\t\t\t\t<body>[[body]]</body>
+\t\t\t\t</html>
+\t\t\t\t"""
+\t\t\t}
+\t\t\treturn "<!doctype html><html><body></body></html>"
+\t\t}
+'''
+if old_init in src:
+    src = src.replace(old_init, new_init, 1)
+path.write_text(src)
+print("patched ArticleRenderer split-target visibility")
+PY
+    fi
+    if [[ -f "$article_renderer" ]] && grep -q 'Bundle.main.path(forResource: "stylesheet"' "$article_renderer"; then
+        echo "==> lowering netnewswire Shared ArticleRenderer resource lookup"
+        python3 - "$article_renderer" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    'let path = Bundle.main.path(forResource: "stylesheet", ofType: "css")!':
+        'let path = Bundle.module.path(forResource: "stylesheet", ofType: "css") ?? Bundle.main.path(forResource: "stylesheet", ofType: "css")!',
+    'let path = Bundle.main.path(forResource: "template", ofType: "html")!':
+        'let path = Bundle.module.path(forResource: "template", ofType: "html") ?? Bundle.main.path(forResource: "template", ofType: "html")!',
+    '#if os(macOS)\n\t\td["text_size_class"] = AppDefaults.shared.articleTextSize.cssClass':
+        '#if os(macOS) || os(Linux)\n\t\td["text_size_class"] = AppDefaults.shared.articleTextSize.cssClass',
+}
+for old, new in replacements.items():
+    if old not in src:
+        raise SystemExit(f"ArticleRenderer pattern not found: {old}")
+    src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched ArticleRenderer resource lowering")
+PY
+    fi
+
+    local article_extractor="$shared_dir/Article Extractor/ArticleExtractor.swift"
+    local extracted_article="$shared_dir/Article Extractor/ExtractedArticle.swift"
+    if [[ -f "$extracted_article" ]] && ! grep -q 'public struct ExtractedArticle' "$extracted_article"; then
+        echo "==> lowering netnewswire Shared ExtractedArticle split-target visibility"
+        python3 - "$extracted_article" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text().replace("struct ExtractedArticle: Codable, Equatable", "public struct ExtractedArticle: Codable, Equatable", 1)
+path.write_text(src)
+print("patched ExtractedArticle visibility")
+PY
+    fi
+
+    if [[ -f "$article_extractor" ]] && ! grep -q 'FoundationNetworking' "$article_extractor"; then
+        echo "==> lowering netnewswire Shared ArticleExtractor networking import"
+        python3 - "$article_extractor" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+old = "import Foundation\n"
+new = "import Foundation\n#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\n"
+if old not in src:
+    raise SystemExit("ArticleExtractor Foundation import pattern not found")
+src = src.replace(old, new, 1)
+path.write_text(src)
+print("patched ArticleExtractor FoundationNetworking import")
+PY
+    fi
+
+    local article_rendering_special_cases="$shared_dir/Article Rendering/ArticleRenderingSpecialCases.swift"
+    if [[ -f "$article_rendering_special_cases" ]] && ! grep -q 'public struct ArticleRenderingSpecialCases' "$article_rendering_special_cases"; then
+        echo "==> lowering netnewswire Shared ArticleRenderingSpecialCases split-target visibility"
+        python3 - "$article_rendering_special_cases" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("struct ArticleRenderingSpecialCases", "public struct ArticleRenderingSpecialCases", 1)
+src = src.replace("\tstatic func filterHTMLIfNeeded", "\tpublic static func filterHTMLIfNeeded", 1)
+path.write_text(src)
+print("patched ArticleRenderingSpecialCases visibility")
+PY
+    fi
+
+    local webview_configuration="$shared_dir/Article Rendering/WebViewConfiguration.swift"
+    if [[ -f "$webview_configuration" ]] && ! grep -q 'public final class WebViewConfiguration' "$webview_configuration"; then
+        echo "==> lowering netnewswire Shared WebViewConfiguration split-target visibility"
+        python3 - "$webview_configuration" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+src = src.replace("@MainActor final class WebViewConfiguration", "@MainActor public final class WebViewConfiguration", 1)
+src = src.replace("\tstatic func configuration", "\tpublic static func configuration", 1)
+src = src.replace("\tstatic func addContentBlockingRules", "\tpublic static func addContentBlockingRules", 1)
+src = src.replace("\tstatic func compileContentBlockingRules", "\tpublic static func compileContentBlockingRules", 1)
+path.write_text(src)
+print("patched WebViewConfiguration visibility")
+PY
+    fi
+    if [[ -f "$webview_configuration" ]] && grep -q 'Bundle.main.url(forResource: "ContentRules"' "$webview_configuration"; then
+        echo "==> lowering netnewswire Shared WebViewConfiguration resource lookup"
+        python3 - "$webview_configuration" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    'assert(Thread.isMainThread)':
+        'quillWebViewConfigurationAssertMainThread()',
+    'guard let url = Bundle.main.url(forResource: "ContentRules", withExtension: "json") else {':
+        'guard let url = Bundle.module.url(forResource: "ContentRules", withExtension: "json") ?? Bundle.main.url(forResource: "ContentRules", withExtension: "json") else {',
+    'let startTime = CFAbsoluteTimeGetCurrent()':
+        'let startTime = Date().timeIntervalSinceReferenceDate',
+    'let elapsed = CFAbsoluteTimeGetCurrent() - startTime':
+        'let elapsed = Date().timeIntervalSinceReferenceDate - startTime',
+    '''#if os(iOS)
+\t\tlet filenames = ["main", "main_ios", "newsfoot"]
+#else
+\t\tlet filenames = ["main", "main_mac", "newsfoot"]
+#endif''':
+        '''#if os(iOS)
+\t\tlet filenames = ["main", "main_ios", "newsfoot"]
+#elseif os(Linux)
+\t\tlet filenames = ["main", "newsfoot"]
+#else
+\t\tlet filenames = ["main", "main_mac", "newsfoot"]
+#endif''',
+    '''\t\tlet scripts = filenames.map { filename in
+\t\t\tlet scriptURL = Bundle.main.url(forResource: filename, withExtension: ".js")!
+\t\t\tlet scriptSource = try! String(contentsOf: scriptURL, encoding: .utf8)
+\t\t\treturn WKUserScript(source: scriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+\t\t}
+\t\treturn scripts''':
+        '''\t\tlet scripts = filenames.compactMap { filename -> WKUserScript? in
+\t\t\tguard let scriptURL = Bundle.module.url(forResource: filename, withExtension: "js") ?? Bundle.main.url(forResource: filename, withExtension: "js"),
+\t\t\t\t  let scriptSource = try? String(contentsOf: scriptURL, encoding: .utf8) else {
+\t\t\t\treturn nil
+\t\t\t}
+\t\t\treturn WKUserScript(source: scriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: true)
+\t\t}
+\t\treturn scripts''',
+}
+for old, new in replacements.items():
+    if old not in src:
+        raise SystemExit(f"WebViewConfiguration pattern not found: {old}")
+    src = src.replace(old, new)
+helper = '''
+
+private func quillWebViewConfigurationAssertMainThread() {
+#if !os(Linux)
+\tassert(Thread.isMainThread)
+#endif
+}
+'''
+if "private func quillWebViewConfigurationAssertMainThread()" not in src:
+    src = src.rstrip() + helper + "\n"
+path.write_text(src)
+print("patched WebViewConfiguration resource lowering")
+PY
+    fi
+
+    local attributed_string_extensions="$shared_dir/Extensions/NSAttributedString+Extensions.swift"
+    if [[ -f "$attributed_string_extensions" ]]; then
+        echo "==> lowering netnewswire Shared NSAttributedString font descriptor compatibility"
+        python3 - "$attributed_string_extensions" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+replacements = {
+    '''\t\t\t#if canImport(AppKit)
+\t\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits)
+\t\t\t#else''':
+        '''\t\t\t#if os(Linux)
+\t\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits) ?? descriptor
+\t\t\t#elseif canImport(AppKit)
+\t\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits)
+\t\t\t#else''',
+    '''\t\t#if canImport(AppKit)
+\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits)
+\t\t#else''':
+        '''\t\t#if os(Linux)
+\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits) ?? descriptor
+\t\t#elseif canImport(AppKit)
+\t\tdescriptor = descriptor.withSymbolicTraits(symbolicTraits)
+\t\t#else''',
+    '''\t\t#if canImport(AppKit)
+\t\t// NSFont init(descriptor:, size:) returns optional — falls''':
+        '''\t\t#if os(Linux)
+\t\treturn RSFont(descriptor: descriptor, size: baseFont.pointSize)
+\t\t#elseif canImport(AppKit)
+\t\t// NSFont init(descriptor:, size:) returns optional — falls''',
+}
+patched = False
+for old, new in replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+        patched = True
+mutable_string_replacements = {
+    '\t\tlet result = NSMutableAttributedString()':
+        '\t\tvar resultString = ""',
+    '\t\t\t\tresult.mutableString.append(textChunk)':
+        '\t\t\t\tresultString.append(textChunk)',
+    '\t\t\t\tlet range = NSRange(location: location, length: result.mutableString.length - location)':
+        '\t\t\t\tlet range = NSRange(location: location, length: resultLength() - location)',
+    '\n\t\tapplyAttributes(result, attributeRanges, baseFont)':
+        '\n\t\tlet result = NSMutableAttributedString(string: resultString)\n\t\tapplyAttributes(result, attributeRanges, baseFont)',
+}
+if '\t\tlet result = NSMutableAttributedString()' in src:
+    for old, new in mutable_string_replacements.items():
+        if old not in src:
+            raise SystemExit(f"NSAttributedString mutable-string lowering pattern not found: {old}")
+        src = src.replace(old, new, 1)
+    delimiter_append = '\t\t\t\t\t\t\tresult.mutableString.append(delimiter ?? "\\"")'
+    if src.count(delimiter_append) != 2:
+        raise SystemExit("NSAttributedString mutable-string lowering delimiter pattern not found twice")
+    src = src.replace(delimiter_append, '\t\t\t\t\t\t\tresultString.append(delimiter ?? "\\"")')
+    helper_anchor = '''\t\tfunc flushTextChunk() {
+\t\t\tif !textChunk.isEmpty {
+\t\t\t\tresultString.append(textChunk)
+\t\t\t\ttextChunk.removeAll(keepingCapacity: true)
+\t\t\t}
+\t\t}
+'''
+    helper = helper_anchor + '''
+\t\tfunc resultLength() -> Int {
+\t\t\t(resultString as NSString).length
+\t\t}
+'''
+    if helper_anchor not in src:
+        raise SystemExit("NSAttributedString mutable-string lowering helper anchor not found")
+    src = src.replace(helper_anchor, helper, 1)
+    patched = True
+font_overlap_replacements = {
+    '\t\t\tresult.addAttribute(.font, value: baseFont, range: NSRange(location: 0, length: result.length))':
+        '''\t\t\t#if !os(Linux)
+\t\t\tresult.addAttribute(.font, value: baseFont, range: NSRange(location: 0, length: result.length))
+\t\t\t#else
+\t\t\tvar didApplyFontRun = false
+\t\t\t#endif''',
+    '''\t\t\t\tvar attributes = [NSAttributedString.Key: Any]()
+\t\t\t\tif needsFontChange {
+\t\t\t\t\tattributes[.font] = cachedFont(for: fontKey, baseFont: baseFont)
+\t\t\t\t}
+\t\t\t\tif hasStrikethrough {
+\t\t\t\t\tattributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+\t\t\t\t}
+\t\t\t\tif hasUnderline {
+\t\t\t\t\tattributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+\t\t\t\t}
+
+\t\t\t\tresult.addAttributes(attributes, range: range)''':
+        '''\t\t\t\t#if os(Linux)
+\t\t\t\tif needsFontChange && !didApplyFontRun {
+\t\t\t\t\tresult.addAttribute(.font, value: cachedFont(for: fontKey, baseFont: baseFont), range: range)
+\t\t\t\t\tdidApplyFontRun = true
+\t\t\t\t}
+\t\t\t\tif hasStrikethrough {
+\t\t\t\t\tresult.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+\t\t\t\t}
+\t\t\t\tif hasUnderline {
+\t\t\t\t\tresult.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+\t\t\t\t}
+\t\t\t\t#else
+\t\t\t\tvar attributes = [NSAttributedString.Key: Any]()
+\t\t\t\tif needsFontChange {
+\t\t\t\t\tattributes[.font] = cachedFont(for: fontKey, baseFont: baseFont)
+\t\t\t\t}
+\t\t\t\tif hasStrikethrough {
+\t\t\t\t\tattributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+\t\t\t\t}
+\t\t\t\tif hasUnderline {
+\t\t\t\t\tattributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+\t\t\t\t}
+
+\t\t\t\tresult.addAttributes(attributes, range: range)
+\t\t\t\t#endif''',
+}
+for old, new in font_overlap_replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+        patched = True
+if '\t\t\t\tif range.location >= result.length {' in src:
+    src = src.replace(
+        '\t\t\t\tif range.location >= result.length {',
+        '\t\t\t\tif range.location >= result.length || range.length <= 0 {',
+        1,
+    )
+    patched = True
+path.write_text(src)
+print("patched NSAttributedString descriptor lowering" if patched else "NSAttributedString descriptor lowering already present")
+PY
+    fi
+
     local smart_feed="$shared_dir/SmartFeeds/SmartFeed.swift"
     if [[ -f "$smart_feed" ]] && grep -q '#selector(unreadCountDidChange' "$smart_feed"; then
         echo "==> lowering netnewswire Shared SmartFeed selector observers"
@@ -2235,10 +4808,10 @@ old_init = '''	init() {
 '''
 new_init = '''	init() {
 
-		self.unreadCount = appDelegate.unreadCount
+		self.unreadCount = appDelegateUnreadCount()
 #if os(Linux)
 		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
-		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: appDelegate, queue: nil) { [weak self] notification in
+		_ = NotificationCenter.default.addObserver(forName: .UnreadCountDidChange, object: nil, queue: nil) { [weak self] notification in
 			Task { @MainActor in
 				self?.unreadCountDidChange(notification)
 			}
@@ -2254,6 +4827,16 @@ src = src.replace(old_init, new_init, 1)
 src = src.replace(
     "\t@objc func unreadCountDidChange(_ note: Notification) {",
     "#if !os(Linux)\n\t@objc\n#endif\n\tfunc unreadCountDidChange(_ note: Notification) {",
+    1,
+)
+src = src.replace(
+    "\tunreadCount = appDelegate.unreadCount",
+    "\tunreadCount = appDelegateUnreadCount()",
+    1,
+)
+src = src.replace(
+    "\t\tassert(note.object is AppDelegate)\n\t\tunreadCount = appDelegateUnreadCount()",
+    "\t\t#if os(Linux)\n\t\tguard let delegate = note.object as? AppDelegate, delegate === appDelegate else {\n\t\t\treturn\n\t\t}\n#else\n\t\tassert(note.object is AppDelegate)\n#endif\n\t\tunreadCount = appDelegateUnreadCount()",
     1,
 )
 
@@ -2322,34 +4905,106 @@ print("patched IconImageCache selector observer lowering")
 PY
     fi
 
+    local activity_manager="$shared_dir/Activity/ActivityManager.swift"
+    if [[ -f "$activity_manager" ]] && grep -q '#selector(feedIconDidBecomeAvailable' "$activity_manager"; then
+        echo "==> lowering netnewswire Shared ActivityManager selector observer"
+        python3 - "$activity_manager" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+
+old_init = '''	init() {
+		NotificationCenter.default.addObserver(self, selector: #selector(feedIconDidBecomeAvailable(_:)), name: .feedIconDidBecomeAvailable, object: nil)
+	}
+'''
+new_init = '''	init() {
+#if os(Linux)
+		// QuillUI Linux lowering: swift-corelibs has no ObjC selector dispatch.
+		_ = NotificationCenter.default.addObserver(forName: Notification.Name.feedIconDidBecomeAvailable, object: nil, queue: nil) { [weak self] notification in
+			Task { @MainActor in
+				self?.feedIconDidBecomeAvailable(notification)
+			}
+		}
+#else
+		NotificationCenter.default.addObserver(self, selector: #selector(feedIconDidBecomeAvailable(_:)), name: .feedIconDidBecomeAvailable, object: nil)
+#endif
+	}
+'''
+if old_init not in src:
+    raise SystemExit("ActivityManager observer pattern not found")
+src = src.replace(old_init, new_init, 1)
+src = src.replace(
+    "\t@objc func feedIconDidBecomeAvailable(_ note: Notification) {",
+    "#if !os(Linux)\n\t@objc\n#endif\n\tfunc feedIconDidBecomeAvailable(_ note: Notification) {",
+    1,
+)
+
+path.write_text(src)
+print("patched ActivityManager selector observer lowering")
+PY
+    fi
+
+    local activity_log_view_model="$shared_dir/ActivityLog/ActivityLogViewModel.swift"
+    if [[ -f "$activity_log_view_model" ]]; then
+        echo "==> exposing netnewswire Shared ActivityLogViewModel for split SwiftPM target"
+        python3 - "$activity_log_view_model" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+single_replacements = {
+    "enum ActivityLogTextColor {": "public enum ActivityLogTextColor: Equatable, Sendable {",
+    "enum ActivityLogTextWeight {": "public enum ActivityLogTextWeight: Equatable, Sendable {",
+    "struct ActivityLogTextSegment {": "public struct ActivityLogTextSegment: Equatable, Sendable {",
+    "\tlet text: String": "\tpublic let text: String",
+    "\tlet color: ActivityLogTextColor": "\tpublic let color: ActivityLogTextColor",
+    "\tlet weight: ActivityLogTextWeight": "\tpublic let weight: ActivityLogTextWeight",
+    "@MainActor final class ActivityLogViewModel {": "@MainActor public final class ActivityLogViewModel {",
+    "\tstatic func segments(for activity: Activity) -> [ActivityLogTextSegment] {": "\tpublic static func segments(for activity: Activity) -> [ActivityLogTextSegment] {",
+}
+for old, new in single_replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+if "\tpublic init(text: String, color: ActivityLogTextColor, weight: ActivityLogTextWeight) {" not in src:
+    anchor = "\tpublic let weight: ActivityLogTextWeight\n}"
+    replacement = """\tpublic let weight: ActivityLogTextWeight
+
+\tpublic init(text: String, color: ActivityLogTextColor, weight: ActivityLogTextWeight) {
+\t\tself.text = text
+\t\tself.color = color
+\t\tself.weight = weight
+\t}
+}"""
+    if anchor not in src:
+        raise SystemExit("ActivityLogTextSegment initializer insertion anchor not found")
+    src = src.replace(anchor, replacement, 1)
+path.write_text(src)
+print("patched ActivityLogViewModel visibility")
+PY
+    fi
+
     local rsimage_extensions="$shared_dir/Extensions/RSImage+Extensions.swift"
-    if [[ -f "$rsimage_extensions" ]] && ! grep -q '#else[[:space:]]*$' "$rsimage_extensions"; then
-        echo "==> lowering netnewswire Shared RSImage app icon fallback"
+    if [[ -f "$rsimage_extensions" ]]; then
+        echo "==> lowering netnewswire Shared RSImage app icon lookup"
         python3 - "$rsimage_extensions" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
 src = path.read_text()
-needle = '''		return nil
-		#endif
-'''
-replacement = '''		return nil
-		#else
-		return nil
-		#endif
-'''
-if needle not in src:
-    raise SystemExit("RSImage app icon fallback pattern not found")
-src = src.replace(needle, replacement, 1)
+src = src.replace("#if os(macOS)\nimport AppKit", "#if os(macOS) || os(Linux)\nimport AppKit", 1)
+src = src.replace("\t\t#if os(macOS)\n\t\treturn RSImage(named: NSImage.applicationIconName)", "\t\t#if os(macOS) || os(Linux)\n\t\treturn RSImage(named: NSImage.applicationIconName)", 1)
 path.write_text(src)
-print("patched RSImage Linux app icon fallback")
+print("patched RSImage Linux app icon lookup")
 PY
     fi
 
     local dinosaurs_view_model="$shared_dir/Dinosaurs/DinosaursViewModel.swift"
-    if [[ -f "$dinosaurs_view_model" ]] && grep -q '^@Observable$' "$dinosaurs_view_model"; then
-        echo "==> lowering netnewswire Shared DinosaursViewModel Observation macro"
+    if [[ -f "$dinosaurs_view_model" ]]; then
+        echo "==> exposing netnewswire Shared DinosaursViewModel for split SwiftPM target"
         python3 - "$dinosaurs_view_model" <<'PY'
 import sys
 from pathlib import Path
@@ -2357,8 +5012,55 @@ from pathlib import Path
 path = Path(sys.argv[1])
 src = path.read_text()
 src = src.replace("@Observable\n@MainActor final class DinosaursViewModel", "@MainActor final class DinosaursViewModel", 1)
+single_replacements = {
+    "enum DinosaurSortKey: String {": "public enum DinosaurSortKey: String {",
+    "struct DinosaurRow: Identifiable {": "public struct DinosaurRow: Identifiable {",
+    "@MainActor struct DinosaurDeletion {": "@MainActor public struct DinosaurDeletion {",
+    "@MainActor final class DinosaursViewModel {": "@MainActor public final class DinosaursViewModel {",
+    "\tprivate(set) var rows = [DinosaurRow]()": "\tpublic private(set) var rows = [DinosaurRow]()",
+    "\tprivate(set) var showAccountColumn = false": "\tpublic private(set) var showAccountColumn = false",
+    "\tvar monthThreshold = 6": "\tpublic var monthThreshold = 6",
+    "\tfunc refresh() async {": "\tpublic init() {\n\t}\n\n\tpublic func refresh() async {",
+    "\tfunc sortBy(_ key: DinosaurSortKey, ascending: Bool) {": "\tpublic func sortBy(_ key: DinosaurSortKey, ascending: Bool) {",
+    "\tfunc deleteFeeds(at indexes: IndexSet) -> [DinosaurDeletion] {": "\tpublic func deleteFeeds(at indexes: IndexSet) -> [DinosaurDeletion] {",
+    "\tfunc performDeletions(_ deletions: [DinosaurDeletion]) {": "\tpublic func performDeletions(_ deletions: [DinosaurDeletion]) {",
+    "\tfunc performRestorations(_ deletions: [DinosaurDeletion]) {": "\tpublic func performRestorations(_ deletions: [DinosaurDeletion]) {",
+}
+line_replacements = {
+    "\tlet id: String": "\tpublic let id: String",
+    "\tlet feed: Feed": "\tpublic let feed: Feed",
+    "\tlet account: Account": "\tpublic let account: Account",
+    "\tlet accountName: String": "\tpublic let accountName: String",
+    "\tlet feedName: String": "\tpublic let feedName: String",
+    "\tlet feedURL: String": "\tpublic let feedURL: String",
+    "\tlet lastArticleDate: Date?": "\tpublic let lastArticleDate: Date?",
+    "\tlet lastResponseCode: Int?": "\tpublic let lastResponseCode: Int?",
+}
+for old, new in single_replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+for old, new in line_replacements.items():
+    src = src.replace(old, new)
+if "\tpublic init(id: String, feed: Feed, account: Account, accountName: String, feedName: String, feedURL: String, lastArticleDate: Date?, lastResponseCode: Int?) {" not in src:
+    anchor = "\tpublic let lastResponseCode: Int?\n}"
+    replacement = """\tpublic let lastResponseCode: Int?
+
+\tpublic init(id: String, feed: Feed, account: Account, accountName: String, feedName: String, feedURL: String, lastArticleDate: Date?, lastResponseCode: Int?) {
+\t\tself.id = id
+\t\tself.feed = feed
+\t\tself.account = account
+\t\tself.accountName = accountName
+\t\tself.feedName = feedName
+\t\tself.feedURL = feedURL
+\t\tself.lastArticleDate = lastArticleDate
+\t\tself.lastResponseCode = lastResponseCode
+\t}
+}"""
+    if anchor not in src:
+        raise SystemExit("DinosaurRow initializer insertion anchor not found")
+    src = src.replace(anchor, replacement, 1)
 path.write_text(src)
-print("patched DinosaursViewModel @Observable lowering")
+print("patched DinosaursViewModel visibility")
 PY
     fi
 
@@ -2432,8 +5134,90 @@ src = src.replace(
     1,
 )
 
+visibility_replacements = {
+    "struct ActivityDisplayText {": "public struct ActivityDisplayText {",
+    "\tlet title: String": "\tpublic let title: String",
+    "\tlet detail: String?": "\tpublic let detail: String?",
+    "@MainActor final class CurrentActivityViewModel {": "@MainActor public final class CurrentActivityViewModel {",
+    "\tprivate(set) var displayedActivities = [Activity]() {": "\tpublic private(set) var displayedActivities = [Activity]() {",
+    "\tvar displayedActivitiesDidChange: (() -> Void)?": "\tpublic var displayedActivitiesDidChange: (() -> Void)?",
+    "\tfunc start() {": "\tpublic init() {\n\t}\n\n\tpublic func start() {",
+    "\tfunc stop() {": "\tpublic func stop() {",
+    "\tfunc handleActivityDidChange(_ notification: Notification) {": "\tpublic func handleActivityDidChange(_ notification: Notification) {",
+    "\tstatic func symbolName(for state: ActivityState) -> String {": "\tpublic static func symbolName(for state: ActivityState) -> String {",
+    "\tstatic func accessibilityLabel(for state: ActivityState) -> String {": "\tpublic static func accessibilityLabel(for state: ActivityState) -> String {",
+    "\tstatic func displayText(for activity: Activity) -> ActivityDisplayText {": "\tpublic static func displayText(for activity: Activity) -> ActivityDisplayText {",
+}
+for old, new in visibility_replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+
 path.write_text(src)
 print("patched CurrentActivityViewModel selector/timer lowering")
+PY
+    fi
+
+    local account_stats_view_model="$shared_dir/AccountStats/AccountStatsViewModel.swift"
+    if [[ -f "$account_stats_view_model" ]]; then
+        echo "==> exposing netnewswire Shared AccountStatsViewModel for split SwiftPM target"
+        python3 - "$account_stats_view_model" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+single_replacements = {
+    "struct AccountStatsRowData {": "public struct AccountStatsRowData {",
+    "struct AccountStatsTotals {": "public struct AccountStatsTotals {",
+    "\tinit(rows: [AccountStatsRowData]) {": "\tpublic init(rows: [AccountStatsRowData]) {",
+    "@MainActor final class AccountStatsViewModel {": "@MainActor public final class AccountStatsViewModel {",
+    "\tprivate(set) var sortedAccountStats = [AccountStatsRowData]()": "\tpublic private(set) var sortedAccountStats = [AccountStatsRowData]()",
+    "\tprivate(set) var totals = AccountStatsTotals(rows: [])": "\tpublic private(set) var totals = AccountStatsTotals(rows: [])",
+    "\tvar sortDescriptor: NSSortDescriptor?": "\tpublic var sortDescriptor: NSSortDescriptor?",
+    "\tfunc refresh() async {": "\tpublic init() {\n\t}\n\n\tpublic func refresh() async {",
+    "\tfunc applySort() {": "\tpublic func applySort() {",
+}
+line_replacements = {
+    "\tlet accountID: String": "\tpublic let accountID: String",
+    "\tlet name: String": "\tpublic let name: String",
+    "\tlet typeName: String": "\tpublic let typeName: String",
+    "\tlet isActive: Bool": "\tpublic let isActive: Bool",
+    "\tlet feedCount: Int": "\tpublic let feedCount: Int",
+    "\tlet folderCount: Int": "\tpublic let folderCount: Int",
+    "\tlet articleCount: Int": "\tpublic let articleCount: Int",
+    "\tlet statusesCount: Int": "\tpublic let statusesCount: Int",
+    "\tlet unreadCount: Int": "\tpublic let unreadCount: Int",
+    "\tlet starredCount: Int": "\tpublic let starredCount: Int",
+    "\tlet databaseSizeBytes: Int": "\tpublic let databaseSizeBytes: Int",
+}
+for old, new in single_replacements.items():
+    if old in src:
+        src = src.replace(old, new, 1)
+for old, new in line_replacements.items():
+    src = src.replace(old, new)
+if "\tpublic init(accountID: String, name: String, typeName: String, isActive: Bool, feedCount: Int, folderCount: Int, articleCount: Int, statusesCount: Int, unreadCount: Int, starredCount: Int, databaseSizeBytes: Int) {" not in src:
+    anchor = "\tpublic let databaseSizeBytes: Int\n}"
+    replacement = """\tpublic let databaseSizeBytes: Int
+
+\tpublic init(accountID: String, name: String, typeName: String, isActive: Bool, feedCount: Int, folderCount: Int, articleCount: Int, statusesCount: Int, unreadCount: Int, starredCount: Int, databaseSizeBytes: Int) {
+\t\tself.accountID = accountID
+\t\tself.name = name
+\t\tself.typeName = typeName
+\t\tself.isActive = isActive
+\t\tself.feedCount = feedCount
+\t\tself.folderCount = folderCount
+\t\tself.articleCount = articleCount
+\t\tself.statusesCount = statusesCount
+\t\tself.unreadCount = unreadCount
+\t\tself.starredCount = starredCount
+\t\tself.databaseSizeBytes = databaseSizeBytes
+\t}
+}"""
+    if anchor not in src:
+        raise SystemExit("AccountStatsRowData initializer insertion anchor not found")
+    src = src.replace(anchor, replacement, 1)
+path.write_text(src)
+print("patched AccountStatsViewModel visibility")
 PY
     fi
 

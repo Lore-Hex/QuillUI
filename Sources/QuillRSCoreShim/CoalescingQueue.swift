@@ -1,4 +1,5 @@
 import Foundation
+import QuillFoundation
 
 @MainActor public final class CoalescingQueue {
     public static let standard = CoalescingQueue(name: "Standard", interval: 0.05, maxInterval: 0.1)
@@ -20,6 +21,17 @@ import Foundation
 
     public func add(_ work: @escaping @MainActor @Sendable () -> Void) {
         pendingWork.append(work)
+        restartTimer()
+
+        if Date().timeIntervalSince(lastCallTime) > maxInterval {
+            performCallsImmediately()
+        }
+    }
+
+    public func add(_ target: AnyObject, _ selector: Selector) {
+        pendingWork.append { @MainActor in
+            (target as? QuillSelectorDispatching)?.quillPerform(selector, with: nil)
+        }
         restartTimer()
 
         if Date().timeIntervalSince(lastCallTime) > maxInterval {

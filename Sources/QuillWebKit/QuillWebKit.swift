@@ -18,12 +18,7 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
     public static let all: WKAudiovisualMediaTypes = [.audio, .video]
 }
 
-// On Apple platforms `WKWebView` is a `UIView` subclass (it inherits
-// `addSubview`-ability, `layoutMargins`, and its `scrollView`). Signal's
-// CaptchaView relies on all three (`addSubview(webView)`,
-// `autoPinEdgesToSuperviewEdges`, `webView.layoutMargins = .zero`), so the
-// shadow must subclass UIView -- not NSView -- to match.
-@MainActor open class WKWebView: UIView, @unchecked Sendable {
+@MainActor open class WKWebView: NSView, @unchecked Sendable {
     public override init(frame: CGRect) {
         super.init(frame: frame)
     }
@@ -46,35 +41,82 @@ public struct WKAudiovisualMediaTypes: OptionSet, Sendable {
 
     public var configuration = WKWebViewConfiguration()
     public weak var navigationDelegate: WKNavigationDelegate?
+    public weak var uiDelegate: WKUIDelegate?
     /// Stored (not recomputed per access) so callers that mutate the scroll
     /// view -- e.g. CaptchaView tweaking inset/indicator behavior -- observe a
     /// stable instance, mirroring UIKit's `WKWebView.scrollView`.
     public private(set) lazy var scrollView = UIScrollView()
     public var allowsBackForwardNavigationGestures = false
     public var allowsLinkPreview = false
+    public var obscuredContentInsets: NSEdgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
     public var customUserAgent: String?
-    public func loadFileURL(_: URL, allowingReadAccessTo: URL) {}
+    public private(set) var lastLoadedFileURL: URL?
+    public private(set) var lastReadAccessURL: URL?
+    public private(set) var lastLoadedHTMLString: String?
+    public private(set) var lastLoadedHTMLBaseURL: URL?
+    public private(set) var evaluatedJavaScript: [String] = []
+    public private(set) var isLoading = false
+    public func loadFileURL(_ url: URL, allowingReadAccessTo readAccessURL: URL) {
+        lastLoadedFileURL = url
+        lastReadAccessURL = readAccessURL
+        isLoading = true
+        navigationDelegate?.webView(self, didCommit: WKNavigation())
+    }
     public func reload() {}
     @MainActor public func evaluateJavaScript(_: String) async throws -> Any? { nil }
     public func evaluateJavaScript(_ javaScriptString: String, completionHandler: ((Any?, Error?) -> Void)? = nil) {
+        evaluatedJavaScript.append(javaScriptString)
         completionHandler?(nil, nil)
     }
     public func load(_: URLRequest) -> WKNavigation? { nil }
-    public func loadHTMLString(_: String, baseURL: URL?) -> WKNavigation? { nil }
-    public func stopLoading() {}
+    public func loadHTMLString(_ string: String, baseURL: URL?) -> WKNavigation? {
+        lastLoadedHTMLString = string
+        lastLoadedHTMLBaseURL = baseURL
+        isLoading = true
+        let navigation = WKNavigation()
+        navigationDelegate?.webView(self, didFinish: navigation)
+        return navigation
+    }
+    public func stopLoading() { isLoading = false }
 }
 
-public class WKContentRuleList: NSObject {}
+public class WKContentRuleList: NSObject {
+    public let identifier: String
+    public let encodedContentRuleList: String
+
+    public init(identifier: String = "", encodedContentRuleList: String = "") {
+        self.identifier = identifier
+        self.encodedContentRuleList = encodedContentRuleList
+        super.init()
+    }
+}
 
 public class WKUserContentController: NSObject {
-    public func addUserScript(_: WKUserScript) {}
-    public func add(_: WKContentRuleList) {}
-    public func add(_ scriptMessageHandler: WKScriptMessageHandler, name: String) {
-        _ = (scriptMessageHandler, name)
+    public private(set) var quillUserScripts: [WKUserScript] = []
+    public private(set) var quillContentRuleLists: [WKContentRuleList] = []
+    public private(set) var quillScriptMessageHandlers: [String: WKScriptMessageHandler] = [:]
+
+    public func addUserScript(_ userScript: WKUserScript) {
+        quillUserScripts.append(userScript)
     }
-    public func removeAllUserScripts() {}
+
+    public func add(_ contentRuleList: WKContentRuleList) {
+        guard !quillContentRuleLists.contains(where: { $0 === contentRuleList }) else {
+            return
+        }
+        quillContentRuleLists.append(contentRuleList)
+    }
+
+    public func add(_ scriptMessageHandler: WKScriptMessageHandler, name: String) {
+        quillScriptMessageHandlers[name] = scriptMessageHandler
+    }
+
+    public func removeAllUserScripts() {
+        quillUserScripts.removeAll()
+    }
+
     public func removeScriptMessageHandler(forName name: String) {
-        _ = name
+        quillScriptMessageHandlers.removeValue(forKey: name)
     }
 }
 
@@ -90,7 +132,16 @@ public class WKWebViewConfiguration: NSObject {
         super.init()
     }
 
-    public func setURLSchemeHandler(_: Any?, forURLScheme: String) {}
+    public private(set) var quillURLSchemeHandlers: [String: Any] = [:]
+
+    public func setURLSchemeHandler(_ handler: Any?, forURLScheme scheme: String) {
+        if let handler {
+            quillURLSchemeHandlers[scheme] = handler
+        } else {
+            quillURLSchemeHandlers.removeValue(forKey: scheme)
+        }
+    }
+
     public var userContentController = WKUserContentController()
 }
 
@@ -102,7 +153,49 @@ public class WKWebsiteDataStore: NSObject, @unchecked Sendable {
     public static func nonPersistent() -> WKWebsiteDataStore { nonPersistentStore }
 }
 
-public protocol WKURLSchemeHandler: AnyObject {}
+@MainActor public protocol WKURLSchemeHandler: AnyObject {
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask)
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask)
+}
+
+public extension WKURLSchemeHandler {
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        _ = (webView, urlSchemeTask)
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        _ = (webView, urlSchemeTask)
+    }
+}
+
+open class WKURLSchemeTask: NSObject {
+    public let request: URLRequest
+    public private(set) var receivedResponses: [URLResponse] = []
+    public private(set) var receivedData: [Data] = []
+    public private(set) var isFinished = false
+    public private(set) var error: Error?
+
+    public init(request: URLRequest) {
+        self.request = request
+        super.init()
+    }
+
+    open func didReceive(_ response: URLResponse) {
+        receivedResponses.append(response)
+    }
+
+    open func didReceive(_ data: Data) {
+        receivedData.append(data)
+    }
+
+    open func didFinish() {
+        isFinished = true
+    }
+
+    open func didFailWithError(_ error: Error) {
+        self.error = error
+    }
+}
 
 public enum WKNavigationResponsePolicy: Int, Sendable {
     case cancel
@@ -115,6 +208,7 @@ public class WKPreferences: NSObject {
     public var javaScriptCanOpenWindowsAutomatically = false
     public var minimumFontSize: CGFloat = 0
     public var isElementFullscreenEnabled = true
+    public var _developerExtrasEnabled = false
 }
 
 public class WKWebpagePreferences: NSObject {
@@ -126,7 +220,16 @@ public enum WKUserScriptInjectionTime: Int, Sendable {
 }
 
 public class WKUserScript: NSObject {
-    public init(source: String, injectionTime: WKUserScriptInjectionTime, forMainFrameOnly: Bool) {}
+    public let source: String
+    public let injectionTime: WKUserScriptInjectionTime
+    public let isForMainFrameOnly: Bool
+
+    public init(source: String, injectionTime: WKUserScriptInjectionTime, forMainFrameOnly: Bool) {
+        self.source = source
+        self.injectionTime = injectionTime
+        self.isForMainFrameOnly = forMainFrameOnly
+        super.init()
+    }
 }
 
 public class WKScriptMessage: NSObject {
@@ -148,7 +251,9 @@ public protocol WKScriptMessageHandler: AnyObject {
 
 public class WKContentRuleListStore: NSObject {
     public static func `default`() -> WKContentRuleListStore { WKContentRuleListStore() }
-    public func compileContentRuleList(forIdentifier: String, encodedContentRuleList: String) async throws -> WKContentRuleList? { nil }
+    public func compileContentRuleList(forIdentifier: String, encodedContentRuleList: String) async throws -> WKContentRuleList? {
+        WKContentRuleList(identifier: forIdentifier, encodedContentRuleList: encodedContentRuleList)
+    }
 }
 
 // Apple's `WKNavigationDelegate` methods are ALL optional. Swift protocols
@@ -164,7 +269,7 @@ public class WKContentRuleListStore: NSObject {
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
     )
     func webView(
         _ webView: WKWebView,
@@ -183,7 +288,7 @@ public extension WKNavigationDelegate {
     func webView(
         _ webView: WKWebView,
         decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
     ) {
         decisionHandler(.allow)
     }
@@ -199,12 +304,57 @@ public extension WKNavigationDelegate {
 
 public class WKNavigation: NSObject {}
 
+public enum WKNavigationType: Int, Sendable {
+    case linkActivated
+    case formSubmitted
+    case backForward
+    case reload
+    case formResubmitted
+    case other = -1
+}
+
 public class WKNavigationAction: NSObject {
     public var request: URLRequest = URLRequest(url: URL(string: "about:blank")!)
+    public var navigationType: WKNavigationType = .other
+    public var modifierFlags: NSEvent.ModifierFlags = []
+
+    public init(
+        request: URLRequest = URLRequest(url: URL(string: "about:blank")!),
+        navigationType: WKNavigationType = .other,
+        modifierFlags: NSEvent.ModifierFlags = []
+    ) {
+        self.request = request
+        self.navigationType = navigationType
+        self.modifierFlags = modifierFlags
+        super.init()
+    }
 }
 
 public enum WKNavigationActionPolicy: Int, Sendable {
     case cancel, allow
+}
+
+public class WKWindowFeatures: NSObject {}
+
+@MainActor public protocol WKUIDelegate: AnyObject {
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView?
+}
+
+public extension WKUIDelegate {
+    func webView(
+        _ webView: WKWebView,
+        createWebViewWith configuration: WKWebViewConfiguration,
+        for navigationAction: WKNavigationAction,
+        windowFeatures: WKWindowFeatures
+    ) -> WKWebView? {
+        _ = (webView, configuration, navigationAction, windowFeatures)
+        return nil
+    }
 }
 
 #endif

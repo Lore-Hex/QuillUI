@@ -27,6 +27,7 @@
 
 import XCTest
 @preconcurrency import QuartzCore
+import Metal
 
 // MARK: - File-private helpers
 
@@ -61,6 +62,7 @@ private func ids(_ layers: [CALayer]?) -> [ObjectIdentifier] {
 /// each candidate must be tried explicitly.
 private func scalar(_ any: Any?) -> Double? {
     switch any {
+    case let v as NSNumber: return v.doubleValue
     case let v as Double: return v
     case let v as Float: return Double(v)
     case let v as CGFloat: return Double(v)
@@ -301,6 +303,41 @@ final class CALayerModelTests: XCTestCase {
         }
     }
 
+    func testFrameConversionAndHitTestingHonorAffineTransforms() {
+        let parent = CALayer()
+        parent.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+
+        let child = CALayer()
+        child.bounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+        child.position = CGPoint(x: 100, y: 100)
+        child.transform = CATransform3DMakeScale(2, 2, 1)
+        parent.addSublayer(child)
+
+        assertEqual(child.frame, CGRect(x: 0, y: 50, width: 200, height: 100),
+                    "scaled frame is the transformed bounds bounding box")
+        assertEqual(child.convert(CGPoint(x: 100, y: 25), to: parent),
+                    CGPoint(x: 200, y: 100),
+                    "local point converts through layer transform")
+        assertEqual(child.convert(CGPoint(x: 200, y: 100), from: parent),
+                    CGPoint(x: 100, y: 25),
+                    "inverse conversion uses transform inverse")
+        XCTAssertTrue(parent.hitTest(CGPoint(x: 199, y: 100)) === child,
+                      "hit testing maps the parent point through the inverse transform")
+    }
+
+    func testRotatedFrameUsesBoundingBox() {
+        let layer = CALayer()
+        layer.bounds = CGRect(x: 0, y: 0, width: 100, height: 50)
+        layer.position = CGPoint(x: 0, y: 0)
+        layer.transform = CATransform3DMakeRotation(.pi / 2, 0, 0, 1)
+
+        let frame = layer.frame
+        XCTAssertEqual(frame.width, 50, accuracy: 1e-9)
+        XCTAssertEqual(frame.height, 100, accuracy: 1e-9)
+        XCTAssertEqual(frame.midX, 0, accuracy: 1e-9)
+        XCTAssertEqual(frame.midY, 0, accuracy: 1e-9)
+    }
+
     // MARK: contains + hitTest
 
     func testContains() {
@@ -421,6 +458,23 @@ final class CALayerModelTests: XCTestCase {
         }
     }
 
+    func testPresentationReturnsDistinctSubclassSnapshot() {
+        let original = CATextLayer()
+        original.frame = CGRect(x: 10, y: 20, width: 80, height: 30)
+        original.string = "Snapshot"
+        original.fontSize = 14
+
+        guard let snapshot = original.presentation() else {
+            XCTFail("presentation must produce a snapshot")
+            return
+        }
+        XCTAssertTrue(snapshot !== original, "presentation must not return the model layer itself")
+        XCTAssertEqual(ObjectIdentifier(type(of: snapshot)), ObjectIdentifier(CATextLayer.self))
+        assertEqual(snapshot.frame, original.frame)
+        XCTAssertEqual(snapshot.string as? String, "Snapshot")
+        XCTAssertEqual(snapshot.fontSize, 14, accuracy: 1e-9)
+    }
+
     // MARK: Animation bookkeeping (synchronous only)
 
     func testAnimationKeysReflectAddAndRemoveSynchronously() {
@@ -498,21 +552,110 @@ final class CALayerModelTests: XCTestCase {
             XCTAssertNil(layer.action(forKey: "opacity"), "delegate NSNull suppresses every lower-priority action")
         }
     }
+
+    // MARK: Subclass model/KVC coverage
+
+    func testShapeLayerDefaultsCopyAndKVC() {
+        let shape = CAShapeLayer()
+        XCTAssertNotNil(shape.fillColor, "CAShapeLayer.fillColor defaults to opaque black")
+        XCTAssertNil(shape.strokeColor, "CAShapeLayer.strokeColor defaults to nil")
+
+        shape.setValue(4.5, forKey: "lineWidth")
+        shape.setValue("round", forKey: "lineCap")
+        shape.setValue("bevel", forKey: "lineJoin")
+        shape.setValue(0.25, forKey: "strokeStart")
+        shape.setValue(0.75, forKey: "strokeEnd")
+
+        XCTAssertEqual(scalar(shape.value(forKey: "lineWidth")) ?? .nan, 4.5, accuracy: 1e-9)
+        XCTAssertEqual((shape.value(forKey: "lineCap") as? CAShapeLayerLineCap)?.rawValue, "round")
+        XCTAssertEqual((shape.value(forKey: "lineJoin") as? CAShapeLayerLineJoin)?.rawValue, "bevel")
+
+        let copy = CAShapeLayer(layer: shape)
+        XCTAssertEqual(copy.lineWidth, 4.5, accuracy: 1e-9)
+        XCTAssertEqual(copy.lineCap, .round)
+        XCTAssertEqual(copy.lineJoin, .bevel)
+        XCTAssertEqual(copy.strokeStart, 0.25, accuracy: 1e-9)
+        XCTAssertEqual(copy.strokeEnd, 0.75, accuracy: 1e-9)
+    }
+
+    func testGradientTextScrollAndMetalLayerCopyAndKVC() {
+        let gradient = CAGradientLayer()
+        gradient.setValue([CGColor.black, CGColor.white], forKey: "colors")
+        gradient.setValue([0.2 as NSNumber, 0.8 as NSNumber], forKey: "locations")
+        gradient.setValue(CGPoint(x: 0, y: 1), forKey: "startPoint")
+        gradient.setValue("radial", forKey: "type")
+
+        let gradientCopy = CAGradientLayer(layer: gradient)
+        XCTAssertEqual(gradientCopy.colors?.count, 2)
+        XCTAssertEqual(gradientCopy.locations, [0.2 as NSNumber, 0.8 as NSNumber])
+        assertEqual(gradientCopy.startPoint, CGPoint(x: 0, y: 1))
+        XCTAssertEqual(gradientCopy.type, .radial)
+
+        let text = CATextLayer()
+        XCTAssertEqual(text.fontSize, 36, accuracy: 1e-9)
+        XCTAssertNotNil(text.foregroundColor)
+        text.setValue("middle", forKey: "truncationMode")
+        text.setValue("center", forKey: "alignmentMode")
+        text.setValue(true, forKey: "wrapped")
+        XCTAssertEqual((text.value(forKey: "truncationMode") as? CATextLayerTruncationMode)?.rawValue, "middle")
+        XCTAssertEqual((text.value(forKey: "alignmentMode") as? CATextLayerAlignmentMode)?.rawValue, "center")
+        XCTAssertEqual(scalar(text.value(forKey: "wrapped")) ?? .nan, 1, accuracy: 1e-9)
+
+        let scroll = CAScrollLayer()
+        scroll.bounds = CGRect(x: 0, y: 0, width: 100, height: 100)
+        scroll.scroll(to: CGRect(x: 80, y: 20, width: 30, height: 30))
+        assertEqual(scroll.bounds.origin, CGPoint(x: 10, y: 0),
+                    "scroll(to rect:) moves only enough to reveal the rect")
+        scroll.setValue("horizontally", forKey: "scrollMode")
+        XCTAssertEqual((scroll.value(forKey: "scrollMode") as? CAScrollLayerScrollMode)?.rawValue, "horizontally")
+
+        let metal = CAMetalLayer()
+        metal.setValue(MTLPixelFormat.rgba8Unorm, forKey: "pixelFormat")
+        metal.setValue(false, forKey: "framebufferOnly")
+        metal.setValue(CGSize(width: 320, height: 180), forKey: "drawableSize")
+        let metalCopy = CAMetalLayer(layer: metal)
+        XCTAssertEqual(metalCopy.pixelFormat, .rgba8Unorm)
+        XCTAssertFalse(metalCopy.framebufferOnly)
+        assertEqual(metalCopy.drawableSize, CGSize(width: 320, height: 180))
+    }
+
+    func testEmitterCellConformsToMediaTiming() {
+        let cell = CAEmitterCell()
+        cell.beginTime = 1
+        cell.duration = 2
+        cell.speed = 0.5
+        cell.timeOffset = 0.25
+        cell.repeatCount = 3
+        cell.repeatDuration = 4
+        cell.autoreverses = true
+        cell.fillMode = .forwards
+
+        XCTAssertEqual(cell.beginTime, 1)
+        XCTAssertEqual(cell.duration, 2)
+        XCTAssertEqual(cell.speed, 0.5)
+        XCTAssertEqual(cell.timeOffset, 0.25)
+        XCTAssertEqual(cell.repeatCount, 3)
+        XCTAssertEqual(cell.repeatDuration, 4)
+        XCTAssertTrue(cell.autoreverses)
+        XCTAssertEqual(cell.fillMode, .forwards)
+    }
 }
 
 // MARK: - CATransform3D math tests
 
 /// All 16 matrix fields, for whole-matrix comparisons.
-nonisolated(unsafe) private let transform3DFields: [(name: String, keyPath: KeyPath<CATransform3D, CGFloat>)] = [
-    ("m11", \.m11), ("m12", \.m12), ("m13", \.m13), ("m14", \.m14),
-    ("m21", \.m21), ("m22", \.m22), ("m23", \.m23), ("m24", \.m24),
-    ("m31", \.m31), ("m32", \.m32), ("m33", \.m33), ("m34", \.m34),
-    ("m41", \.m41), ("m42", \.m42), ("m43", \.m43), ("m44", \.m44),
-]
+private func transform3DFields() -> [(name: String, keyPath: KeyPath<CATransform3D, CGFloat>)] {
+    [
+        ("m11", \.m11), ("m12", \.m12), ("m13", \.m13), ("m14", \.m14),
+        ("m21", \.m21), ("m22", \.m22), ("m23", \.m23), ("m24", \.m24),
+        ("m31", \.m31), ("m32", \.m32), ("m33", \.m33), ("m34", \.m34),
+        ("m41", \.m41), ("m42", \.m42), ("m43", \.m43), ("m44", \.m44),
+    ]
+}
 
 private func assertTransformEqual(_ a: CATransform3D, _ b: CATransform3D, accuracy: CGFloat,
                                   file: StaticString = #filePath, line: UInt = #line) {
-    for field in transform3DFields {
+    for field in transform3DFields() {
         XCTAssertEqual(a[keyPath: field.keyPath], b[keyPath: field.keyPath],
                        accuracy: accuracy, field.name, file: file, line: line)
     }

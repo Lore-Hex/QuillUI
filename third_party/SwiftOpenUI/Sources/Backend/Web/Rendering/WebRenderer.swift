@@ -1676,8 +1676,8 @@ extension HStack: WebRenderable, WebDescribable {
 
     private var cssAlignment: String {
         switch alignment {
-        case .top: return "flex-start"
-        case .bottom: return "flex-end"
+        case .top, .firstTextBaseline: return "flex-start"
+        case .bottom, .lastTextBaseline: return "flex-end"
         default: return "center"
         }
     }
@@ -2936,11 +2936,11 @@ private func webSafeAreaVerticalAlignment(_ alignment: SafeAreaInsetAlignment) -
     }
 
     switch verticalAlignment {
-    case .top:
+    case .top, .firstTextBaseline:
         return "flex-start"
     case .center:
         return "center"
-    case .bottom:
+    case .bottom, .lastTextBaseline:
         return "flex-end"
     }
 }

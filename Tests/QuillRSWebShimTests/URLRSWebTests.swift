@@ -41,4 +41,23 @@ struct URLRSWebTests {
     func prefixRemovalNonHTTP() {
         #expect(URL(string: "ftp://example.com")!.absoluteStringWithHTTPOrHTTPSPrefixRemoved() == nil)
     }
+
+    @Test("MacWebBrowser Linux shim mirrors path display and duplicate-name helpers")
+    @MainActor func macWebBrowserSurface() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillRSWebShimTests-\(UUID().uuidString)")
+        let appURL = root.appendingPathComponent("Example.app", isDirectory: true)
+        try FileManager.default.createDirectory(at: appURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let browser = try #require(MacWebBrowser(path: appURL.path))
+        #expect(browser.url == appURL)
+        #expect(browser.bundlePath == appURL.path)
+        #expect(browser.name == "Example")
+
+        let duplicateA = MacWebBrowser(url: URL(fileURLWithPath: "/Applications/Example.app"))
+        let duplicateB = MacWebBrowser(url: URL(fileURLWithPath: "/Users/test/Applications/Example.app"))
+        #expect(MacWebBrowser.duplicateBrowserNames(in: [duplicateA, duplicateB]) == ["Example"])
+        #expect(MacWebBrowser.displayPath(of: URL(fileURLWithPath: "/a/b/c/d/e/Example.app")) == "/a/.../e")
+    }
 }

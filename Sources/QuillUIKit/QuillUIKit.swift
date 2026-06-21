@@ -275,6 +275,10 @@ public class NSLayoutConstraint: NSObject {
     public let quillRelation: QuillRelation
     public let quillMultiplier: CGFloat
     public let quillConstant: CGFloat
+    public var firstItem: AnyObject?
+    public var secondItem: AnyObject?
+    public var firstAttribute: QuillLayoutAttribute = .notAnAttribute
+    public var secondAttribute: QuillLayoutAttribute = .notAnAttribute
 
     /// Globally-active constraints. The native layout pass filters these to the
     /// view subtree it lays out. (AppKit stores them per-view; a global list
@@ -300,6 +304,10 @@ public class NSLayoutConstraint: NSObject {
         quillRelation = relation
         quillMultiplier = multiplier
         quillConstant = constant
+        firstItem = first?.quillItem
+        secondItem = second?.quillItem
+        firstAttribute = first?.quillAttribute ?? .notAnAttribute
+        secondAttribute = second?.quillAttribute ?? .notAnAttribute
         super.init()
     }
     public override init() {
