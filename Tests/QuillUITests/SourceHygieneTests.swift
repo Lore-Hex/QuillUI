@@ -4893,6 +4893,40 @@ struct SourceHygieneTests {
         #expect(!renderer.contains("gtk_image_new_from_icon_name(iconName)"))
     }
 
+    @Test("SwiftUI menu label builders preserve custom labels")
+    func swiftUIMenuLabelBuildersPreserveCustomLabels() throws {
+        let menu = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Menu.swift")
+        let compat = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(menu.contains("public let labelView: AnyView?"))
+        #expect(menu.contains("labelView: AnyView? = nil"))
+        #expect(menu.contains("self.init(title, elements: content())"))
+
+        #expect(compat.contains("let builtLabel = label()"))
+        #expect(compat.contains("self.init(\"\", elements: content(), labelView: AnyView(builtLabel))"))
+        #expect(!compat.contains("self.init(\"\", content: content)"))
+
+        for source in [gtkRenderer, patcher] {
+            #expect(source.contains("private func gtkApplyPlainMenuButtonChrome"))
+            #expect(
+                source.contains("menubutton.\\(className) > button")
+                    || source.contains("menubutton.\\\\(className) > button")
+            )
+            #expect(source.contains("if let labelView {"))
+            #expect(source.contains("gtkDisableButtonChildTargeting(childWidget)"))
+            #expect(source.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
+            #expect(source.contains("gtk_swift_menu_button_set_child(button, childWidget)"))
+            #expect(source.contains("gtkApplyPlainMenuButtonChrome(to: button)"))
+        }
+
+        #expect(qtRenderer.contains("if let anyView = view as? AnyView"))
+        #expect(qtRenderer.contains("if let labelView {"))
+        #expect(qtRenderer.contains("let labelText = qtTextLabel(from: labelView.wrapped)"))
+    }
+
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")

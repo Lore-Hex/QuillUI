@@ -1560,8 +1560,8 @@ public extension Menu {
         @MenuBuilder content: () -> [MenuElement],
         @ViewBuilder label: () -> Label
     ) {
-        _ = label()
-        self.init("", content: content)
+        let builtLabel = label()
+        self.init("", elements: content(), labelView: AnyView(builtLabel))
     }
 }
 

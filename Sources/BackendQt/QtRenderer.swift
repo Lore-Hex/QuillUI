@@ -452,6 +452,10 @@ final class QtIntClosureBox {
 }
 
 func qtTextLabel(from view: any View) -> String {
+    if let anyView = view as? AnyView {
+        return qtTextLabel(from: anyView.wrapped)
+    }
+
     if let text = view as? Text {
         return text.content
     }
@@ -605,7 +609,14 @@ extension MenuBuilder {
 extension Menu: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let button = qtOpaque(quill_qt_make_menu_button())
-        quill_qt_menu_button_set_text(qtHandle(button), title)
+        let resolvedTitle: String
+        if let labelView {
+            let labelText = qtTextLabel(from: labelView.wrapped)
+            resolvedTitle = labelText.isEmpty ? title : labelText
+        } else {
+            resolvedTitle = title
+        }
+        quill_qt_menu_button_set_text(qtHandle(button), resolvedTitle)
         qtPopulateMenuButton(button, elements: elements)
         quill_qt_menu_button_show_as_popup(qtHandle(button))
         return button

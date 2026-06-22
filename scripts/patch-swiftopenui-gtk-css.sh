@@ -19,6 +19,7 @@ CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/Control
 CONFIRMATION_DIALOG_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
 SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
 SCROLL_VIEW_READER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
+MENU_VIEW="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/Menu.swift"
 SWIFT_DEPENDENCIES_MAIN_QUEUE="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainQueue.swift"
 SWIFT_DEPENDENCIES_MAIN_RUN_LOOP="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainRunLoop.swift"
 SWIFT_DEPENDENCIES_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies"
@@ -97,6 +98,9 @@ if [[ ! -f "$SCROLL_VIEW_READER" ]]; then
 fi
 
 chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
+if [[ -f "$MENU_VIEW" ]]; then
+  chmod u+w "$MENU_VIEW"
+fi
 if [[ -f "$GTK_SHIM" ]]; then
   chmod u+w "$GTK_SHIM"
 fi
@@ -267,6 +271,61 @@ if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
 
 path.write_text(text)
 PY
+
+if [[ -f "$MENU_VIEW" ]]; then
+  python3 - "$MENU_VIEW" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+old_menu = """public struct Menu: View {
+    public typealias Body = Never
+
+    public let title: String
+    public let elements: [MenuElement]
+
+    public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.title = quillResolveLocalizedString(title)
+        self.elements = content()
+    }
+
+    public var body: Never { fatalError("Menu is a primitive view") }
+}
+"""
+new_menu = """public struct Menu: View {
+    public typealias Body = Never
+
+    public let title: String
+    public let elements: [MenuElement]
+    public let labelView: AnyView?
+
+    public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.init(title, elements: content())
+    }
+
+    public init(_ title: String, elements: [MenuElement], labelView: AnyView? = nil) {
+        self.title = quillResolveLocalizedString(title)
+        self.elements = elements
+        self.labelView = labelView
+    }
+
+    public var body: Never { fatalError("Menu is a primitive view") }
+}
+"""
+
+if "public let labelView: AnyView?" not in text:
+    if old_menu not in text:
+        raise SystemExit("SwiftOpenUI Menu shape was not recognized")
+    text = text.replace(old_menu, new_menu, 1)
+
+if "public let labelView: AnyView?" not in text or "labelView: AnyView? = nil" not in text:
+    raise SystemExit("SwiftOpenUI Menu label storage patch did not apply")
+
+path.write_text(text)
+PY
+fi
 
 if [[ -f "$CONTROL_STYLE_MODIFIERS" ]]; then
   python3 - "$CONTROL_STYLE_MODIFIERS" <<'PY'
@@ -3157,7 +3216,7 @@ text = text.replace(
 """,
 )
 
-bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+bool_sheet_overlay = r'''        if gtkShouldRenderSheetInWindow() {
             let sheetView = sheetContent
             let binding = isPresented
             let userOnDismiss = onDismiss
@@ -3240,7 +3299,7 @@ if "gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)" not 
         raise SystemExit("SwiftOpenUI bool sheet overlay insertion shape was not recognized")
     text = text.replace(bool_marker, bool_sheet_overlay + bool_marker, 1)
 
-item_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+item_sheet_overlay = r'''        if gtkShouldRenderSheetInWindow() {
             let sheetBuilder = sheetContent
             let itemBinding = item
             let userOnDismiss = onDismiss
@@ -4818,6 +4877,108 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
     if old_patched_foreach not in text:
         raise SystemExit("SwiftOpenUI ForEach row sizing shape was not recognized")
     text = text.replace(old_patched_foreach, new_patched_foreach, 1)
+
+path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+menu_helper = '''private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
+    let className = "gtk-swift-plain-menu-button"
+    let css = """
+    .\\(className),
+    menubutton.\\(className),
+    menubutton.\\(className) > button,
+    menubutton.\\(className) button {
+        background: transparent;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        outline: none;
+        padding: 0;
+        min-height: 0;
+        min-width: 0;
+        -gtk-icon-shadow: none;
+        text-shadow: none;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(button) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(button, "flat")
+    gtk_widget_add_css_class(button, className)
+    g_object_unref(gpointer(provider))
+}
+
+'''
+
+menu_marker = "extension Menu: GTKRenderable"
+if menu_marker in text:
+    if "private func gtkApplyPlainMenuButtonChrome" not in text:
+        text = text.replace(menu_marker, menu_helper + menu_marker, 1)
+
+    old_menu_renderer = '''extension Menu: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_menu_button_new()!
+        gtk_swift_menu_button_set_label(button, title)
+
+        let actionGroup = g_simple_action_group_new()!
+'''
+    new_menu_renderer = '''extension Menu: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_menu_button_new()!
+
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        if let labelView {
+            let childWidget = widgetFromOpaque(gtkRenderView(labelView))
+            gtkDisableButtonChildTargeting(childWidget)
+            gtk_swift_menu_button_set_always_show_arrow(button, 0)
+            gtk_swift_menu_button_set_child(button, childWidget)
+            gtkApplyPlainMenuButtonChrome(to: button)
+        } else {
+            gtk_swift_menu_button_set_label(button, title)
+            if buttonStyleType == .plain {
+                gtk_swift_menu_button_set_always_show_arrow(button, 0)
+                gtkApplyPlainMenuButtonChrome(to: button)
+            }
+        }
+
+        let actionGroup = g_simple_action_group_new()!
+'''
+
+    if "gtkApplyPlainMenuButtonChrome(to: button)" not in text[text.find(menu_marker):]:
+        if old_menu_renderer not in text:
+            raise SystemExit("SwiftOpenUI Menu GTK renderer shape was not recognized")
+        text = text.replace(old_menu_renderer, new_menu_renderer, 1)
+
+    menu_start = text.find(menu_marker)
+    menu_end = text.find("\nprivate func gtkBuildMenuModel", menu_start)
+    if menu_start == -1 or menu_end == -1:
+        raise SystemExit("SwiftOpenUI Menu GTK renderer bounds were not recognized")
+    menu_renderer = text[menu_start:menu_end]
+    for required in [
+        "if let labelView {",
+        "gtkDisableButtonChildTargeting(childWidget)",
+        "gtk_swift_menu_button_set_always_show_arrow(button, 0)",
+        "gtk_swift_menu_button_set_child(button, childWidget)",
+        "gtkApplyPlainMenuButtonChrome(to: button)",
+    ]:
+        if required not in menu_renderer:
+            raise SystemExit(f"SwiftOpenUI Menu GTK renderer patch missing: {required}")
 
 path.write_text(text)
 PY

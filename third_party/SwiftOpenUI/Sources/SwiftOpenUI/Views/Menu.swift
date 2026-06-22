@@ -38,10 +38,16 @@ public struct Menu: View {
 
     public let title: String
     public let elements: [MenuElement]
+    public let labelView: AnyView?
 
     public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.init(title, elements: content())
+    }
+
+    public init(_ title: String, elements: [MenuElement], labelView: AnyView? = nil) {
         self.title = quillResolveLocalizedString(title)
-        self.elements = content()
+        self.elements = elements
+        self.labelView = labelView
     }
 
     public var body: Never { fatalError("Menu is a primitive view") }

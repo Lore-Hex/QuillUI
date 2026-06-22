@@ -7887,10 +7887,60 @@ private class MenuActionBox {
     var actions: [ClosureBox] = []
 }
 
+private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
+    let className = "gtk-swift-plain-menu-button"
+    let css = """
+    .\(className),
+    menubutton.\(className),
+    menubutton.\(className) > button,
+    menubutton.\(className) button {
+        background: transparent;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        outline: none;
+        padding: 0;
+        min-height: 0;
+        min-width: 0;
+        -gtk-icon-shadow: none;
+        text-shadow: none;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(button) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(button, "flat")
+    gtk_widget_add_css_class(button, className)
+    g_object_unref(gpointer(provider))
+}
+
 extension Menu: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let button = gtk_menu_button_new()!
-        gtk_swift_menu_button_set_label(button, title)
+
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        if let labelView {
+            let childWidget = widgetFromOpaque(gtkRenderView(labelView))
+            gtkDisableButtonChildTargeting(childWidget)
+            gtk_swift_menu_button_set_always_show_arrow(button, 0)
+            gtk_swift_menu_button_set_child(button, childWidget)
+            gtkApplyPlainMenuButtonChrome(to: button)
+        } else {
+            gtk_swift_menu_button_set_label(button, title)
+            if buttonStyleType == .plain {
+                gtk_swift_menu_button_set_always_show_arrow(button, 0)
+                gtkApplyPlainMenuButtonChrome(to: button)
+            }
+        }
 
         let actionGroup = g_simple_action_group_new()!
         let menuModel = gtk_swift_menu_new()!
