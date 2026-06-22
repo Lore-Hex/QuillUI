@@ -35,6 +35,27 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("func bootstrap()"))
     }
 
+    @Test("stripped declaration attributes preserve member boundaries")
+    func strippedAttributesPreserveMemberBoundaries() {
+        let source = """
+        class PanelManager {
+            func handleNewMessages() {
+                if true {}
+            }
+
+            @MainActor
+            @objc func togglePanel() {}
+
+            @MainActor var allowPrinting = true
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(!lowered.contains("}func"))
+        #expect(!lowered.contains("}var"))
+        #expect(lowered.contains("}\n\n    func togglePanel()"))
+        #expect(lowered.contains("\n    var allowPrinting = true"))
+    }
+
     @Test("@MainActor is stripped from inline function type expressions")
     func mainActorInsideTypeExpression() {
         let source = """
@@ -437,6 +458,40 @@ struct SwiftUILoweringTests {
         let lowered = SwiftUILowering().lower(source)
         #expect(!lowered.contains("_quillSplitBody"))
         #expect(lowered.contains("let title = \"Local\""))
+    }
+
+    @Test("Large SwiftUI bodies with conditional compilation are left intact")
+    func largeBodyWithCompileConditionsIsNotSplit() {
+        let rows = (0..<28).map { index in
+            """
+                        Text("Row \(index)")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct ConditionalRoot: View {
+            var body: some View {
+                VStack(alignment: .leading, spacing: 8) {
+        \(rows)
+                    TextEditor(text: .constant("body"))
+                        .focusable()
+                    #if os(visionOS)
+                        .frame(width: 600, height: 600)
+                    #endif
+                }
+                .padding(12)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(!lowered.contains("_quillSplitBody"))
+        #expect(lowered.contains("#if os(visionOS)"))
+        #expect(lowered.contains(".frame(width: 600, height: 600)"))
     }
 
     @Test("lowerInPlace rewrites .swift files and leaves other files alone")

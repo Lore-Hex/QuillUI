@@ -164,6 +164,7 @@ private struct SwiftUIBodyComplexityLowering {
         }
 
         let closureContent = String(body[closureRange])
+        guard !containsCompileConditionDirective(closureContent) else { return nil }
         let items = topLevelItems(in: closureContent)
         guard items.count >= 2, items.allSatisfy({ isExtractableBuilderItem($0.text) }) else {
             return nil
@@ -185,6 +186,16 @@ private struct SwiftUIBodyComplexityLowering {
         var rewrittenBody = body
         rewrittenBody.replaceSubrange(closureRange, with: rewrittenClosure)
         return SplitBody(rewrittenBody: rewrittenBody, helpers: helpers.joined(separator: "\n\n"))
+    }
+
+    private static func containsCompileConditionDirective(_ source: String) -> Bool {
+        source.split(separator: "\n", omittingEmptySubsequences: false).contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            return trimmed.hasPrefix("#if ")
+                || trimmed.hasPrefix("#elseif ")
+                || trimmed == "#else"
+                || trimmed == "#endif"
+        }
     }
 
     private struct StackCall {
@@ -491,12 +502,16 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         // Check the input node before recursion: the AttributeListSyntax
         // override strips @Observable from the recursed class declaration.
         let isObservableClass = node.attributes.contains { Self.isAttribute($0, named: "Observable") }
+        let firstAttributeWasStripped = Self.firstAttributeIsStripped(node.attributes)
 
-        let recursed: ClassDeclSyntax
+        var recursed: ClassDeclSyntax
         if let visited = super.visit(node).as(ClassDeclSyntax.self) {
             recursed = visited
         } else {
             recursed = node
+        }
+        if firstAttributeWasStripped {
+            Self.restoreDeclLeadingTrivia(node.leadingTrivia, to: &recursed)
         }
 
         guard isObservableClass else {
@@ -507,6 +522,26 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         Self.prependQuillObservableObject(to: &updated)
         Self.wrapEligibleStoredVars(in: &updated)
         return DeclSyntax(updated)
+    }
+
+    override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
+        let firstAttributeWasStripped = Self.firstAttributeIsStripped(node.attributes)
+        let visited = super.visit(node)
+        guard var recursed = visited.as(FunctionDeclSyntax.self) else { return visited }
+        if firstAttributeWasStripped {
+            Self.restoreDeclLeadingTrivia(node.leadingTrivia, to: &recursed)
+        }
+        return DeclSyntax(recursed)
+    }
+
+    override func visit(_ node: VariableDeclSyntax) -> DeclSyntax {
+        let firstAttributeWasStripped = Self.firstAttributeIsStripped(node.attributes)
+        let visited = super.visit(node)
+        guard var recursed = visited.as(VariableDeclSyntax.self) else { return visited }
+        if firstAttributeWasStripped {
+            Self.restoreDeclLeadingTrivia(node.leadingTrivia, to: &recursed)
+        }
+        return DeclSyntax(recursed)
     }
 
     /// Overriding `visit(_ node: AttributeListSyntax)` catches every place
@@ -673,6 +708,65 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         if trimmed.contains("..<") || trimmed.contains("...") { return false }
         if trimmed.hasSuffix(".indices") { return false }
         if trimmed.first?.isNumber == true { return false }
+        return true
+    }
+
+    private static func firstAttributeIsStripped(_ attributes: AttributeListSyntax) -> Bool {
+        guard let first = attributes.first else { return false }
+        return isStrippedAttribute(first)
+    }
+
+    private static func isStrippedAttribute(_ element: AttributeListSyntax.Element) -> Bool {
+        guard case .attribute(let attr) = element else { return false }
+        return strippedAttributeNames.contains(attr.attributeName.trimmedDescription)
+    }
+
+    private static func restoreDeclLeadingTrivia(
+        _ trivia: Trivia,
+        to declaration: inout ClassDeclSyntax
+    ) {
+        if restoreLeadingTriviaToFirstAttribute(trivia, in: &declaration.attributes) { return }
+        if restoreLeadingTriviaToFirstModifier(trivia, in: &declaration.modifiers) { return }
+        declaration.classKeyword = declaration.classKeyword.with(\.leadingTrivia, trivia)
+    }
+
+    private static func restoreDeclLeadingTrivia(
+        _ trivia: Trivia,
+        to declaration: inout FunctionDeclSyntax
+    ) {
+        if restoreLeadingTriviaToFirstAttribute(trivia, in: &declaration.attributes) { return }
+        if restoreLeadingTriviaToFirstModifier(trivia, in: &declaration.modifiers) { return }
+        declaration.funcKeyword = declaration.funcKeyword.with(\.leadingTrivia, trivia)
+    }
+
+    private static func restoreDeclLeadingTrivia(
+        _ trivia: Trivia,
+        to declaration: inout VariableDeclSyntax
+    ) {
+        if restoreLeadingTriviaToFirstAttribute(trivia, in: &declaration.attributes) { return }
+        if restoreLeadingTriviaToFirstModifier(trivia, in: &declaration.modifiers) { return }
+        declaration.bindingSpecifier = declaration.bindingSpecifier.with(\.leadingTrivia, trivia)
+    }
+
+    private static func restoreLeadingTriviaToFirstAttribute(
+        _ trivia: Trivia,
+        in attributes: inout AttributeListSyntax
+    ) -> Bool {
+        guard let index = attributes.indices.first else { return false }
+        guard case .attribute(var attribute) = attributes[index] else { return false }
+        attribute.leadingTrivia = trivia
+        attributes[index] = .attribute(attribute)
+        return true
+    }
+
+    private static func restoreLeadingTriviaToFirstModifier(
+        _ trivia: Trivia,
+        in modifiers: inout DeclModifierListSyntax
+    ) -> Bool {
+        guard let index = modifiers.indices.first else { return false }
+        var modifier = modifiers[index]
+        modifier.leadingTrivia = trivia
+        modifiers[index] = modifier
         return true
     }
 
