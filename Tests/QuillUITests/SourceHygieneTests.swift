@@ -3460,6 +3460,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/profiles/generic-swiftui.sh"),
             encoding: .utf8
         )
+        let genericAutoLayoutSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-auto-layout.sh"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
         #expect(source.contains("QUILLUI_GENERATED_BACKEND_FACADE"))
@@ -3533,11 +3537,13 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
         #expect(genericProfileSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
-        #expect(genericProfileSource.contains("scripts/swiftpm-package-layout-for-linux.py"))
-        #expect(genericProfileSource.contains("QUILLUI_PROFILE_PACKAGE_ROOT"))
-        #expect(genericProfileSource.contains("QUILLUI_PROFILE_ENTRY_TARGET"))
-        #expect(genericProfileSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$auto_layout_file\""))
-        #expect(genericProfileSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$auto_dependencies_file\""))
+        #expect(genericProfileSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-auto-layout.sh\""))
+        #expect(genericProfileSource.contains("quillui_profile_maybe_derive_swiftpm_layout"))
+        #expect(genericAutoLayoutSource.contains("scripts/swiftpm-package-layout-for-linux.py"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_PACKAGE_ROOT"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_ENTRY_TARGET"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$auto_layout_file\""))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$auto_dependencies_file\""))
         #expect(genericProfileSource.contains("scripts/generate-swiftui-linux-package.sh"))
         #expect(genericProfileSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1"))
         #expect(genericProfileSource.contains("generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
