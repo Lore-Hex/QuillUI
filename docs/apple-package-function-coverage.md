@@ -255,7 +255,7 @@ The Linux `UIKit` product combines `UIKitShim` with `QuillUIKit`.
 | `UIPasteboard.general` string/data helpers | Partial | In-memory pasteboard bridge. |
 | `UIControl.setTitle(_:for:)` and value/action helpers | Compile-only | Property shape only. |
 | `UIImageView`, `UILabel`, `UIKeyCommand` initializers | Compile-only | Source compatibility only. |
-| `UNUserNotificationCenter.requestAuthorization(...)` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
+| `UNUserNotificationCenter.requestAuthorization(...)`, `notificationSettings()` | Partial | Routes through `QuillNotificationService`; authorization status is configurable and process-local. |
 | `UNUserNotificationCenter.setNotificationCategories`, `add`, delivered/pending request lists, removal helpers | Partial | Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet. |
 | UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity | Incomplete | Required for UIKit Parity. |
 

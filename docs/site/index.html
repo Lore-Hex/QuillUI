@@ -662,7 +662,7 @@
 <tr><td><code>UIPasteboard.general</code> string/data helpers</td><td>Partial</td><td>In-memory pasteboard bridge.</td></tr>
 <tr><td><code>UIControl.setTitle(_:for:)</code> and value/action helpers</td><td>Compile-only</td><td>Property shape only.</td></tr>
 <tr><td><code>UIImageView</code>, <code>UILabel</code>, <code>UIKeyCommand</code> initializers</td><td>Compile-only</td><td>Source compatibility only.</td></tr>
-<tr><td><code>UNUserNotificationCenter.requestAuthorization(...)</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code>; authorization status is configurable and process-local.</td></tr>
+<tr><td><code>UNUserNotificationCenter.requestAuthorization(...)</code>, <code>notificationSettings()</code></td><td>Partial</td><td>Routes through <code>QuillNotificationService</code>; authorization status is configurable and process-local.</td></tr>
 <tr><td><code>UNUserNotificationCenter.setNotificationCategories</code>, <code>add</code>, delivered/pending request lists, removal helpers</td><td>Partial</td><td>Tracks categories, immediate deliveries, scheduled pending requests, and removals in memory; no native desktop notification is presented yet.</td></tr>
 <tr><td>UIKit layout engine, rendering, event delivery, accessibility, text input, collection/table data-source parity</td><td>Incomplete</td><td>Required for UIKit Parity.</td></tr>
 </table>

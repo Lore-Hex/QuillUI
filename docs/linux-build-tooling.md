@@ -18,8 +18,14 @@ The command intentionally separates the generic build contract from source
 lowering profiles:
 
 - `--source-dir` points at the app source tree.
+- `--package-root` optionally points at the app's SwiftPM package root. When
+  omitted, `generic-swiftui` checks the source directory and its parent for
+  `Package.swift`.
 - `--app-type` is the Swift `App` type launched through the generated
   QuillUI entry.
+- `--entry-target` optionally names the executable SwiftPM target that owns
+  `--app-type`; when omitted, `generic-swiftui` infers it from the package
+  manifest and source declarations.
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
 - `--backend-facade` optionally compiles the generated entry through
@@ -35,10 +41,12 @@ lowering profiles:
 Use `--profile generic-swiftui` for a first pass against a new app such as
 QuillCode. It copies the supplied source tree into the build work directory,
 runs only the shared SwiftData, SwiftUI, AppKit, ObjC-interop, and import
-lowering helpers, and then assembles the generated SwiftPM package. It must not
-contain app-specific rewrites; app-specific source-shape fixes belong in a
-named profile only after the missing behavior cannot be moved into QuillUI,
-QuillKit, QuillData, or the shared SwiftSyntax lowerers.
+lowering helpers, derives multi-target layout and external package dependency
+lines from SwiftPM manifests with `scripts/swiftpm-package-layout-for-linux.py`
+when a package root is available, and then assembles the generated SwiftPM
+package. It must not contain app-specific rewrites; app-specific source-shape
+fixes belong in a named profile only after the missing behavior cannot be moved
+into QuillUI, QuillKit, QuillData, or the shared SwiftSyntax lowerers.
 
 The profile boundary matters. QuillUI should become a broadly reusable
 compatibility library, but source lowering is not universal yet. Different
@@ -68,9 +76,16 @@ new desktop apps commonly import, including SwiftUI, AppKit, UniformTypeIdentifi
 Network, CryptoKit, ApplicationServices, CoreGraphics, QuillKit, QuillData, and
 QuillShims.
 
-For multi-target apps, pass `--target-layout-file` to the generic builder
+For normal SwiftPM multi-target apps, `generic-swiftui` can derive the target
+layout automatically from `Package.swift` by combining `--package-root`,
+`--source-dir`, and `--app-type`; use `--entry-target` when more than one
+executable target could own the app entry. The derived layout follows only
+reachable non-test target dependencies from the executable app target and emits
+external SwiftPM `.package(...)` lines for product dependency tokens.
+
+For unusual package shapes, pass `--target-layout-file` to the generic builder
 (or have a profile pass `QUILLUI_GENERATED_TARGET_LAYOUT_FILE` to the package
-helper). The file is TSV with
+helper) to override manifest-derived layout. The file is TSV with
 `TargetName<TAB>relative/source/dir<TAB>Dependency,product:Name:Package`.
 The row whose target name equals `QUILLUI_GENERATED_TARGET_NAME` receives the
 generated backend `@main`, so the app's original internal `App` type remains

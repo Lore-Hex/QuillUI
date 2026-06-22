@@ -2184,6 +2184,8 @@ struct CompatibilityModuleTests {
             authorizationStatus = settings.authorizationStatus
         }
         #expect(authorizationStatus == .authorized)
+        let asyncSettings = await center.notificationSettings()
+        #expect(asyncSettings.authorizationStatus == .authorized)
 
         let openURL = URL(string: "https://example.com/quill-chat")!
         let completionResult = CompatibilityLockedValue<Bool?>(nil)

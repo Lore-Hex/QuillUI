@@ -370,6 +370,12 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
         ))
     }
 
+    public func notificationSettings() async -> UNNotificationSettings {
+        UNNotificationSettings(
+            authorizationStatus: UNAuthorizationStatus(QuillNotificationService.shared.authorizationStatus)
+        )
+    }
+
     public func deliveredNotifications() async -> [UNNotification] {
         deliveredNotificationSnapshot()
     }

@@ -7,7 +7,9 @@ source "$ROOT_DIR/scripts/quillui-backend-products.sh"
 PROFILE_DIR="$ROOT_DIR/scripts/profiles"
 PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
+PACKAGE_ROOT="${QUILLUI_APP_PACKAGE_ROOT:-}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
+ENTRY_TARGET="${QUILLUI_APP_ENTRY_TARGET:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
@@ -29,7 +31,11 @@ Options:
   --profile NAME        Lowering profile to use.
   --list-profiles      Show installed lowering profiles and exit.
   --source-dir PATH     Directory containing the app's Swift sources.
+  --package-root PATH   Optional SwiftPM package root used to auto-derive
+                        multi-target layout when --target-layout-file is absent.
   --app-type TYPE       Swift App type to launch through the generated entry.
+  --entry-target NAME   Optional SwiftPM executable target that owns --app-type.
+                        When omitted, generic-swiftui infers it from sources.
   --product-name NAME   Output executable name. Defaults from --app-type.
   --workdir PATH        Generated build work directory.
   --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
@@ -46,7 +52,9 @@ Options:
 Environment aliases:
   QUILLUI_APP_PROFILE
   QUILLUI_APP_SOURCE_DIR
+  QUILLUI_APP_PACKAGE_ROOT
   QUILLUI_APP_ENTRY_TYPE
+  QUILLUI_APP_ENTRY_TARGET
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
   QUILLUI_APP_BACKEND_FACADE
@@ -109,8 +117,16 @@ while [[ $# -gt 0 ]]; do
       SOURCE_DIR="${2:-}"
       shift 2
       ;;
+    --package-root)
+      PACKAGE_ROOT="${2:-}"
+      shift 2
+      ;;
     --app-type)
       APP_TYPE="${2:-}"
+      shift 2
+      ;;
+    --entry-target)
+      ENTRY_TARGET="${2:-}"
       shift 2
       ;;
     --product-name)
@@ -226,12 +242,14 @@ MSG
 fi
 
 QUILLUI_PROFILE_SOURCE_DIR="$SOURCE_DIR" \
+QUILLUI_PROFILE_PACKAGE_ROOT="$PACKAGE_ROOT" \
 QUILLUI_PROFILE_WORKDIR="$WORK_ROOT" \
 QUILLUI_PROFILE_MODE=app \
 QUILLUI_PROFILE_PRODUCT_NAME="$PRODUCT_NAME" \
 QUILLUI_PROFILE_PACKAGE_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_TARGET_NAME=GeneratedSwiftUILinuxApp \
 QUILLUI_PROFILE_ENTRY_TYPE="$APP_TYPE" \
+QUILLUI_PROFILE_ENTRY_TARGET="$ENTRY_TARGET" \
 QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
 QUILLUI_GENERATED_BACKEND_FACADE="$NORMALIZED_BACKEND_FACADE" \
 QUILLUI_GENERATED_TARGET_LAYOUT_FILE="$TARGET_LAYOUT_FILE" \
