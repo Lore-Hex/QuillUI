@@ -229,6 +229,96 @@ final class GTK4TextFormattingTests: XCTestCase {
         }
     }
 
+    // MARK: - ForegroundColorView
+
+    func testForegroundColorAppliesMarkupToPlainTextLabels() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Ask QuillCode").foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(
+            gtk_swift_label_get_use_markup(widgetFromOpaque(label)),
+            0,
+            "Inherited foregroundColor should reach plain Text instead of depending on CSS inheritance."
+        )
+    }
+
+    func testForegroundColorAppliesMarkupThroughFontModifier() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Ask QuillCode")
+                .font(.title3)
+                .foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundColorAppliesMarkupThroughCustomViewBody() throws {
+        try requireGTK()
+
+        struct Probe: View {
+            var body: some View {
+                VStack {
+                    Text("Ask QuillCode")
+                        .font(.title3)
+                }
+                .foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+            }
+        }
+
+        let widget = widgetFromOpaque(gtkRenderView(Probe()))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundStyleSurvivesBackgroundWrapper() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                Text("Ask QuillCode")
+                    .font(.title3)
+            }
+            .background(Color(red: 0.03, green: 0.06, blue: 0.08))
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundStyleSurvivesLazyVStackDeferredBinding() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            LazyVStack([0]) { _ in
+                Text("Ask QuillCode")
+                    .font(.title3.weight(.semibold))
+            }
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let window = gtk_window_new()!
+        defer { gtk_window_destroy(windowPointer(window)) }
+        gtk_window_set_child(windowPointer(window), widget)
+        gtk_window_present(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
     // MARK: - Modifier composition
 
     func testLineLimitWithFontModifier() throws {
@@ -297,5 +387,13 @@ private func collectLabels(in widget: UnsafeMutablePointer<GtkWidget>, into resu
     while let c = child {
         collectLabels(in: c, into: &result)
         child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func drainGTKMainContext(maxIterations: Int = 20) {
+    for _ in 0..<maxIterations {
+        if g_main_context_iteration(nil, 0) == 0 {
+            break
+        }
     }
 }

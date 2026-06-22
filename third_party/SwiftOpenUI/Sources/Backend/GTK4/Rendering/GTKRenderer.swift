@@ -553,12 +553,13 @@ func bindTaskActionToCurrentEnvironment(
 
 extension Text: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
-        // Plain Text keeps the original gtk_label_new(content) fast path
-        // verbatim; colored / multi-run Text additionally overrides it with
-        // Pango markup, so plain text rendering is byte-for-byte unchanged.
+        // Truly plain Text keeps the original gtk_label_new(content) fast path.
+        // Colored, multi-run, or inherited-foreground Text uses Pango markup
+        // so parent foreground styles reach labels reliably under GTK.
         let label = gtk_label_new(content)!
-        if hasStyledRuns {
-            gtk_swift_label_set_markup(label, pangoMarkup())
+        let inheritedForegroundColor = _gtkCurrentForegroundColor
+        if hasStyledRuns || inheritedForegroundColor != nil {
+            gtk_swift_label_set_markup(label, pangoMarkup(fallbackColor: inheritedForegroundColor))
         }
         gtk_swift_label_set_xalign(label, 0)
         gtk_swift_label_set_yalign(label, 0.5)
@@ -571,13 +572,13 @@ extension Text: GTKRenderable, GTKDescribable {
 
     /// Pango markup for styled runs: each colored run becomes a
     /// `<span foreground='#RRGGBB'>…</span>`; plain runs pass through escaped.
-    private func pangoMarkup() -> String {
+    private func pangoMarkup(fallbackColor: Color? = nil) -> String {
         runs.map { run in
             let escaped = run.text
                 .replacingOccurrences(of: "&", with: "&amp;")
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
-            guard let color = run.color else { return escaped }
+            guard let color = run.color ?? fallbackColor else { return escaped }
             let hex = String(format: "#%02X%02X%02X",
                              Int(color.red * 255), Int(color.green * 255), Int(color.blue * 255))
             return "<span foreground='\(hex)'>\(escaped)</span>"
@@ -2495,10 +2496,9 @@ extension ForegroundColorView: GTKRenderable, GTKDescribable {
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
-        let prev = _gtkCurrentForegroundColor
-        gtkSetCurrentForegroundColor(color)
-        let widget = widgetFromOpaque(gtkRenderView(content))
-        gtkSetCurrentForegroundColor(prev)
+        let widget = gtkWithCurrentForegroundColor(color) {
+            widgetFromOpaque(gtkRenderView(content))
+        }
         applyCSSToWidget(widget, properties: "color: \(color.hex);")
         return opaqueFromWidget(widget)
     }
@@ -6944,8 +6944,11 @@ private class LazyListContext {
 
     init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content) {
         self.itemCount = items.count
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            }
         }
     }
 }
@@ -7092,16 +7095,22 @@ private class LazyGridContext {
                               cellMinWidth: Int) {
         self.itemCount = items.count
         self.cellMinWidth = cellMinWidth
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            }
         }
     }
 
     init(views: [any View], cellMinWidth: Int) {
         self.itemCount = views.count
         self.cellMinWidth = cellMinWidth
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderAnyView(views[index]))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderAnyView(views[index]))
+            }
         }
     }
 }
@@ -8382,7 +8391,7 @@ extension Canvas: GTKRenderable, GTKDescribable {
     }
 }
 
-// MARK: - Foreground color propagation for Cairo rendering
+// MARK: - Foreground color propagation for text and Cairo rendering
 //
 // ForegroundColorView applies CSS color: to widgets, but GtkDrawingArea
 // Cairo callbacks can't read CSS properties. Track the current foreground
@@ -8396,6 +8405,13 @@ func gtkGetCurrentForegroundColor() -> Color {
 
 func gtkSetCurrentForegroundColor(_ color: Color?) {
     _gtkCurrentForegroundColor = color
+}
+
+private func gtkWithCurrentForegroundColor<T>(_ color: Color?, _ body: () -> T) -> T {
+    let previous = _gtkCurrentForegroundColor
+    gtkSetCurrentForegroundColor(color)
+    defer { gtkSetCurrentForegroundColor(previous) }
+    return body()
 }
 
 // MARK: - Shape view rendering

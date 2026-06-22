@@ -1357,16 +1357,17 @@ public extension Text {
         return self
     }
 
-    @_disfavoredOverload
     func foregroundStyle(_ color: Color) -> Text {
-        _ = color
-        return self
+        Text(styledRuns: runs.map { Text.Run(text: $0.text, color: color) })
     }
 
-    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
-        _ = color
-        return self
+        Text(styledRuns: runs.map { Text.Run(text: $0.text, color: color) })
+    }
+
+    func foregroundColor(_ color: Color?) -> Text {
+        guard let color else { return self }
+        return foregroundColor(color)
     }
 
     @_disfavoredOverload

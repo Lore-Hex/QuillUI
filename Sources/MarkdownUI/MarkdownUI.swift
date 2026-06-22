@@ -1302,8 +1302,9 @@ public struct MarkdownTableBackgroundStyle {
 }
 
 public extension Text {
+    @_disfavoredOverload
     func foregroundColor(_ color: Color) -> Text {
-        self
+        Text(styledRuns: runs.map { Text.Run(text: $0.text, color: color) })
     }
 }
 

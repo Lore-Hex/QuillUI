@@ -3645,6 +3645,36 @@ struct CompatibilityModuleTests {
         #expect(flexible.alignment == .leading)
     }
 
+    @Test("SwiftUI Text foreground overloads preserve styled run colors")
+    func swiftUITextForegroundOverloadsPreserveColors() {
+        let textColor = Color(red: 0.93, green: 0.97, blue: 0.98)
+        let mutedColor = Color(red: 0.62, green: 0.69, blue: 0.72)
+
+        let foregroundStyleText = Text("Ask QuillCode")
+            .foregroundStyle(textColor)
+        #expect(foregroundStyleText.content == "Ask QuillCode")
+        #expect(foregroundStyleText.runs.count == 1)
+        #expect(foregroundStyleText.runs.first?.color == textColor)
+
+        let foregroundColorText = Text("Use Auto")
+            .foregroundColor(mutedColor)
+        #expect(foregroundColorText.content == "Use Auto")
+        #expect(foregroundColorText.runs.count == 1)
+        #expect(foregroundColorText.runs.first?.color == mutedColor)
+
+        let optionalNil = Text("Untouched")
+            .foregroundColor(nil as Color?)
+        #expect(optionalNil.runs.first?.color == nil)
+
+        let mixed = Text(styledRuns: [
+            .init(text: "A", color: .blue),
+            .init(text: "B", color: nil)
+        ])
+        let overridden = mixed.foregroundStyle(textColor)
+        #expect(overridden.content == "AB")
+        #expect(overridden.runs.map(\.color) == [textColor, textColor])
+    }
+
     // MARK: - Namespace identity
 
     @Test("Namespace generates unique IDs across instances and is Hashable")
