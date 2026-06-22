@@ -798,13 +798,15 @@ quillui_backend_profile_products() {
 quillui_backend_product_list_contains() {
   local candidate="$1"
   local list_command="$2"
+  local product_rows
   local product
 
-  while IFS= read -r product; do
+  product_rows="$("$list_command")" || return $?
+  while IFS= read -r product || [[ -n "$product" ]]; do
     if [[ "$candidate" == "$product" ]]; then
       return 0
     fi
-  done < <("$list_command")
+  done <<< "$product_rows"
 
   return 1
 }
