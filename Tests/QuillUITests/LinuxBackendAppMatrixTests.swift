@@ -1115,6 +1115,62 @@ struct LinuxBackendAppMatrixTests {
         #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
     }
 
+    @Test("profile CSV runner records timed out profiler rows")
+    func profileCSVRunnerRecordsTimedOutProfilerRows() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-timeout-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("slow-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        echo "profiler should have been wrapped by timeout" >&2
+        exit 43
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let fakeTimeout = temporaryDirectory.appendingPathComponent("fake-timeout.sh")
+        try """
+        #!/usr/bin/env bash
+        while [[ "${1:-}" == --* ]]; do
+          shift
+        done
+        shift
+        exit 124
+
+        """.write(to: fakeTimeout, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeTimeout.path)
+
+        let row = "quill-netnewswire\tqt\tqt\tnative"
+        let result = try runScript(
+            script,
+            arguments: [csv.path, row],
+            environment: [
+                "QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path,
+                "QUILLUI_BACKEND_PROFILE_TIMEOUT_COMMAND": fakeTimeout.path,
+                "QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT": "1s",
+                "QUILLUI_BACKEND_PROFILE_ROW_KILL_AFTER": "1s",
+                "QUILLUI_RESOURCE_GUARD_DISABLE": "1",
+            ]
+        )
+
+        let expected = """
+        \(Self.profileCSVHeader)
+        quill-netnewswire,qt,qt,native,0,0,0,0.0,0.0,profiler-exit-124
+
+        """
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output == expected)
+        #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+    }
+
     private func runScript(
         _ script: URL,
         arguments: [String] = [],
