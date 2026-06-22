@@ -2533,8 +2533,11 @@ extension BackgroundView: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         if let color = background as? Color {
             let widget = widgetFromOpaque(gtkRenderView(content))
-            applyCSSToWidget(widget, properties: "background-color: \(color.hex);")
-            return opaqueFromWidget(widget)
+            return gtkRenderColorBackground(
+                contentWidget: widget,
+                color: color,
+                cornerRadius: 0
+            )
         }
 
         if gtkCanRenderNativeBackground(background) {
@@ -2596,7 +2599,27 @@ private func gtkRenderFilledShapeBackground(
     color: Color,
     cornerRadius: Double
 ) -> OpaquePointer {
-    let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+    gtkRenderColorBackground(
+        contentWidget: contentWidget,
+        color: color,
+        cornerRadius: cornerRadius
+    )
+}
+
+private func gtkRenderColorBackground(
+    contentWidget: UnsafeMutablePointer<GtkWidget>,
+    color: Color,
+    cornerRadius: Double
+) -> OpaquePointer {
+    let wrapper = gtk_overlay_new()!
+    let background = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+
+    gtk_widget_set_hexpand(background, 1)
+    gtk_widget_set_vexpand(background, 1)
+    gtk_widget_set_halign(background, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(background, GTK_ALIGN_FILL)
+    gtk_widget_set_can_target(background, 0)
+
     if gtk_widget_get_hexpand(contentWidget) != 0 {
         gtk_widget_set_hexpand(wrapper, 1)
         gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
@@ -2625,8 +2648,12 @@ private func gtkRenderFilledShapeBackground(
             color.alpha
         )
     }
-    applyCSSToWidget(wrapper, properties: css)
-    gtk_box_append(boxPointer(wrapper), contentWidget)
+    applyCSSToWidget(background, properties: css)
+
+    gtk_overlay_set_child(OpaquePointer(wrapper), background)
+    gtk_overlay_add_overlay(OpaquePointer(wrapper), contentWidget)
+    gtk_overlay_set_measure_overlay(OpaquePointer(wrapper), contentWidget, 1)
+
     return opaqueFromWidget(wrapper)
 }
 
