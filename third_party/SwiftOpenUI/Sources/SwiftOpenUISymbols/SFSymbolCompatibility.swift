@@ -132,6 +132,7 @@ public enum SFSymbolCompatibility {
         "pencil":                 "edit",
         "paperclip":                "attach_file",
         "pin":                    "push_pin",
+        "pin.fill":               "push_pin",
         "pin.slash":              "keep_off",
         "plus":                   "add",
         "plus.circle":            "add_circle",

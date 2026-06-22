@@ -83,6 +83,7 @@ public enum MaterialSymbolsCodepoints {
         "add_circle":          0xE147,
         "download":            0xF090,
         "edit":                0xE3C9,
+        "push_pin":            0xF10D,
         "remove":              0xE15B,
         "remove_circle":       0xE15C,
         "select_all":          0xE162,

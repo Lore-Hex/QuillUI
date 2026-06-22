@@ -2447,6 +2447,40 @@ public extension View {
         )
     }
 
+    @_disfavoredOverload
+    func frame(
+        width: CGFloat? = nil,
+        height: CGFloat? = nil,
+        alignment: Alignment = .center
+    ) -> FrameView<Self> {
+        frame(
+            width: width.map(Double.init),
+            height: height.map(Double.init),
+            alignment: alignment
+        )
+    }
+
+    @_disfavoredOverload
+    func frame(
+        minWidth: CGFloat? = nil,
+        idealWidth: CGFloat? = nil,
+        maxWidth: CGFloat? = nil,
+        minHeight: CGFloat? = nil,
+        idealHeight: CGFloat? = nil,
+        maxHeight: CGFloat? = nil,
+        alignment: Alignment = .center
+    ) -> FrameView<Self> {
+        frame(
+            minWidth: minWidth.map(Double.init),
+            idealWidth: idealWidth.map(Double.init),
+            maxWidth: maxWidth.map(Double.init),
+            minHeight: minHeight.map(Double.init),
+            idealHeight: idealHeight.map(Double.init),
+            maxHeight: maxHeight.map(Double.init),
+            alignment: alignment
+        )
+    }
+
     func frame(maxWidth: CGFloat?, alignment: Alignment = .center) -> FrameView<Self> {
         frame(maxWidth: maxWidth.map(Double.init), alignment: alignment)
     }

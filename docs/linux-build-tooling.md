@@ -25,6 +25,10 @@ lowering profiles:
 - `--backend-facade` optionally compiles the generated entry through
   `QuillUIGtk` or the native `QuillGenericQtNativeRuntime` host instead of
   the backend-neutral `QuillUI` launcher.
+- `--target-layout-file` passes a TSV target layout to the generated package
+  helper for multi-target SwiftPM app trees.
+- `--extra-package-dependencies-file` passes SwiftPM `.package(...)` lines
+  required by target-layout dependency tokens.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
@@ -64,15 +68,17 @@ new desktop apps commonly import, including SwiftUI, AppKit, UniformTypeIdentifi
 Network, CryptoKit, ApplicationServices, CoreGraphics, QuillKit, QuillData, and
 QuillShims.
 
-For multi-target apps, profiles can pass
-`QUILLUI_GENERATED_TARGET_LAYOUT_FILE` to the package helper. The file is TSV
-with `TargetName<TAB>relative/source/dir<TAB>Dependency,product:Name:Package`.
+For multi-target apps, pass `--target-layout-file` to the generic builder
+(or have a profile pass `QUILLUI_GENERATED_TARGET_LAYOUT_FILE` to the package
+helper). The file is TSV with
+`TargetName<TAB>relative/source/dir<TAB>Dependency,product:Name:Package`.
 The row whose target name equals `QUILLUI_GENERATED_TARGET_NAME` receives the
 generated backend `@main`, so the app's original internal `App` type remains
 visible without changing upstream source. Profiles can also pass
 `QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE` with one SwiftPM
 `.package(...)` line per external dependency; target dependency tokens can then
-refer to those products with `product:ProductName:PackageName`.
+refer to those products with `product:ProductName:PackageName`. The public
+builder flag for that file is `--extra-package-dependencies-file`.
 
 Profiles can also reuse the generic source-lowering helpers before package
 assembly:

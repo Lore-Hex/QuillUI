@@ -3625,6 +3625,26 @@ struct CompatibilityModuleTests {
         #expect(optionalProvided.wrappedValue == "message")
     }
 
+    // MARK: - SwiftUI CGFloat frame overloads
+
+    @Test("SwiftUI frame overloads accept typed CGFloat constants and optionals")
+    func swiftUICGFloatFrameOverloads() {
+        let fixedWidth: CGFloat = 40
+        let fixedHeight: CGFloat = 24
+        let fixed = Text("Fixed").frame(width: fixedWidth, height: fixedHeight)
+        #expect(fixed.width == 40)
+        #expect(fixed.height == 24)
+
+        let maxWidth: CGFloat? = 260
+        let minHeight: CGFloat? = 32
+        let flexible = Text("Flexible")
+            .frame(maxWidth: maxWidth, minHeight: minHeight, alignment: .leading)
+
+        #expect(flexible.maxWidth == 260)
+        #expect(flexible.minHeight == 32)
+        #expect(flexible.alignment == .leading)
+    }
+
     // MARK: - Namespace identity
 
     @Test("Namespace generates unique IDs across instances and is Hashable")

@@ -1478,6 +1478,9 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("native-product-runtime-overrides"))
         #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps"))
         #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux all-app-backends"))
+        #expect(linuxBuildTooling.contains("--target-layout-file"))
+        #expect(linuxBuildTooling.contains("--extra-package-dependencies-file"))
+        #expect(linuxBuildTooling.contains("multi-target SwiftPM app trees"))
         #expect(linuxBuildTooling.contains("PRODUCT<TAB>BUILD_BACKEND"))
         #expect(linuxBuildTooling.contains("backend build stamps"))
         #expect(linuxBuildTooling.contains("stricter Linux build-backend normalizer"))
@@ -3508,6 +3511,12 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("quillui_normalize_backend_identifier \"${BACKEND_FACADE:-swiftui}\""))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$NORMALIZED_BACKEND_FACADE\""))
+        #expect(buildSource.contains("--target-layout-file"))
+        #expect(buildSource.contains("QUILLUI_APP_TARGET_LAYOUT_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$TARGET_LAYOUT_FILE\""))
+        #expect(buildSource.contains("--extra-package-dependencies-file"))
+        #expect(buildSource.contains("QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$EXTRA_PACKAGE_DEPENDENCIES_FILE\""))
         #expect(buildSource.contains("--artifact-path-file"))
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
@@ -4716,6 +4725,8 @@ struct SourceHygieneTests {
             ("paperplane.fill", "send"),
             ("photo", "image"),
             ("photo.fill", "image"),
+            ("pin", "push_pin"),
+            ("pin.fill", "push_pin"),
             ("selection.pin.in.out", "select_all"),
             ("sidebar.left", "view_sidebar"),
             ("space", "space_bar"),
