@@ -1281,8 +1281,8 @@ struct AppKitLoweringTests {
 
     // MARK: - Problem A1: @MainActor on local nested functions
 
-    @Test("Local nested functions get @MainActor; top-level and type-member funcs do not")
-    func nestedLocalFunctionsMainActor() {
+    @Test("UI local nested functions get @MainActor; top-level and type-member funcs do not")
+    func uiNestedLocalFunctionsMainActor() {
         let source = """
         func topLevel() {}
         class VC {
@@ -1310,8 +1310,27 @@ struct AppKitLoweringTests {
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
 
-    @Test("A func nested in a computed-property getter is marked @MainActor")
-    func nestedFunctionInAccessorMainActor() {
+    @Test("Pure local parser helpers are not marked @MainActor")
+    func pureLocalParserHelpersNotMainActor() {
+        let source = """
+        enum GitDiffReviewParser {
+            static func parse(_ diff: String) -> Int {
+                var currentFileLineCount = 0
+                func finishCurrentFile() {
+                    currentFileLineCount += diff.isEmpty ? 0 : 1
+                }
+                finishCurrentFile()
+                return currentFileLineCount
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("func finishCurrentFile()"))
+        #expect(!lowered.contains("@MainActor func finishCurrentFile()"))
+    }
+
+    @Test("A pure func nested in a computed-property getter is not marked @MainActor")
+    func pureNestedFunctionInAccessorNotMainActor() {
         let source = """
         class C {
             var n: Int {
@@ -1321,17 +1340,18 @@ struct AppKitLoweringTests {
         }
         """
         let lowered = AppKitLowering().lower(source)
-        #expect(lowered.contains("@MainActor func helper()"))
+        #expect(lowered.contains("func helper() -> Int"))
+        #expect(!lowered.contains("@MainActor func helper()"))
     }
 
-    @Test("A nested func deep inside another nested func is also marked")
-    func deeplyNestedFunctionMainActor() {
+    @Test("A nested func deep inside another UI nested func is also marked")
+    func deeplyNestedUIFunctionMainActor() {
         let source = """
         class C {
             func f() {
                 run {
                     func outer() {
-                        func inner() { self.x = 1 }
+                        func inner() { self.view = nil }
                         inner()
                     }
                     outer()

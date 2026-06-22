@@ -167,6 +167,50 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("View, Equatable"))
     }
 
+    @Test("Identifiable ForEach collection gains explicit id key path")
+    func identifiableForEachCollectionGainsExplicitID() {
+        let source = """
+        struct SuggestionsView: View {
+            var suggestions: [Suggestion]
+            var body: some View {
+                ForEach(suggestions) { suggestion in
+                    Text(suggestion.title)
+                }
+            }
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains(#"ForEach(suggestions, id: \.id) { suggestion in"#))
+    }
+
+    @Test("ForEach ranges and explicit ids are preserved")
+    func forEachRangesAndExplicitIDsPreserved() {
+        let source = """
+        struct RangeView: View {
+            var items: [Item]
+            var body: some View {
+                VStack {
+                    ForEach(0..<items.count) { index in
+                        Text("\\(index)")
+                    }
+                    ForEach(items.indices) { index in
+                        Text("\\(index)")
+                    }
+                    ForEach(items, id: \\.name) { item in
+                        Text(item.name)
+                    }
+                }
+            }
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("ForEach(0..<items.count)"))
+        #expect(lowered.contains("ForEach(items.indices)"))
+        #expect(lowered.contains(#"ForEach(items, id: \.name)"#))
+        #expect(!lowered.contains(#"0..<items.count, id: \.id"#))
+        #expect(!lowered.contains(#"items.indices, id: \.id"#))
+    }
+
     @Test("Multiple decls in a file each get lowered")
     func multipleDeclsLowered() {
         let source = """
@@ -330,6 +374,69 @@ struct SwiftUILoweringTests {
         let lowered = SwiftUILowering().lower(source)
         #expect(lowered.contains("\"os(macOS)\""))
         #expect(!lowered.contains("|| os(Linux)"))
+    }
+
+    @Test("Large SwiftUI body builders are split into private ViewBuilder parts")
+    func largeBodyBuilderIsSplitIntoHelpers() {
+        let rows = (0..<36).map { index in
+            """
+                        Text("Row \(index)")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+                            .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct ComplexRoot: View {
+            var body: some View {
+                VStack(alignment: .leading, spacing: 8) {
+        \(rows)
+                }
+                .padding(12)
+                .background(Color.white)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("@ViewBuilder\n    private var _quillSplitBody0Part0: some View"))
+        #expect(lowered.contains("_quillSplitBody0Part35"))
+        #expect(lowered.contains("VStack(alignment: .leading, spacing: 8) {"))
+        #expect(lowered.contains("            _quillSplitBody0Part0"))
+        #expect(lowered.contains(".background(Color.white)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Large SwiftUI bodies with local declarations are left intact")
+    func largeBodyWithLocalDeclarationsIsNotSplit() {
+        let rows = (0..<28).map { index in
+            """
+                        Text("\\(title)-\(index)")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct ComplexRoot: View {
+            var body: some View {
+                VStack(alignment: .leading, spacing: 8) {
+                    let title = "Local"
+        \(rows)
+                }
+                .padding(12)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(!lowered.contains("_quillSplitBody"))
+        #expect(lowered.contains("let title = \"Local\""))
     }
 
     @Test("lowerInPlace rewrites .swift files and leaves other files alone")

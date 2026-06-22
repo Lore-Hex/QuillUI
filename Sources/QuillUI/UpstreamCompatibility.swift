@@ -177,17 +177,6 @@ public extension FocusState {
     }
 }
 
-public struct PinnedScrollableViews: OptionSet, Sendable {
-    public var rawValue: Int
-
-    public init(rawValue: Int) {
-        self.rawValue = rawValue
-    }
-
-    public static let sectionHeaders = PinnedScrollableViews(rawValue: 1 << 0)
-    public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
-}
-
 public struct ContextMenu {
     public var menuElements: [MenuElement]
 
@@ -204,38 +193,11 @@ public enum TextSelectability: Sendable {
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
 
-// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
-// live in `QuillSwiftUICompatibility`, which both `QuillUI` and
-// the Linux `SwiftUI` shadow re-export. Keeping one defining
-// module avoids ambiguous uses in code that imports both modules.
-
-public extension GridItem.Size {
-    static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {
-        .flexible
-    }
-
-    static func fixed(_ size: Double) -> GridItem.Size {
-        .fixed
-    }
-}
-
-public extension GridItem {
-    init(_ size: Size = .flexible, spacing: Double? = nil, alignment: Alignment? = nil) {
-        self.init(size)
-    }
-}
-
-public extension LazyVGrid where Data == Int {
-    init(
-        columns: [GridItem],
-        alignment: HorizontalAlignment = .center,
-        spacing: Double? = nil,
-        pinnedViews: PinnedScrollableViews = [],
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.init(columns: columns, data: [0]) { _ in content() }
-    }
-}
+// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`, `GridItem`
+// spacing/alignment initializers, `PinnedScrollableViews`, and aligned
+// `LazyVGrid` overloads live in `QuillSwiftUICompatibility`, which both
+// `QuillUI` and the Linux `SwiftUI` shadow import. Keeping one defining module
+// avoids ambiguous uses in code that imports both modules.
 #endif
 
 public extension Animation {
@@ -462,18 +424,6 @@ public struct AccessibilityElementView<Content: View>: View {
     public let children: AccessibilityChildBehavior
 
     public var body: Never { fatalError("AccessibilityElementView is a primitive view") }
-}
-
-public struct MinimumScaleFactorView<Content: View>: View {
-    public let content: Content
-    public let factor: Double
-
-    public init(content: Content, factor: Double) {
-        self.content = content
-        self.factor = factor
-    }
-
-    public var body: some View { content }
 }
 
 public struct ImageScaleView<Content: View>: View {
@@ -813,14 +763,6 @@ public extension View {
             message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
         )
         return AccessibilityElementView(content: self, children: children)
-    }
-
-    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
-        recordQuillUIFallback(
-            "minimumScaleFactor",
-            message: "minimumScaleFactor is preserved as layout metadata on Linux."
-        )
-        return MinimumScaleFactorView(content: self, factor: factor)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {

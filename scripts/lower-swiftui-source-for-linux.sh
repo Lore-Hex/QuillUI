@@ -48,6 +48,7 @@ find "$SOURCE_DIR" -name '*.swift' -print0 |
     s/\.textContentType\([ \t]*\.URL[ \t]*\)/.textContentType(TextContentType.URL)/g;
   '
 
+"$(dirname "$0")/run-quill-swiftui-lower.sh" "$SOURCE_DIR"
 "$(dirname "$0")/run-quill-appkit-lower.sh" "$SOURCE_DIR"
 "$(dirname "$0")/lower-objc-interop-for-linux.sh" "$SOURCE_DIR"
 

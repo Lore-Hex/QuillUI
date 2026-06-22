@@ -298,6 +298,9 @@ copy_swift_sources() {
   while IFS= read -r -d '' source_file; do
     relative_path="${source_file#$source_root/}"
     destination_file="$destination_root/$relative_path"
+    if [[ "$(basename "$destination_file")" == "main.swift" ]]; then
+      destination_file="$(dirname "$destination_file")/QuillGeneratedMainSource.swift"
+    fi
     mkdir -p "$(dirname "$destination_file")"
     cp "$source_file" "$destination_file"
   done < <(find "$source_root" -name '*.swift' -print0)

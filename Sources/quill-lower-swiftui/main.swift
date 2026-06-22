@@ -55,6 +55,7 @@ struct QuillLowerSwiftUI {
           : View, Sendable                   -> : View
           #Preview blocks                    deleted at top level
           os(macOS)                          -> (os(macOS) || os(Linux)) in #if conditions
+          oversized SwiftUI body builders    -> private @ViewBuilder helper parts
         """
         stream.write(Data((usage + "\n").utf8))
     }

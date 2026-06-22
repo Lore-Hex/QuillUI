@@ -1282,6 +1282,16 @@ public extension ForEach {
     }
 }
 
+public extension DisclosureGroup {
+    init(
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> some View
+    ) {
+        self.init(isExpanded: isExpanded.wrappedValue, content: content, label: label)
+    }
+}
+
 public extension Shape {
     func fill(_ material: Material) -> FilledShape<Self> {
         _ = material
@@ -1427,6 +1437,11 @@ public extension GridItem.Size {
         return .flexible
     }
 
+    static func fixed(_ size: Double) -> GridItem.Size {
+        _ = size
+        return .fixed
+    }
+
     static func adaptive(minimum: Double, maximum: Double) -> GridItem.Size {
         _ = maximum
         return .adaptive(minimum: minimum)
@@ -1475,13 +1490,28 @@ public extension LazyHStack where Data == Int {
     }
 }
 
+public struct PinnedScrollableViews: OptionSet, Sendable {
+    public var rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let sectionHeaders = PinnedScrollableViews(rawValue: 1 << 0)
+    public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
+}
+
 public extension LazyVGrid where Data == Int {
     init(
         columns: [GridItem],
+        alignment: HorizontalAlignment = .center,
         spacing: Double? = nil,
+        pinnedViews: PinnedScrollableViews = [],
         @ViewBuilder content: @escaping () -> Content
     ) {
+        _ = alignment
         _ = spacing
+        _ = pinnedViews
         self.init(columns: columns, data: [0]) { _ in content() }
     }
 }

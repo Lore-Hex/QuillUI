@@ -70,6 +70,39 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+private struct CompatibilitySuggestion: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+private struct CompatibilitySuggestionPanel: View {
+    var suggestions: [CompatibilitySuggestion]
+    var selectedIndex: Int
+    var onSelect: (CompatibilitySuggestion) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            suggestionRows
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionRows: some View {
+        ForEach(suggestions) { suggestion in
+            let decoratedTitle = "\(suggestion.title) command"
+            let isSelected = suggestions.firstIndex(of: suggestion) == selectedIndex
+            Button {
+                onSelect(suggestion)
+            } label: {
+                HStack {
+                    Text(decoratedTitle)
+                    Text(isSelected ? "selected" : "idle")
+                }
+            }
+        }
+    }
+}
+
 @MainActor
 private final class CollectionViewProbe: UICollectionViewDataSource, UICollectionViewDelegate {
     var requestedCells: [IndexPath] = []
@@ -341,6 +374,62 @@ struct CompatibilityModuleTests {
         _ = Text("Shape")
             .background(AnyShapeStyle(Color.red))
             .foregroundStyle(LinearGradient(colors: [.red, .blue], startPoint: .leading, endPoint: .trailing))
+        _ = Text("Workspace")
+            .font(.caption.monospaced().weight(.semibold))
+            .onMoveCommand { direction in
+                _ = direction
+            }
+            .accessibilityIdentifier("workspace")
+        _ = Text("Popover")
+            .popover(isPresented: .constant(false), arrowEdge: .bottom) {
+                Text("Details")
+            }
+        _ = Text("Anchored")
+            .popover(isPresented: .constant(false), attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+                Text("Anchored Details")
+            }
+        _ = LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 104), spacing: 5)],
+            alignment: .leading,
+            spacing: 5
+        ) {
+            Text("Cell")
+        }
+        _ = DisclosureGroup(isExpanded: .constant(true)) {
+            Text("Details")
+        } label: {
+            Text("Summary")
+        }
+        _ = TextField("Message", text: .constant(""), axis: .vertical)
+            .lineLimit(1...5)
+        _ = MenuBarExtra {
+            Button("Open") {}
+        } label: {
+            Label("Quill", systemImage: "q.circle.fill")
+        }
+        let suggestions = [CompatibilitySuggestion(id: "slash", title: "Slash")]
+        let selectedIndex = 0
+        let onSelect: (CompatibilitySuggestion) -> Void = { _ in }
+        _ = ForEach(suggestions) { suggestion in
+            let decoratedTitle = "\(suggestion.title) command"
+            let isSelected = suggestions.firstIndex(of: suggestion) == selectedIndex
+            Button {
+                onSelect(suggestion)
+            } label: {
+                HStack {
+                    Text(decoratedTitle)
+                    Text(isSelected ? "selected" : "idle")
+                }
+            }
+        }
+        _ = ForEach([CompatibilitySuggestion(id: "plain", title: "Plain")]) { suggestion in
+            Text(suggestion.title)
+        }
+        _ = CompatibilitySuggestionPanel(
+            suggestions: suggestions,
+            selectedIndex: selectedIndex,
+            onSelect: onSelect
+        )
         var environment = EnvironmentValues()
         #expect(environment.accessibilityReduceMotion == false)
         environment.accessibilityReduceMotion = true
@@ -1365,7 +1454,6 @@ struct CompatibilityModuleTests {
             "listRowSeparator",
             "scrollIndicators",
             "scrollContentBackground",
-            "minimumScaleFactor",
             "textSelection",
             "keyboardType",
             "autocapitalization",

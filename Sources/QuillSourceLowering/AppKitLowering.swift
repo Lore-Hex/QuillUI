@@ -2638,8 +2638,8 @@ private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
 
 // MARK: - Local nested-function MainActor isolation (Pass 6 — actor-isolation)
 
-/// Prepends `@MainActor` to a LOCAL nested function — one declared inside a
-/// function/closure body, not as a type member or top-level decl.
+/// Prepends `@MainActor` to a UI-touching LOCAL nested function — one declared
+/// inside a function/closure body, not as a type member or top-level decl.
 ///
 /// Under `-default-isolation MainActor` every type and top-level decl in SignalUI is
 /// implicitly `@MainActor`, but a LOCAL function declared inside a method or closure
@@ -2656,16 +2656,27 @@ private final class DeinitMainActorIsolationRewriter: SyntaxRewriter {
 ///         }
 ///     }
 ///
-/// Marking the local func `@MainActor` matches its lexical surroundings (the whole
-/// module is MainActor-by-default) and the UI state it touches; its call sites are
-/// the same `@MainActor` closures/funcs, so they call it without a context error.
+/// Marking that local func `@MainActor` matches its lexical surroundings (the
+/// whole module is MainActor-by-default) and the UI state it touches; its call
+/// sites are the same `@MainActor` closures/funcs, so they call it without a
+/// context error.
+///
+/// Do NOT mark every local function. Pure parser/model helpers can be declared in
+/// synchronous nonisolated utilities; annotating them creates the opposite
+/// failure ("call to main actor-isolated local function in a synchronous
+/// nonisolated context"). This pass therefore marks only local helpers whose
+/// bodies contain UI-shaped API use, plus direct sibling helpers that call those
+/// UI helpers.
 ///
 /// CONSERVATIVE:
-///   * Only LOCAL funcs — a `FunctionDeclSyntax` whose enclosing scope is executable
-///     code (a function/closure/accessor/control-flow body), tracked by a body-depth
-///     counter. A TYPE-MEMBER func (in a `MemberBlockSyntax`, which does not bump the
-///     counter) and a TOP-LEVEL func (visited at depth 0) already get default
-///     isolation and are NEVER touched.
+///   * Only LOCAL funcs — a `FunctionDeclSyntax` whose enclosing scope is
+///     executable code (a function/closure/accessor/control-flow body), tracked
+///     by a body-depth counter. A TYPE-MEMBER func (in a `MemberBlockSyntax`,
+///     which does not bump the counter) and a TOP-LEVEL func (visited at depth 0)
+///     already get default isolation and are NEVER touched.
+///   * Only UI-shaped funcs — local parser/model helpers without UI calls are
+///     left alone so generated desktop probes can keep synchronous utilities
+///     nonisolated.
 ///   * Idempotent: a local func already carrying `@MainActor` (the form this emits) or
 ///     an explicit `nonisolated` modifier (a deliberate author choice) is left alone.
 private final class LocalFunctionMainActorRewriter: SyntaxRewriter {
@@ -2675,17 +2686,25 @@ private final class LocalFunctionMainActorRewriter: SyntaxRewriter {
     /// members and top-level decls stay at depth 0.
     private var bodyDepth = 0
 
+    /// For each executable code scope, the direct local function names that need
+    /// `@MainActor` in that scope.
+    private var localMainActorNameScopes: [Set<String>] = []
+
     override func visit(_ node: CodeBlockSyntax) -> CodeBlockSyntax {
+        localMainActorNameScopes.append(Self.mainActorLocalFunctionNames(in: node.statements))
         bodyDepth += 1
         let recursed = super.visit(node)
         bodyDepth -= 1
+        localMainActorNameScopes.removeLast()
         return recursed
     }
 
     override func visit(_ node: ClosureExprSyntax) -> ExprSyntax {
+        localMainActorNameScopes.append(Self.mainActorLocalFunctionNames(in: node.statements))
         bodyDepth += 1
         let recursed = super.visit(node)
         bodyDepth -= 1
+        localMainActorNameScopes.removeLast()
         return recursed
     }
 
@@ -2705,12 +2724,80 @@ private final class LocalFunctionMainActorRewriter: SyntaxRewriter {
         // Capture whether THIS decl is local before recursing into its own body
         // (which bumps `bodyDepth` for its nested children).
         let isLocal = bodyDepth > 0
+        let isMarkedInLocalScope = localMainActorNameScopes.last?.contains(node.name.text) ?? false
         let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
-        guard isLocal, !Self.hasMainActorOrNonisolated(recursed) else {
+        guard isLocal,
+              (isMarkedInLocalScope || Self.functionBodyHasMainActorSignal(node)),
+              !Self.hasMainActorOrNonisolated(recursed) else {
             return DeclSyntax(recursed)
         }
         return DeclSyntax(Self.prependingMainActor(recursed))
     }
+
+    private static func mainActorLocalFunctionNames(in statements: CodeBlockItemListSyntax) -> Set<String> {
+        let localFunctions = statements.compactMap { item in
+            item.item.as(FunctionDeclSyntax.self)
+        }
+        guard !localFunctions.isEmpty else { return [] }
+
+        var selected = Set(
+            localFunctions
+                .filter { hasMainActorOrNonisolated($0) || functionBodyHasMainActorSignal($0) }
+                .map(\.name.text)
+        )
+
+        var changed = true
+        while changed {
+            changed = false
+            for function in localFunctions where !selected.contains(function.name.text) {
+                let body = function.body?.description ?? ""
+                if selected.contains(where: { functionBody(body, callsLocalFunctionNamed: $0) }) {
+                    selected.insert(function.name.text)
+                    changed = true
+                }
+            }
+        }
+
+        return selected
+    }
+
+    private static func functionBody(
+        _ body: String,
+        callsLocalFunctionNamed name: String
+    ) -> Bool {
+        body.contains("\(name)(") || body.contains("`\(name)`(")
+    }
+
+    private static func functionBodyHasMainActorSignal(_ node: FunctionDeclSyntax) -> Bool {
+        let body = node.body?.description ?? ""
+        guard !body.isEmpty else { return false }
+        return mainActorBodySignals.contains { body.contains($0) }
+    }
+
+    private static let mainActorBodySignals: [String] = [
+        "self.view",
+        ".safeAreaInsets",
+        "present(",
+        "dismiss(",
+        "navigationController",
+        "tabBarController",
+        "tableView",
+        "collectionView",
+        "scrollView",
+        "addSubview(",
+        "removeFromSuperview(",
+        "layoutIfNeeded(",
+        "setNeedsLayout(",
+        "overrideUserInterfaceStyle",
+        "accessibilityIdentifier",
+        "UIView",
+        "NSView",
+        "UIWindow",
+        "NSWindow",
+        "UIViewController",
+        "NSViewController",
+        "NSCursor"
+    ]
 
     /// True iff the func already states its isolation — `@MainActor` (the form this
     /// emits, so re-runs are no-ops) or an explicit `nonisolated` modifier (a
