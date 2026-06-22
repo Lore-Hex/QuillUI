@@ -591,7 +591,20 @@ extension Button: QtRenderable {
             Unmanaged<QtClosureBox>.fromOpaque(userData).release()
         }
 
-        return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+
+        // QuillPaint chrome: only for the painted button styles, mirroring the
+        // GTK backend which gates the paint hook on the environment's buttonStyle
+        // (.quillPaintMacDefault / .quillPaintMacBordered). Other styles keep the
+        // bare native QPushButton.
+        switch getCurrentEnvironment().buttonStyle {
+        case .quillPaintMacDefault:
+            return quillPaintQtButton(button: button, label: title, isDefault: true)
+        case .quillPaintMacBordered:
+            return quillPaintQtButton(button: button, label: title, isDefault: false)
+        default:
+            return button
+        }
     }
 }
 
@@ -671,7 +684,15 @@ extension TextField: QtRenderable {
         }
 
         quill_qt_line_edit_connect_text_changed(qtHandle(lineEdit), textChanged, box, destroy)
-        return lineEdit
+
+        // QuillPaint chrome for the bezeled styles, mirroring the GTK backend
+        // (.automatic / .roundedBorder paint; .plain keeps the bare field).
+        switch getCurrentEnvironment().textFieldStyle {
+        case .automatic, .roundedBorder:
+            return quillPaintQtTextField(lineEdit: lineEdit)
+        case .plain:
+            return lineEdit
+        }
     }
 }
 
@@ -701,7 +722,16 @@ extension Toggle: QtRenderable {
         }
 
         quill_qt_check_box_connect_toggled(qtHandle(checkBox), toggled, box, destroy)
-        return checkBox
+
+        // QuillPaint chrome: paint the Mac switch or checkbox over the indicator
+        // for the painted styles, mirroring the GTK backend's toggle paint hook.
+        // .switch paints a switch pill; .automatic / .checkbox paint a checkbox.
+        switch getCurrentEnvironment().toggleStyle {
+        case .switch:
+            return quillPaintQtToggle(checkBox: checkBox, isSwitch: true)
+        case .automatic, .checkbox:
+            return quillPaintQtToggle(checkBox: checkBox, isSwitch: false)
+        }
     }
 }
 

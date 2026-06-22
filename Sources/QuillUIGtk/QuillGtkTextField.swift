@@ -18,7 +18,7 @@ public func installQuillTextFieldHook() {
 }
 
 public func setupQuillTextFieldChrome(entry: OpaquePointer) -> OpaquePointer {
-    let entryWidget = quillTextFieldGTKWidgetPointer(entry)
+    let entryWidget = quillGTKWidgetPointer(entry)
     let overlay = gtk_overlay_new()!
     let chrome = gtk_drawing_area_new()!
 
@@ -29,8 +29,8 @@ public func setupQuillTextFieldChrome(entry: OpaquePointer) -> OpaquePointer {
     gtk_overlay_set_child(OpaquePointer(overlay), chrome)
     gtk_overlay_add_overlay(OpaquePointer(overlay), entryWidget)
 
-    let chromeBox = QuillGTKTextInputChromeBox(stateWidget: entryWidget, chrome: chrome)
-    installQuillTextInputDrawFunc(chrome: chrome, chromeBox: chromeBox)
+    let chromeBox = makeQuillTextInputChrome(stateWidget: entryWidget, chrome: chrome)
+    chromeBox.installDrawFunc()
     connectQuillTextInputRedrawSignals(stateWidget: entryWidget, chromeBox: chromeBox)
     let focusEntry = {
         quillTextFieldGrabEditableFocus(entryWidget)
@@ -42,8 +42,8 @@ public func setupQuillTextFieldChrome(entry: OpaquePointer) -> OpaquePointer {
 }
 
 public func setupQuillTextEditorChrome(scrolledWindow: OpaquePointer, textView: OpaquePointer) -> OpaquePointer {
-    let scrolledWidget = quillTextFieldGTKWidgetPointer(scrolledWindow)
-    let textViewWidget = quillTextFieldGTKWidgetPointer(textView)
+    let scrolledWidget = quillGTKWidgetPointer(scrolledWindow)
+    let textViewWidget = quillGTKWidgetPointer(textView)
     let overlay = gtk_overlay_new()!
     let chrome = gtk_drawing_area_new()!
 
@@ -54,8 +54,8 @@ public func setupQuillTextEditorChrome(scrolledWindow: OpaquePointer, textView: 
     gtk_overlay_set_child(OpaquePointer(overlay), chrome)
     gtk_overlay_add_overlay(OpaquePointer(overlay), scrolledWidget)
 
-    let chromeBox = QuillGTKTextInputChromeBox(stateWidget: textViewWidget, chrome: chrome)
-    installQuillTextInputDrawFunc(chrome: chrome, chromeBox: chromeBox)
+    let chromeBox = makeQuillTextInputChrome(stateWidget: textViewWidget, chrome: chrome)
+    chromeBox.installDrawFunc()
     connectQuillTextInputRedrawSignals(stateWidget: textViewWidget, chromeBox: chromeBox)
     let focusTextView = {
         quillTextFieldForceFocus(textViewWidget)
@@ -67,31 +67,25 @@ public func setupQuillTextEditorChrome(scrolledWindow: OpaquePointer, textView: 
     return OpaquePointer(overlay)
 }
 
-private final class QuillGTKTextInputChromeBox {
-    let stateWidget: UnsafeMutablePointer<GtkWidget>
-    let chrome: UnsafeMutablePointer<GtkWidget>
+/// Build the shared painted-chrome host for a text field or text editor.
+///
+/// Both inputs paint `MacTextFieldPaint` into a half-pixel-inset frame (so
+/// the 1px border lands crisply) and never report a pressed state.
+private func makeQuillTextInputChrome(
+    stateWidget: UnsafeMutablePointer<GtkWidget>,
+    chrome: UnsafeMutablePointer<GtkWidget>
+) -> QuillGTKPaintedChrome {
     let paint = MacTextFieldPaint()
-
-    init(stateWidget: UnsafeMutablePointer<GtkWidget>, chrome: UnsafeMutablePointer<GtkWidget>) {
-        self.stateWidget = stateWidget
-        self.chrome = chrome
-    }
-
-    var paintState: PaintControlState {
-        let flags = gtk_widget_get_state_flags(stateWidget)
-        return PaintControlState(
-            isPressed: false,
-            isFocused: quillTextFieldGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUS_WITHIN)
-                || quillTextFieldGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUSED),
-            isDisabled: gtk_widget_get_sensitive(stateWidget) == 0,
-            isHovered: quillTextFieldGTKStateFlagsContain(flags, GTK_STATE_FLAG_PRELIGHT),
-            isDefault: false
-        )
-    }
-
-    func queueDraw() {
-        gtk_widget_queue_draw(chrome)
-    }
+    return QuillGTKPaintedChrome(
+        chrome: chrome,
+        frameProvider: QuillGTKPaintedChrome.halfPixelInsetFrame,
+        stateProvider: {
+            quillGTKPaintState(of: stateWidget, treatActiveAsPressed: false)
+        },
+        render: { context, frame, state in
+            paint.paint(into: context, frame: frame, state: state)
+        }
+    )
 }
 
 private final class QuillGTKTextInputFocusBox {
@@ -177,30 +171,20 @@ private func configureQuillTextFieldEntry(_ entry: UnsafeMutablePointer<GtkWidge
         min-height: 0;
         min-width: 0;
         text-shadow: none;
-        color: \(quillTextFieldCSSRGBA(MacColors.controlText));
+        color: \(PaintCSSColor.rgba(MacColors.controlText));
     }
     .quill-paint-text-field:disabled,
     .quill-paint-text-field:disabled text {
-        color: \(quillTextFieldCSSRGBA(MacColors.disabledControlText));
+        color: \(PaintCSSColor.rgba(MacColors.disabledControlText));
     }
     .quill-paint-text-field placeholder,
     .quill-paint-text-field text placeholder {
-        color: \(quillTextFieldCSSRGBA(MacColors.secondaryLabel));
+        color: \(PaintCSSColor.rgba(MacColors.secondaryLabel));
         opacity: 1;
     }
     """
 
-    let provider = gtk_css_provider_new()!
-    gtk_css_provider_load_from_string(provider, css)
-    if let display = gtk_widget_get_display(entry) {
-        gtk_swift_add_css_provider_to_display(
-            display,
-            provider,
-            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
-        )
-    }
-    gtk_widget_add_css_class(entry, "quill-paint-text-field")
-    g_object_unref(gpointer(provider))
+    quillGTKApplyCSS(css, to: entry, cssClass: "quill-paint-text-field")
 }
 
 private func configureQuillTextEditorWidgets(
@@ -250,120 +234,25 @@ private func configureQuillTextEditorWidgets(
         min-height: 0;
         min-width: 0;
         text-shadow: none;
-        color: \(quillTextFieldCSSRGBA(MacColors.controlText));
+        color: \(PaintCSSColor.rgba(MacColors.controlText));
     }
     textview.quill-paint-text-editor:disabled,
     textview.quill-paint-text-editor:disabled text {
-        color: \(quillTextFieldCSSRGBA(MacColors.disabledControlText));
+        color: \(PaintCSSColor.rgba(MacColors.disabledControlText));
     }
     """
 
-    let provider = gtk_css_provider_new()!
-    gtk_css_provider_load_from_string(provider, css)
-    if let display = gtk_widget_get_display(scrolledWindow) {
-        gtk_swift_add_css_provider_to_display(
-            display,
-            provider,
-            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
-        )
-    }
-    gtk_widget_add_css_class(scrolledWindow, "quill-paint-text-editor")
+    quillGTKApplyCSS(css, to: scrolledWindow, cssClass: "quill-paint-text-editor")
     gtk_widget_add_css_class(textView, "quill-paint-text-editor")
-    g_object_unref(gpointer(provider))
-}
-
-private func installQuillTextInputDrawFunc(
-    chrome: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKTextInputChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    gtk_swift_drawing_area_set_draw_func(
-        chrome,
-        { (_: UnsafeMutablePointer<GtkWidget>?,
-           cr: OpaquePointer?,
-           width: gint,
-           height: gint,
-           userData: gpointer?) in
-            guard let cr, let userData else { return }
-
-            let chromeBox = Unmanaged<QuillGTKTextInputChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-            chromeBox.paint.paint(
-                into: CairoPaintContext(cr: cr),
-                frame: PaintRect(
-                    x: 0.5,
-                    y: 0.5,
-                    width: max(0, Double(width) - 1),
-                    height: max(0, Double(height) - 1)
-                ),
-                state: chromeBox.paintState
-            )
-        },
-        retainedBox,
-        { userData in
-            guard let userData else { return }
-            Unmanaged<QuillGTKTextInputChromeBox>.fromOpaque(userData).release()
-        }
-    )
 }
 
 private func connectQuillTextInputRedrawSignals(
     stateWidget: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKTextInputChromeBox
+    chromeBox: QuillGTKPaintedChrome
 ) {
-    connectQuillTextInputStateFlagsChanged(stateWidget: stateWidget, chromeBox: chromeBox)
-    connectQuillTextInputNotifySignal(stateWidget: stateWidget, signal: "notify::sensitive", chromeBox: chromeBox)
-    connectQuillTextInputNotifySignal(stateWidget: stateWidget, signal: "notify::has-focus", chromeBox: chromeBox)
-}
-
-private func connectQuillTextInputStateFlagsChanged(
-    stateWidget: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKTextInputChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(stateWidget),
-        "state-flags-changed",
-        unsafeBitCast({ (_: gpointer?, _: GtkStateFlags, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKTextInputChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, GtkStateFlags, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKTextInputChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
-}
-
-private func connectQuillTextInputNotifySignal(
-    stateWidget: UnsafeMutablePointer<GtkWidget>,
-    signal: String,
-    chromeBox: QuillGTKTextInputChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(stateWidget),
-        signal,
-        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKTextInputChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKTextInputChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
+    chromeBox.connectStateFlagsChanged(on: stateWidget)
+    chromeBox.connectNotify("notify::sensitive", on: stateWidget)
+    chromeBox.connectNotify("notify::has-focus", on: stateWidget)
 }
 
 private func installQuillTextInputFocusGesture(
@@ -392,7 +281,7 @@ private func installQuillTextInputFocusGesture(
 private func quillTextFieldGrabEditableFocus(_ entry: UnsafeMutablePointer<GtkWidget>) {
     quillTextFieldForceFocus(entry)
     if let delegate = gtk_editable_get_delegate(OpaquePointer(entry)) {
-        quillTextFieldForceFocus(quillTextFieldGTKWidgetPointer(delegate))
+        quillTextFieldForceFocus(quillGTKWidgetPointer(delegate))
     } else {
         quillTextFieldForceFocus(entry)
     }
@@ -424,18 +313,4 @@ private func quillTextFieldScheduleRootFocus(_ widget: UnsafeMutablePointer<GtkW
     }, Unmanaged.passRetained(target).toOpaque())
 }
 
-private func quillTextFieldGTKWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
-    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
-}
-
-private func quillTextFieldGTKStateFlagsContain(_ flags: GtkStateFlags, _ flag: GtkStateFlags) -> Bool {
-    (flags.rawValue & flag.rawValue) != 0
-}
-
-private func quillTextFieldCSSRGBA(_ color: PaintColor) -> String {
-    let red = Int((color.red * 255).rounded())
-    let green = Int((color.green * 255).rounded())
-    let blue = Int((color.blue * 255).rounded())
-    return "rgba(\(red), \(green), \(blue), \(color.alpha))"
-}
 #endif
