@@ -5711,7 +5711,8 @@ extension Label: GTKRenderable {
         let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 6)!
 
         if let iconName = systemImage {
-            let img = gtk_image_new_from_icon_name(iconName)!
+            let materialName = gtkMaterialSymbolName(forSystemName: iconName)
+            let img = gtkRenderMaterialSymbolLabel(materialName, scale: .small)
             gtk_box_append(boxPointer(box), img)
         } else if let path = imagePath {
             let img = gtk_image_new_from_file(path)!
@@ -6254,15 +6255,7 @@ extension Image: GTKRenderable {
             // will now see the placeholder; it should switch to a real
             // SF name or use `Image(material:)` for direct Material
             // names.
-            let materialName = SFSymbolCompatibility.materialName(for: sfName)
-                ?? SFSymbolCompatibility.missingSymbolPlaceholderName
-            #if DEBUG
-            if SFSymbolCompatibility.materialName(for: sfName) == nil {
-                FileHandle.standardError.write(Data(
-                    "[SwiftOpenUI] Image(systemName: \"\(sfName)\") has no Material mapping; rendering placeholder\n".utf8
-                ))
-            }
-            #endif
+            let materialName = gtkMaterialSymbolName(forSystemName: sfName)
             return opaqueFromWidget(gtkRenderMaterialSymbolLabel(materialName, scale: scale))
 
         case .filePath(let path):
@@ -6293,6 +6286,18 @@ extension Image: GTKRenderable {
             return opaqueFromWidget(gtkRenderMaterialSymbolLabel(name, scale: scale))
         }
     }
+}
+
+private func gtkMaterialSymbolName(forSystemName sfName: String) -> String {
+    guard let materialName = SFSymbolCompatibility.materialName(for: sfName) else {
+        #if DEBUG
+        FileHandle.standardError.write(Data(
+            "[SwiftOpenUI] Image(systemName: \"\(sfName)\") has no Material mapping; rendering placeholder\n".utf8
+        ))
+        #endif
+        return SFSymbolCompatibility.missingSymbolPlaceholderName
+    }
+    return materialName
 }
 
 /// Render a Material Symbols glyph as a GtkLabel via Pango markup.

@@ -4786,6 +4786,113 @@ struct SourceHygieneTests {
         }
     }
 
+    @Test("QuillCode SF Symbols map to bundled Material glyphs")
+    func quillCodeSFSymbolsMapToMaterialGlyphs() throws {
+        let symbols = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+        )
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+
+        let expectedMappings: [(sf: String, material: String)] = [
+            ("arrow.up.right", "open_in_new"),
+            ("arrow.uturn.backward", "undo"),
+            ("brain.head.profile", "psychology"),
+            ("camera.viewfinder", "photo_camera"),
+            ("clock.arrow.circlepath", "history"),
+            ("command", "keyboard_command_key"),
+            ("doc.plaintext", "article"),
+            ("doc.richtext", "article"),
+            ("exclamationmark.circle.fill", "error"),
+            ("hand.thumbsdown", "thumb_down"),
+            ("hand.thumbsup", "thumb_up"),
+            ("list.bullet.rectangle", "list_alt"),
+            ("minus.rectangle", "disabled_by_default"),
+            ("plus.bubble", "add_comment"),
+            ("plus.rectangle.on.folder", "create_new_folder"),
+            ("puzzlepiece.extension", "extension"),
+            ("q.circle.fill", "code"),
+            ("rectangle.on.rectangle", "content_copy"),
+            ("tablecells", "table"),
+            ("text.bubble", "chat_bubble"),
+            ("text.bubble.badge.exclamationmark", "error"),
+            ("text.bubble.badge.plus", "add_comment"),
+            ("text.magnifyingglass", "find_in_page"),
+            ("wrench.and.screwdriver", "construction"),
+            ("xmark.octagon", "dangerous"),
+            ("xmark.octagon.fill", "dangerous")
+        ]
+
+        for (sf, material) in expectedMappings {
+            let mappingLineExists = symbols
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(sf)\"") && line.contains("\"\(material)\"")
+                }
+            let codepointLineExists = codepoints
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(material)\"")
+                }
+
+            #expect(
+                mappingLineExists,
+                "Expected QuillCode SF Symbol \(sf) to map to Material glyph \(material)"
+            )
+            #expect(
+                codepointLineExists,
+                "Expected Material glyph \(material) to have a direct-render codepoint"
+            )
+        }
+    }
+
+    @Test("SF Symbol compatibility map is covered by direct-render codepoints")
+    func sfSymbolCompatibilityMapIsCoveredByDirectRenderCodepoints() throws {
+        let symbols = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+        )
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+
+        let materialRegex = try NSRegularExpression(pattern: #""[^"]+"\s*:\s*"([^"]+)""#)
+        let materialMatches = materialRegex.matches(
+            in: symbols,
+            range: NSRange(symbols.startIndex..., in: symbols)
+        )
+        let mappedMaterials = Set(materialMatches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: symbols) else { return nil }
+            return String(symbols[range])
+        })
+
+        let codepointRegex = try NSRegularExpression(pattern: #""([^"]+)"\s*:"#)
+        let codepointMatches = codepointRegex.matches(
+            in: codepoints,
+            range: NSRange(codepoints.startIndex..., in: codepoints)
+        )
+        let directRenderMaterials = Set(codepointMatches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: codepoints) else { return nil }
+            return String(codepoints[range])
+        })
+
+        let missing = mappedMaterials.subtracting(directRenderMaterials).sorted()
+        #expect(
+            missing.isEmpty,
+            Comment(rawValue: "Missing Material codepoints:\n" + missing.joined(separator: "\n"))
+        )
+    }
+
+    @Test("GTK labels use SF Symbol compatibility map")
+    func gtkLabelsUseSFSymbolCompatibilityMap() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("gtkMaterialSymbolName(forSystemName: iconName)"))
+        #expect(renderer.contains("gtkRenderMaterialSymbolLabel(materialName, scale: .small)"))
+        #expect(renderer.contains("gtkMaterialSymbolName(forSystemName: sfName)"))
+        #expect(!renderer.contains("gtk_image_new_from_icon_name(iconName)"))
+    }
+
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
