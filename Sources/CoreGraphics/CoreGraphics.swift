@@ -1,4 +1,5 @@
 import Foundation
+@_exported import QuillFoundation
 import QuillKit
 
 // CoreGraphics geometry value types live in swift-corelibs-foundation on Linux.
@@ -16,6 +17,41 @@ public extension CGKeyCode {
 }
 
 public typealias CGEventMask = UInt64
+public typealias CGDirectDisplayID = UInt32
+public typealias CGWheelCount = UInt32
+
+public enum CGScrollEventUnit: Int32, Sendable {
+    case line = 0
+    case pixel = 1
+}
+
+public func CGMainDisplayID() -> CGDirectDisplayID {
+    0
+}
+
+public func CGPreflightScreenCaptureAccess() -> Bool {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "CoreGraphics",
+        operation: "preflightScreenCaptureAccess",
+        message: "Screen capture permission is unavailable until a native Linux backend is attached."
+    )
+    return false
+}
+
+public func CGDisplayCreateImage(_ displayID: CGDirectDisplayID) -> CGImage? {
+    QuillCompatibilityDiagnostics.shared.record(
+        subsystem: "CoreGraphics",
+        operation: "displayCreateImage",
+        message: "Display capture is using an inert placeholder until a native Linux backend is attached."
+    )
+    let image = CGImage()
+    image.width = 1
+    image.height = 1
+    image.quillBytesPerRow = 4
+    image.quillBGRAPixels = [0, 0, 0, 255]
+    _ = displayID
+    return image
+}
 
 public struct CGEventFlags: OptionSet, Sendable {
     public var rawValue: UInt64
@@ -154,6 +190,37 @@ public final class CGEvent: @unchecked Sendable {
         self.type = mouseType
         self.location = mouseCursorPosition
         self.integerFields[.mouseEventButtonNumber] = Int64(mouseButton.rawValue)
+    }
+
+    public init?(
+        scrollWheelEvent2Source source: CGEventSource?,
+        units: CGScrollEventUnit,
+        wheelCount: CGWheelCount,
+        wheel1: Int32,
+        wheel2: Int32,
+        wheel3: Int32
+    ) {
+        self.source = source
+        self.virtualKey = 0
+        self.keyDown = false
+        self.type = .scrollWheel
+        self.location = .zero
+        let clampedWheelCount = Swift.min(wheelCount, 3)
+        if clampedWheelCount >= 1 {
+            self.integerFields[.scrollWheelEventDeltaAxis1] = Int64(wheel1)
+            self.integerFields[.scrollWheelEventFixedPtDeltaAxis1] = Int64(wheel1) << 16
+            self.integerFields[.scrollWheelEventPointDeltaAxis1] = units == .pixel ? Int64(wheel1) : 0
+        }
+        if clampedWheelCount >= 2 {
+            self.integerFields[.scrollWheelEventDeltaAxis2] = Int64(wheel2)
+            self.integerFields[.scrollWheelEventFixedPtDeltaAxis2] = Int64(wheel2) << 16
+            self.integerFields[.scrollWheelEventPointDeltaAxis2] = units == .pixel ? Int64(wheel2) : 0
+        }
+        if clampedWheelCount >= 3 {
+            self.integerFields[.scrollWheelEventDeltaAxis3] = Int64(wheel3)
+            self.integerFields[.scrollWheelEventFixedPtDeltaAxis3] = Int64(wheel3) << 16
+            self.integerFields[.scrollWheelEventPointDeltaAxis3] = units == .pixel ? Int64(wheel3) : 0
+        }
     }
 
     public func post(tap: CGEventTapLocation) {

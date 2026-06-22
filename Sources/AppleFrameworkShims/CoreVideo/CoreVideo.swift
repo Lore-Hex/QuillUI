@@ -93,10 +93,6 @@ public struct CVPixelBufferLockFlags: OptionSet, Sendable {
     public static let readOnly = CVPixelBufferLockFlags(rawValue: 1 << 0)
 }
 
-public func CGMainDisplayID() -> UInt32 {
-    0
-}
-
 public func CVDisplayLinkCreateWithCGDisplay(_ displayID: UInt32, _ displayLinkOut: inout CVDisplayLink?) -> CVReturn {
     _ = displayID
     displayLinkOut = OpaquePointer(bitPattern: 1)

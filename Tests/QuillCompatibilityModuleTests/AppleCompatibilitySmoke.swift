@@ -531,6 +531,9 @@ enum AppleCompatibilitySmoke {
         guard AXIsProcessTrustedWithOptions(nil) == false else {
             return false
         }
+        guard AXIsProcessTrusted() == false else {
+            return false
+        }
         let element = AXUIElementCreateSystemWide()
         var value: AnyObject?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute, &value) == .failure else {

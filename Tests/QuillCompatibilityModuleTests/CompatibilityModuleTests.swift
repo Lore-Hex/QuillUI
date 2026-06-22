@@ -338,6 +338,13 @@ struct CompatibilityModuleTests {
         _ = Text("Quill")
             .foregroundStyle(Color("label"))
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
+        _ = Text("Shape")
+            .background(AnyShapeStyle(Color.red))
+            .foregroundStyle(LinearGradient(colors: [.red, .blue], startPoint: .leading, endPoint: .trailing))
+        var environment = EnvironmentValues()
+        #expect(environment.accessibilityReduceMotion == false)
+        environment.accessibilityReduceMotion = true
+        #expect(environment.accessibilityReduceMotion)
         _ = ModelConfiguration(isStoredInMemoryOnly: true)
         _ = FetchDescriptor<CompatibilityModel>()
         _ = Window("Compatibility", id: "compatibility") {
