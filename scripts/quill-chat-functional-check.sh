@@ -578,9 +578,6 @@ quill_chat_functional_send_attempt() {
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
     attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
-    quillui_functional_refocus_window
-    quillui_functional_click_at "$attachment_x" "$attachment_y"
-    sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
   fi
 
   echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE} submit=${submit_method}" >&2
@@ -593,6 +590,13 @@ quill_chat_functional_send_attempt() {
   fi
   quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$MESSAGE_TEXT"
   sleep "${QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP:-1.5}"
+
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    quillui_functional_refocus_window
+    quillui_functional_click_at "$attachment_x" "$attachment_y"
+    sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
+  fi
+
   if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
     send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
