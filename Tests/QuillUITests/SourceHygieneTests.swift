@@ -1584,10 +1584,15 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent(".github/actions/upstream-cache/action.yml"),
             encoding: .utf8
         )
+        let upstreamFetch = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
 
         #expect(workflows.contains("uses: actions/checkout@v5"))
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
         #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
+        #expect(workflows.contains("QUILLUI_TRUST_UPSTREAM_CACHE: \"1\""))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
         #expect(shellSyntaxCheck.contains("bash -n \"$script\""))
@@ -1595,6 +1600,9 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("path: .upstream"))
         #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
         #expect(upstreamCacheAction.contains("restore-keys:"))
+        #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
+        #expect(upstreamFetch.contains("using cached $name"))
+        #expect(upstreamFetch.contains("reset_repo_to_commit"))
         #expect(!workflows.contains("uses: actions/checkout@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))

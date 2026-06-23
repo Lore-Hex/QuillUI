@@ -62,6 +62,8 @@ jobs:
           cache-name: solderscope
 
       - name: Fetch SolderScope upstream
+        env:
+          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
         run: scripts/fetch-upstream.sh solderscope
 
       - name: SolderScope chrome conformance tests
@@ -116,6 +118,8 @@ jobs:
           cache-name: solderscope
 
       - name: Fetch SolderScope upstream
+        env:
+          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
         run: scripts/fetch-upstream.sh solderscope
 
       - name: SolderScope GTK visual smoke

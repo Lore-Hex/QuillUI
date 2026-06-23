@@ -86,6 +86,8 @@ jobs:
           cache-name: enchanted
 
       - name: Fetch Enchanted upstream source
+        env:
+          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
         run: scripts/fetch-upstream.sh enchanted
 
       - name: Run strict Enchanted GTK mac-reference verifier

@@ -12,13 +12,27 @@
 #   scripts/fetch-upstream.sh telegram
 #
 # Idempotent: each upstream is `git clone --depth=1` on first run
-# and `git fetch + reset --hard FETCH_HEAD` on subsequent runs.
+# and `git fetch + reset --hard FETCH_HEAD` on subsequent runs. CI can
+# set QUILLUI_TRUST_UPSTREAM_CACHE=1 after restoring `.upstream` from
+# actions/cache; existing checkouts are then reused without a network
+# refresh, while cache misses still clone normally.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPSTREAM_DIR="$ROOT_DIR/.upstream"
 mkdir -p "$UPSTREAM_DIR"
+
+quillui_truthy() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+quillui_trust_upstream_cache() {
+    quillui_truthy "${QUILLUI_TRUST_UPSTREAM_CACHE:-0}"
+}
 
 fetch_repo() {
     local name="$1"
@@ -27,6 +41,11 @@ fetch_repo() {
     local dest="$UPSTREAM_DIR/$name"
 
     if [[ -d "$dest/.git" ]]; then
+        if quillui_trust_upstream_cache; then
+            echo "==> using cached $name (QUILLUI_TRUST_UPSTREAM_CACHE=1)"
+            git -C "$dest" reset --hard HEAD >/dev/null
+            return
+        fi
         echo "==> updating $name"
         if [[ -n "$ref" ]]; then
             git -C "$dest" fetch --depth=1 origin "$ref" >/dev/null
@@ -42,6 +61,25 @@ fetch_repo() {
             git clone --depth=1 "$url" "$dest" >/dev/null
         fi
     fi
+}
+
+reset_repo_to_commit() {
+    local name="$1"
+    local commit="$2"
+    local dest="$UPSTREAM_DIR/$name"
+
+    if [[ ! -d "$dest/.git" ]]; then
+        echo "error: cannot pin missing upstream checkout: $name" >&2
+        return 1
+    fi
+
+    if git -C "$dest" cat-file -e "$commit^{commit}" 2>/dev/null; then
+        echo "==> resetting $name to cached commit $commit"
+    else
+        echo "==> fetching pinned $name commit $commit"
+        git -C "$dest" fetch --depth=1 origin "$commit" >/dev/null
+    fi
+    git -C "$dest" reset --hard "$commit" >/dev/null
 }
 
 apply_generated_source_patch() {
@@ -2928,8 +2966,7 @@ for name in "${want[@]}"; do
             # (DatabaseResult lost tableExists/executeStatements/...), which
             # turned the Linux CI lane red. Advance the pin together with
             # the slice, not implicitly via HEAD-tracking fetches.
-            git -C "$UPSTREAM_DIR/netnewswire" fetch --depth=1 origin 7fc1e65308583fb014818c342ecbb1560e8461db
-            git -C "$UPSTREAM_DIR/netnewswire" reset --hard 7fc1e65308583fb014818c342ecbb1560e8461db
+            reset_repo_to_commit netnewswire 7fc1e65308583fb014818c342ecbb1560e8461db
             patch_netnewswire
             ;;
         wireguard)

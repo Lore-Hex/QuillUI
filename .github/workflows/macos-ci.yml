@@ -42,6 +42,8 @@ jobs:
       # gated targets are simply absent — QuillUI/QuillEnchanted
       # still build.
       - name: Fetch upstream sources
+        env:
+          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
         run: scripts/fetch-upstream.sh
 
       # Each Quill app is built individually so a failure in one doesn't
