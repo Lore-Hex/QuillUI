@@ -122,6 +122,10 @@ struct QtSmokeView: View {
                 Text("TextField echo: \(textFieldValue)")
                 Text("Selectable Qt transcript")
                     .textSelection(.enabled)
+                Text("Hoverable Qt row")
+                    .onHover { hovering in
+                        menuSelection = hovering ? "hover" : "none"
+                    }
 
                 Picker("QComboBox Picker", selection: $pickerSelection) {
                     Text("Picker Alpha").tag("alpha")

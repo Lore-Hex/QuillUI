@@ -73,6 +73,24 @@ struct GTKDescribeCycleGuardTests {
 
         #expect(gtk_label_get_selectable(OpaquePointer(disabledLabel)) == 0)
     }
+
+    @Test("SwiftUI shadow onHover preserves callback and renders through GTK overlay")
+    func swiftUIShadowOnHoverPreservesCallbackAndRendersThroughGTKOverlay() throws {
+        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+            return
+        }
+
+        var states: [Bool] = []
+        let hoverable = Text("Hoverable transcript").onHover { states.append($0) }
+        hoverable.action(true)
+        hoverable.action(false)
+        #expect(states == [true, false])
+        #expect(String(describing: type(of: hoverable)).contains("QuillCompatibilityOnHoverView"))
+
+        let widget = widgetFromOpaque(gtkRenderView(hoverable))
+        #expect(gtkWidgetTypeName(widget) == "GtkOverlay")
+        _ = try firstGTKLabel(in: widget)
+    }
 }
 
 private struct Cyclic: View {

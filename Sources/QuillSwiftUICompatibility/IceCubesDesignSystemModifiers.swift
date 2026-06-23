@@ -5,9 +5,10 @@ import QuillFoundation
 // DesignSystem: AccountPopoverView / NextPageView / ScrollToView /
 // TagRowView / ToastOverlayView) that the SwiftUI shadow didn't yet provide.
 // Most of these are inert on QuillOS until the GTK/Qt backends implement the
-// matching behavior. `textSelection` is the first exception: it carries a real
-// wrapper so backends can toggle native label selectability while unmodified
-// SwiftUI-only app source still type-checks. These live in
+// matching behavior. `onHover` and `textSelection` are the first exceptions:
+// they carry real wrappers so backends can install native pointer tracking and
+// toggle native label selectability while unmodified SwiftUI-only app source
+// still type-checks. These live in
 // QuillSwiftUICompatibility (re-exported by the SwiftUI shadow) rather than
 // QuillUI so DesignSystem, which only imports the shadow, can see them.
 // HoverEffect, Visibility, TextSelectability, Edge.Set, and AnyTransition
@@ -41,15 +42,28 @@ public struct QuillCompatibilityTextSelectionView<Content: View>: View {
     }
 }
 
+public struct QuillCompatibilityOnHoverView<Content: View>: View {
+    public let content: Content
+    public let action: (Bool) -> Void
+
+    public init(content: Content, action: @escaping (Bool) -> Void) {
+        self.content = content
+        self.action = action
+    }
+
+    public var body: Never {
+        fatalError("QuillCompatibilityOnHoverView is a backend-rendered primitive")
+    }
+}
+
 public extension View {
-    /// Pointer-hover callback (iPadOS/macOS). Inert headless. Disfavored:
-    /// QuillUI declares a functional `onHover` returning `OnHoverView`;
-    /// callers that see both (e.g. QuillUI/Controls.swift) must bind to that
-    /// one, while shadow-only vendored DesignSystem source uses this fallback.
+    /// Pointer-hover callback (iPadOS/macOS). Disfavored: QuillUI declares a
+    /// functional `onHover` returning `OnHoverView`; callers that see both
+    /// (e.g. QuillUI/Controls.swift) must bind to that one, while shadow-only
+    /// vendored DesignSystem source uses this metadata wrapper.
     @_disfavoredOverload
-    func onHover(perform action: @escaping (Bool) -> Void) -> Self {
-        _ = action
-        return self
+    func onHover(perform action: @escaping (Bool) -> Void) -> QuillCompatibilityOnHoverView<Self> {
+        QuillCompatibilityOnHoverView(content: self, action: action)
     }
 
     /// Interaction hit-test shape. QuillUI declares a functional

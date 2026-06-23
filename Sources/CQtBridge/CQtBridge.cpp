@@ -15,6 +15,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QEvent>
 #include <QFont>
 #include <QFontDatabase>
 #include <QFrame>
@@ -42,6 +43,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <memory>
+#include <utility>
 
 namespace {
 
@@ -152,6 +155,93 @@ public:
 private:
     Qt::Orientation orientation_ = Qt::Horizontal;
 };
+
+class QuillQtHoverState final {
+public:
+    QuillQtHoverState(
+        quill_qt_bridge_hover_callback callback,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : callback_(callback),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtHoverState() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+    }
+
+    void update(bool hovered) {
+        if (hovered_ == hovered) {
+            return;
+        }
+        hovered_ = hovered;
+        if (callback_ != nullptr) {
+            callback_(hovered ? 1 : 0, userData_);
+        }
+    }
+
+private:
+    quill_qt_bridge_hover_callback callback_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+    bool hovered_ = false;
+};
+
+class QuillQtHoverFilter final : public QObject {
+public:
+    QuillQtHoverFilter(
+        std::shared_ptr<QuillQtHoverState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          state_(std::move(state))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::Enter:
+            state_->update(true);
+            break;
+        case QEvent::Leave:
+            state_->update(false);
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::shared_ptr<QuillQtHoverState> state_;
+};
+
+void installHoverFilterRecursive(
+    QWidget *target,
+    const std::shared_ptr<QuillQtHoverState> &state
+) {
+    if (target == nullptr) {
+        return;
+    }
+
+    target->setAttribute(Qt::WA_Hover, true);
+    target->setMouseTracking(true);
+    target->installEventFilter(new QuillQtHoverFilter(state, target));
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        installHoverFilterRecursive(child, state);
+    }
+}
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
 // addresses (a dangling QApplication argc reference) produced a bare
@@ -479,6 +569,26 @@ void quill_qt_widget_set_text_selectable_recursive(
             selectable
         );
     }
+}
+
+void quill_qt_widget_install_hover_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_hover_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    installHoverFilterRecursive(
+        target,
+        std::make_shared<QuillQtHoverState>(callback, user_data, destroy)
+    );
 }
 
 void quill_qt_bridge_material_symbols_register_font(const char *font_path) {

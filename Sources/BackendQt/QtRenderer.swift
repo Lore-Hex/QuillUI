@@ -614,6 +614,34 @@ extension QuillCompatibilityTextSelectionView: QtRenderable {
     }
 }
 
+extension QuillCompatibilityOnHoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        let captured = getCurrentEnvironment()
+        let box = Unmanaged.passRetained(QtBoolClosureBox { hovered in
+            let previous = getCurrentEnvironment()
+            setCurrentEnvironment(captured)
+            defer { setCurrentEnvironment(previous) }
+            action(hovered)
+        }).toOpaque()
+
+        let callback: quill_qt_bridge_hover_callback = { hovered, userData in
+            guard let userData else { return }
+            Unmanaged<QtBoolClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(hovered != 0)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtBoolClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_widget_install_hover_recursive(qtHandle(widget), callback, box, destroy)
+        return widget
+    }
+}
+
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let title = qtTextLabel(from: label)

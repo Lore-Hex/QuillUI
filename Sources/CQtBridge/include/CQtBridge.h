@@ -35,6 +35,9 @@ typedef void (*quill_qt_bridge_click_callback)(void *user_data);
 // Toggle callback for checkboxes. `checked` is 1 when on, 0 when off.
 typedef void (*quill_qt_bridge_toggle_callback)(int checked, void *user_data);
 
+// Hover callback for pointer enter/leave. `hovered` is 1 on enter, 0 on leave.
+typedef void (*quill_qt_bridge_hover_callback)(int hovered, void *user_data);
+
 // Text callback for line edits. `text` is a UTF-8 string valid for the call.
 typedef void (*quill_qt_bridge_text_callback)(const char *text, void *user_data);
 
@@ -183,6 +186,15 @@ QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text);
 void quill_qt_widget_set_text_selectable_recursive(
     QuillQtWidgetHandle widget,
     int selectable
+);
+
+// Install hover enter/leave filters on every QWidget in a rendered subtree.
+// `destroy` releases the retained Swift callback box when the subtree dies.
+void quill_qt_widget_install_hover_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_hover_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
 );
 
 // Register the bundled Material Symbols font for this QApplication process.
