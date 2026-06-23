@@ -1436,7 +1436,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 3
         ;;
       attachment-send|image-attachment-send)
-        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 70))}"
+        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 115))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}"
         else
