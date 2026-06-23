@@ -207,7 +207,6 @@ quillui_append_enchanted_reference_mode_environment app_environment
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
-  app_environment+=("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1")
   app_environment+=("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1")
 fi
 
