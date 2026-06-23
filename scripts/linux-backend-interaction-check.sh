@@ -1436,12 +1436,13 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 3
         ;;
       attachment-send|image-attachment-send)
-        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 115))}"
+        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 100))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}"
         else
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$((window_y + window_height - 190))}"
         fi
+        echo "interaction-check: attachment=${attachment_x},${attachment_y}" >&2
         click_at "$attachment_x" "$attachment_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
         click_x="$(quill_chat_composer_click_x)"
@@ -1456,6 +1457,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         else
           send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
         fi
+        echo "interaction-check: send=${send_x},${send_y}" >&2
         click_at "$send_x" "$send_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SEND_FALLBACK_SLEEP:-0.4}"
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
