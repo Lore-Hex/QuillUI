@@ -1,10 +1,26 @@
 #if os(Linux)
 import CGTK
 import CGTKBridge
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import BackendGTK4
 
 extension TextSelectionView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = quillGTKTextSelectionWidgetPointer(gtkRenderView(content))
+        let selectable: gboolean
+        switch selection {
+        case .enabled:
+            selectable = 1
+        case .disabled:
+            selectable = 0
+        }
+        quillGTKSetLabelsSelectable(in: widget, selectable: selectable)
+        return OpaquePointer(widget)
+    }
+}
+
+extension QuillCompatibilityTextSelectionView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = quillGTKTextSelectionWidgetPointer(gtkRenderView(content))
         let selectable: gboolean

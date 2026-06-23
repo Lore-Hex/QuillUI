@@ -23,6 +23,7 @@
 // The point is that all of this is plain SwiftUI; the renderer is app-agnostic.
 
 #if canImport(CQtBridge)
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 
 /// Window/panel metrics chosen to satisfy validate_quill_backend_interaction_smoke.
@@ -119,6 +120,8 @@ struct QtSmokeView: View {
 
                 TextField("QLineEdit placeholder", text: $textFieldValue)
                 Text("TextField echo: \(textFieldValue)")
+                Text("Selectable Qt transcript")
+                    .textSelection(.enabled)
 
                 Picker("QComboBox Picker", selection: $pickerSelection) {
                     Text("Picker Alpha").tag("alpha")

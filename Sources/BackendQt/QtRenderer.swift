@@ -20,6 +20,7 @@
 
 #if canImport(CQtBridge)
 import CQtBridge
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import SwiftOpenUISymbols
 import Foundation
@@ -598,6 +599,19 @@ extension ProgressView: QtRenderable {
 private func qtSanitizedProgressFraction(value: Double, total: Double) -> Double {
     guard value.isFinite, total.isFinite, total > 0 else { return 0 }
     return max(0, min(1, value / total))
+}
+
+extension QuillCompatibilityTextSelectionView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        switch selection {
+        case .enabled:
+            quill_qt_widget_set_text_selectable_recursive(qtHandle(widget), 1)
+        case .disabled:
+            quill_qt_widget_set_text_selectable_recursive(qtHandle(widget), 0)
+        }
+        return widget
+    }
 }
 
 extension Button: QtRenderable {

@@ -178,6 +178,13 @@ void quill_qt_bridge_widget_set_fixed_size(
 // SwiftUI Text's default (no line limit imposed by the container).
 QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text);
 
+// Toggle text selection on every QLabel in a rendered SwiftUI subtree.
+// Non-label widgets are traversed recursively.
+void quill_qt_widget_set_text_selectable_recursive(
+    QuillQtWidgetHandle widget,
+    int selectable
+);
+
 // Register the bundled Material Symbols font for this QApplication process.
 // `font_path` points at SwiftOpenUISymbols' MaterialSymbolsRounded-Regular.ttf.
 void quill_qt_bridge_material_symbols_register_font(const char *font_path);

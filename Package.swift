@@ -3522,6 +3522,7 @@ if quillUILinuxBuildBackend == .qt {
                 dependencies: [
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
                     .product(name: "SwiftOpenUISymbols", package: "SwiftOpenUI"),
+                    "QuillSwiftUICompatibility",
                     "Observation",
                     "CQtBridge"
                 ],

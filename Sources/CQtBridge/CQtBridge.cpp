@@ -452,6 +452,35 @@ QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text) {
     return reinterpret_cast<QuillQtWidgetHandle>(label);
 }
 
+void quill_qt_widget_set_text_selectable_recursive(
+    QuillQtWidgetHandle widget,
+    int selectable
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    if (QLabel *label = qobject_cast<QLabel *>(target)) {
+        label->setTextInteractionFlags(
+            selectable != 0
+                ? (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)
+                : Qt::NoTextInteraction
+        );
+    }
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_text_selectable_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            selectable
+        );
+    }
+}
+
 void quill_qt_bridge_material_symbols_register_font(const char *font_path) {
     if (materialSymbolsFontRegistered) {
         return;
