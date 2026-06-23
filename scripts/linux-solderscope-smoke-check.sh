@@ -349,6 +349,7 @@ quillui_solderscope_freeze_fallback_driver() {
 }
 
 quillui_solderscope_wait_for_visible_frame() {
+  local label="${1:-before interaction}"
   local wait_mode="${QUILLUI_SOLDERSCOPE_WAIT_FOR_FRAME:-auto}"
   case "$wait_mode" in
     1|true|TRUE|yes|YES|auto|"")
@@ -370,14 +371,14 @@ quillui_solderscope_wait_for_visible_frame() {
     DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
     if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$frame_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-frame-check.log 2>&1; then
       rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
-      echo "SolderScope interaction smoke: synthetic frame is visible before interaction" >&2
+      echo "SolderScope interaction smoke: synthetic frame is visible $label" >&2
       return 0
     fi
     last_error="$(tail -n 1 /tmp/quill-solderscope-frame-check.log 2>/dev/null || true)"
     sleep "${QUILLUI_SOLDERSCOPE_FRAME_WAIT_TICK_SECONDS:-0.5}"
   done
 
-  echo "SolderScope interaction smoke did not observe a visible synthetic frame before interaction: $last_error" >&2
+  echo "SolderScope interaction smoke did not observe a visible synthetic frame $label: $last_error" >&2
   local frame_probe_out="${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-${SCREENSHOT_PATH%.png}-frame-probe.png}"
   cp "$frame_probe_path" "$frame_probe_out" 2>/dev/null || true
   rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
@@ -871,6 +872,9 @@ quillui_drive_solderscope_interaction() {
     fi
     quillui_solderscope_wait_for_recording_idle "$settled_recording_screenshot"
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
+  fi
+  if [[ "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then
+    quillui_solderscope_wait_for_visible_frame "before freeze"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
