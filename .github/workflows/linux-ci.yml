@@ -53,6 +53,13 @@ jobs:
       # case still runs and asserts. macOS CI is unaffected (real main runloop)
       # and is not given this knob.
       SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE: "legacy"
+      # Keep the CI profiler bounded. The smoke/interaction matrix above owns
+      # correctness; profile rows are a regression signal, so they should not
+      # hold the main gate for hours when one backend row wedges.
+      QUILLUI_BACKEND_PROFILE_SETTLE: "1"
+      QUILLUI_BACKEND_PROFILE_STEADY: "3"
+      QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT: "2m"
+      QUILLUI_BACKEND_PROFILE_ROW_KILL_AFTER: "10s"
 
     steps:
       - name: Checkout
