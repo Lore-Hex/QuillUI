@@ -16,6 +16,8 @@ let gtkSwiftLayoutHelperMarker = "gtk-swift-layout-helper"
 let gtkSwiftScrollViewMarker = "gtk-swift-scroll-view"
 /// Marker string for vertical SwiftUI ScrollViews.
 let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
+/// Marker string for indeterminate SwiftUI ProgressView widgets.
+let gtkSwiftIndeterminateProgressMarker = "gtk-swift-indeterminate-progress"
 
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -5685,12 +5687,30 @@ extension ProgressView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let bar = gtk_progress_bar_new()!
         if let value = value {
-            gtk_progress_bar_set_fraction(OpaquePointer(bar), max(0, min(1, value / total)))
+            gtk_progress_bar_set_fraction(
+                OpaquePointer(bar),
+                gtkSanitizedProgressFraction(value: value, total: total)
+            )
+        } else {
+            gtk_widget_add_css_class(bar, gtkSwiftIndeterminateProgressMarker)
+            gtk_progress_bar_set_pulse_step(OpaquePointer(bar), 0.015)
+            gtk_progress_bar_pulse(OpaquePointer(bar))
+            _ = gtk_widget_add_tick_callback(bar, gtkProgressViewPulseTickCallback, nil, nil)
         }
-        // TODO: indeterminate mode (pulse) when value is nil
         gtk_widget_set_hexpand(bar, 1)
         return opaqueFromWidget(bar)
     }
+}
+
+private let gtkProgressViewPulseTickCallback: GtkTickCallback = { widget, _, _ in
+    guard let widget else { return 0 }
+    gtk_progress_bar_pulse(OpaquePointer(widget))
+    return 1
+}
+
+private func gtkSanitizedProgressFraction(value: Double, total: Double) -> Double {
+    guard value.isFinite, total.isFinite, total > 0 else { return 0 }
+    return max(0, min(1, value / total))
 }
 
 // MARK: - Stepper GTK extension

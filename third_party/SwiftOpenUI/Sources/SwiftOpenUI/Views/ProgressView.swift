@@ -12,8 +12,6 @@ public struct ProgressView: View {
     }
 
     /// Create an indeterminate progress view.
-    /// Note: GTK4 backend currently renders as an empty progress bar.
-    /// Pulse animation is not yet implemented.
     public init() {
         self.value = nil
         self.total = 1.0
