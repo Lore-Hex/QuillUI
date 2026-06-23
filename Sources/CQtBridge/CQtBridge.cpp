@@ -28,6 +28,7 @@
 #include <QMenu>
 #include <QObject>
 #include <QPixmap>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRect>
 #include <QSize>
@@ -39,6 +40,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 
 namespace {
@@ -521,6 +523,38 @@ void quill_qt_divider_set_orientation(
     }
 
     frame->setOrientation(vertical != 0 ? Qt::Vertical : Qt::Horizontal);
+}
+
+QuillQtWidgetHandle quill_qt_make_progress_bar(void) {
+    QProgressBar *bar = new QProgressBar();
+    bar->setTextVisible(false);
+    bar->setMinimumWidth(96);
+    return reinterpret_cast<QuillQtWidgetHandle>(bar);
+}
+
+void quill_qt_progress_bar_set_fraction(
+    QuillQtWidgetHandle progress_bar,
+    double fraction
+) {
+    QProgressBar *bar = qobject_cast<QProgressBar *>(asWidget(progress_bar));
+    if (bar == nullptr) {
+        return;
+    }
+
+    const double finiteFraction = std::isfinite(fraction) ? fraction : 0.0;
+    const double clamped = std::max(0.0, std::min(1.0, finiteFraction));
+    bar->setRange(0, 1000);
+    bar->setValue(static_cast<int>(std::round(clamped * 1000.0)));
+}
+
+void quill_qt_progress_bar_set_indeterminate(QuillQtWidgetHandle progress_bar) {
+    QProgressBar *bar = qobject_cast<QProgressBar *>(asWidget(progress_bar));
+    if (bar == nullptr) {
+        return;
+    }
+
+    bar->setRange(0, 0);
+    bar->setValue(0);
 }
 
 QuillQtWidgetHandle quill_qt_bridge_button_create(

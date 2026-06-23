@@ -141,7 +141,7 @@ func qtRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? QtMultiChildRenderable {
         return multi.qtRenderChildren()
     }
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
     if let multi = view as? MultiChildView {
@@ -155,7 +155,7 @@ func qtRenderExpandedChildren(_ children: [any View]) -> [OpaquePointer] {
         if let multi = child as? QtMultiChildRenderable {
             return multi.qtRenderChildren()
         }
-        if let transparent = child as? TransparentMultiChildView {
+        if let transparent = child as? any TransparentMultiChildView {
             return qtRenderExpandedChildren(transparent.children)
         }
         return [qtRenderAnyView(child)]
@@ -400,7 +400,7 @@ func qtRenderLazyVGridContainer(
 }
 
 func qtRenderLazyVGridCells<V: View>(_ view: V) -> [OpaquePointer] {
-    if let transparent = view as? TransparentMultiChildView {
+    if let transparent = view as? any TransparentMultiChildView {
         return qtRenderExpandedChildren(transparent.children)
     }
 
@@ -578,6 +578,26 @@ extension Color: QtRenderable {
         quill_qt_bridge_widget_set_stylesheet(qtHandle(container), css)
         return container
     }
+}
+
+extension ProgressView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let bar = qtOpaque(quill_qt_make_progress_bar())
+        if let value {
+            quill_qt_progress_bar_set_fraction(
+                qtHandle(bar),
+                qtSanitizedProgressFraction(value: value, total: total)
+            )
+        } else {
+            quill_qt_progress_bar_set_indeterminate(qtHandle(bar))
+        }
+        return bar
+    }
+}
+
+private func qtSanitizedProgressFraction(value: Double, total: Double) -> Double {
+    guard value.isFinite, total.isFinite, total > 0 else { return 0 }
+    return max(0, min(1, value / total))
 }
 
 extension Button: QtRenderable {

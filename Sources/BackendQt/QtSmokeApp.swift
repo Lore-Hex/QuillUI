@@ -82,6 +82,11 @@ struct QtSmokeView: View {
 
                 Divider()
 
+                ProgressView(value: 0.5)
+                    .frame(width: 220, height: 14)
+                ProgressView()
+                    .frame(width: 220, height: 14)
+
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible), count: 2),
                     data: [0, 1, 2, 3]

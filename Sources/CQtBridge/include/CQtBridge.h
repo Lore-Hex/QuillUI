@@ -212,6 +212,19 @@ void quill_qt_divider_set_orientation(
     int vertical
 );
 
+// Create a QProgressBar. Swift configures determinate vs indeterminate state
+// separately to mirror SwiftUI's ProgressView initializers.
+QuillQtWidgetHandle quill_qt_make_progress_bar(void);
+
+// Set a QProgressBar to determinate mode with a 0.0...1.0 fraction.
+void quill_qt_progress_bar_set_fraction(
+    QuillQtWidgetHandle progress_bar,
+    double fraction
+);
+
+// Set a QProgressBar to indeterminate/busy mode.
+void quill_qt_progress_bar_set_indeterminate(QuillQtWidgetHandle progress_bar);
+
 // Create a QPushButton with the given UTF-8 title and connect its clicked()
 // signal to `callback(user_data)`. `user_data` is owned by Swift (a retained
 // box); `destroy` is invoked when the button is destroyed so Swift can release
