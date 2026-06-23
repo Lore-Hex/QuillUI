@@ -76,8 +76,14 @@ jobs:
             ripgrep \
             x11-apps \
             xdotool \
-            xvfb
+            xvfb \
+            zstd
           rm -rf /var/lib/apt/lists/*
+
+      - name: Restore upstream source cache
+        uses: ./.github/actions/upstream-cache
+        with:
+          cache-name: enchanted
 
       - name: Fetch Enchanted upstream source
         run: scripts/fetch-upstream.sh enchanted
@@ -221,12 +227,12 @@ jobs:
 
       - name: Upload verifier artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: enchanted-parity-verifier
           path: |
             .qa/**
-          # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
+          # .qa is a DOT-directory; upload-artifact@v6 excludes hidden files by
           # default, which is why the render never uploaded ("No files found").
           include-hidden-files: true
           retention-days: 1

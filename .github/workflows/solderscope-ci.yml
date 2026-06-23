@@ -46,7 +46,8 @@ jobs:
             qt6-base-dev \
             ripgrep \
             xdotool \
-            xvfb
+            xvfb \
+            zstd
           rm -rf /var/lib/apt/lists/*
 
       - name: Swift version
@@ -54,6 +55,11 @@ jobs:
 
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
+
+      - name: Restore upstream source cache
+        uses: ./.github/actions/upstream-cache
+        with:
+          cache-name: solderscope
 
       - name: Fetch SolderScope upstream
         run: scripts/fetch-upstream.sh solderscope
@@ -100,8 +106,14 @@ jobs:
             ripgrep \
             x11-apps \
             xdotool \
-            xvfb
+            xvfb \
+            zstd
           rm -rf /var/lib/apt/lists/*
+
+      - name: Restore upstream source cache
+        uses: ./.github/actions/upstream-cache
+        with:
+          cache-name: solderscope
 
       - name: Fetch SolderScope upstream
         run: scripts/fetch-upstream.sh solderscope

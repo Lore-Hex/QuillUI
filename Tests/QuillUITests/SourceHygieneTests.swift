@@ -1569,6 +1569,7 @@ struct SourceHygieneTests {
         let workflowPaths = [
             ".github/workflows/linux-ci.yml",
             ".github/workflows/macos-ci.yml",
+            ".github/workflows/enchanted-parity.yml",
             ".github/workflows/solderscope-ci.yml"
         ]
 
@@ -1579,15 +1580,26 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/check-shell-syntax.sh"),
             encoding: .utf8
         )
+        let upstreamCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/upstream-cache/action.yml"),
+            encoding: .utf8
+        )
 
         #expect(workflows.contains("uses: actions/checkout@v5"))
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
+        #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
         #expect(shellSyntaxCheck.contains("bash -n \"$script\""))
+        #expect(upstreamCacheAction.contains("uses: actions/cache@v6"))
+        #expect(upstreamCacheAction.contains("path: .upstream"))
+        #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
+        #expect(upstreamCacheAction.contains("restore-keys:"))
         #expect(!workflows.contains("uses: actions/checkout@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))
+        #expect(!workflows.contains("uses: actions/cache@v4"))
+        #expect(!workflows.contains("uses: actions/cache@v5"))
     }
 
     @Test("App entry points use the shared Quill window scene")

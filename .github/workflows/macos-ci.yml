@@ -31,6 +31,11 @@ jobs:
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
 
+      - name: Restore upstream source cache
+        uses: ./.github/actions/upstream-cache
+        with:
+          cache-name: default
+
       # The NetNewsWire/WireGuard/CodeEdit upstreams live under
       # `.upstream/` (gitignored). Fetch them so the matching
       # Package.swift targets resolve. Without this step the

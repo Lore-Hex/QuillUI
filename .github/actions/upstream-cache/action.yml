@@ -1,0 +1,28 @@
+name: Restore upstream source cache
+description: Restore QuillUI's gitignored .upstream source checkouts before fetch-upstream refreshes them.
+
+inputs:
+  cache-name:
+    description: Stable name for the upstream source set used by this workflow.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Compute upstream cache key digest
+      id: cache-key
+      shell: bash
+      run: |
+        digest="$({
+          git hash-object scripts/fetch-upstream.sh
+          git hash-object .github/actions/upstream-cache/action.yml
+        } | git hash-object --stdin)"
+        echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+    - name: Restore .upstream
+      uses: actions/cache@v6
+      with:
+        path: .upstream
+        key: quillui-${{ runner.os }}-upstream-${{ inputs.cache-name }}-${{ steps.cache-key.outputs.digest }}
+        restore-keys: |
+          quillui-${{ runner.os }}-upstream-${{ inputs.cache-name }}-
