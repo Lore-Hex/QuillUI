@@ -52,6 +52,27 @@ struct GTKDescribeCycleGuardTests {
         #expect(String(cString: gtk_label_get_text(OpaquePointer(label))) == "Ask QuillCode")
         #expect(gtk_swift_label_get_use_markup(label) != 0)
     }
+
+    @Test("SwiftUI shadow textSelection toggles GTK label selectability")
+    func swiftUIShadowTextSelectionTogglesGTKLabelSelectability() throws {
+        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+            return
+        }
+
+        let enabledWidget = widgetFromOpaque(gtkRenderView(
+            Text("Selectable transcript").textSelection(.enabled)
+        ))
+        let enabledLabel = try firstGTKLabel(in: enabledWidget)
+
+        #expect(gtk_label_get_selectable(OpaquePointer(enabledLabel)) != 0)
+
+        let disabledWidget = widgetFromOpaque(gtkRenderView(
+            Text("Locked transcript").textSelection(.disabled)
+        ))
+        let disabledLabel = try firstGTKLabel(in: disabledWidget)
+
+        #expect(gtk_label_get_selectable(OpaquePointer(disabledLabel)) == 0)
+    }
 }
 
 private struct Cyclic: View {

@@ -602,6 +602,7 @@ struct SourceHygieneTests {
         let compatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
         let gtkAccessibility = try packageSource("Sources/QuillUI/GTKAccessibilityModifiers.swift")
         let gtkHover = try packageSource("Sources/QuillUI/GTKHoverModifiers.swift")
+        let gtkTextSelection = try packageSource("Sources/QuillUI/GTKTextSelectionModifiers.swift")
         let gtkPatchScript = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
         #expect(compatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
@@ -635,6 +636,9 @@ struct SourceHygieneTests {
         #expect(gtkHover.contains("\"enter\""))
         #expect(gtkHover.contains("\"leave\""))
         #expect(gtkHover.contains("gtk_widget_add_controller(widget, controller)"))
+        #expect(gtkTextSelection.contains("extension TextSelectionView: GTKRenderable"))
+        #expect(gtkTextSelection.contains("gtk_label_set_selectable"))
+        #expect(gtkTextSelection.contains("quillGTKSetLabelsSelectable(in: current, selectable: selectable)"))
         #expect(gtkPatchScript.contains("gtk_swift_accessible_update_label"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_LABEL"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_DESCRIPTION"))
