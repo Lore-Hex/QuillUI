@@ -277,6 +277,39 @@ private func gtkWireTextInputSubmit(
     gtk_swift_add_event_controller(widget, keyController)
 }
 
+let gtkSwiftInheritedTextInputForegroundMarker = "gtk-swift-inherited-text-input-foreground"
+
+private func gtkApplyInheritedTextInputForegroundIfNeeded(to widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let foregroundColor = _gtkCurrentForegroundColor else { return }
+    gtkApplyTextInputForeground(foregroundColor, to: widget)
+}
+
+private func gtkApplyTextInputForeground(_ color: Color, to widget: UnsafeMutablePointer<GtkWidget>) {
+    let textCSS = "color: \(gtkCSSRGBA(color));"
+    let disabledCSS = "color: \(gtkCSSRGBA(color.opacity(color.alpha * 0.45)));"
+    applyCSSToWidget(
+        widget,
+        properties: textCSS,
+        disabledProperties: disabledCSS,
+        descendantSelectors: ["text"]
+    )
+
+    let placeholderColor = color.opacity(color.alpha * 0.62)
+    applyCSSToWidget(
+        widget,
+        properties: "color: \(gtkCSSRGBA(placeholderColor));",
+        descendantSelectors: ["placeholder", "text placeholder"]
+    )
+    gtk_widget_add_css_class(widget, gtkSwiftInheritedTextInputForegroundMarker)
+}
+
+private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\(red), \(green), \(blue), \(color.alpha))"
+}
+
 // MARK: - GTK rendering protocol
 
 /// Protocol that views implement (via extensions) to provide GTK widget creation.
@@ -717,8 +750,10 @@ extension TextField: GTKRenderable, GTKDescribable {
                OpaquePointer(entry),
                textFieldStyleType == .roundedBorder
            ) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
             return paintedEntry
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
         return opaqueFromWidget(entry)
     }
 }
@@ -5564,8 +5599,10 @@ extension SecureField: GTKRenderable, GTKDescribable {
 
         gtkApplyEnabledState(to: entry)
         if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
             return paintedEntry
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
         return opaqueFromWidget(entry)
     }
 }
@@ -5634,8 +5671,10 @@ extension TextEditor: GTKRenderable, GTKDescribable {
             OpaquePointer(scrolled),
             OpaquePointer(textView)
         ) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
             return paintedEditor
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
         return opaqueFromWidget(scrolled)
     }
 }

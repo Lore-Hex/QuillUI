@@ -23,7 +23,8 @@ private let cssCleanupDataKey = "gtk-swift-css-cleanups"
 func applyCSSToWidget(
     _ widget: UnsafeMutablePointer<GtkWidget>,
     properties: String,
-    disabledProperties: String? = nil
+    disabledProperties: String? = nil,
+    descendantSelectors: [String] = []
 ) {
     cssCounterLock.lock()
     cssClassCounter += 1
@@ -45,6 +46,13 @@ func applyCSSToWidget(
         button.\(className) { \(properties) }
         label.\(className) { \(properties) }
         """
+    for selector in descendantSelectors {
+        css += """
+
+            .\(className) \(selector) { \(properties) }
+            \(cssNode).\(className) \(selector) { \(properties) }
+            """
+    }
 
     if let disabledProperties {
         css += """
@@ -54,6 +62,13 @@ func applyCSSToWidget(
             button.\(className):disabled { \(disabledProperties) }
             label.\(className):disabled { \(disabledProperties) }
             """
+        for selector in descendantSelectors {
+            css += """
+
+                .\(className):disabled \(selector) { \(disabledProperties) }
+                \(cssNode).\(className):disabled \(selector) { \(disabledProperties) }
+                """
+        }
     }
 
     let provider = gtk_css_provider_new()!
