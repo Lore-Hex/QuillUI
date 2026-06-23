@@ -91,6 +91,20 @@ struct GTKDescribeCycleGuardTests {
         #expect(gtkWidgetTypeName(widget) == "GtkOverlay")
         _ = try firstGTKLabel(in: widget)
     }
+
+    @Test("SwiftUI shadow allowsHitTesting disables GTK pointer targeting")
+    func swiftUIShadowAllowsHitTestingDisablesGTKPointerTargeting() throws {
+        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+            return
+        }
+
+        let disabled = Text("Decorative transcript").allowsHitTesting(false)
+        #expect(String(describing: type(of: disabled)).contains("QuillCompatibilityAllowsHitTestingView"))
+
+        let widget = widgetFromOpaque(gtkRenderView(disabled))
+        #expect(gtk_widget_get_can_target(widget) == 0)
+        #expect(gtk_widget_get_can_focus(widget) == 0)
+    }
 }
 
 private struct Cyclic: View {

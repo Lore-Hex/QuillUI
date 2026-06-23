@@ -591,6 +591,34 @@ void quill_qt_widget_install_hover_recursive(
     );
 }
 
+void quill_qt_widget_set_allows_hit_testing_recursive(
+    QuillQtWidgetHandle widget,
+    int enabled
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    if (enabled == 0) {
+        target->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        target->setFocusPolicy(Qt::NoFocus);
+    } else {
+        target->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    }
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_allows_hit_testing_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            enabled
+        );
+    }
+}
+
 void quill_qt_bridge_material_symbols_register_font(const char *font_path) {
     if (materialSymbolsFontRegistered) {
         return;

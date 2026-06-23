@@ -642,6 +642,16 @@ extension QuillCompatibilityOnHoverView: QtRenderable {
     }
 }
 
+extension QuillCompatibilityAllowsHitTestingView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        if !enabled {
+            quill_qt_widget_set_allows_hit_testing_recursive(qtHandle(widget), 0)
+        }
+        return widget
+    }
+}
+
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let title = qtTextLabel(from: label)

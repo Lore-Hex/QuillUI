@@ -126,6 +126,8 @@ struct QtSmokeView: View {
                     .onHover { hovering in
                         menuSelection = hovering ? "hover" : "none"
                     }
+                Text("Decorative Qt label")
+                    .allowsHitTesting(false)
 
                 Picker("QComboBox Picker", selection: $pickerSelection) {
                     Text("Picker Alpha").tag("alpha")

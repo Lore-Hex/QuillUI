@@ -5,10 +5,11 @@ import QuillFoundation
 // DesignSystem: AccountPopoverView / NextPageView / ScrollToView /
 // TagRowView / ToastOverlayView) that the SwiftUI shadow didn't yet provide.
 // Most of these are inert on QuillOS until the GTK/Qt backends implement the
-// matching behavior. `onHover` and `textSelection` are the first exceptions:
-// they carry real wrappers so backends can install native pointer tracking and
-// toggle native label selectability while unmodified SwiftUI-only app source
-// still type-checks. These live in
+// matching behavior. `allowsHitTesting`, `onHover`, and `textSelection` are
+// the first exceptions: they carry real wrappers so backends can suppress
+// native hit testing, install native pointer tracking, and toggle native label
+// selectability while unmodified SwiftUI-only app source still type-checks.
+// These live in
 // QuillSwiftUICompatibility (re-exported by the SwiftUI shadow) rather than
 // QuillUI so DesignSystem, which only imports the shadow, can see them.
 // HoverEffect, Visibility, TextSelectability, Edge.Set, and AnyTransition
@@ -53,6 +54,20 @@ public struct QuillCompatibilityOnHoverView<Content: View>: View {
 
     public var body: Never {
         fatalError("QuillCompatibilityOnHoverView is a backend-rendered primitive")
+    }
+}
+
+public struct QuillCompatibilityAllowsHitTestingView<Content: View>: View {
+    public let content: Content
+    public let enabled: Bool
+
+    public init(content: Content, enabled: Bool) {
+        self.content = content
+        self.enabled = enabled
+    }
+
+    public var body: Never {
+        fatalError("QuillCompatibilityAllowsHitTestingView is a backend-rendered primitive")
     }
 }
 
@@ -106,13 +121,11 @@ public extension View {
         return self
     }
 
-    /// Whether the view participates in hit-testing. Inert headless.
-    /// Disfavored so QuillUI's functional `allowsHitTesting` wins for callers
-    /// that see both.
+    /// Whether the view participates in hit-testing. Disfavored so QuillUI's
+    /// functional `allowsHitTesting` wins for callers that see both.
     @_disfavoredOverload
-    func allowsHitTesting(_ enabled: Bool) -> Self {
-        _ = enabled
-        return self
+    func allowsHitTesting(_ enabled: Bool) -> QuillCompatibilityAllowsHitTestingView<Self> {
+        QuillCompatibilityAllowsHitTestingView(content: self, enabled: enabled)
     }
 
     /// List-row content insets. QuillUI declares a functional `listRowInsets`

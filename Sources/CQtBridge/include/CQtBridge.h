@@ -197,6 +197,13 @@ void quill_qt_widget_install_hover_recursive(
     quill_qt_bridge_click_callback destroy
 );
 
+// Toggle whether a rendered subtree receives pointer/focus events. Passing 0
+// mirrors SwiftUI's `.allowsHitTesting(false)` without dimming the widgets.
+void quill_qt_widget_set_allows_hit_testing_recursive(
+    QuillQtWidgetHandle widget,
+    int enabled
+);
+
 // Register the bundled Material Symbols font for this QApplication process.
 // `font_path` points at SwiftOpenUISymbols' MaterialSymbolsRounded-Regular.ttf.
 void quill_qt_bridge_material_symbols_register_font(const char *font_path);
