@@ -23,6 +23,18 @@ func upstreamPresent(_ relativePath: String) -> Bool {
     FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
 }
 
+func vendoredPackage(
+    name: String,
+    path: String,
+    url: String,
+    from version: Version
+) -> Package.Dependency {
+    if upstreamPresent(path) {
+        return .package(name: name, path: path)
+    }
+    return .package(url: url, from: version)
+}
+
 enum QuillUILinuxBuildBackend: String {
     case gtk
     case qt
@@ -818,16 +830,36 @@ let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 #endif
 
 var quillDataPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
-    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
+    vendoredPackage(
+        name: "swift-syntax",
+        path: "third_party/swift-syntax",
+        url: "https://github.com/swiftlang/swift-syntax.git",
+        from: "600.0.0"
+    ),
+    vendoredPackage(
+        name: "GRDB.swift",
+        path: "third_party/GRDB.swift",
+        url: "https://github.com/groue/GRDB.swift.git",
+        from: "7.0.0"
+    ),
+    vendoredPackage(
+        name: "swift-crypto",
+        path: "third_party/swift-crypto",
+        url: "https://github.com/apple/swift-crypto.git",
+        from: "3.0.0"
+    )
 ]
 // SwiftProtobuf is Signal-only (SSK's *.pb.swift wire format), while swift-crypto
 // is now a general Linux Apple-framework shim dependency because both Signal and
 // IceCubes import CryptoKit.
 if signalUpstreamPresent {
     quillDataPackageDependencies.append(
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
+        vendoredPackage(
+            name: "swift-protobuf",
+            path: "third_party/swift-protobuf",
+            url: "https://github.com/apple/swift-protobuf.git",
+            from: "1.36.1"
+        )
     )
 }
 
@@ -3223,7 +3255,12 @@ var allPackageDependencies: [Package.Dependency] = [
 // (Sources/Combine re-exports OpenCombine / OpenCombineDispatch /
 // OpenCombineFoundation). macOS uses the SDK Combine module.
 allPackageDependencies.append(
-    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
+    vendoredPackage(
+        name: "OpenCombine",
+        path: "third_party/OpenCombine",
+        url: "https://github.com/OpenCombine/OpenCombine.git",
+        from: "0.14.0"
+    )
 )
 #endif
 #if os(Linux)
@@ -3233,7 +3270,12 @@ allPackageDependencies.append(
 // SwiftSoup, and the Models target isn't a dependency of any qt app anyway.
 if iceCubesLinuxGraphEnabled {
 allPackageDependencies.append(
-    .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
+    vendoredPackage(
+        name: "SwiftSoup",
+        path: "third_party/SwiftSoup",
+        url: "https://github.com/scinfu/SwiftSoup.git",
+        from: "2.4.3"
+    )
 )
 }
 #endif

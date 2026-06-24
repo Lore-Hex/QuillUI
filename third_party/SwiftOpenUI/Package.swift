@@ -3,6 +3,19 @@
 import PackageDescription
 import Foundation
 
+func swiftOpenUIVendoredPackage(
+    name: String,
+    path: String,
+    url: String,
+    from version: Version
+) -> Package.Dependency {
+    let fileManager = FileManager.default
+    if fileManager.fileExists(atPath: path) || fileManager.fileExists(atPath: "third_party/\(name)") {
+        return .package(name: name, path: path)
+    }
+    return .package(url: url, from: version)
+}
+
 #if os(Linux)
 func swiftOpenUIPkgConfigArguments(_ name: String, _ arguments: [String]) -> [String] {
     let process = Process()
@@ -406,12 +419,27 @@ targets += [
 
 #if os(macOS)
 let deps: [Package.Dependency] = [
-    .package(url: "https://github.com/swiftwasm/JavaScriptKit.git", from: "0.20.0"),
-    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
+    swiftOpenUIVendoredPackage(
+        name: "JavaScriptKit",
+        path: "../JavaScriptKit",
+        url: "https://github.com/swiftwasm/JavaScriptKit.git",
+        from: "0.20.0"
+    ),
+    swiftOpenUIVendoredPackage(
+        name: "OpenCombine",
+        path: "../OpenCombine",
+        url: "https://github.com/OpenCombine/OpenCombine.git",
+        from: "0.14.0"
+    ),
 ]
 #else
 let deps: [Package.Dependency] = [
-    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0"),
+    swiftOpenUIVendoredPackage(
+        name: "OpenCombine",
+        path: "../OpenCombine",
+        url: "https://github.com/OpenCombine/OpenCombine.git",
+        from: "0.14.0"
+    ),
 ]
 #endif
 

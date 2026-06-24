@@ -1,5 +1,5 @@
 {
-  "originHash" : "58905f77a7f0b99d8b1647e4580794ac8cad33d12ead071714e9e087fc956a11",
+  "originHash" : "cb1cd1a6f513c182a9f29dc528edd3738a5bb4cc6194fdae2f1172962976f05e",
   "pins" : [
     {
       "identity" : "grdb.swift",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "36e30a6f1ef10e4194f6af0cff90888526f0c115",
         "version" : "7.10.0"
-      }
-    },
-    {
-      "identity" : "opencombine",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/OpenCombine/OpenCombine.git",
-      "state" : {
-        "revision" : "8576f0d579b27020beccbccc3ea6844f3ddfc2c2",
-        "version" : "0.14.0"
       }
     },
     {

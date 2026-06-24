@@ -743,6 +743,42 @@ struct SourceHygieneTests {
         #expect(!smokeLib.contains("scripts/patch-swiftopenui-gtk-css.sh"))
     }
 
+    @Test("SwiftPM package sources can be vendored by path")
+    func swiftPMPackageSourcesCanBeVendoredByPath() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let vendorScriptURL = root.appendingPathComponent("scripts/vendor-swiftpm-sources.sh")
+        let vendorScript = try String(contentsOf: vendorScriptURL, encoding: .utf8)
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let swiftOpenUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(fileManager.isExecutableFile(atPath: vendorScriptURL.path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
+        #expect(manifest.contains("func vendoredPackage("))
+        #expect(manifest.contains("return .package(name: name, path: path)"))
+        #expect(manifest.contains("path: \"third_party/OpenCombine\""))
+        #expect(manifest.contains("path: \"third_party/GRDB.swift\""))
+        #expect(manifest.contains("path: \"third_party/swift-syntax\""))
+        #expect(manifest.contains("path: \"third_party/swift-crypto\""))
+        #expect(manifest.contains("path: \"third_party/swift-protobuf\""))
+        #expect(swiftOpenUIManifest.contains("func swiftOpenUIVendoredPackage("))
+        #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: path) || fileManager.fileExists(atPath: \"third_party/\\(name)\")"))
+        #expect(swiftOpenUIManifest.contains("path: \"../OpenCombine\""))
+        #expect(vendorScript.contains("Default package set: OpenCombine"))
+        #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
+        #expect(vendorScript.contains("already vendored $package -> third_party/$package"))
+        #expect(vendorScript.contains("rsync -a --delete"))
+        #expect(vendorScript.contains("--exclude '.git'"))
+        #expect(vendorScript.contains("--exclude '.build'"))
+        #expect(vendorScript.contains("--exclude '.swiftpm'"))
+        #expect(vendorScript.contains("GRDB.swift"))
+        #expect(vendorScript.contains("JavaScriptKit"))
+    }
+
     @Test("Heavy Linux backend runners are resource guarded")
     func heavyLinuxBackendRunnersAreResourceGuarded() throws {
         let root = try packageRoot()
