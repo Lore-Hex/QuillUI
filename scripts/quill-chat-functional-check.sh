@@ -642,6 +642,38 @@ print(f"{window_x + click_x} {window_y + click_y}")
 PY
 }
 
+quill_chat_functional_static_relaunch_history_click_points() {
+  local history_x
+  local history_y
+  local ratio
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-}" && -n "${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-}" ]]; then
+    printf '%s %s\n' "$QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X" "$QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y"
+    return
+  fi
+
+  history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}"
+  for ratio in ${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y_RATIOS:-44 47 40 52 35 58}; do
+    history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + (window_height * ratio / 100)))}"
+    printf '%s %s\n' "$history_x" "$history_y"
+  done
+}
+
+quill_chat_functional_relaunch_history_click_points() {
+  {
+    quill_chat_functional_detected_relaunch_history_click_point
+    quill_chat_functional_static_relaunch_history_click_points
+  } | awk -v max_points="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_MAX_POINTS:-8}" '
+    !seen[$1 "," $2]++ {
+      print
+      emitted += 1
+      if (emitted >= max_points) {
+        exit
+      }
+    }
+  '
+}
+
 quill_chat_functional_submit_methods() {
   case "$FUNCTIONAL_MODE" in
     attachment-send|image-attachment-send)
@@ -891,13 +923,11 @@ PY
   launch_app_instance append
   resolve_app_window_geometry
 
-  detected_history_point="$(quill_chat_functional_detected_relaunch_history_click_point | head -n 1 || true)"
-  if [[ -n "$detected_history_point" ]]; then
-    read -r history_x history_y <<< "$detected_history_point"
-  else
-    history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}"
-    history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + window_height / 2))}"
+  mapfile -t relaunch_history_points < <(quill_chat_functional_relaunch_history_click_points)
+  if [[ ${#relaunch_history_points[@]} -eq 0 ]]; then
+    relaunch_history_points=("$((window_x + 220)) $((window_y + window_height / 2))")
   fi
+  read -r history_x history_y <<< "${relaunch_history_points[0]}"
   echo "functional-check: relaunch history=${history_x},${history_y}" >&2
   quillui_functional_refocus_window
   quillui_functional_click_at "$history_x" "$history_y"
@@ -995,9 +1025,25 @@ print(f"persisted_messages={last_messages}", file=sys.stderr)
 raise SystemExit(1)
 PY
 
-  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$RELAUNCH_SCREENSHOT_PATH"
-  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
-    "$RELAUNCH_SCREENSHOT_PATH" \
-    quill-chat-linux-functional-transcript
+  relaunch_visual_verified=0
+  for relaunch_history_point in "${relaunch_history_points[@]}"; do
+    read -r history_x history_y <<< "$relaunch_history_point"
+    echo "functional-check: relaunch visual history=${history_x},${history_y}" >&2
+    quillui_functional_refocus_window
+    quillui_functional_click_at "$history_x" "$history_y"
+    sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_VISUAL_SETTLE_SLEEP:-1}"
+    DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$RELAUNCH_SCREENSHOT_PATH"
+    if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$RELAUNCH_SCREENSHOT_PATH" \
+      quill-chat-linux-functional-transcript; then
+      relaunch_visual_verified=1
+      break
+    fi
+  done
+  if (( relaunch_visual_verified == 0 )); then
+    python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$RELAUNCH_SCREENSHOT_PATH" \
+      quill-chat-linux-functional-transcript
+  fi
   echo "Functional relaunch screenshot: $RELAUNCH_SCREENSHOT_PATH"
 fi
