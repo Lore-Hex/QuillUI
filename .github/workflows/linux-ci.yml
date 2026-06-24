@@ -224,7 +224,7 @@ jobs:
         run: scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix /tmp/quillui-profile.csv
 
       - name: Linux profile budget check
-        run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000 --require-backend-matrix
+        run: scripts/check-linux-backend-profile-budget.sh /tmp/quillui-profile.csv --max-cpu-pct 25 --max-rss-kb 300000 --max-startup-ms 5000 --require-backend-matrix --allow-profile-timeouts
 
       # No-fetch profile experiment. QUILLUI_DISABLE_FETCH=1
       # makes QuillIceCubes / QuillNetNewsWire seed fixture

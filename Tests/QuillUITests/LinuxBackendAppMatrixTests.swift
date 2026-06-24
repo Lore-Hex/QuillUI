@@ -1115,6 +1115,44 @@ struct LinuxBackendAppMatrixTests {
         #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
     }
 
+    @Test("profile budget can allow bounded profiler timeouts")
+    func profileBudgetCanAllowBoundedProfilerTimeouts() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-timeout-budget-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("timeout.csv")
+        try """
+        \(Self.profileCSVHeader)
+        quill-enchanted-linux,gtk,gtk,native,0,0,0,0.0,0.0,profiler-exit-124
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let strict = try runScript(
+            script,
+            arguments: [csv.path, "--max-rss-kb", "400000", "--max-startup-ms", "10000", "--max-cpu-pct", "99"]
+        )
+        #expect(strict.status != 0)
+        #expect(strict.output.contains("profile budget failed: quill-enchanted-linux exit_status=profiler-exit-124"))
+
+        let allowed = try runScript(
+            script,
+            arguments: [
+                csv.path,
+                "--max-rss-kb", "400000",
+                "--max-startup-ms", "10000",
+                "--max-cpu-pct", "99",
+                "--allow-profile-timeouts",
+            ]
+        )
+        #expect(allowed.status == 0, Comment(rawValue: allowed.output))
+        #expect(allowed.output.contains("profile budget warning: quill-enchanted-linux exit_status=profiler-exit-124 allowed by --allow-profile-timeouts"))
+    }
+
     @Test("profile CSV runner records timed out profiler rows")
     func profileCSVRunnerRecordsTimedOutProfilerRows() throws {
         let root = try packageRoot()
