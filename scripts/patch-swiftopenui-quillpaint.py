@@ -559,6 +559,27 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
     text_editor_end = text.find("\nextension ", text_editor_index + 1) if text_editor_index != -1 else -1
     if text_editor_end == -1:
         text_editor_end = len(text)
+    text_editor_section = text[text_editor_index:text_editor_end]
+    direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            if newText != binding.wrappedValue {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+    idle_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+    if "gtkScheduleTextBindingUpdate" in text and direct_text_editor_update in text_editor_section:
+        text = (
+            text[:text_editor_index]
+            + text_editor_section.replace(direct_text_editor_update, idle_text_editor_update, 1)
+            + text[text_editor_end:]
+        )
+        text_editor_end = text.find("\nextension ", text_editor_index + 1)
+        if text_editor_end == -1:
+            text_editor_end = len(text)
+        text_editor_section = text[text_editor_index:text_editor_end]
     if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
         old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
         return opaqueFromWidget(scrolled)

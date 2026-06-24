@@ -808,8 +808,6 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
 
 def message_content_matches(message: dict[str, object]) -> bool:
     content = str(message.get("content", ""))
-    if require_attachment:
-        return bool(content.strip())
     return message_text in content
 
 
@@ -989,8 +987,6 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
 
 def message_content_matches(message: dict[str, object]) -> bool:
     content = str(message.get("content", ""))
-    if require_attachment:
-        return bool(content.strip())
     return message_text in content
 
 

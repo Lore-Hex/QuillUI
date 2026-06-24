@@ -2767,11 +2767,8 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         right - int(detail_width * 0.01),
         transcript_message_y1,
     )
-    # The functional harness already verifies exact request/persistence data,
-    # including attachment bytes. This visual check only needs to prove that a
-    # right-aligned user transcript exists after relaunch.
     require(
-        trailing_message_pixels >= 80,
+        trailing_message_pixels >= 120,
         f"Functional transcript user message was not detected on the trailing edge: pixels={trailing_message_pixels}",
     )
 

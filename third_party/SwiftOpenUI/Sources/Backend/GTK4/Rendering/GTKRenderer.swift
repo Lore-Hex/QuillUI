@@ -5739,9 +5739,7 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         let binding = text
         let buffer = gtk_text_view_get_buffer(textViewPtr)!
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            if newText != binding.wrappedValue {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(binding, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(buffer),
