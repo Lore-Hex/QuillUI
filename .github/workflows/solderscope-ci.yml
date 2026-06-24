@@ -45,6 +45,7 @@ jobs:
             python3 \
             qt6-base-dev \
             ripgrep \
+            xclip \
             xdotool \
             xvfb \
             zstd
@@ -107,6 +108,7 @@ jobs:
             qt6-base-dev \
             ripgrep \
             x11-apps \
+            xclip \
             xdotool \
             xvfb \
             zstd

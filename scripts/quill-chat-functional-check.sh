@@ -71,6 +71,50 @@ quillui_functional_click_at() {
   quillui_functional_xdotool mouseup 1
 }
 
+quillui_functional_paste_text() {
+  local text="$1"
+  local clipboard_pid
+  local paste_settle_sleep="${QUILLUI_FUNCTIONAL_PASTE_SETTLE_SLEEP:-0.2}"
+  local paste_cleanup_deadline
+
+  command -v xclip >/dev/null 2>&1 || return 1
+
+  printf '%s' "$text" \
+    | DISPLAY="$DISPLAY_ID" xclip -selection clipboard -loops 1 >/dev/null 2>&1 &
+  clipboard_pid=$!
+  sleep "$paste_settle_sleep"
+
+  if quillui_functional_xdotool key --clearmodifiers ctrl+v; then
+    paste_cleanup_deadline=$((SECONDS + ${QUILLUI_FUNCTIONAL_PASTE_CLEANUP_DEADLINE:-2}))
+    while kill -0 "$clipboard_pid" 2>/dev/null; do
+      if (( SECONDS >= paste_cleanup_deadline )); then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$clipboard_pid" 2>/dev/null; then
+      kill "$clipboard_pid" 2>/dev/null || true
+    fi
+    wait "$clipboard_pid" 2>/dev/null || true
+    return 0
+  fi
+
+  kill "$clipboard_pid" 2>/dev/null || true
+  wait "$clipboard_pid" 2>/dev/null || true
+  return 1
+}
+
+quillui_functional_enter_text() {
+  local text="$1"
+
+  if [[ "${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-paste}" != "type" ]] \
+      && quillui_functional_paste_text "$text"; then
+    return
+  fi
+
+  quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$text"
+}
+
 quillui_functional_refocus_window() {
   [[ -n "${window_id:-}" ]] || return 0
   quillui_functional_xdotool windowactivate --sync "$window_id" 2>/dev/null || true
@@ -717,7 +761,7 @@ quill_chat_functional_send_attempt() {
     quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
     sleep 0.2
   fi
-  quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$MESSAGE_TEXT"
+  quillui_functional_enter_text "$MESSAGE_TEXT"
   sleep "${QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP:-1.5}"
 
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then

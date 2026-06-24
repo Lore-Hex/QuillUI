@@ -830,6 +830,7 @@ quillui_install_linux_backend_smoke_packages() {
     pkg-config
     qt6-base-dev
     x11-apps
+    xclip
     xdotool
     xvfb
   )
