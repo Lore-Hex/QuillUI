@@ -447,6 +447,102 @@ quill_chat_functional_attachment_action_click_points() {
   done < <(quill_chat_functional_composer_click_x_candidates)
 }
 
+quill_chat_functional_detected_attachment_click_point() {
+  [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] || return 0
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_ATTACHMENT_PROBE:-$OUTPUT_DIR/quill-chat-functional-attachment-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+detail_left = divider_x + 1
+detail_width = right - detail_left + 1
+
+search_left = max(detail_left, right - int(detail_width * 0.20))
+search_right = max(search_left + 1, right - 6)
+search_top = max(top, bottom - min(220, int(app_height * 0.24)))
+search_bottom = max(search_top + 1, bottom - 6)
+
+def dark(x: int, y: int) -> bool:
+    r, g, b = image.rgb(x, y)
+    return r + g + b < 360
+
+columns: list[tuple[int, int, int, int]] = []
+for x in range(search_left, search_right + 1):
+    ys = [y for y in range(search_top, search_bottom + 1) if dark(x, y)]
+    if len(ys) >= 2:
+        columns.append((x, min(ys), max(ys), len(ys)))
+
+if not columns:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int, int, int]]] = []
+current = [columns[0]]
+for column in columns[1:]:
+    if column[0] <= current[-1][0] + 12:
+        current.append(column)
+    else:
+        groups.append(current)
+        current = [column]
+groups.append(current)
+
+clusters: list[tuple[float, float, int, int, int]] = []
+for group in groups:
+    start = group[0][0]
+    end = group[-1][0]
+    width = end - start + 1
+    total = sum(count for _, _, _, count in group)
+    min_y = min(item[1] for item in group)
+    max_y = max(item[2] for item in group)
+    height = max_y - min_y + 1
+    if total < 6 or width < 4 or width > 56 or height < 5 or height > 64:
+        continue
+    center_x = sum(x * count for x, _, _, count in group) / total
+    center_y = sum(((min_y + max_y) / 2) * count for _, min_y, max_y, count in group) / total
+    if center_y < bottom - 180:
+        continue
+    clusters.append((center_x, center_y, width, height, total))
+
+if not clusters:
+    raise SystemExit(0)
+
+clusters.sort(key=lambda item: item[0])
+target = clusters[-2] if len(clusters) >= 2 else clusters[-1]
+print(f"{window_x + round(target[0])} {window_y + round(target[1])}")
+PY
+}
+
 quill_chat_functional_composer_click_points() {
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     {
@@ -592,6 +688,10 @@ quill_chat_functional_send_attempt() {
   sleep "${QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP:-1.5}"
 
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    detected_attachment_point="$(quill_chat_functional_detected_attachment_click_point | head -n 1 || true)"
+    if [[ -n "$detected_attachment_point" ]]; then
+      read -r attachment_x attachment_y <<< "$detected_attachment_point"
+    fi
     quillui_functional_refocus_window
     echo "functional-check: attachment=${attachment_x},${attachment_y}" >&2
     quillui_functional_click_at "$attachment_x" "$attachment_y"
