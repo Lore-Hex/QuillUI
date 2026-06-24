@@ -774,6 +774,13 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
     return image not in (None, "", [], {})
 
 
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", ""))
+    if require_attachment:
+        return bool(content.strip())
+    return message_text in content
+
+
 deadline = time.time() + deadline_seconds
 last_request = None
 last_requests: list[dict[str, object]] = []
@@ -789,7 +796,7 @@ while time.time() < deadline:
             for item in request.get("messages", [])
             if isinstance(item, dict)
             and item.get("role") == "user"
-            and message_text in str(item.get("content", ""))
+            and message_content_matches(item)
             and (not require_attachment or request_message_has_image(item))
         ]
         if len(matching_request_users) == 1:
@@ -799,7 +806,7 @@ while time.time() < deadline:
     if matching_request is not None:
         last_request = matching_request
     user_persisted = any(
-        item.get("role") == "user" and message_text in str(item.get("content", ""))
+        item.get("role") == "user" and message_content_matches(item)
         and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
@@ -950,6 +957,13 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
     return image not in (None, "", [], {})
 
 
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", ""))
+    if require_attachment:
+        return bool(content.strip())
+    return message_text in content
+
+
 deadline = time.time() + deadline_seconds
 last_request_count = 0
 last_messages: list[dict[str, object]] = []
@@ -957,7 +971,7 @@ while time.time() < deadline:
     last_request_count = chat_request_count()
     last_messages = persisted_messages()
     user_persisted = any(
-        item.get("role") == "user" and message_text in str(item.get("content", ""))
+        item.get("role") == "user" and message_content_matches(item)
         and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
