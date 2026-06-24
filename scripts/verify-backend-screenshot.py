@@ -4656,7 +4656,35 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
 
 
 def validate_quill_solderscope_freeze_interaction(image: Screenshot) -> str:
-    base = validate_quill_solderscope_interaction(image)
+    toolbar_height = min(140, image.height)
+    toolbar_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        solderscope_toolbar_pixel,
+    )
+    top_nonblack_pixels = pixel_count(
+        image,
+        0,
+        0,
+        image.width,
+        toolbar_height,
+        lambda rgb: sum(rgb) >= 24,
+    )
+    lower_left_recording_pixels = pixel_count(
+        image,
+        0,
+        max(0, image.height - 90),
+        min(180, image.width),
+        image.height,
+        lambda rgb: rgb[0] >= 180
+        and rgb[1] <= 70
+        and rgb[2] <= 70
+        and rgb[0] - rgb[1] >= 90
+        and rgb[0] - rgb[2] >= 90,
+    )
     frozen_badge_pixels = pixel_count(
         image,
         max(0, image.width - 150),
@@ -4669,11 +4697,30 @@ def validate_quill_solderscope_freeze_interaction(image: Screenshot) -> str:
         and rgb[2] - rgb[0] >= 80,
     )
     require(
+        toolbar_pixels >= 1_500,
+        f"SolderScope dark toolbar pixels were not detected near the top: pixels={toolbar_pixels}",
+    )
+    require(
+        top_nonblack_pixels >= 5_000,
+        f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
+    )
+    require(
+        lower_left_recording_pixels <= 500,
+        "SolderScope recording indicator is still visible after the freeze action: "
+        f"pixels={lower_left_recording_pixels}",
+    )
+    require(
         frozen_badge_pixels >= 500,
         "SolderScope FROZEN indicator was not detected after the freeze shortcut: "
         f"pixels={frozen_badge_pixels}",
     )
-    return f"{base}, frozen_badge_pixels={frozen_badge_pixels}"
+    return (
+        "Quill SolderScope freeze interaction: "
+        f"toolbar_pixels={toolbar_pixels}, "
+        f"top_nonblack_pixels={top_nonblack_pixels}, "
+        f"recording_indicator_pixels={lower_left_recording_pixels}, "
+        f"frozen_badge_pixels={frozen_badge_pixels}"
+    )
 
 
 def main() -> int:
