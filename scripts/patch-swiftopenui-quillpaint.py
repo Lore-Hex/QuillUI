@@ -334,6 +334,50 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
             font_modified_section = font_modified_section.replace(old_font_body, new_font_body, 1)
             text = text[:font_modified_index] + font_modified_section + text[font_modified_end:]
 
+    old_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    if (
+        "gtkFlushPendingTextBindingUpdate" in text
+        and "func bindActionToCurrentEnvironment(_ action:" in text
+        and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    ):
+        if old_bound_action_flush not in text:
+            raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
+        text = text.replace(old_bound_action_flush, new_bound_action_flush, 1)
+
+    old_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    if (
+        "gtkFlushPendingTextBindingUpdate" in text
+        and "func bindActionToCurrentEnvironment<T>" in text
+        and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    ):
+        if old_bound_value_action_flush not in text:
+            raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
+        text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
+
     if "case .quillPaintMacDefault:" not in text:
         extension_index = text.find("extension Button: GTKRenderable")
         if extension_index == -1:

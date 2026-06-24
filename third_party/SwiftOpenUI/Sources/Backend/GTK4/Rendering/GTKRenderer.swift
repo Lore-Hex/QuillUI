@@ -198,7 +198,7 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action, keyboard shortcut, or submit runs
+/// or eagerly before any app action, keyboard shortcut, or submit runs
 /// (actions read the model, never the entry). Same-field edits always keep a
 /// prefix relation between successive values; unrelated values mean a
 /// different field, so the previous field's pending write flushes first and
@@ -643,6 +643,7 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return {
+        gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
@@ -660,6 +661,7 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return { value in
+        gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }

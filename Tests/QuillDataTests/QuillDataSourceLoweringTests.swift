@@ -2760,6 +2760,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
         #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
@@ -2951,7 +2953,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
         #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
         // Debounced entry->binding writes: typing must not schedule a rebuild
-        // per keystroke, and button actions flush eagerly so Save reads the
+        // per keystroke, and UI actions flush eagerly so callbacks read the
         // typed text from the model.
         #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
         #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))

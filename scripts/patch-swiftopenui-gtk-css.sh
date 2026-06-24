@@ -6661,9 +6661,10 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action runs (actions read the model, never
-/// the entry). Same-field edits always keep a prefix relation between
-/// successive values; unrelated values mean a different field, so the
+/// or eagerly before any app action, keyboard shortcut, or submit runs
+/// (actions read the model, never the entry). Same-field edits always keep a
+/// prefix relation between successive values; unrelated values mean a
+/// different field, so the
 /// previous field's pending write flushes first and is never lost.
 private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
     if let pending = gtkPendingTextBindingUpdate,
@@ -6724,9 +6725,10 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action runs (actions read the model, never
-/// the entry). Same-field edits always keep a prefix relation between
-/// successive values; unrelated values mean a different field, so the
+/// or eagerly before any app action, keyboard shortcut, or submit runs
+/// (actions read the model, never the entry). Same-field edits always keep a
+/// prefix relation between successive values; unrelated values mean a
+/// different field, so the
 /// previous field's pending write flushes first and is never lost.
 private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
     if let pending = gtkPendingTextBindingUpdate,
@@ -6763,6 +6765,52 @@ if "gtkFlushPendingTextBindingUpdate()\n    let now" not in text:
     if old_schedule_action_entry not in text:
         raise SystemExit("SwiftOpenUI Button action flush insertion shape was not recognized")
     text = text.replace(old_schedule_action_entry, new_schedule_action_entry, 1)
+
+# All deferred UI actions read Swift model state, not GTK entry buffers. Flush
+# the debounced text write in the central action-environment wrapper so custom
+# labels, gestures, menus, toggles, and file-import controls see the same typed
+# value as Button/submit paths. (No-op once applied.)
+old_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+'''
+new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+if (
+    "func bindActionToCurrentEnvironment(_ action:" in text
+    and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+):
+    if old_bound_action_flush not in text:
+        raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
+    text = text.replace(old_bound_action_flush, new_bound_action_flush, 1)
+
+old_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        let previousEnvironment = getCurrentEnvironment()
+'''
+new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+if (
+    "func bindActionToCurrentEnvironment<T>" in text
+    and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+):
+    if old_bound_value_action_flush not in text:
+        raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
+    text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
 
 text = text.replace(
     "includeValueWhenUnidentified: Bool = true",
