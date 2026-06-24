@@ -862,6 +862,69 @@ raise SystemExit(1)
 PY
 }
 
+quill_chat_functional_wait_for_matching_request() {
+  local deadline_seconds="$1"
+
+  python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$FUNCTIONAL_MODE" "$deadline_seconds" <<'PY'
+from __future__ import annotations
+
+import json
+import sys
+import time
+from pathlib import Path
+
+mock_log = Path(sys.argv[1])
+message_text = sys.argv[2]
+functional_mode = sys.argv[3]
+deadline_seconds = float(sys.argv[4])
+require_attachment = functional_mode in {"attachment-send", "image-attachment-send"}
+
+
+def logged_chat_requests() -> list[dict[str, object]]:
+    if not mock_log.exists():
+        return []
+    requests: list[dict[str, object]] = []
+    for line in mock_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if payload.get("path") == "/api/chat":
+            request = payload.get("request")
+            if isinstance(request, dict):
+                requests.append(request)
+    return requests
+
+
+def request_message_has_image(message: dict[str, object]) -> bool:
+    images = message.get("images")
+    return isinstance(images, list) and any(isinstance(item, str) and item for item in images)
+
+
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", ""))
+    return message_text in content
+
+
+deadline = time.time() + deadline_seconds
+while time.time() < deadline:
+    for request in reversed(logged_chat_requests()):
+        matching_request_users = [
+            item
+            for item in request.get("messages", [])
+            if isinstance(item, dict)
+            and item.get("role") == "user"
+            and message_content_matches(item)
+            and (not require_attachment or request_message_has_image(item))
+        ]
+        if len(matching_request_users) == 1:
+            print(f"functional-check: matching request observed for {functional_mode}", file=sys.stderr)
+            raise SystemExit(0)
+    time.sleep(0.25)
+
+raise SystemExit(1)
+PY
+}
+
 launch_app_instance truncate
 resolve_app_window_geometry
 if [[ "${QUILLUI_FUNCTIONAL_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -881,6 +944,13 @@ while read -r click_x click_y; do
     if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
       completion_verified=1
       break 2
+    fi
+    if quill_chat_functional_wait_for_matching_request "${QUILLUI_FUNCTIONAL_REQUEST_OBSERVED_DEADLINE:-2}"; then
+      if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" 1; then
+        completion_verified=1
+        break 2
+      fi
+      exit 1
     fi
   done < <(quill_chat_functional_submit_methods)
 done < <(quill_chat_functional_composer_click_points)
