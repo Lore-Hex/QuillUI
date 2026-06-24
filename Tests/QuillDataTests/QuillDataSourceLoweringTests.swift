@@ -614,6 +614,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(verifier.contains("validate_quill_chat_functional_transcript"))
         #expect(verifier.contains("Functional transcript assistant reply was not detected"))
+        #expect(verifier.contains("trailing_message_pixels >= 80"))
         #expect(verifier.contains("transcript_message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("transcript_message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("quill-chat-linux-functional-transcript"))
