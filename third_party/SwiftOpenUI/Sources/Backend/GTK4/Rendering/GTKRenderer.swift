@@ -280,6 +280,18 @@ private func gtkWireTextInputSubmit(
 }
 
 let gtkSwiftInheritedTextInputForegroundMarker = "gtk-swift-inherited-text-input-foreground"
+let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
 
 private func gtkApplyInheritedTextInputForegroundIfNeeded(to widget: UnsafeMutablePointer<GtkWidget>) {
     guard let foregroundColor = _gtkCurrentForegroundColor else { return }
@@ -310,6 +322,103 @@ private func gtkCSSRGBA(_ color: Color) -> String {
     let green = Int((color.green * 255).rounded())
     let blue = Int((color.blue * 255).rounded())
     return "rgba(\(red), \(green), \(blue), \(color.alpha))"
+}
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \(gtkFontSizeCSS(size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+    }
 }
 
 // MARK: - GTK rendering protocol
@@ -2677,22 +2786,15 @@ extension FontModifiedView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        let css: String
-        switch font {
-        case .largeTitle:  css = "font-size: 28px;"
-        case .title:       css = "font-size: 24px;"
-        case .title2:      css = "font-size: 20px; font-weight: bold;"
-        case .title3:      css = "font-size: 18px;"
-        case .headline:    css = "font-weight: bold;"
-        case .subheadline: css = "font-size: 12px; font-weight: bold;"
-        case .body:        css = "font-size: 14px;"
-        case .callout:     css = "font-size: 12px;"
-        case .footnote:    css = "font-size: 10px;"
-        case .caption:     css = "font-size: 12px;"
-        case .caption2:    css = "font-size: 10px; font-weight: bold;"
-        case .custom(let size, _, _): css = "font-size: \(Int(size))px;"
+        let css = gtkFontCSS(font)
+        applyCSSToWidget(
+            widget,
+            properties: css.properties,
+            descendantSelectors: gtkFontDescendantSelectors
+        )
+        if let designMarker = css.designMarker {
+            gtk_widget_add_css_class(widget, designMarker)
         }
-        applyCSSToWidget(widget, properties: css)
         return opaqueFromWidget(widget)
     }
 }

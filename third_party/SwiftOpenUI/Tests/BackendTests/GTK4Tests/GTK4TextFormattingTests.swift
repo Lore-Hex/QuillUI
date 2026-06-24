@@ -379,6 +379,23 @@ final class GTK4TextFormattingTests: XCTestCase {
         XCTAssertNotEqual(gtk_widget_has_css_class(textView, gtkSwiftInheritedTextInputForegroundMarker), 0)
     }
 
+    func testMonospacedSystemFontReachesTextEditorRoot() throws {
+        try requireGTK()
+
+        var source = "let value = 42"
+        let widget = widgetFromOpaque(gtkRenderView(
+            TextEditor(text: Binding(get: { source }, set: { source = $0 }))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+        ))
+        _ = try findWidget(ofType: "GtkTextView", in: widget)
+
+        XCTAssertNotEqual(
+            gtk_widget_has_css_class(widget, gtkSwiftFontMonospacedMarker),
+            0,
+            "QuillCode-style monospaced TextEditor fonts should stay in the generic GTK renderer."
+        )
+    }
+
     // MARK: - Modifier composition
 
     func testLineLimitWithFontModifier() throws {
