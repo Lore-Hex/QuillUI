@@ -1140,7 +1140,7 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("reference_height - 170"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
         #expect(functionalScript.contains("window_width - 100"))
-        #expect(!functionalScript.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1"))
+        #expect(functionalScript.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_Y"))
         #expect(functionalScript.contains("attachment_y=\"${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_action_click_y \"$click_y\")}\""))
         #expect(functionalScript.contains("detected_attachment_point=\"$(quill_chat_functional_detected_attachment_click_point | head -n 1 || true)\""))
