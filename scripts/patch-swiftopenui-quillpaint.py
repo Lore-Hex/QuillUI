@@ -632,10 +632,6 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
     ):
         new_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
         gtk_text_view_set_accepts_tab(textViewPtr, 1)
-        gtk_text_view_set_top_margin(textViewPtr, 6)
-        gtk_text_view_set_bottom_margin(textViewPtr, 6)
-        gtk_text_view_set_left_margin(textViewPtr, 8)
-        gtk_text_view_set_right_margin(textViewPtr, 8)
 '''
         text = (
             text[:text_editor_index]
