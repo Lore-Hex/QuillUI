@@ -7167,6 +7167,28 @@ if direct_text_editor_update in text_editor_section:
     if text_editor_end == -1:
         text_editor_end = len(text)
     text_editor_section = text[text_editor_index:text_editor_end]
+old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+'''
+if (
+    "gtk_text_view_set_accepts_tab(textViewPtr, 1)" not in text_editor_section
+    and old_text_editor_options in text_editor_section
+):
+    new_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+        gtk_text_view_set_accepts_tab(textViewPtr, 1)
+        gtk_text_view_set_top_margin(textViewPtr, 6)
+        gtk_text_view_set_bottom_margin(textViewPtr, 6)
+        gtk_text_view_set_left_margin(textViewPtr, 8)
+        gtk_text_view_set_right_margin(textViewPtr, 8)
+'''
+    text = (
+        text[:text_editor_index]
+        + text_editor_section.replace(old_text_editor_options, new_text_editor_options, 1)
+        + text[text_editor_end:]
+    )
+    text_editor_end = text.find("\nextension ", text_editor_index + 1)
+    if text_editor_end == -1:
+        text_editor_end = len(text)
+    text_editor_section = text[text_editor_index:text_editor_end]
 if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
     old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
         return opaqueFromWidget(scrolled)
