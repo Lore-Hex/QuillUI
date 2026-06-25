@@ -254,6 +254,59 @@ dependencies_block() {
   printf '%s' "$block"
 }
 
+swift_string_literal() {
+  python3 - "$1" <<'PY'
+import json
+import sys
+
+print(json.dumps(sys.argv[1]))
+PY
+}
+
+vendored_extra_package_dependency() {
+  local package_line="$1"
+  local package_url=""
+  local package_name=""
+  local identity=""
+  local identity_lower=""
+  local candidate=""
+  local candidates=()
+  local quoted_path=""
+
+  package_url="$(printf '%s\n' "$package_line" | sed -nE 's/.*\.package\((name:[^,]+,[[:space:]]*)?url:[[:space:]]*"([^"]+)".*/\2/p')"
+  [[ -n "$package_url" ]] || {
+    printf '%s\n' "$package_line"
+    return 0
+  }
+
+  package_name="$(printf '%s\n' "$package_line" | sed -nE 's/.*\.package\(name:[[:space:]]*"([^"]+)".*/\1/p')"
+  identity="${package_url%%\?*}"
+  identity="${identity%%#*}"
+  identity="${identity##*/}"
+  identity="${identity%.git}"
+  identity_lower="$(printf '%s' "$identity" | tr '[:upper:]' '[:lower:]')"
+
+  candidates=("$ROOT_DIR/third_party/$identity")
+  if [[ -n "$package_name" ]]; then
+    candidates+=("$ROOT_DIR/third_party/$package_name")
+  fi
+  candidates+=("$ROOT_DIR/third_party/$identity_lower")
+
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate/Package.swift" ]]; then
+      quoted_path="$(swift_string_literal "$candidate")"
+      if [[ -n "$package_name" ]]; then
+        printf '.package(name: "%s", path: %s)\n' "$package_name" "$quoted_path"
+      else
+        printf '.package(path: %s)\n' "$quoted_path"
+      fi
+      return 0
+    fi
+  done
+
+  printf '%s\n' "$package_line"
+}
+
 append_target_definition() {
   local target_name="$1"
   local dependency_list="$2"
@@ -329,6 +382,7 @@ if [[ -n "$EXTRA_PACKAGE_DEPENDENCIES_FILE" ]]; then
     package_line="${package_line#"${package_line%%[![:space:]]*}"}"
     package_line="${package_line%"${package_line##*[![:space:]]}"}"
     [[ -n "$package_line" ]] || continue
+    package_line="$(vendored_extra_package_dependency "$package_line")"
     extra_package_dependencies+=$(printf ',\n        %s' "$package_line")
   done < "$EXTRA_PACKAGE_DEPENDENCIES_FILE"
 fi

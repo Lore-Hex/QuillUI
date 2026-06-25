@@ -15,32 +15,39 @@ import Foundation
 // `scripts/fetch-upstream.sh` to fetch the upstreams and enable
 // the gated targets.
 //
-// Path resolution: SwiftPM can evaluate this manifest from the package root
-// or from a scratch directory inside it. Walk upward so `--scratch-path`
-// builds still discover vendored sources and `.upstream` checkouts.
+// Path resolution: SwiftPM can evaluate this manifest from the package root,
+// a scratch directory inside it, or a separate generated package that consumes
+// QuillUI by absolute path. Anchor the first search at this manifest file so
+// path dependencies still discover vendored sources and `.upstream` checkouts.
 //
 // Focused library loops can set QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS=1 to
 // suppress heavyweight app-source targets while preserving vendored third-party
 // package paths under `third_party/`.
 func locatePackageRoot() -> String {
     let fileManager = FileManager.default
-    var candidate = URL(
-        fileURLWithPath: fileManager.currentDirectoryPath,
-        isDirectory: true
-    ).standardizedFileURL
+    let startingPoints = [
+        URL(fileURLWithPath: #filePath, isDirectory: false)
+            .standardizedFileURL
+            .deletingLastPathComponent(),
+        URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+            .standardizedFileURL
+    ]
 
-    for _ in 0..<12 {
-        let packageManifest = candidate.appendingPathComponent("Package.swift").path
-        let sources = candidate.appendingPathComponent("Sources").path
-        if fileManager.fileExists(atPath: packageManifest),
-           fileManager.fileExists(atPath: sources) {
-            return candidate.path
+    for start in startingPoints {
+        var candidate = start
+        for _ in 0..<12 {
+            let packageManifest = candidate.appendingPathComponent("Package.swift").path
+            let sources = candidate.appendingPathComponent("Sources").path
+            if fileManager.fileExists(atPath: packageManifest),
+               fileManager.fileExists(atPath: sources) {
+                return candidate.path
+            }
+            let parent = candidate.deletingLastPathComponent()
+            if parent.path == candidate.path {
+                break
+            }
+            candidate = parent
         }
-        let parent = candidate.deletingLastPathComponent()
-        if parent.path == candidate.path {
-            break
-        }
-        candidate = parent
     }
 
     return fileManager.currentDirectoryPath

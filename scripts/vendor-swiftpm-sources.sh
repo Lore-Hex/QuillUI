@@ -38,6 +38,7 @@ swift-asn1
 swift-protobuf
 SwiftSoup
 JavaScriptKit
+trusted-router-swift
 PACKAGES
 }
 

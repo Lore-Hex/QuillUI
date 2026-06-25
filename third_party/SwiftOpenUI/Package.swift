@@ -10,8 +10,20 @@ func swiftOpenUIVendoredPackage(
     from version: Version
 ) -> Package.Dependency {
     let fileManager = FileManager.default
-    if fileManager.fileExists(atPath: path) || fileManager.fileExists(atPath: "third_party/\(name)") {
+    let packageRoot = URL(fileURLWithPath: #filePath, isDirectory: false)
+        .standardizedFileURL
+        .deletingLastPathComponent()
+    let localPackage = packageRoot.appendingPathComponent(path).standardizedFileURL.path
+    let nestedVendorPath = "third_party/\(name)"
+    let nestedVendorPackage = packageRoot
+        .appendingPathComponent(nestedVendorPath)
+        .standardizedFileURL
+        .path
+    if fileManager.fileExists(atPath: localPackage) {
         return .package(name: name, path: path)
+    }
+    if fileManager.fileExists(atPath: nestedVendorPackage) {
+        return .package(name: name, path: nestedVendorPath)
     }
     return .package(url: url, from: version)
 }
