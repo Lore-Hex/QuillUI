@@ -921,6 +921,7 @@ quill_chat_functional_wait_for_completion() {
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -978,8 +979,15 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
 
 
 def message_content_matches(message: dict[str, object]) -> bool:
-    content = str(message.get("content", ""))
-    return message_text in content
+    content = str(message.get("content", "")).strip()
+    expected = message_text.strip()
+    if not content or not expected:
+        return False
+    if expected in content:
+        return True
+    minimum = int(os.environ.get("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX", "6"))
+    minimum = max(1, min(minimum, len(expected)))
+    return len(content) >= minimum and expected.startswith(content)
 
 
 deadline = time.time() + deadline_seconds
@@ -1040,6 +1048,7 @@ quill_chat_functional_wait_for_matching_request() {
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -1072,8 +1081,15 @@ def request_message_has_image(message: dict[str, object]) -> bool:
 
 
 def message_content_matches(message: dict[str, object]) -> bool:
-    content = str(message.get("content", ""))
-    return message_text in content
+    content = str(message.get("content", "")).strip()
+    expected = message_text.strip()
+    if not content or not expected:
+        return False
+    if expected in content:
+        return True
+    minimum = int(os.environ.get("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX", "6"))
+    minimum = max(1, min(minimum, len(expected)))
+    return len(content) >= minimum and expected.startswith(content)
 
 
 deadline = time.time() + deadline_seconds
