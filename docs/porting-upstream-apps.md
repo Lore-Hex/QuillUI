@@ -74,6 +74,7 @@ the **mirror marathon** (UI, design system).
    `fetch_repo <name> <url>` case to `scripts/fetch-upstream.sh` and include
    `<name>` in the default fetch set so **CI populates it**. The fetch helper
    prefers `vendor/apps/<name>` unless `QUILLUI_REFRESH_VENDORED_SOURCE=1`.
+   Current vendored app sources include Enchanted and SolderScope.
 2. **Present-gate** so a fresh clone still resolves without `.upstream/`:
    ```swift
    let xPresent = upstreamPresent(".upstream/<name>/.../Sources/<Module>")

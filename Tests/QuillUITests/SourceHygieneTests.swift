@@ -1466,6 +1466,9 @@ struct SourceHygieneTests {
         #expect(controls.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH"))
         #expect(controls.contains("handleImageImport"))
         #expect(controls.contains("handleImageDrop"))
+        #expect(controls.contains("private var composerTextField: some View"))
+        #expect(controls.contains("#if os(Linux)\n        TextField(\"Message\", text: $message)"))
+        #expect(controls.contains("#else\n        TextField(\"Message\", text: $message, axis: .vertical)"))
         #expect(controls.contains(".onSubmit"))
         #expect(controls.contains("submitIfPossible()"))
         #expect(controls.contains(".keyboardShortcut(.return, modifiers: [])"))
@@ -3650,6 +3653,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
             encoding: .utf8
         )
+        let solderScopeVendor = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/solderscope/QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        let solderScopeLicense = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/solderscope/LICENSE"),
+            encoding: .utf8
+        )
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
@@ -3845,6 +3856,11 @@ struct SourceHygieneTests {
         #expect(fetchUpstream.contains("quillui_has_vendored_app_source \"$ROOT_DIR\" enchanted"))
         #expect(fetchUpstream.contains("using vendored enchanted source at vendor/apps/enchanted"))
         #expect(fetchUpstream.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
+        #expect(solderScopeVendor.contains("https://github.com/rjwalters/SolderScope"))
+        #expect(solderScopeVendor.contains("54693b618ca11e86b005474246664fe1f5473449"))
+        #expect(solderScopeVendor.contains("QUILLUI_REFRESH_VENDORED_SOURCE=1"))
+        #expect(solderScopeLicense.contains("MIT License"))
         #expect(vendoredSource.contains("quillui_materialize_vendored_app_source()"))
         #expect(vendoredSource.contains("vendor/apps/$name"))
         #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))

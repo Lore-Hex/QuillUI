@@ -345,14 +345,7 @@ public struct QuillChatComposer: View {
             if let selectedImage {
                 selectedImagePreview(selectedImage)
             }
-            TextField("Message", text: $message, axis: .vertical)
-                .font(.system(size: 14))
-                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                .clipped()
-                .textFieldStyle(.plain)
-                .onSubmit {
-                    submitIfPossible()
-                }
+            composerTextField
             composerActions
         }
         .transition(.slide)
@@ -370,6 +363,28 @@ public struct QuillChatComposer: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+    private var composerTextField: some View {
+        #if os(Linux)
+        TextField("Message", text: $message)
+            .font(.system(size: 14))
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .clipped()
+            .textFieldStyle(.plain)
+            .onSubmit {
+                submitIfPossible()
+            }
+        #else
+        TextField("Message", text: $message, axis: .vertical)
+            .font(.system(size: 14))
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .clipped()
+            .textFieldStyle(.plain)
+            .onSubmit {
+                submitIfPossible()
+            }
+        #endif
     }
 
     private var canSend: Bool {
