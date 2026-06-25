@@ -810,6 +810,17 @@ quillui_append_backend_selection_start_environment() {
   return 0
 }
 
+quillui_linux_backend_apt_get() {
+  if command -v sudo >/dev/null 2>&1; then
+    sudo apt-get "$@"
+  elif [[ "$(id -u)" == "0" ]]; then
+    apt-get "$@"
+  else
+    echo "sudo or root access is required to install Linux backend smoke packages" >&2
+    return 69
+  fi
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
@@ -843,8 +854,8 @@ quillui_install_linux_backend_smoke_packages() {
   done
 
   if (( ${#missing[@]} > 0 )); then
-    sudo apt-get update
-    sudo apt-get install -y "${missing[@]}"
+    quillui_linux_backend_apt_get update
+    quillui_linux_backend_apt_get install -y "${missing[@]}"
   fi
 }
 
