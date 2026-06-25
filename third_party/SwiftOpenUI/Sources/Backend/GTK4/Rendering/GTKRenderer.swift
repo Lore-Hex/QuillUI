@@ -243,6 +243,28 @@ private let gtkTextInputSubmitKeyPressedHandler: @convention(c) (OpaquePointer?,
     }
 }
 
+private func gtkInstallTextInputSubmitKeyController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    submitAction: SubmitAction
+) {
+    let submit = {
+        gtkPerformSubmitAction(submitAction)
+    }
+    let keyController = gtk_swift_key_capture_controller()!
+    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    g_signal_connect_data(
+        gpointer(keyController), "key-pressed",
+        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
+        keyBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<ClosureBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(widget, keyController)
+}
+
 private func gtkWireTextInputSubmit(
     widget: UnsafeMutablePointer<GtkWidget>,
     signalTarget: gpointer,
@@ -264,19 +286,7 @@ private func gtkWireTextInputSubmit(
         GConnectFlags(rawValue: 0)
     )
 
-    let keyController = gtk_swift_key_capture_controller()!
-    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
-    g_signal_connect_data(
-        gpointer(keyController), "key-pressed",
-        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
-        keyBox,
-        { data, _ in
-            guard let data else { return }
-            Unmanaged<ClosureBox>.fromOpaque(data).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
-    gtk_swift_add_event_controller(widget, keyController)
+    gtkInstallTextInputSubmitKeyController(on: widget, submitAction: submitAction)
 }
 
 let gtkSwiftInheritedTextInputForegroundMarker = "gtk-swift-inherited-text-input-foreground"
@@ -770,20 +780,138 @@ extension Divider: GTKRenderable, GTKDescribable {
     }
 }
 
+private final class GTKMultilineTextFieldBindingBox {
+    let binding: Binding<String>
+    let placeholderLabel: UnsafeMutablePointer<GtkWidget>?
+
+    init(
+        binding: Binding<String>,
+        placeholderLabel: UnsafeMutablePointer<GtkWidget>?
+    ) {
+        self.binding = binding
+        self.placeholderLabel = placeholderLabel
+    }
+
+    func apply(_ newText: String) {
+        gtkScheduleTextBindingUpdate(binding, value: newText)
+        updatePlaceholderVisibility(text: newText)
+    }
+
+    func updatePlaceholderVisibility(text: String) {
+        guard let placeholderLabel else { return }
+        gtk_widget_set_visible(placeholderLabel, text.isEmpty ? 1 : 0)
+    }
+}
+
+private func gtkTextBufferString(_ buffer: UnsafeMutablePointer<GtkTextBuffer>) -> String {
+    var start = GtkTextIter()
+    var end = GtkTextIter()
+    gtk_text_buffer_get_bounds(buffer, &start, &end)
+    let cStr = gtk_text_buffer_get_text(buffer, &start, &end, 0)!
+    let result = String(cString: cStr)
+    g_free(gpointer(mutating: cStr))
+    return result
+}
+
+private func gtkCreateMultilineTextField(
+    title: String,
+    text: Binding<String>
+) -> OpaquePointer {
+    let textView = gtk_text_view_new()!
+    let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
+    gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+    gtk_text_view_set_accepts_tab(textViewPtr, 0)
+
+    let current = text.wrappedValue
+    let buffer = gtk_text_view_get_buffer(textViewPtr)!
+    if !current.isEmpty {
+        gtk_text_buffer_set_text(buffer, current, gint(current.utf8.count))
+    }
+
+    let placeholderLabel: UnsafeMutablePointer<GtkWidget>? = title.isEmpty ? nil : gtk_label_new(title)
+    if let placeholderLabel {
+        let labelPtr = OpaquePointer(placeholderLabel)
+        gtk_label_set_xalign(labelPtr, 0)
+        gtk_widget_set_halign(placeholderLabel, GTK_ALIGN_START)
+        gtk_widget_set_valign(placeholderLabel, GTK_ALIGN_START)
+        gtk_widget_set_margin_start(placeholderLabel, 6)
+        gtk_widget_set_margin_top(placeholderLabel, 8)
+        gtk_widget_set_opacity(placeholderLabel, 0.45)
+        gtk_widget_set_can_target(placeholderLabel, 0)
+        gtk_widget_set_visible(placeholderLabel, current.isEmpty ? 1 : 0)
+    }
+
+    let box = Unmanaged.passRetained(GTKMultilineTextFieldBindingBox(
+        binding: text,
+        placeholderLabel: placeholderLabel
+    )).toOpaque()
+    g_signal_connect_data(
+        gpointer(buffer),
+        "changed",
+        unsafeBitCast({ (bufferPtr: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKMultilineTextFieldBindingBox>.fromOpaque(userData!).takeUnretainedValue()
+            let buf = UnsafeMutableRawPointer(bufferPtr!).assumingMemoryBound(to: GtkTextBuffer.self)
+            box.apply(gtkTextBufferString(buf))
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+            Unmanaged<GTKMultilineTextFieldBindingBox>.fromOpaque(userData!).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    if let submitAction = getCurrentEnvironment().submitAction {
+        gtkInstallTextInputSubmitKeyController(on: textView, submitAction: submitAction)
+    }
+
+    let scrolled = gtk_scrolled_window_new()!
+    gtk_scrolled_window_set_policy(OpaquePointer(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+    gtk_scrolled_window_set_child(OpaquePointer(scrolled), textView)
+    gtk_widget_set_hexpand(scrolled, 1)
+    gtk_widget_set_vexpand(scrolled, 0)
+
+    gtkApplyEnabledState(to: textView)
+    let rendered: OpaquePointer
+    if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+        OpaquePointer(scrolled),
+        OpaquePointer(textView)
+    ) {
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
+        rendered = paintedEditor
+    } else {
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
+        rendered = opaqueFromWidget(scrolled)
+    }
+
+    guard let placeholderLabel else {
+        return rendered
+    }
+
+    let overlay = gtk_overlay_new()!
+    gtk_overlay_set_child(OpaquePointer(overlay), widgetFromOpaque(rendered))
+    gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)
+    return opaqueFromWidget(overlay)
+}
+
 extension TextField: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        GTK4DescriptorNode(
+        let content = gtkTextInputFocusDescriptorContent(
+            typeName: "TextField",
+            binding: text,
+            label: title
+        )
+        return GTK4DescriptorNode(
             kind: .composite,
             typeName: "TextField",
-            props: .text(GTK4TextDescriptor(content: gtkTextInputFocusDescriptorContent(
-                typeName: "TextField",
-                binding: text,
-                label: title
-            )))
+            props: .text(GTK4TextDescriptor(content: "\(content)|axis:\(axis.rawValue)"))
         )
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
+        if axis.contains(.vertical) {
+            return gtkCreateMultilineTextField(title: title, text: text)
+        }
+
         let entry = gtk_entry_new()!
         gtk_widget_set_hexpand(entry, 1)
         let entryPtr = UnsafeMutableRawPointer(entry).assumingMemoryBound(to: GtkEntry.self)
