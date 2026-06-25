@@ -16,6 +16,7 @@ TARGET_NAME="${QUILLUI_GENERATED_TARGET_NAME:-GeneratedSwiftUILinuxApp}"
 BUILD_SCRATCH="${QUILLUI_GENERATED_BUILD_SCRATCH:-${WORK_ROOT:+$WORK_ROOT/.build-check}}"
 TARGET_LAYOUT_FILE="${QUILLUI_GENERATED_TARGET_LAYOUT_FILE:-}"
 EXTRA_PACKAGE_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}"
+EXTRA_TARGET_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE:-}"
 INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
 BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
@@ -134,6 +135,7 @@ target_dependencies=""
 target_resources=""
 target_definitions=""
 extra_package_dependencies=""
+extra_target_dependencies=""
 generated_swift_count_dir="$TARGET_DIR"
 
 rm -rf "$PACKAGE_DIR"
@@ -387,6 +389,23 @@ if [[ -n "$EXTRA_PACKAGE_DEPENDENCIES_FILE" ]]; then
   done < "$EXTRA_PACKAGE_DEPENDENCIES_FILE"
 fi
 
+if [[ -n "$EXTRA_TARGET_DEPENDENCIES_FILE" ]]; then
+  if [[ ! -f "$EXTRA_TARGET_DEPENDENCIES_FILE" ]]; then
+    echo "Extra target dependency file was not found: $EXTRA_TARGET_DEPENDENCIES_FILE" >&2
+    exit 66
+  fi
+  while IFS= read -r dependency_line || [[ -n "$dependency_line" ]]; do
+    dependency_line="${dependency_line%%#*}"
+    dependency_line="${dependency_line#"${dependency_line%%[![:space:]]*}"}"
+    dependency_line="${dependency_line%"${dependency_line##*[![:space:]]}"}"
+    [[ -n "$dependency_line" ]] || continue
+    if [[ -n "$extra_target_dependencies" ]]; then
+      extra_target_dependencies+=","
+    fi
+    extra_target_dependencies+="$dependency_line"
+  done < "$EXTRA_TARGET_DEPENDENCIES_FILE"
+fi
+
 if [[ "$copy_source_files" == "1" ]]; then
   if [[ -n "$TARGET_LAYOUT_FILE" ]]; then
     if [[ ! -f "$TARGET_LAYOUT_FILE" ]]; then
@@ -413,7 +432,15 @@ if [[ "$copy_source_files" == "1" ]]; then
       mkdir -p "$layout_target_root"
       copy_swift_sources "$layout_source_root" "$layout_target_root"
       target_resources="$(copy_resources_line "$layout_source_root" "$layout_target_root")"
-      append_target_definition "$layout_target" "${layout_dependencies:-}" "$target_resources"
+      layout_dependency_list="${layout_dependencies:-}"
+      if [[ "$layout_target" == "$TARGET_NAME" && -n "$extra_target_dependencies" ]]; then
+        if [[ -n "$layout_dependency_list" ]]; then
+          layout_dependency_list+=",$extra_target_dependencies"
+        else
+          layout_dependency_list="$extra_target_dependencies"
+        fi
+      fi
+      append_target_definition "$layout_target" "$layout_dependency_list" "$target_resources"
       layout_targets="${layout_targets}${layout_target}"$'\n'
     done < "$TARGET_LAYOUT_FILE"
     if [[ "$INCLUDE_BACKEND_ENTRY" == "1" && "$layout_targets" != *$'\n'"$TARGET_NAME"$'\n'* ]]; then
@@ -425,7 +452,7 @@ if [[ "$copy_source_files" == "1" ]]; then
     copy_swift_sources "$SOURCE_DIR" "$TARGET_DIR"
 
     target_resources="$(copy_resources_line "$SOURCE_DIR" "$TARGET_DIR")"
-    append_target_definition "$TARGET_NAME" "" "$target_resources"
+    append_target_definition "$TARGET_NAME" "$extra_target_dependencies" "$target_resources"
   fi
 elif [[ "$BACKEND_FACADE" == "qt" ]]; then
   target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'

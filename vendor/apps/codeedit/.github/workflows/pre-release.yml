@@ -1,0 +1,182 @@
+name: Build and Publish Pre-release
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  pre-release:
+    name: Build and Publish Pre-release
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      ############################
+      # Install Certificate
+      ############################
+      - name: Install codesign certificate
+        env:
+          # DEV_CERT_B64: Base64-encoded developer certificate as .p12
+          # DEV_CERT_PWD: Developer certificate .p12 password
+          # PROVISION_PROFILE_B64: Base64-encoded provisioning profile as .provisionprofile
+          # KEYCHAIN_TIMEOUT: Lock keychain after timeout interval
+          # https://docs.github.com/en/actions/deployment/deploying-xcode-applications/installing-an-apple-certificate-on-macos-runners-for-xcode-development
+          DEV_CERT_B64: ${{ secrets.DEV_CERT_B64 }}
+          DEV_CERT_PWD: ${{ secrets.DEV_CERT_PWD }}
+          MAC_CERT_B64: ${{ secrets.MAC_CERT_B64 }}
+          MAC_CERT_PWD: ${{ secrets.MAC_CERT_PWD }}
+          # PROVISION_PROFILE_B64: ${{ secrets.PROVISION_PROFILE_B64 }}
+          KEYCHAIN_TIMEOUT: 21600
+        run: |
+          DEV_CERT_P12="$RUNNER_TEMP/dev_cert.p12"
+          MAC_CERT_P12="$RUNNER_TEMP/mac_cert.p12"
+          KEYCHAIN_DB="$RUNNER_TEMP/keychain.keychain-db"
+          KEYCHAIN_PWD=$(openssl rand -base64 24)
+          security create-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_DB"
+          security set-keychain-settings -lut "$KEYCHAIN_TIMEOUT" "$KEYCHAIN_DB"
+          security unlock-keychain -p "$KEYCHAIN_PWD" "$KEYCHAIN_DB"
+          echo -n "$DEV_CERT_B64" | base64 --decode -o "$DEV_CERT_P12"
+          security import "$DEV_CERT_P12" -P "$DEV_CERT_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN_DB"
+          echo -n "$MAC_CERT_B64" | base64 --decode -o "$MAC_CERT_P12"
+          security import "$MAC_CERT_P12" -P "$MAC_CERT_PWD" -A -t cert -f pkcs12 -k "$KEYCHAIN_DB"
+          security list-keychain -d user -s "$KEYCHAIN_DB"
+      
+      ############################
+      # Build
+      ############################
+      - name: Build CodeEdit
+        env:
+          APPLE_TEAM_ID:  ${{ secrets.APPLE_TEAM_ID }}
+        run: xcodebuild -scheme CodeEdit -configuration Pre -derivedDataPath "$RUNNER_TEMP/DerivedData" -archivePath "$RUNNER_TEMP/CodeEdit.xcarchive" -skipPackagePluginValidation DEVELOPMENT_TEAM=$APPLE_TEAM_ID archive | xcpretty
+      
+      ############################
+      # Sign
+      ############################
+      - name: Sign CodeEdit
+        env:
+          CODESIGN_SIGN: ${{ secrets.CODESIGN_SIGN }}
+        run: |
+          REV=$(git rev-parse --short HEAD)
+          echo "REV=$REV" >> $GITHUB_ENV
+          codesign --sign "$CODESIGN_SIGN" -vvv --verbose --strict --options=runtime --prefix app.codeedit.CodeEdit. --force --timestamp "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/CodeEdit.app/Contents/Frameworks/CodeEditKit.framework"
+          codesign --sign "$CODESIGN_SIGN" -vvv --verbose --strict --options=runtime --prefix app.codeedit.CodeEdit. --force --timestamp "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/CodeEdit.app/Contents/Frameworks/CodeLanguages_Container.framework"
+          codesign --sign "$CODESIGN_SIGN" -vvv --verbose --strict --options=runtime --prefix app.codeedit.CodeEdit. --force --deep --timestamp "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/CodeEdit.app/Contents/Frameworks/Sparkle.framework"
+          codesign --sign "$CODESIGN_SIGN" -vvv --verbose --strict --options=runtime --prefix app.codeedit.CodeEdit. --force --timestamp --entitlements "$RUNNER_TEMP/../CodeEdit/CodeEdit/OpenWithCodeEdit/OpenWithCodeEdit.entitlements" "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/CodeEdit.app/Contents/PlugIns/OpenWithCodeEdit.appex"
+          codesign --sign "$CODESIGN_SIGN" -vvv --verbose --strict --options=runtime --prefix app.codeedit.CodeEdit. --force --timestamp "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/CodeEdit.app"
+
+      ############################
+      # DMG & Notarize
+      ############################
+      - name: Create DMG & Notarize
+        env:
+          CODESIGN_SIGN: ${{ secrets.CODESIGN_SIGN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PWD: ${{ secrets.APPLE_ID_PWD }}
+          APPLE_TEAM_ID:  ${{ secrets.APPLE_TEAM_ID }}
+          RUNNER_PW: ${{ secrets.RUNNER_PW }}
+        run: |
+          REV=$(git rev-parse --short HEAD)
+          echo "REV=$REV" >> $GITHUB_ENV
+          security unlock-keychain -p "$RUNNER_PW"
+          xcrun notarytool store-credentials CodeEdit --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_ID_PWD"
+          cp "$RUNNER_TEMP/../CodeEdit/CodeEdit/Resources/dmgBackground.png" "$RUNNER_TEMP/.background.png"
+          epochdate=$(($(date +'%s * 1000 + %-N / 1000000')))
+          tcc_service_appleevents="replace into access (service,client,client_type,auth_value,auth_reason,auth_version,indirect_object_identifier_type,indirect_object_identifier,flags,last_modified) values (\"kTCCServiceAppleEvents\",\"/usr/sbin/sshd\",1,2,4,1,0,\"com.apple.finder\",0,$epochdate);"
+          echo $RUNNER_PW | sudo -S sqlite3 "/Users/administrator/Library/Application Support/com.apple.TCC/TCC.db" "$tcc_service_appleevents"
+          create-dmg \
+            --volname "CodeEdit" \
+            --window-pos 200 120 \
+            --window-size 699 518 \
+            --background "$RUNNER_TEMP/.background.png" \
+            --icon-size 128 \
+            --icon "CodeEdit.app" 170 210 \
+            --hide-extension "CodeEdit.app" \
+            --app-drop-link 530 210 \
+            --codesign "$CODESIGN_SIGN" \
+            --notarize "CodeEdit" \
+            "$RUNNER_TEMP/CodeEdit.dmg" \
+            "$RUNNER_TEMP/CodeEdit.xcarchive/Products/Applications/"
+          echo $RUNNER_PW | sudo -S security lock-keychain
+          
+      ############################
+      # Get Version and Build number
+      ############################
+      - name: Get Version and Build number
+        run: |
+          APP_VERSION=$(xcrun agvtool mvers -terse1)
+          APP_BUILD=$(xcrun agvtool vers -terse)
+          echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "APP_BUILD=$APP_BUILD" >> $GITHUB_ENV
+
+      ############################
+      # Upload dSYMs Artifact
+      ############################
+      - name: Upload dSYMs Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "CodeEdit-${{ env.APP_BUILD }}-dSYMs"
+          path: "${{ RUNNER.TEMP }}/CodeEdit.xcarchive/dSYMs"
+          if-no-files-found: error
+          # overwrite files for the same build number
+          overwrite: true
+          # these can be big, use maximum compression
+          compression-level: 9
+
+      ############################
+      # Sparkle Appcast
+      ############################
+      - name: Update Sparkle appcast
+        env:
+          # SPARKLE_KEY: Sparkle EdDSA key exported from `generate_keys -x` as plain text
+          # SPARKLE_CHANNEL: Seperate dev builds from default channel, to be specified in [SPUUpdaterDelegate allowedChannelsForUpdater:]
+          # SPARKLE_DL_PREFIX: Prefix for the URL from where updates will be downloaded
+          # SPARKLE_LINK: CodeEdit Website
+          #   https://github.com/CodeEditApp/CodeEdit/releases/download/0.0.1-alpha.11/CodeEdit-9113dc5.dmg
+          # RELEASE_NOTES_PREFIX: The URL to prefix before an update link:
+          #   https://codeedit.app/whats-new/raw/{v0.1.0} -- data in {} is inserted by sparkle
+          # RELEASE_NOTES_URL: The URL of the entire release notes page: https://codeedit.app/whats-new
+          SPARKLE_KEY: ${{ secrets.SPARKLE_KEY }}
+          SPARKLE_CHANNEL: dev
+          SPARKLE_DL_PREFIX: "https://github.com/CodeEditApp/CodeEdit/releases/download"
+          SPARKLE_LINK: "https://github.com/CodeEditApp/CodeEdit"
+          APP_VERSION: ${{ env.APP_VERSION }}
+          APP_BUILD: ${{ env.APP_BUILD }}
+          RELEASE_NOTES_URL: "https://codeedit.app/whats-new/"
+          RELEASE_NOTES_PREFIX: "https://codeedit.app/sparkle/"
+        run: |
+          SPARKLE_BIN="$RUNNER_TEMP/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin"
+          SPARKLE_ARCHIVE="$RUNNER_TEMP/Sparkle_Archive"
+          echo -n "$SPARKLE_KEY" | tee "$RUNNER_TEMP/sparkle_key"
+          mkdir "$SPARKLE_ARCHIVE"
+          cp "$RUNNER_TEMP/CodeEdit.dmg" "$SPARKLE_ARCHIVE"
+          SPARKLE_SIG=$("$SPARKLE_BIN/sign_update" --ed-key-file "$RUNNER_TEMP/sparkle_key" "$SPARKLE_ARCHIVE/CodeEdit.dmg" | cut -d\" -f2)
+          echo "<!DOCTYPE>" > "$SPARKLE_ARCHIVE/CodeEdit.html" # Need a blank html doc with the DOCTYPE tag to trick sparkle into loading our remote release notes.
+          "$SPARKLE_BIN/generate_appcast" --ed-key-file "$RUNNER_TEMP/sparkle_key" --download-url-prefix "${{ env.SPARKLE_DL_PREFIX }}/v${{ env.APP_VERSION }}/" --link "$SPARKLE_LINK" --channel "$SPARKLE_CHANNEL" --maximum-deltas 0 "$SPARKLE_ARCHIVE" --release-notes-url-prefix "${{ env.RELEASE_NOTES_PREFIX }}v${{ env.APP_VERSION }}/" --full-release-notes-url "$RELEASE_NOTES_URL"
+
+      ############################
+      # Publish Pre Release
+      ############################
+      - name: Publish Pre-release
+        uses: marvinpinto/action-automatic-releases@latest
+        env:
+          APP_VERSION: ${{ env.APP_VERSION }}
+          APP_BUILD: ${{ env.APP_BUILD }}
+        with:
+          title: "v${{ env.APP_VERSION }}"
+          files: |
+            ${{ RUNNER.TEMP }}/Sparkle_Archive/CodeEdit.dmg
+            ${{ RUNNER.TEMP }}/Sparkle_Archive/appcast.xml
+          automatic_release_tag: "v${{ env.APP_VERSION }}"
+          prerelease: false
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          draft: true
+
+      ############################
+      # Cleanup Secrets
+      ############################
+      - name: Clean up keychain and provisioning profile
+        if: ${{ always() }}
+        run: |
+          security delete-keychain "$RUNNER_TEMP/keychain.keychain-db"
+          rm -rf "~/Library/MobileDevice/Provisioning Profiles"

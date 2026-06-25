@@ -98,6 +98,65 @@ struct SourceHygieneTests {
         #expect(result.status == 0, Comment(rawValue: result.output))
     }
 
+    @Test("Local SwiftPM import discovery emits package and target deps")
+    func localSwiftPMImportDiscoveryEmitsPackageAndTargetDeps() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-local-imports-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent(".upstream/localsymbols")
+        let sourceDir = sandbox.appendingPathComponent("source")
+        let packageDependencies = sandbox.appendingPathComponent("package-dependencies.swift")
+        let targetDependencies = sandbox.appendingPathComponent("target-dependencies.txt")
+
+        try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LocalSymbols",
+            products: [
+                .library(name: "LocalSymbols", targets: ["LocalSymbols"])
+            ],
+            targets: [
+                .target(name: "LocalSymbols")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import Foundation
+        import LocalSymbols
+
+        struct UsesLocalSymbols {}
+        """.write(to: sourceDir.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/discover-local-swiftpm-import-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--source-dir", sourceDir.path,
+                "--package-dependencies-out", packageDependencies.path,
+                "--target-dependencies-out", targetDependencies.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let packageOutput = try String(contentsOf: packageDependencies, encoding: .utf8)
+        let targetOutput = try String(contentsOf: targetDependencies, encoding: .utf8)
+
+        #expect(packageOutput.contains(".package(name: \"LocalSymbols\", path:"))
+        #expect(packageOutput.contains(packageDir.path))
+        #expect(targetOutput.contains("product:LocalSymbols:LocalSymbols"))
+        #expect(!targetOutput.contains("Foundation"))
+    }
+
     @Test("MarkdownUI table rows render backend-stable full-width dividers")
     func markdownUITableRowsRenderBackendStableFullWidthDividers() throws {
         let root = try packageRoot()
@@ -3480,6 +3539,11 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_started_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_saved_log_count()"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_snapshot_saved_log_count()"))
+        #expect(solderScopeSmoke.contains("SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("snapshot_saved_log_count=\"$(quillui_solderscope_snapshot_saved_log_count)\""))
+        #expect(solderScopeSmoke.contains("snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle()"))
         #expect(solderScopeSmoke.contains("local label=\"${1:-before interaction}\""))
         #expect(solderScopeSmoke.contains("synthetic frame is visible $label"))
@@ -3700,6 +3764,18 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-auto-layout.sh"),
             encoding: .utf8
         )
+        let genericLocalImportsSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-local-imports.sh"),
+            encoding: .utf8
+        )
+        let localImportDiscoverySource = try String(
+            contentsOf: root.appendingPathComponent("scripts/discover-local-swiftpm-import-dependencies.py"),
+            encoding: .utf8
+        )
+        let codeEditVendor = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/codeedit/QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
 
         #expect(source.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"))
         #expect(source.contains("QUILLUI_GENERATED_BACKEND_FACADE"))
@@ -3726,6 +3802,7 @@ struct SourceHygieneTests {
         #expect(source.contains("scripts/copy-swiftui-linux-resources.py"))
         #expect(source.contains("TARGET_LAYOUT_FILE=\"${QUILLUI_GENERATED_TARGET_LAYOUT_FILE:-}\""))
         #expect(source.contains("EXTRA_PACKAGE_DEPENDENCIES_FILE=\"${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}\""))
+        #expect(source.contains("EXTRA_TARGET_DEPENDENCIES_FILE=\"${QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE:-}\""))
         #expect(source.contains("validate_relative_path"))
         #expect(source.contains("swift_dependency_entry()"))
         #expect(source.contains("product:*"))
@@ -3740,6 +3817,8 @@ struct SourceHygieneTests {
         #expect(source.contains("Target layout must include QUILLUI_GENERATED_TARGET_NAME=$TARGET_NAME"))
         #expect(source.contains("generated_swift_count_dir=\"$PACKAGE_DIR/Sources\""))
         #expect(source.contains("extra_package_dependencies+="))
+        #expect(source.contains("extra_target_dependencies"))
+        #expect(source.contains("Extra target dependency file was not found"))
         #expect(source.contains("$target_resources"))
         #expect(source.contains("source_target_dependencies="))
         #expect(source.contains(".product(name: \"Network\", package: \"QuillUI\")"))
@@ -3772,18 +3851,29 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("--extra-package-dependencies-file"))
         #expect(buildSource.contains("QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE"))
         #expect(buildSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$EXTRA_PACKAGE_DEPENDENCIES_FILE\""))
+        #expect(buildSource.contains("--extra-target-dependencies-file"))
+        #expect(buildSource.contains("QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE=\"$EXTRA_TARGET_DEPENDENCIES_FILE\""))
         #expect(buildSource.contains("--artifact-path-file"))
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
         #expect(genericProfileSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
         #expect(genericProfileSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-auto-layout.sh\""))
+        #expect(genericProfileSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-local-imports.sh\""))
         #expect(genericProfileSource.contains("quillui_profile_maybe_derive_swiftpm_layout"))
+        #expect(genericProfileSource.contains("quillui_profile_maybe_discover_local_import_dependencies"))
         #expect(genericAutoLayoutSource.contains("scripts/swiftpm-package-layout-for-linux.py"))
         #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_PACKAGE_ROOT"))
         #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_ENTRY_TARGET"))
         #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$auto_layout_file\""))
         #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$auto_dependencies_file\""))
+        #expect(genericLocalImportsSource.contains("scripts/discover-local-swiftpm-import-dependencies.py"))
+        #expect(genericLocalImportsSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE"))
+        #expect(genericLocalImportsSource.contains("QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE"))
+        #expect(localImportDiscoverySource.contains("IMPORT_RE"))
+        #expect(localImportDiscoverySource.contains("\".upstream\", \"vendor/apps\", \"third_party\""))
+        #expect(localImportDiscoverySource.contains("product:{product.product_name}:{product.package_name}"))
         #expect(genericProfileSource.contains("scripts/generate-swiftui-linux-package.sh"))
         #expect(genericProfileSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1"))
         #expect(genericProfileSource.contains("generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
@@ -3867,6 +3957,7 @@ struct SourceHygieneTests {
         #expect(fetchUpstream.contains("quillui_has_vendored_app_source \"$ROOT_DIR\" enchanted"))
         #expect(fetchUpstream.contains("using vendored enchanted source at vendor/apps/enchanted"))
         #expect(fetchUpstream.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(fetchUpstream.contains("fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git"))
         #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
         #expect(fetchUpstream.contains("logger=\"$dir/Utilities/Logger.swift\""))
         #expect(fetchUpstream.contains("patch_solderscope: lowered import os.log"))
@@ -3875,6 +3966,9 @@ struct SourceHygieneTests {
         #expect(solderScopeVendor.contains("54693b618ca11e86b005474246664fe1f5473449"))
         #expect(solderScopeVendor.contains("QUILLUI_REFRESH_VENDORED_SOURCE=1"))
         #expect(solderScopeLicense.contains("MIT License"))
+        #expect(codeEditVendor.contains("https://github.com/CodeEditApp/CodeEdit.git"))
+        #expect(codeEditVendor.contains("cec6287a49a0a460cd7cab17f254eebc3ada828e"))
+        #expect(codeEditVendor.contains("License: MIT, preserved in `LICENSE.md`"))
         #expect(vendoredSource.contains("quillui_materialize_vendored_app_source()"))
         #expect(vendoredSource.contains("vendor/apps/$name"))
         #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))

@@ -157,6 +157,10 @@ quillui_solderscope_recording_started_log_count() {
   grep -c "Recording started:" "$APP_LOG_PATH" 2>/dev/null || true
 }
 
+quillui_solderscope_snapshot_saved_log_count() {
+  grep -c "Snapshot saved:" "$APP_LOG_PATH" 2>/dev/null || true
+}
+
 quillui_solderscope_click_toolbar_button() {
   local window_x="$1"
   local window_y="$2"
@@ -573,6 +577,7 @@ case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
     ;;
 esac
 SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT=0
+SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT=0
 if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
   if [[ -z "$SOLDERSCOPE_DESKTOP_DIR" ]]; then
     echo "Cannot drive SolderScope snapshot: desktop directory could not be resolved" >&2
@@ -580,6 +585,7 @@ if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
   fi
   mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
   SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
+  SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT="$(quillui_solderscope_snapshot_saved_log_count)"
 fi
 
 SOLDERSCOPE_DRIVE_RECORDING=0
@@ -720,10 +726,12 @@ quillui_drive_solderscope_interaction() {
     local snapshot_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_RETRY_INTERVAL_TICKS:-10}"
     quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
+    local snapshot_saved_log_count="$SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"
     local attempt
     for ((attempt = 1; attempt <= snapshot_attempts; attempt += 1)); do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
-      if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+      snapshot_saved_log_count="$(quillui_solderscope_snapshot_saved_log_count)"
+      if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT )); then
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
         break
       fi
@@ -740,7 +748,7 @@ quillui_drive_solderscope_interaction() {
       fi
       sleep "$snapshot_tick_seconds"
     done
-    if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+    if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT )); then
       echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "$ROOT_DIR/scripts/swiftpm-profile-auto-layout.sh"
+source "$ROOT_DIR/scripts/swiftpm-profile-local-imports.sh"
 SOURCE_DIR="${QUILLUI_PROFILE_SOURCE_DIR:-}"
 WORK_ROOT="${QUILLUI_PROFILE_WORKDIR:-}"
 PRODUCT_NAME="${QUILLUI_PROFILE_PRODUCT_NAME:-generic-swiftui-linux}"
@@ -27,15 +28,14 @@ if [[ "$BACKEND_FACADE" == "qt" && -z "${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENT
   echo "generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
   exit 64
 fi
-SOURCE_COPY="$WORK_ROOT/source"
-LOWERED_COPY="$WORK_ROOT/lowered"
-PACKAGE_DIR="$WORK_ROOT/package"
+SOURCE_COPY="$WORK_ROOT/source"; LOWERED_COPY="$WORK_ROOT/lowered"; PACKAGE_DIR="$WORK_ROOT/package"
 rm -rf "$WORK_ROOT"
 mkdir -p "$SOURCE_COPY"
 cp -R "$SOURCE_DIR"/. "$SOURCE_COPY"/
 "$ROOT_DIR/scripts/run-quill-source-lower.sh" "$SOURCE_COPY" "$LOWERED_COPY"
 "$ROOT_DIR/scripts/lower-swiftui-source-for-linux.sh" "$LOWERED_COPY"
 quillui_profile_maybe_derive_swiftpm_layout "$ROOT_DIR" "$SOURCE_DIR" "$WORK_ROOT" "$ENTRY_TYPE" "$TARGET_NAME"
+quillui_profile_maybe_discover_local_import_dependencies "$ROOT_DIR" "$LOWERED_COPY" "$WORK_ROOT"
 QUILLUI_GENERATED_SOURCES_DIR="$LOWERED_COPY" \
 QUILLUI_GENERATED_SOURCE_COUNT_DIR="$SOURCE_COPY" \
 QUILLUI_GENERATED_WORKDIR="$WORK_ROOT" \
