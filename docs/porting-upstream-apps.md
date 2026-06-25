@@ -69,9 +69,11 @@ the **mirror marathon** (UI, design system).
 
 ## 3. The vendor recipe (the WireGuard pattern)
 
-1. **Fetch into `.upstream/`** (gitignored). Add a `fetch_repo <name> <url>` case
-   to `scripts/fetch-upstream.sh` and include `<name>` in the default fetch set
-   so **CI populates it**.
+1. **Fetch into `.upstream/`** (gitignored), or pin small public app sources
+   under `vendor/apps/<name>` when clone time dominates CI. Add a
+   `fetch_repo <name> <url>` case to `scripts/fetch-upstream.sh` and include
+   `<name>` in the default fetch set so **CI populates it**. The fetch helper
+   prefers `vendor/apps/<name>` unless `QUILLUI_REFRESH_VENDORED_SOURCE=1`.
 2. **Present-gate** so a fresh clone still resolves without `.upstream/`:
    ```swift
    let xPresent = upstreamPresent(".upstream/<name>/.../Sources/<Module>")

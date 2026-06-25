@@ -3645,6 +3645,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
             encoding: .utf8
         )
+        let vendoredSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            encoding: .utf8
+        )
         let workflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
             encoding: .utf8
@@ -3835,8 +3839,15 @@ struct SourceHygieneTests {
         #expect(enchantedSourceResolver.contains("vendor/apps/enchanted/Enchanted"))
         #expect(enchantedSourceResolver.contains("QUILL_CHAT_DIR/Enchanted"))
         #expect(enchantedSourceResolver.contains(".upstream/enchanted"))
+        #expect(fetchUpstream.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
+        #expect(fetchUpstream.contains("quillui_materialize_vendored_app_source \"$ROOT_DIR\" \"$name\" \"$dest\""))
+        #expect(fetchUpstream.contains("quillui_has_vendored_app_source \"$ROOT_DIR\" enchanted"))
         #expect(fetchUpstream.contains("using vendored enchanted source at vendor/apps/enchanted"))
         #expect(fetchUpstream.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(vendoredSource.contains("quillui_materialize_vendored_app_source()"))
+        #expect(vendoredSource.contains("vendor/apps/$name"))
+        #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(vendoredSource.contains("refusing to materialize vendored $name outside .upstream"))
         #expect(enchantedWorkflow.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
         #expect(enchantedWorkflow.contains("--source-dir \"$ENCHANTED_APP_DIR\""))
         #expect(!enchantedWorkflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))

@@ -24,6 +24,7 @@ UPSTREAM_DIR="$ROOT_DIR/.upstream"
 mkdir -p "$UPSTREAM_DIR"
 
 source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+source "$ROOT_DIR/scripts/quillui-vendored-source.sh"
 
 quillui_truthy() {
     case "${1:-}" in
@@ -41,6 +42,10 @@ fetch_repo() {
     local url="$2"
     local ref="${3:-}"
     local dest="$UPSTREAM_DIR/$name"
+
+    if quillui_materialize_vendored_app_source "$ROOT_DIR" "$name" "$dest"; then
+        return
+    fi
 
     if [[ -d "$dest/.git" ]]; then
         if quillui_trust_upstream_cache; then
@@ -2958,7 +2963,7 @@ fi
 for name in "${want[@]}"; do
     case "$name" in
         enchanted)
-            if [[ -d "$ROOT_DIR/vendor/apps/enchanted/Enchanted" ]] && ! quillui_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
+            if quillui_has_vendored_app_source "$ROOT_DIR" enchanted && ! quillui_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
                 echo "==> using vendored enchanted source at vendor/apps/enchanted"
             else
                 fetch_repo enchanted https://github.com/gluonfield/enchanted.git
