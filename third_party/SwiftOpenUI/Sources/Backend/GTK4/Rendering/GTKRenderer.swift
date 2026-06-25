@@ -863,6 +863,50 @@ private final class GTKMultilineTextFieldBindingBox {
     }
 }
 
+private final class GTKTextInputFocusTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+        g_object_ref(gpointer(widget))
+    }
+
+    deinit {
+        g_object_unref(gpointer(widget))
+    }
+}
+
+private func gtkFocusTextInputWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_focusable(widget, 1)
+    _ = gtk_swift_root_grab_focus(widget)
+}
+
+private func gtkInstallTextInputFocusGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    target: UnsafeMutablePointer<GtkWidget>
+) {
+    let gesture = gtk_gesture_click_new()!
+    let targetBox = Unmanaged.passRetained(GTKTextInputFocusTarget(widget: target)).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let target = Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).takeUnretainedValue()
+            gtkFocusTextInputWidget(target.widget)
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        targetBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
 private func gtkTextBufferString(_ buffer: UnsafeMutablePointer<GtkTextBuffer>) -> String {
     var start = GtkTextIter()
     var end = GtkTextIter()
@@ -951,8 +995,11 @@ private func gtkCreateMultilineTextField(
     }
 
     let overlay = gtk_overlay_new()!
+    gtk_widget_set_can_focus(overlay, 0)
+    gtk_widget_set_focusable(overlay, 0)
     gtk_overlay_set_child(OpaquePointer(overlay), widgetFromOpaque(rendered))
     gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)
+    gtkInstallTextInputFocusGesture(on: overlay, target: textView)
     return opaqueFromWidget(overlay)
 }
 
