@@ -117,10 +117,24 @@ quillui_functional_paste_text() {
 
 quillui_functional_enter_text() {
   local text="$1"
+  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-auto}"
 
-  if [[ "${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-type}" == "paste" ]] \
-      && quillui_functional_paste_text "$text"; then
-    return
+  case "$input_mode" in
+    auto|paste)
+      if quillui_functional_paste_text "$text"; then
+        return
+      fi
+      ;;
+    type)
+      ;;
+    *)
+      echo "Unsupported QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE='$input_mode' (expected auto, paste, or type)" >&2
+      return 64
+      ;;
+  esac
+
+  if [[ "$input_mode" == "paste" ]]; then
+    return 1
   fi
 
   quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$text"
@@ -599,6 +613,100 @@ print(f"{window_x + round(target[0])} {window_y + round(target[1])}")
 PY
 }
 
+quill_chat_functional_detected_send_click_point() {
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_SEND_PROBE:-$OUTPUT_DIR/quill-chat-functional-send-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+detail_left = divider_x + 1
+detail_width = right - detail_left + 1
+
+search_left = max(detail_left, right - int(detail_width * 0.18))
+search_right = max(search_left + 1, right - 6)
+search_top = max(top, bottom - min(220, int(app_height * 0.24)))
+search_bottom = max(search_top + 1, bottom - 6)
+
+def dark(x: int, y: int) -> bool:
+    r, g, b = image.rgb(x, y)
+    return r + g + b < 360
+
+columns: list[tuple[int, int, int, int]] = []
+for x in range(search_left, search_right + 1):
+    ys = [y for y in range(search_top, search_bottom + 1) if dark(x, y)]
+    if len(ys) >= 2:
+        columns.append((x, min(ys), max(ys), len(ys)))
+
+if not columns:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int, int, int]]] = []
+current = [columns[0]]
+for column in columns[1:]:
+    if column[0] <= current[-1][0] + 12:
+        current.append(column)
+    else:
+        groups.append(current)
+        current = [column]
+groups.append(current)
+
+clusters: list[tuple[float, float, int, int, int]] = []
+for group in groups:
+    start = group[0][0]
+    end = group[-1][0]
+    width = end - start + 1
+    total = sum(count for _, _, _, count in group)
+    min_y = min(item[1] for item in group)
+    max_y = max(item[2] for item in group)
+    height = max_y - min_y + 1
+    if total < 6 or width < 4 or width > 64 or height < 5 or height > 64:
+        continue
+    center_x = sum(x * count for x, _, _, count in group) / total
+    center_y = sum(((min_y + max_y) / 2) * count for _, min_y, max_y, count in group) / total
+    if center_y < bottom - 180:
+        continue
+    clusters.append((center_x, center_y, width, height, total))
+
+if not clusters:
+    raise SystemExit(0)
+
+target = max(clusters, key=lambda item: item[0])
+print(f"{window_x + round(target[0])} {window_y + round(target[1])}")
+PY
+}
+
 quill_chat_functional_composer_click_points() {
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     {
@@ -748,6 +856,7 @@ quill_chat_functional_send_attempt() {
   local submit_method="${3:-return}"
   local attachment_x
   local attachment_y
+  local detected_send_point
   local send_x
   local send_y
   local should_clear_before_type=1
@@ -789,6 +898,10 @@ quill_chat_functional_send_attempt() {
   if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
     send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
+    detected_send_point="$(quill_chat_functional_detected_send_click_point | head -n 1 || true)"
+    if [[ -n "$detected_send_point" ]]; then
+      read -r send_x send_y <<< "$detected_send_point"
+    fi
     quillui_functional_refocus_window
     echo "functional-check: send=${send_x},${send_y}" >&2
     quillui_functional_click_at "$send_x" "$send_y"
