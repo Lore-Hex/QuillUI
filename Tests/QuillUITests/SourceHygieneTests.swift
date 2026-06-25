@@ -53,6 +53,7 @@ struct SourceHygieneTests {
     @Test("Package manifest can disable upstream app graphs without disabling vendored packages")
     func packageManifestCanDisableUpstreamAppGraphsWithoutDisablingVendoredPackages() throws {
         let manifest = try packageSource("Package.swift")
+        let linuxCI = try packageSource(".github/workflows/linux-ci.yml")
 
         #expect(manifest.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
         #expect(manifest.contains("func pathPresent(_ relativePath: String) -> Bool"))
@@ -61,6 +62,12 @@ struct SourceHygieneTests {
         #expect(manifest.contains("return pathPresent(relativePath)"))
         #expect(manifest.contains("if pathPresent(path)"))
         #expect(!manifest.contains("if upstreamPresent(path)"))
+
+        #expect(linuxCI.contains("Swift tests\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("Build QuillUIGtk facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("Build QuillUIQt facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("Generic SwiftUI to Qt backend smoke\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
     }
 
     @Test("Package manifest uses frontend-compatible default isolation flags")
