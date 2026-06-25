@@ -4868,7 +4868,7 @@ struct SourceHygieneTests {
         #expect(renderer.contains("if axis.contains(.vertical) {\n            return gtkCreateMultilineTextField(title: title, text: text)\n        }"))
         #expect(renderer.contains("private final class GTKMultilineTextFieldBindingBox"))
         #expect(renderer.contains("gtk_text_view_set_accepts_tab(textViewPtr, 0)"))
-        #expect(renderer.contains("gtkInstallTextInputSubmitKeyController(on: textView, submitAction: submitAction)"))
+        #expect(renderer.contains("gtkInstallTextInputKeyController(\n        on: textView,\n        submitAction: environment.submitAction,\n        keyPressActions: environment.keyPressActions\n    )"))
         #expect(renderer.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)"))
         #expect(renderer.contains("let buffer = gtk_text_view_get_buffer(textViewPtr)!\n        let box = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(binding, value: newText)\n        }).toOpaque()"))
         #expect(renderer.contains("return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()"))
@@ -4945,6 +4945,27 @@ struct SourceHygieneTests {
         #expect(gtkListRow.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), contentWidget)"))
         #expect(gtkListRow.contains("CairoPaintContext(cr: cr)"))
         #expect(gtkListRow.contains("quill-paint-list-row"))
+    }
+
+    @Test("SwiftUI onKeyPress is real GTK text input behavior, not an inert shim")
+    func swiftUIOnKeyPressRendersThroughGTKTextInputs() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let primitive = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/OnKeyPressModifier.swift")
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(!compatibility.contains("func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self"))
+        #expect(primitive.contains("public enum KeyPressResult"))
+        #expect(primitive.contains("public struct OnKeyPressView<Content: View>: View, PrimitiveView"))
+        #expect(primitive.contains("public func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> OnKeyPressView<Self>"))
+        #expect(primitive.contains("public var keyPressActions: [KeyPressAction]"))
+        #expect(renderer.contains("private func gtkKeyEquivalent(for keyval: guint) -> KeyEquivalent?"))
+        #expect(renderer.contains("private final class GTKTextInputKeyControllerBox"))
+        #expect(renderer.contains("for keyPressAction in keyPressActions.reversed() where keyPressAction.key == key"))
+        #expect(renderer.contains("if keyPressAction.handler() == .handled"))
+        #expect(renderer.contains("extension OnKeyPressView: GTKRenderable, GTKDescribable"))
+        #expect(renderer.contains("env.keyPressActions.append(KeyPressAction(key: key, handler: action))"))
+        #expect(renderer.contains("keyPressActions: environment.keyPressActions"))
+        #expect(renderer.contains("keyPressActions: getCurrentEnvironment().keyPressActions"))
     }
 
     @Test("Enchanted SF Symbols map to bundled Material glyphs")

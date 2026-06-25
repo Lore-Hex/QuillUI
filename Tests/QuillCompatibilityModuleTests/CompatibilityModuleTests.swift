@@ -403,7 +403,10 @@ struct CompatibilityModuleTests {
         let verticalTextField = TextField("Message", text: .constant(""), axis: .vertical)
         #expect(verticalTextField.axis == .vertical)
         #expect(TextField("Name", text: .constant("")).axis == .horizontal)
-        _ = verticalTextField
+        let keyedTextField = verticalTextField
+            .onKeyPress(.downArrow) { .handled }
+        #expect(keyedTextField.key == .downArrow)
+        _ = keyedTextField
             .lineLimit(1...5)
         _ = MenuBarExtra {
             Button("Open") {}

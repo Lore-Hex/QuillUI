@@ -704,11 +704,6 @@ public struct ProgressViewStyle: Sendable {
     public static let linear = ProgressViewStyle()
 }
 
-public enum KeyPressResult: Sendable {
-    case handled
-    case ignored
-}
-
 public struct ScrollTargetBehavior: Sendable {
     public init() {}
     public static let viewAligned = ScrollTargetBehavior()
@@ -2745,12 +2740,6 @@ public extension View {
             message: "focusEffectDisabled is preserved as focus-effect metadata on Linux."
         )
         return FocusEffectDisabledView(content: self, disabled: disabled)
-    }
-
-    func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self {
-        _ = key
-        _ = action
-        return self
     }
 
     func glassEffect(_ effect: GlassEffect, in shape: GlassEffectShape) -> Self {

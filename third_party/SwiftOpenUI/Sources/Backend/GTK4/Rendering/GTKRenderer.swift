@@ -232,33 +232,88 @@ private let gtkTextInputSubmitActivateHandler: @convention(c) (gpointer?, gpoint
     Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
 }
 
-private let gtkTextInputSubmitKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+private func gtkKeyEquivalent(for keyval: guint) -> KeyEquivalent? {
     switch keyval {
     case 0xff0d, 0xff8d:
-        guard let userData else { return 0 }
-        Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-        return 1
+        return .return
+    case 0xff09, 0xfe20:
+        return .tab
+    case 0xff52:
+        return .upArrow
+    case 0xff54:
+        return .downArrow
+    case 0xff51:
+        return .leftArrow
+    case 0xff53:
+        return .rightArrow
+    case 0xff1b:
+        return .escape
+    case 0xffff:
+        return .deleteForward
+    case 0xff08:
+        return .delete
+    case 0x20:
+        return .space
     default:
-        return 0
+        guard let scalar = UnicodeScalar(UInt32(keyval)) else { return nil }
+        return KeyEquivalent(Character(scalar))
     }
 }
 
-private func gtkInstallTextInputSubmitKeyController(
-    on widget: UnsafeMutablePointer<GtkWidget>,
-    submitAction: SubmitAction
-) {
-    let submit = {
-        gtkPerformSubmitAction(submitAction)
+private final class GTKTextInputKeyControllerBox {
+    let submitAction: SubmitAction?
+    let keyPressActions: [KeyPressAction]
+
+    init(submitAction: SubmitAction?, keyPressActions: [KeyPressAction]) {
+        self.submitAction = submitAction
+        self.keyPressActions = keyPressActions
     }
+
+    func handle(keyval: guint) -> gboolean {
+        if let key = gtkKeyEquivalent(for: keyval) {
+            for keyPressAction in keyPressActions.reversed() where keyPressAction.key == key {
+                gtkFlushPendingTextBindingUpdate()
+                if keyPressAction.handler() == .handled {
+                    return 1
+                }
+            }
+        }
+
+        switch keyval {
+        case 0xff0d, 0xff8d:
+            guard let submitAction else { return 0 }
+            gtkPerformSubmitAction(submitAction)
+            return 1
+        default:
+            return 0
+        }
+    }
+}
+
+private let gtkTextInputKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+    guard let userData else { return 0 }
+    return Unmanaged<GTKTextInputKeyControllerBox>.fromOpaque(userData).takeUnretainedValue().handle(keyval: keyval)
+}
+
+private func gtkInstallTextInputKeyController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    submitAction: SubmitAction?,
+    keyPressActions: [KeyPressAction]
+) {
+    guard submitAction != nil || !keyPressActions.isEmpty else { return }
+
     let keyController = gtk_swift_key_capture_controller()!
-    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
+    let keyBox = Unmanaged.passRetained(GTKTextInputKeyControllerBox(
+        submitAction: submitAction,
+        keyPressActions: keyPressActions
+    )).toOpaque()
     g_signal_connect_data(
         gpointer(keyController), "key-pressed",
-        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
+        unsafeBitCast(gtkTextInputKeyPressedHandler, to: GCallback.self),
         keyBox,
         { data, _ in
             guard let data else { return }
-            Unmanaged<ClosureBox>.fromOpaque(data).release()
+            Unmanaged<GTKTextInputKeyControllerBox>.fromOpaque(data).release()
         },
         GConnectFlags(rawValue: 0)
     )
@@ -268,7 +323,8 @@ private func gtkInstallTextInputSubmitKeyController(
 private func gtkWireTextInputSubmit(
     widget: UnsafeMutablePointer<GtkWidget>,
     signalTarget: gpointer,
-    submitAction: SubmitAction
+    submitAction: SubmitAction,
+    keyPressActions: [KeyPressAction] = []
 ) {
     let submit = {
         gtkPerformSubmitAction(submitAction)
@@ -286,7 +342,11 @@ private func gtkWireTextInputSubmit(
         GConnectFlags(rawValue: 0)
     )
 
-    gtkInstallTextInputSubmitKeyController(on: widget, submitAction: submitAction)
+    gtkInstallTextInputKeyController(
+        on: widget,
+        submitAction: submitAction,
+        keyPressActions: keyPressActions
+    )
 }
 
 let gtkSwiftInheritedTextInputForegroundMarker = "gtk-swift-inherited-text-input-foreground"
@@ -860,9 +920,12 @@ private func gtkCreateMultilineTextField(
         GConnectFlags(rawValue: 0)
     )
 
-    if let submitAction = getCurrentEnvironment().submitAction {
-        gtkInstallTextInputSubmitKeyController(on: textView, submitAction: submitAction)
-    }
+    let environment = getCurrentEnvironment()
+    gtkInstallTextInputKeyController(
+        on: textView,
+        submitAction: environment.submitAction,
+        keyPressActions: environment.keyPressActions
+    )
 
     let scrolled = gtk_scrolled_window_new()!
     gtk_scrolled_window_set_policy(OpaquePointer(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
@@ -976,12 +1039,20 @@ extension TextField: GTKRenderable, GTKDescribable {
             useQuillPaintTextField = true
         }
 
-        // Wire onSubmit: GtkEntry fires "activate" on Enter key
-        if let submitAction = getCurrentEnvironment().submitAction {
+        // Wire keyboard actions: GtkEntry fires "activate" on Enter key.
+        let environment = getCurrentEnvironment()
+        if let submitAction = environment.submitAction {
             gtkWireTextInputSubmit(
                 widget: entry,
                 signalTarget: gpointer(entry),
-                submitAction: submitAction
+                submitAction: submitAction,
+                keyPressActions: environment.keyPressActions
+            )
+        } else {
+            gtkInstallTextInputKeyController(
+                on: entry,
+                submitAction: nil,
+                keyPressActions: environment.keyPressActions
             )
         }
 
@@ -3178,6 +3249,28 @@ extension OnSubmitView: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.submitAction = SubmitAction(handler: action)
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return gtkRenderView(content)
+    }
+}
+
+// MARK: - onKeyPress GTK extension
+
+extension OnKeyPressView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "OnKeyPressView",
+            props: .text(GTK4TextDescriptor(content: String(key.character))),
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.keyPressActions.append(KeyPressAction(key: key, handler: action))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
@@ -5822,12 +5915,20 @@ extension SecureField: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
-        // Wire onSubmit action from environment (same as TextField)
-        if let submitAction = getCurrentEnvironment().submitAction {
+        // Wire keyboard actions from environment (same as TextField).
+        let environment = getCurrentEnvironment()
+        if let submitAction = environment.submitAction {
             gtkWireTextInputSubmit(
                 widget: entry,
                 signalTarget: gpointer(entry),
-                submitAction: submitAction
+                submitAction: submitAction,
+                keyPressActions: environment.keyPressActions
+            )
+        } else {
+            gtkInstallTextInputKeyController(
+                on: entry,
+                submitAction: nil,
+                keyPressActions: environment.keyPressActions
             )
         }
 
@@ -5891,6 +5992,12 @@ extension TextEditor: GTKRenderable, GTKDescribable {
                 Unmanaged<StringClosureBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
+        )
+
+        gtkInstallTextInputKeyController(
+            on: textView,
+            submitAction: nil,
+            keyPressActions: getCurrentEnvironment().keyPressActions
         )
 
         let scrolled = gtk_scrolled_window_new()!
