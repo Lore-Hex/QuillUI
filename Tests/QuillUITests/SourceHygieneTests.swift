@@ -1726,6 +1726,7 @@ struct SourceHygieneTests {
         #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
         #expect(upstreamFetch.contains("using cached $name"))
         #expect(upstreamFetch.contains("reset_repo_to_commit"))
+        #expect(upstreamFetch.contains("want=(enchanted netnewswire wireguard icecubes solderscope)"))
         #expect(!workflows.contains("uses: actions/checkout@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))
