@@ -1036,6 +1036,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_SETTLE_SLEEP"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_CLEANUP_DEADLINE"))
         #expect(functionalScript.contains("quillui_functional_xdotool key --clearmodifiers ctrl+v"))
+        #expect(functionalScript.contains("kill \"$clipboard_pid\" 2>/dev/null || true\n      wait \"$clipboard_pid\" 2>/dev/null || true\n      return 1"))
+        #expect(functionalScript.contains("wait \"$clipboard_pid\"\n    return $?"))
         #expect(functionalScript.contains("quillui_functional_refocus_window()"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP"))

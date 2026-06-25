@@ -94,9 +94,11 @@ quillui_functional_paste_text() {
     done
     if kill -0 "$clipboard_pid" 2>/dev/null; then
       kill "$clipboard_pid" 2>/dev/null || true
+      wait "$clipboard_pid" 2>/dev/null || true
+      return 1
     fi
-    wait "$clipboard_pid" 2>/dev/null || true
-    return 0
+    wait "$clipboard_pid"
+    return $?
   fi
 
   kill "$clipboard_pid" 2>/dev/null || true
