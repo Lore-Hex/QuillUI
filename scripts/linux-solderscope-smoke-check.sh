@@ -40,7 +40,19 @@ esac
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
+quillui_solderscope_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [[ ! -d "$UPSTREAM_DIR" ]]; then
+  if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRED:-0}"; then
+    echo "SolderScope smoke requires upstream source at $UPSTREAM_DIR" >&2
+    echo "Run scripts/fetch-upstream.sh solderscope before invoking this CI smoke." >&2
+    exit 66
+  fi
   echo "Skipping SolderScope launch smoke; upstream not found at $UPSTREAM_DIR"
   exit 0
 fi

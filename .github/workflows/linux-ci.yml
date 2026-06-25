@@ -171,6 +171,7 @@ jobs:
       - name: SolderScope GTK launch smoke
         env:
           QUILLUI_SOLDERSCOPE: "1"
+          QUILLUI_SOLDERSCOPE_REQUIRED: "1"
         run: scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png
 
       # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).

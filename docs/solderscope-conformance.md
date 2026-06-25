@@ -9,15 +9,18 @@ parallelized to the swarm via the issues below.
 
 | Rung | State | Work |
 |---|---|---|
-| 1. Compiles unmodified | **Build green when fetched** | `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step. The dedicated SolderScope Linux CI fetches upstream, sets `QUILLUI_SOLDERSCOPE=1`, and gates the app-specific API suites. |
+| 1. Compiles unmodified | **Build green when fetched** | `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step. The dedicated SolderScope Linux CI fetches upstream, sets `QUILLUI_SOLDERSCOPE=1`, requires source with `QUILLUI_SOLDERSCOPE_REQUIRED=1`, and gates the app-specific API suites. |
 | 2. Launches + renders + input | **GTK launch/input proven** | Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and `Tests/QuillUITests/SolderScopeChromeConformanceTests.swift` are green. Remaining: mac-reference visual delta closure and broader real-device gesture coverage. |
 | 3. Live camera | **Software path proven** | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera are CI-gated. `scripts/linux-v4l2-loopback-smoke.sh` covers the same V4L2 capture path with a loopback camera on hosts that can load the kernel module. Remaining: real USB microscope/device matrix coverage. |
 | 4. Recording/snapshots | **CI-gated real encoders** | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. CI splits capture into a snapshot/freeze smoke and a recording-only smoke; the snapshot/freeze pass verifies a new snapshot file, verifies that the hosted camera frame remains visible while frozen, and detects the top-right `FROZEN` badge. The recording pass waits for SolderScope's app-level `Recording started`/`Recording saved` logs and rejects a lingering `REC` badge. Remaining: output-directory controls and more real-hardware toolbar/menu coverage. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once real-hardware coverage is available |
 
-Wire it: `scripts/fetch-upstream.sh solderscope` → gated target `QuillSolderScope`
-(inert in CI). Measure: `swift build --scratch-path .build-linux --disable-index-store
---target QuillSolderScope`.
+Wire it: `scripts/fetch-upstream.sh solderscope` materializes the vendored or
+upstream source under `.upstream/solderscope/SolderScope` → gated target
+`QuillSolderScope`. Dedicated SolderScope CI and the broad Linux launch smoke
+set `QUILLUI_SOLDERSCOPE_REQUIRED=1`, so a missing materialized app is a hard
+failure rather than a skipped smoke. Measure: `swift build --scratch-path
+.build-linux --disable-index-store --target QuillSolderScope`.
 
 ## Decisions log
 
