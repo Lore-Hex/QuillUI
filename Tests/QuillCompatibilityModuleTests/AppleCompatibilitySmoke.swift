@@ -293,6 +293,10 @@ enum AppleCompatibilitySmoke {
     }
 
     struct AppKitTextViewEditingResult {
+        var defaultTextSystemIsWired: Bool
+        var replacementTextStorageRewiresLayoutManager: Bool
+        var replacementLayoutManagerRewiresTextSystem: Bool
+        var replacementTextContainerRewiresLayoutManager: Bool
         var replaceUpdatesStringAndStorage: Bool
         var insertUsesSelectedRange: Bool
         var attributedInsertUsesStringContents: Bool
@@ -2065,7 +2069,48 @@ enum AppleCompatibilitySmoke {
     static func runAppKitTextViewEditingSmoke() -> AppKitTextViewEditingResult {
         let selectedRangeSentinel = Foundation.NSNotFound
 
-        let replaceView = NSTextView()
+        let customContainer = AppKit.NSTextContainer(size: NSSize(width: 320, height: 240))
+        let wiredView = AppKit.NSTextView(
+            frame: NSRect(x: 0, y: 0, width: 320, height: 240),
+            textContainer: customContainer
+        )
+        let defaultTextSystemIsWired =
+            wiredView.textStorage?.layoutManagers.contains { $0 === wiredView.layoutManager } == true &&
+            wiredView.layoutManager?.textStorage === wiredView.textStorage &&
+            wiredView.layoutManager?.textContainers.contains { $0 === wiredView.textContainer } == true &&
+            customContainer.layoutManager === wiredView.layoutManager
+
+        let previousStorage = wiredView.textStorage
+        let replacementStorage = AppKit.NSTextStorage(string: "replacement")
+        wiredView.textStorage = replacementStorage
+        let replacementTextStorageRewiresLayoutManager =
+            replacementStorage.layoutManagers.contains { $0 === wiredView.layoutManager } &&
+            wiredView.layoutManager?.textStorage === replacementStorage &&
+            previousStorage?.layoutManagers.contains { $0 === wiredView.layoutManager } == false
+
+        let previousLayoutManager = wiredView.layoutManager
+        let replacementLayoutManager = AppKit.NSLayoutManager()
+        wiredView.layoutManager = replacementLayoutManager
+        let previousLayoutManagerDetached = previousLayoutManager.map { previous in
+            !replacementStorage.layoutManagers.contains { $0 === previous } &&
+            !previous.textContainers.contains { $0 === customContainer }
+        } ?? false
+        let replacementLayoutManagerRewiresTextSystem =
+            replacementStorage.layoutManagers.contains { $0 === replacementLayoutManager } &&
+            previousLayoutManagerDetached &&
+            replacementLayoutManager.textStorage === replacementStorage &&
+            replacementLayoutManager.textContainers.contains { $0 === customContainer } &&
+            customContainer.layoutManager === replacementLayoutManager
+
+        let previousContainer = wiredView.textContainer
+        let replacementContainer = AppKit.NSTextContainer(size: NSSize(width: 640, height: 480))
+        wiredView.textContainer = replacementContainer
+        let replacementTextContainerRewiresLayoutManager =
+            replacementContainer.layoutManager === wiredView.layoutManager &&
+            wiredView.layoutManager?.textContainers.contains { $0 === replacementContainer } == true &&
+            !(previousContainer?.layoutManager === wiredView.layoutManager)
+
+        let replaceView = AppKit.NSTextView()
         let replaceDelegate = TextViewDelegateProbe()
         replaceView.delegate = replaceDelegate
         replaceView.string = "Hello world"
@@ -2078,7 +2123,7 @@ enum AppleCompatibilitySmoke {
             replaceDelegate.changeNotifications == 1 &&
             replaceDelegate.changedTextView === replaceView
 
-        let insertView = NSTextView()
+        let insertView = AppKit.NSTextView()
         insertView.string = "Hello world"
         insertView.setSelectedRange(NSRange(location: 6, length: 5))
         insertView.insertText("Quill", replacementRange: NSRange(location: selectedRangeSentinel, length: 0))
@@ -2086,7 +2131,7 @@ enum AppleCompatibilitySmoke {
             insertView.string == "Hello Quill" &&
             insertView.selectedRange == NSRange(location: 11, length: 0)
 
-        let attributedInsertView = NSTextView()
+        let attributedInsertView = AppKit.NSTextView()
         attributedInsertView.string = "Say "
         attributedInsertView.setSelectedRange(NSRange(location: 4, length: 0))
         attributedInsertView.insertText(
@@ -2097,7 +2142,7 @@ enum AppleCompatibilitySmoke {
             attributedInsertView.string == "Say hello" &&
             attributedInsertView.selectedRange == NSRange(location: 9, length: 0)
 
-        let vetoView = NSTextView()
+        let vetoView = AppKit.NSTextView()
         let vetoDelegate = TextViewDelegateProbe()
         vetoDelegate.allowsChanges = false
         vetoView.delegate = vetoDelegate
@@ -2108,7 +2153,7 @@ enum AppleCompatibilitySmoke {
             vetoDelegate.shouldChangeRequests == 1 &&
             vetoDelegate.changeNotifications == 0
 
-        let callbackView = NSTextView()
+        let callbackView = AppKit.NSTextView()
         let callbackDelegate = TextViewDelegateProbe()
         callbackView.delegate = callbackDelegate
         callbackView.string = "abcdef"
@@ -2121,6 +2166,10 @@ enum AppleCompatibilitySmoke {
             callbackDelegate.selectionTextView === callbackView
 
         return AppKitTextViewEditingResult(
+            defaultTextSystemIsWired: defaultTextSystemIsWired,
+            replacementTextStorageRewiresLayoutManager: replacementTextStorageRewiresLayoutManager,
+            replacementLayoutManagerRewiresTextSystem: replacementLayoutManagerRewiresTextSystem,
+            replacementTextContainerRewiresLayoutManager: replacementTextContainerRewiresLayoutManager,
             replaceUpdatesStringAndStorage: replaceUpdatesStringAndStorage,
             insertUsesSelectedRange: insertUsesSelectedRange,
             attributedInsertUsesStringContents: attributedInsertUsesStringContents,

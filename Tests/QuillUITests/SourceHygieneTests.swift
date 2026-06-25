@@ -50,6 +50,19 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Package manifest can disable upstream app graphs without disabling vendored packages")
+    func packageManifestCanDisableUpstreamAppGraphsWithoutDisablingVendoredPackages() throws {
+        let manifest = try packageSource("Package.swift")
+
+        #expect(manifest.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
+        #expect(manifest.contains("func pathPresent(_ relativePath: String) -> Bool"))
+        #expect(manifest.contains("func upstreamPresent(_ relativePath: String) -> Bool"))
+        #expect(manifest.contains("guard !quillUIDisableUpstreamAppGraphs else"))
+        #expect(manifest.contains("return pathPresent(relativePath)"))
+        #expect(manifest.contains("if pathPresent(path)"))
+        #expect(!manifest.contains("if upstreamPresent(path)"))
+    }
+
     @Test("Package manifest uses frontend-compatible default isolation flags")
     func packageManifestUsesFrontendCompatibleDefaultIsolationFlags() throws {
         let root = try packageRoot()
@@ -774,6 +787,9 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-asn1/LICENSE.txt").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/LICENSE.txt").path))
+        // Vendored path packages keep the default graph offline; a root lockfile
+        // full of remote pins makes SwiftPM hydrate repositories we do not use.
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("Package.resolved").path))
         #expect(manifest.contains("func locatePackageRoot() -> String"))
         #expect(manifest.contains("fileManager.currentDirectoryPath"))
         #expect(manifest.contains("candidate.appendingPathComponent(\"Package.swift\")"))
@@ -1119,6 +1135,15 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift"),
             encoding: .utf8
         )
+        let appKitSmoke = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitSmoke/Smoke.swift"),
+            encoding: .utf8
+        )
+        let appKitSmokeRunner = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitSmokeRunner/main.swift"),
+            encoding: .utf8
+        )
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
@@ -1147,6 +1172,18 @@ struct SourceHygieneTests {
         #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
+        #expect(appKit.contains("private func quillWireTextSystem()"))
+        #expect(appKit.contains("textStorage.addLayoutManager(layoutManager)"))
+        #expect(appKit.contains("layoutManager.addTextContainer(textContainer)"))
+        #expect(appKit.contains("public func removeTextContainer(at index: Int)"))
+        #expect(appKit.contains("oldValue.removeTextContainer(at: oldIndex)"))
+        #expect(appKitSmoke.contains("func smokeTextSystemWiring() -> Bool"))
+        #expect(appKitSmoke.contains("replacementStorage.layoutManagers.contains { $0 === layoutManager }"))
+        #expect(appKitSmoke.contains("replacementLayoutManager.textStorage === replacementStorage"))
+        #expect(appKitSmoke.contains("replacementContainer.layoutManager === replacementLayoutManager"))
+        #expect(appKitSmoke.contains("smokeTextSystemWiring() &&"))
+        #expect(appKitSmokeRunner.contains("QuillAppKitSmoke.validate()"))
+        #expect(manifest.contains(".executable(name: \"quill-appkit-smoke\", targets: [\"QuillAppKitSmokeRunner\"])"))
         #expect(appKit.contains("open func performKeyEquivalent(with event: NSEvent) -> Bool"))
         #expect(appKit.contains("open func standardWindowButton(_ button: WindowButton) -> NSButton?"))
         #expect(appKit.contains("open class NSRunningApplication: NSObject"))

@@ -4282,9 +4282,34 @@ open class NSText: NSView {
 
 open class NSTextView: NSText {
     public static let didChangeSelectionNotification = Notification.Name("NSTextViewDidChangeSelectionNotification")
-    public var textStorage: NSTextStorage? = NSTextStorage(string: "")
-    public var layoutManager: NSLayoutManager? = NSLayoutManager()
-    public var textContainer: NSTextContainer? = NSTextContainer()
+    public var textStorage: NSTextStorage? = NSTextStorage(string: "") {
+        didSet {
+            if let oldValue, oldValue !== textStorage, let layoutManager {
+                oldValue.removeLayoutManager(layoutManager)
+            }
+            quillWireTextSystem()
+        }
+    }
+    public var layoutManager: NSLayoutManager? = NSLayoutManager() {
+        didSet {
+            if let oldValue, oldValue !== layoutManager {
+                textStorage?.removeLayoutManager(oldValue)
+                if let textContainer,
+                   let oldIndex = oldValue.textContainers.firstIndex(where: { $0 === textContainer }) {
+                    oldValue.removeTextContainer(at: oldIndex)
+                }
+            }
+            quillWireTextSystem()
+        }
+    }
+    public var textContainer: NSTextContainer? = NSTextContainer() {
+        didSet {
+            if let oldValue, oldValue !== textContainer, let oldIndex = layoutManager?.textContainers.firstIndex(where: { $0 === oldValue }) {
+                layoutManager?.removeTextContainer(at: oldIndex)
+            }
+            quillWireTextSystem()
+        }
+    }
     public var textContainerInset: NSSize = .zero
     open var allowsUndo: Bool = false
     open var isEditable: Bool = true
@@ -4342,10 +4367,23 @@ open class NSTextView: NSText {
     nonisolated public init(frame frameRect: NSRect, textContainer container: NSTextContainer?) {
         super.init(frame: frameRect)
         if let container { self.textContainer = container }
+        MainActor.assumeIsolated {
+            quillWireTextSystem()
+        }
     }
-    nonisolated public override init(frame frameRect: NSRect) { super.init(frame: frameRect) }
+    nonisolated public override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        MainActor.assumeIsolated {
+            quillWireTextSystem()
+        }
+    }
     public convenience init() { self.init(frame: .zero, textContainer: nil) }
-    nonisolated public required init?(coder: NSCoder) { super.init(frame: .zero) }
+    nonisolated public required init?(coder: NSCoder) {
+        super.init(frame: .zero)
+        MainActor.assumeIsolated {
+            quillWireTextSystem()
+        }
+    }
     /// Programmatic text-change hooks (compile-stubs). ConfTextView uses these to
     /// replace text + notify the layout/delegate.
     public func shouldChangeText(in affectedCharRange: NSRange, replacementString: String?) -> Bool { true }
@@ -4409,6 +4447,20 @@ open class NSTextView: NSText {
         replaceCharacters(in: range, with: replacement)
     }
 
+    private func quillWireTextSystem() {
+        guard let textStorage, let layoutManager, let textContainer else { return }
+        if !textStorage.layoutManagers.contains(where: { $0 === layoutManager }) {
+            textStorage.addLayoutManager(layoutManager)
+        } else if layoutManager.textStorage !== textStorage {
+            layoutManager.textStorage = textStorage
+        }
+        if !layoutManager.textContainers.contains(where: { $0 === textContainer }) {
+            layoutManager.addTextContainer(textContainer)
+        } else if textContainer.layoutManager !== layoutManager {
+            textContainer.layoutManager = layoutManager
+        }
+    }
+
     private func clampedTextRange(_ range: NSRange) -> NSRange {
         let textLength = (string as NSString).length
         guard range.location != NSNotFound else {
@@ -4437,6 +4489,10 @@ open class NSTextStorage: NSMutableAttributedString {
     public weak var delegate: NSTextStorageDelegate?
     public var layoutManagers: [NSLayoutManager] = []
     public func addLayoutManager(_ m: NSLayoutManager) {
+        guard !layoutManagers.contains(where: { $0 === m }) else {
+            m.textStorage = self
+            return
+        }
         layoutManagers.append(m)
         m.textStorage = self
     }
@@ -4475,8 +4531,19 @@ open class NSLayoutManager: NSObject, @unchecked Sendable {
     public weak var textStorage: NSTextStorage?
     public var textContainers: [NSTextContainer] = []
     public func addTextContainer(_ c: NSTextContainer) {
+        guard !textContainers.contains(where: { $0 === c }) else {
+            c.layoutManager = self
+            return
+        }
         textContainers.append(c)
         c.layoutManager = self
+    }
+    public func removeTextContainer(at index: Int) {
+        guard textContainers.indices.contains(index) else { return }
+        let container = textContainers.remove(at: index)
+        if container.layoutManager === self {
+            container.layoutManager = nil
+        }
     }
     public func glyphRange(for container: NSTextContainer) -> NSRange {
         _ = container

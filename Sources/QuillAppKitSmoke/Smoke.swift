@@ -16,7 +16,7 @@ import AppKit
 
 @MainActor
 final class SmokeWindowController: NSWindowController, NSWindowDelegate {
-    init() {
+    init(smoke _: Void) {
         let win = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 800, height: 600),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -122,6 +122,69 @@ func smokeFontManagerFallbacks() -> Bool {
 }
 
 @MainActor
+func smokeTextSystemWiring() -> Bool {
+    let originalContainer = NSTextContainer()
+    let textView = NSTextView(
+        frame: NSRect(x: 0, y: 0, width: 320, height: 180),
+        textContainer: originalContainer
+    )
+
+    guard let originalStorage = textView.textStorage,
+          let layoutManager = textView.layoutManager,
+          textView.textContainer === originalContainer else {
+        return false
+    }
+
+    let defaultWired =
+        originalStorage.layoutManagers.contains { $0 === layoutManager } &&
+        layoutManager.textStorage === originalStorage &&
+        layoutManager.textContainers.contains { $0 === originalContainer } &&
+        originalContainer.layoutManager === layoutManager
+
+    let replacementStorage = NSTextStorage(string: "replacement")
+    textView.textStorage = replacementStorage
+    let replacementStorageWired =
+        !originalStorage.layoutManagers.contains { $0 === layoutManager } &&
+        replacementStorage.layoutManagers.contains { $0 === layoutManager } &&
+        layoutManager.textStorage === replacementStorage
+
+    let replacementLayoutManager = NSLayoutManager()
+    textView.layoutManager = replacementLayoutManager
+    let replacementLayoutManagerWired =
+        !replacementStorage.layoutManagers.contains { $0 === layoutManager } &&
+        replacementStorage.layoutManagers.contains { $0 === replacementLayoutManager } &&
+        replacementLayoutManager.textStorage === replacementStorage &&
+        replacementLayoutManager.textContainers.contains { $0 === originalContainer } &&
+        originalContainer.layoutManager === replacementLayoutManager &&
+        !layoutManager.textContainers.contains { $0 === originalContainer }
+
+    let replacementContainer = NSTextContainer()
+    textView.textContainer = replacementContainer
+    let replacementContainerWired =
+        textView.textContainer === replacementContainer &&
+        originalContainer.layoutManager == nil &&
+        replacementContainer.layoutManager === replacementLayoutManager &&
+        replacementLayoutManager.textContainers.contains { $0 === replacementContainer } &&
+        !replacementLayoutManager.textContainers.contains { $0 === originalContainer }
+
+    replacementStorage.addLayoutManager(replacementLayoutManager)
+    replacementLayoutManager.addTextContainer(replacementContainer)
+    let storageAttachmentCount = replacementStorage.layoutManagers
+        .filter { $0 === replacementLayoutManager }
+        .count
+    let containerAttachmentCount = replacementLayoutManager.textContainers
+        .filter { $0 === replacementContainer }
+        .count
+
+    return defaultWired &&
+        replacementStorageWired &&
+        replacementLayoutManagerWired &&
+        replacementContainerWired &&
+        storageAttachmentCount == 1 &&
+        containerAttachmentCount == 1
+}
+
+@MainActor
 func smokeOpenPanelFallbacks() -> Bool {
     let panel = NSOpenPanel()
     let defaultsMatch =
@@ -175,7 +238,7 @@ final class SmokeAppDelegate: NSObject, NSApplicationDelegate {
     var windowController: SmokeWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let wc = SmokeWindowController()
+        let wc = SmokeWindowController(smoke: ())
         wc.contentViewController = SmokeViewController()
         wc.showWindow(nil)
         self.windowController = wc
@@ -197,6 +260,7 @@ public enum QuillAppKitSmoke {
         return smokeGeometryStringHelpers() &&
             smokeAppearanceMatching() &&
             smokeFontManagerFallbacks() &&
+            smokeTextSystemWiring() &&
             smokeOpenPanelFallbacks()
     }
 }

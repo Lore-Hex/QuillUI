@@ -18,6 +18,10 @@ import Foundation
 // Path resolution: SwiftPM can evaluate this manifest from the package root
 // or from a scratch directory inside it. Walk upward so `--scratch-path`
 // builds still discover vendored sources and `.upstream` checkouts.
+//
+// Focused library loops can set QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS=1 to
+// suppress heavyweight app-source targets while preserving vendored third-party
+// package paths under `third_party/`.
 func locatePackageRoot() -> String {
     let fileManager = FileManager.default
     var candidate = URL(
@@ -43,8 +47,28 @@ func locatePackageRoot() -> String {
 }
 
 let packageRoot: String = locatePackageRoot()
-func upstreamPresent(_ relativePath: String) -> Bool {
+func pathPresent(_ relativePath: String) -> Bool {
     FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
+}
+
+let quillUIDisableUpstreamAppGraphsEnvironmentKey = "QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"
+let quillUIDisableUpstreamAppGraphs: Bool = {
+    let raw = ProcessInfo.processInfo.environment[quillUIDisableUpstreamAppGraphsEnvironmentKey]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    switch raw {
+    case "1", "true", "yes", "on":
+        return true
+    default:
+        return false
+    }
+}()
+
+func upstreamPresent(_ relativePath: String) -> Bool {
+    guard !quillUIDisableUpstreamAppGraphs else {
+        return false
+    }
+    return pathPresent(relativePath)
 }
 
 func vendoredPackage(
@@ -53,7 +77,7 @@ func vendoredPackage(
     url: String,
     from version: Version
 ) -> Package.Dependency {
-    if upstreamPresent(path) {
+    if pathPresent(path) {
         return .package(name: name, path: path)
     }
     return .package(url: url, from: version)
@@ -445,6 +469,7 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    products.append(.executable(name: "quill-appkit-smoke", targets: ["QuillAppKitSmokeRunner"]))
     products.append(.library(name: "SignalUIRenderCore", targets: ["SignalUIRenderCore"]))
     products.append(.executable(name: "signal-ui-render-core-smoke", targets: ["SignalUIRenderCoreSmoke"]))
 }
@@ -3115,6 +3140,15 @@ targets.append(contentsOf: [
         name: "QuillAppKitSmoke",
         dependencies: ["AppKit"],
         path: "Sources/QuillAppKitSmoke",
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillAppKitSmokeRunner",
+        dependencies: ["QuillAppKitSmoke"],
+        path: "Sources/QuillAppKitSmokeRunner",
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])

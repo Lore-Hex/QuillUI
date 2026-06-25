@@ -1812,6 +1812,10 @@ struct CompatibilityModuleTests {
     func appKitTextViewsApplyEditApisAndNotifyDelegates() {
         let result = AppleCompatibilitySmoke.runAppKitTextViewEditingSmoke()
 
+        #expect(result.defaultTextSystemIsWired)
+        #expect(result.replacementTextStorageRewiresLayoutManager)
+        #expect(result.replacementLayoutManagerRewiresTextSystem)
+        #expect(result.replacementTextContainerRewiresLayoutManager)
         #expect(result.replaceUpdatesStringAndStorage)
         #expect(result.insertUsesSelectedRange)
         #expect(result.attributedInsertUsesStringContents)
