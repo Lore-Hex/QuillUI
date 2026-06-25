@@ -99,6 +99,7 @@ jobs:
               gtk
 
       - name: Package real-source GTK release artifact
+        shell: bash
         run: |
           source scripts/quillui-enchanted-source.sh
           ENCHANTED_APP_DIR="$(quillui_resolve_enchanted_source_dir "$PWD")"
