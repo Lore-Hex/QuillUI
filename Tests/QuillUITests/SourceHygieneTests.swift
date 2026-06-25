@@ -3544,6 +3544,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("snapshot_saved_log_count=\"$(quillui_solderscope_snapshot_saved_log_count)\""))
         #expect(solderScopeSmoke.contains("snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
         #expect(solderScopeSmoke.contains("snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame \"after snapshot\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle()"))
         #expect(solderScopeSmoke.contains("local label=\"${1:-before interaction}\""))
         #expect(solderScopeSmoke.contains("synthetic frame is visible $label"))

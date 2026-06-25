@@ -752,6 +752,7 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
+    quillui_solderscope_wait_for_visible_frame "after snapshot"
   fi
   if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-toolbar}"
