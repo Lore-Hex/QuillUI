@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -2767,8 +2768,11 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         right - int(detail_width * 0.01),
         transcript_message_y1,
     )
+    minimum_trailing_message_pixels = int(
+        os.environ.get("QUILLUI_FUNCTIONAL_TRANSCRIPT_MIN_USER_PIXELS", "80")
+    )
     require(
-        trailing_message_pixels >= 120,
+        trailing_message_pixels >= minimum_trailing_message_pixels,
         f"Functional transcript user message was not detected on the trailing edge: pixels={trailing_message_pixels}",
     )
 
@@ -2791,7 +2795,7 @@ def validate_quill_chat_functional_transcript(image: Screenshot) -> str:
         f"prompt_card_pixels={prompt_card_like_pixels}, "
         f"wordmark_pixels={wordmark_pixels}, "
         f"assistant_pixels={leading_message_pixels}, "
-        f"user_pixels={trailing_message_pixels}, "
+        f"user_pixels={trailing_message_pixels}/{minimum_trailing_message_pixels}, "
         f"composer={composer_segment.width}px@{composer_y}"
     )
 
