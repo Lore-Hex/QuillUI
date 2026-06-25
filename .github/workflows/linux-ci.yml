@@ -28,7 +28,6 @@ jobs:
     env:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_SMOKE_SECONDS: "4"
-      QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
       # The resource guard's default 12 GiB free-disk floor began failing as the
       # repo/build footprint grew, turning the Linux gate flaky/red on main. The
       # guard runs before MULTIPLE steps; free disk drops as the build proceeds

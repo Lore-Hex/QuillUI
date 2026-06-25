@@ -1,5 +1,31 @@
 #!/usr/bin/env bash
 
+quillui_resolve_enchanted_checkout_dir() {
+  local root_dir="$1"
+
+  if [[ -n "${QUILLUI_APP_CHECKOUT_DIR:-}" ]]; then
+    printf '%s\n' "$QUILLUI_APP_CHECKOUT_DIR"
+    return 0
+  fi
+
+  if [[ -n "${ENCHANTED_CHECKOUT_DIR:-}" ]]; then
+    printf '%s\n' "$ENCHANTED_CHECKOUT_DIR"
+    return 0
+  fi
+
+  if [[ -n "${QUILL_CHAT_DIR:-}" ]]; then
+    printf '%s\n' "$QUILL_CHAT_DIR"
+    return 0
+  fi
+
+  if [[ -d "$root_dir/vendor/apps/enchanted/Enchanted" ]]; then
+    printf '%s/vendor/apps/enchanted\n' "$root_dir"
+    return 0
+  fi
+
+  printf '%s/.upstream/enchanted\n' "$root_dir"
+}
+
 quillui_resolve_enchanted_source_dir() {
   local root_dir="$1"
 
@@ -18,7 +44,7 @@ quillui_resolve_enchanted_source_dir() {
     return 0
   fi
 
-  printf '%s/.upstream/enchanted/Enchanted\n' "$root_dir"
+  printf '%s/Enchanted\n' "$(quillui_resolve_enchanted_checkout_dir "$root_dir")"
 }
 
 quillui_print_enchanted_source_missing() {

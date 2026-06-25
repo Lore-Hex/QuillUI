@@ -3641,6 +3641,18 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/quillui-enchanted-source.sh"),
             encoding: .utf8
         )
+        let fetchUpstream = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
+        let enchantedWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
+            encoding: .utf8
+        )
         let generatedEnchantedChatSource = try String(
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-chat-components-check.sh"),
             encoding: .utf8
@@ -3819,8 +3831,16 @@ struct SourceHygieneTests {
         #expect(enchantedSourceResolver.contains("quillui_resolve_enchanted_source_dir()"))
         #expect(enchantedSourceResolver.contains("QUILLUI_APP_SOURCE_DIR"))
         #expect(enchantedSourceResolver.contains("ENCHANTED_SOURCE_DIR"))
+        #expect(enchantedSourceResolver.contains("quillui_resolve_enchanted_checkout_dir()"))
+        #expect(enchantedSourceResolver.contains("vendor/apps/enchanted/Enchanted"))
         #expect(enchantedSourceResolver.contains("QUILL_CHAT_DIR/Enchanted"))
-        #expect(enchantedSourceResolver.contains(".upstream/enchanted/Enchanted"))
+        #expect(enchantedSourceResolver.contains(".upstream/enchanted"))
+        #expect(fetchUpstream.contains("using vendored enchanted source at vendor/apps/enchanted"))
+        #expect(fetchUpstream.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(enchantedWorkflow.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
+        #expect(enchantedWorkflow.contains("--source-dir \"$ENCHANTED_APP_DIR\""))
+        #expect(!enchantedWorkflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
+        #expect(!workflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("GTK backend generation is enabled"))

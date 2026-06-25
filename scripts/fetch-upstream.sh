@@ -23,6 +23,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPSTREAM_DIR="$ROOT_DIR/.upstream"
 mkdir -p "$UPSTREAM_DIR"
 
+source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+
 quillui_truthy() {
     case "${1:-}" in
         1|true|TRUE|yes|YES|on|ON) return 0 ;;
@@ -2956,7 +2958,11 @@ fi
 for name in "${want[@]}"; do
     case "$name" in
         enchanted)
-            fetch_repo enchanted https://github.com/gluonfield/enchanted.git
+            if [[ -d "$ROOT_DIR/vendor/apps/enchanted/Enchanted" ]] && ! quillui_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
+                echo "==> using vendored enchanted source at vendor/apps/enchanted"
+            else
+                fetch_repo enchanted https://github.com/gluonfield/enchanted.git
+            fi
             ;;
         netnewswire)
             fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git
