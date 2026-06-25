@@ -64,7 +64,7 @@ quillui_functional_click_at() {
   local settle_sleep="${QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP:-0.15}"
   local hold_sleep="${QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP:-0.08}"
 
-  quillui_functional_xdotool mousemove "$x" "$y"
+  quillui_functional_xdotool mousemove --sync "$x" "$y"
   sleep "$settle_sleep"
   quillui_functional_xdotool mousedown 1
   sleep "$hold_sleep"
