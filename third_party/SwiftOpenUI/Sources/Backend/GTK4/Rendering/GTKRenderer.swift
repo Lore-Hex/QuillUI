@@ -879,8 +879,25 @@ private final class GTKTextInputFocusTarget {
 private func gtkFocusTextInputWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
     guard gtk_swift_is_widget(widget) != 0 else { return }
     gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
     gtk_widget_set_focusable(widget, 1)
     _ = gtk_swift_root_grab_focus(widget)
+    gtkScheduleTextInputFocus(widget)
+}
+
+private func gtkScheduleTextInputFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let target = GTKTextInputFocusTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
+        gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
+        gtk_widget_set_focusable(target.widget, 1)
+        _ = gtk_swift_root_grab_focus(target.widget)
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
 }
 
 private func gtkInstallTextInputFocusGesture(
@@ -997,9 +1014,12 @@ private func gtkCreateMultilineTextField(
     let overlay = gtk_overlay_new()!
     gtk_widget_set_can_focus(overlay, 0)
     gtk_widget_set_focusable(overlay, 0)
-    gtk_overlay_set_child(OpaquePointer(overlay), widgetFromOpaque(rendered))
+    gtk_widget_set_can_target(overlay, 1)
+    let renderedWidget = widgetFromOpaque(rendered)
+    gtk_overlay_set_child(OpaquePointer(overlay), renderedWidget)
     gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)
     gtkInstallTextInputFocusGesture(on: overlay, target: textView)
+    gtkInstallTextInputFocusGesture(on: renderedWidget, target: textView)
     return opaqueFromWidget(overlay)
 }
 
