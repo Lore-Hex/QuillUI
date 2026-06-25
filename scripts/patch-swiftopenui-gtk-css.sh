@@ -32,6 +32,7 @@ CUSTOM_DUMP_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-custom-dump/Sources/Custom
 SWIFT_PERCEPTION_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-perception/Sources"
 XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overlay/Sources/IssueReporting"
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
+VENDORED_GRDB_SOURCE_DIR="$PACKAGE_PATH/third_party/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
 # Resolve unconditionally so $SCRATCH_PATH/checkouts/ is populated BEFORE the
@@ -1210,8 +1211,10 @@ for path in root.rglob("*.swift"):
 PY
 fi
 
-if [[ -d "$GRDB_SOURCE_DIR" ]]; then
-  python3 - "$GRDB_SOURCE_DIR" <<'PY'
+for candidate_grdb_source_dir in "$GRDB_SOURCE_DIR" "$VENDORED_GRDB_SOURCE_DIR"; do
+  [[ -d "$candidate_grdb_source_dir" ]] || continue
+
+  python3 - "$candidate_grdb_source_dir" <<'PY'
 import sys
 import re
 from pathlib import Path
@@ -1249,7 +1252,7 @@ import CoreGraphics
             + "\n#endif\n"
         )
 PY
-fi
+done
 
 if [[ -d "$SQLITE_DATA_SOURCE_DIR" ]]; then
   python3 - "$SQLITE_DATA_SOURCE_DIR" <<'PY'

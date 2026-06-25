@@ -1,4 +1,4 @@
-#if canImport(Combine)
+#if false
 import Combine
 #endif
 import Dispatch
@@ -695,7 +695,7 @@ extension DatabaseWriter {
 #endif
 }
 
-#if canImport(Combine)
+#if false
 extension DatabaseWriter {
     // MARK: - Publishing Database Updates
     

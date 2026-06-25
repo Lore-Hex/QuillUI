@@ -1,8 +1,7 @@
-#if canImport(CoreGraphics)
+#if os(Linux)
+// QUILLUI_GRDB_SKIP_CGFLOAT_ON_LINUX
+#elseif canImport(CoreGraphics)
 import CoreGraphics
-#elseif !canImport(Darwin)
-import Foundation
-#endif
 
 /// CGFloat adopts DatabaseValueConvertible
 extension CGFloat: DatabaseValueConvertible {
@@ -18,3 +17,4 @@ extension CGFloat: DatabaseValueConvertible {
         return CGFloat(double)
     }
 }
+#endif

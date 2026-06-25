@@ -1,4 +1,4 @@
-#if canImport(Combine)
+#if false
 import Combine
 #endif
 import Dispatch
@@ -435,7 +435,7 @@ public struct AsyncValueObservation<Element: Sendable>: AsyncSequence, Sendable 
     }
 }
 
-#if canImport(Combine)
+#if false
 extension ValueObservation {
     // MARK: - Publishing Observed Values
     

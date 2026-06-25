@@ -728,6 +728,8 @@ struct SourceHygieneTests {
         #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(gtkPatchScript.contains("GRDB_SOURCE_DIR=\"$SCRATCH_PATH/checkouts/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("VENDORED_GRDB_SOURCE_DIR=\"$PACKAGE_PATH/third_party/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("for candidate_grdb_source_dir in \"$GRDB_SOURCE_DIR\" \"$VENDORED_GRDB_SOURCE_DIR\"; do"))
         #expect(gtkPatchScript.contains("new = disable_can_import(text, \"Combine\")"))
         #expect(gtkPatchScript.contains("QUILLUI_GRDB_SKIP_CGFLOAT_ON_LINUX"))
         #expect(gtkPatchScript.contains("missing required module 'COpenCombineHelpers'"))

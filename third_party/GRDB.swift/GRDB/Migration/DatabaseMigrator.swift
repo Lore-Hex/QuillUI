@@ -1,4 +1,4 @@
-#if canImport(Combine)
+#if false
 import Combine
 #endif
 import Foundation
@@ -662,7 +662,7 @@ public struct DatabaseMigrator: Sendable {
 
 extension DatabaseMigrator: Refinable { }
 
-#if canImport(Combine)
+#if false
 extension DatabaseMigrator {
     // MARK: - Publishing Migrations
     
