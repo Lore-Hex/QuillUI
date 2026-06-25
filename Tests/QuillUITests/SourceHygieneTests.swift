@@ -794,6 +794,10 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-asn1/LICENSE.txt").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/LICENSE.txt").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/LICENSE").path))
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/.git").path))
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/Package.resolved").path))
         // Vendored path packages keep the default graph offline; a root lockfile
         // full of remote pins makes SwiftPM hydrate repositories we do not use.
         #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("Package.resolved").path))
@@ -809,6 +813,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"third_party/swift-syntax\""))
         #expect(manifest.contains("path: \"third_party/swift-crypto\""))
         #expect(manifest.contains("path: \"third_party/swift-protobuf\""))
+        #expect(manifest.contains("path: \"third_party/SwiftSoup\""))
         #expect(swiftOpenUIManifest.contains("func swiftOpenUIVendoredPackage("))
         #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: path) || fileManager.fileExists(atPath: \"third_party/\\(name)\")"))
         #expect(swiftOpenUIManifest.contains("path: \"../OpenCombine\""))
@@ -826,6 +831,7 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("chmod u+w \"$manifest\""))
         #expect(vendorScript.contains(".package(path: \"../swift-asn1\")"))
         #expect(vendorScript.contains("GRDB.swift"))
+        #expect(vendorScript.contains("SwiftSoup"))
         #expect(vendorScript.contains("JavaScriptKit"))
     }
 

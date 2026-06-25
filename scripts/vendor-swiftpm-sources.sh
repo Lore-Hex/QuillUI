@@ -15,7 +15,7 @@ Copy selected SwiftPM checkout sources into third_party/ so Package.swift can
 use path dependencies instead of repeatedly creating remote working copies.
 
 Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,
-swift-asn1, swift-protobuf
+swift-asn1, swift-protobuf, SwiftSoup
 
 Options:
   --all                  Vendor every known SwiftPM package when its checkout exists.
@@ -49,6 +49,7 @@ swift-syntax
 swift-crypto
 swift-asn1
 swift-protobuf
+SwiftSoup
 PACKAGES
 }
 
