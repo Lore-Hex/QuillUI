@@ -2695,9 +2695,20 @@ patch_solderscope() {
     #    when its backing capture storage changes.
     if [[ "$(uname -s)" == "Linux" ]]; then
         local dir="$UPSTREAM_DIR/solderscope/SolderScope"
-        if [[ -d "$dir" ]] && grep -rqE 'import os\.log' "$dir" 2>/dev/null; then
+        local logger="$dir/Utilities/Logger.swift"
+        if [[ -f "$logger" ]] && grep -qE '^import os\.log$' "$logger" 2>/dev/null; then
             echo "==> lowering solderscope for Linux (import os.log)"
-            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$dir" )
+            python3 - "$logger" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+new = text.replace("import os.log\n", "import os\n", 1)
+if new != text:
+    path.write_text(new)
+    print(f"patch_solderscope: lowered import os.log in {path}")
+PY
         fi
         local microscope="$dir/Renderer/MicroscopeView.swift"
         if [[ -f "$microscope" ]]; then
