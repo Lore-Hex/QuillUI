@@ -1,0 +1,82 @@
+name: PR
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+jobs:
+  soundness:
+    name: Soundness
+    uses: swiftlang/github-workflows/.github/workflows/soundness.yml@0.0.7
+    with:
+      license_header_check_project_name: "SwiftASN1"
+
+  unit-tests:
+    name: Unit tests
+    uses: apple/swift-nio/.github/workflows/unit_tests.yml@main
+    with:
+      linux_5_10_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error"
+      linux_6_1_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error"
+      linux_6_2_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error"
+      linux_6_3_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error"
+      linux_nightly_next_arguments_override: "--explicit-target-dependency-import-check error"
+      linux_nightly_main_arguments_override: "--explicit-target-dependency-import-check error"
+      windows_6_1_enabled: true
+      windows_6_2_enabled: true
+      windows_6_3_enabled: true
+      windows_nightly_next_enabled: true
+      windows_nightly_main_enabled: true
+      windows_6_1_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error -Xswiftc -require-explicit-sendable"
+      windows_6_2_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error -Xswiftc -require-explicit-sendable"
+      windows_6_3_arguments_override: "-Xswiftc -warnings-as-errors --explicit-target-dependency-import-check error -Xswiftc -require-explicit-sendable"
+      windows_nightly_next_arguments_override: "--explicit-target-dependency-import-check error -Xswiftc -require-explicit-sendable"
+      windows_nightly_main_arguments_override: "--explicit-target-dependency-import-check error -Xswiftc -require-explicit-sendable"
+
+  benchmarks:
+    name: Benchmarks
+    uses: apple/swift-nio/.github/workflows/benchmarks.yml@main
+    with:
+      benchmark_package_path: "Benchmarks"
+
+  cxx-interop:
+    name: Cxx interop
+    uses: apple/swift-nio/.github/workflows/cxx_interop.yml@main
+
+  static-sdk:
+    name: Static SDK
+    # Workaround https://github.com/nektos/act/issues/1875
+    uses: apple/swift-nio/.github/workflows/static_sdk.yml@main
+
+  cmake-lists:
+    name: Check cmake lists
+    uses: apple/swift-nio/.github/workflows/cmake_tests.yml@main
+    with:
+      update_cmake_lists_config: >-
+        {
+          "targets": [
+            { "name": "SwiftASN1", "type": "source", "exceptions": [] }
+          ]
+        }
+
+  macos-tests:
+    name: macOS tests
+    uses: apple/swift-nio/.github/workflows/macos_tests.yml@main
+    with:
+      runner_pool: general
+      build_scheme: swift-asn1
+      swift_6_1_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+      swift_6_2_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+      swift_6_3_build_arguments_override: "-Xswiftc -Xfrontend -Xswiftc -require-explicit-sendable"
+
+  release-builds:
+    name: Release builds
+    uses: apple/swift-nio/.github/workflows/release_builds.yml@main
+    with:
+      windows_6_1_enabled: true
+      windows_6_2_enabled: true
+      windows_6_3_enabled: true
+      windows_nightly_next_enabled: true
+      windows_nightly_main_enabled: true

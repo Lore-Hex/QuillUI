@@ -14,7 +14,8 @@ Usage: scripts/vendor-swiftpm-sources.sh [OPTIONS] [PACKAGE...]
 Copy selected SwiftPM checkout sources into third_party/ so Package.swift can
 use path dependencies instead of repeatedly creating remote working copies.
 
-Default package set: OpenCombine
+Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,
+swift-asn1, swift-protobuf
 
 Options:
   --all                  Vendor every known SwiftPM package when its checkout exists.
@@ -37,6 +38,17 @@ swift-asn1
 swift-protobuf
 SwiftSoup
 JavaScriptKit
+PACKAGES
+}
+
+default_packages() {
+  cat <<'PACKAGES'
+OpenCombine
+GRDB.swift
+swift-syntax
+swift-crypto
+swift-asn1
+swift-protobuf
 PACKAGES
 }
 
@@ -91,7 +103,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ ${#PACKAGES[@]} -eq 0 ]]; then
-  PACKAGES=(OpenCombine)
+  while IFS= read -r package; do
+    PACKAGES+=("$package")
+  done < <(default_packages)
 fi
 
 case "$SCRATCH_PATH" in
@@ -140,6 +154,63 @@ vendor_one() {
   echo "vendored $package -> third_party/$package"
 }
 
+patch_swift_crypto_manifest() {
+  local manifest="$ROOT_DIR/third_party/swift-crypto/Package.swift"
+
+  [[ -f "$manifest" && -d "$ROOT_DIR/third_party/swift-asn1" ]] || return 0
+  chmod u+w "$manifest"
+
+  python3 - "$manifest" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+old = '''// Switch between local and remote dependencies depending on an environment variable
+if ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
+    package.dependencies += [
+        .package(url: "https://github.com/apple/swift-asn1.git", from: "1.2.0")
+    ]
+} else {
+    package.dependencies += [
+        .package(path: "../swift-asn1")
+    ]
+}
+'''
+previous = '''// QuillUI vendors swift-crypto next to swift-asn1, so prefer the local
+// sibling when present. Keep the upstream SWIFTCI_USE_LOCAL_DEPS override too.
+let swiftASN1LocalPath = "../swift-asn1"
+if FileManager.default.fileExists(atPath: swiftASN1LocalPath)
+    || ProcessInfo.processInfo.environment["SWIFTCI_USE_LOCAL_DEPS"] != nil
+{
+    package.dependencies += [
+        .package(path: swiftASN1LocalPath)
+    ]
+} else {
+    package.dependencies += [
+        .package(url: "https://github.com/apple/swift-asn1.git", from: "1.2.0")
+    ]
+}
+'''
+new = '''// QuillUI vendors swift-crypto next to swift-asn1, so keep the
+// transitive dependency local as well.
+package.dependencies += [
+    .package(path: "../swift-asn1")
+]
+'''
+
+if old in text:
+    path.write_text(text.replace(old, new, 1))
+elif previous in text:
+    path.write_text(text.replace(previous, new, 1))
+elif ".package(path: \"../swift-asn1\")" not in text:
+    raise SystemExit("swift-crypto Package.swift dependency switch was not recognized")
+PY
+}
+
 for package in "${PACKAGES[@]}"; do
   vendor_one "$package"
 done
+
+patch_swift_crypto_manifest

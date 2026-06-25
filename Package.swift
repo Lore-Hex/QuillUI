@@ -15,10 +15,34 @@ import Foundation
 // `scripts/fetch-upstream.sh` to fetch the upstreams and enable
 // the gated targets.
 //
-// Path resolution: SwiftPM evaluates this manifest inside a
-// sandbox copy, so `#filePath` points at the sandbox staging
-// directory — not the package directory. CWD is reliable.
-let packageRoot: String = FileManager.default.currentDirectoryPath
+// Path resolution: SwiftPM can evaluate this manifest from the package root
+// or from a scratch directory inside it. Walk upward so `--scratch-path`
+// builds still discover vendored sources and `.upstream` checkouts.
+func locatePackageRoot() -> String {
+    let fileManager = FileManager.default
+    var candidate = URL(
+        fileURLWithPath: fileManager.currentDirectoryPath,
+        isDirectory: true
+    ).standardizedFileURL
+
+    for _ in 0..<12 {
+        let packageManifest = candidate.appendingPathComponent("Package.swift").path
+        let sources = candidate.appendingPathComponent("Sources").path
+        if fileManager.fileExists(atPath: packageManifest),
+           fileManager.fileExists(atPath: sources) {
+            return candidate.path
+        }
+        let parent = candidate.deletingLastPathComponent()
+        if parent.path == candidate.path {
+            break
+        }
+        candidate = parent
+    }
+
+    return fileManager.currentDirectoryPath
+}
+
+let packageRoot: String = locatePackageRoot()
 func upstreamPresent(_ relativePath: String) -> Bool {
     FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
 }

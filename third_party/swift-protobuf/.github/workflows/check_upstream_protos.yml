@@ -1,0 +1,31 @@
+name: Check Upstream Proto Files
+
+permissions:
+  contents: read
+
+on:
+  schedule:
+    # Every Sunday at 4am.
+    - cron: '0 4 * * 0'
+  # Also allow manual triggering from the github UX to revalidate things.
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Only do this job on the main repo (and not forks of it).
+    if: github.repository == 'apple/swift-protobuf'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        path: swift-protobuf
+        # Don't need the submodules since we are checking against upstream.
+    - name: Checkout protobufbuffers/protobuf
+      uses: actions/checkout@v6
+      with:
+        repository: protocolbuffers/protobuf
+        path: protobuf
+    - name: Check Upstream Proto Files
+      working-directory: swift-protobuf
+      run: make check-proto-files GOOGLE_PROTOBUF_CHECKOUT=../protobuf

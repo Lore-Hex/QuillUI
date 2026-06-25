@@ -1,0 +1,98 @@
+name: Update Protobuf and Abseil Dependencies
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  schedule:
+    # Every night at 2am UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-and-update:
+    # Only do this job on the main repo (and not forks of it).
+    if: github.repository == 'apple/swift-protobuf'
+    runs-on: ubuntu-latest
+    # Ensure we have the latest Swift in case Reference can be updated.
+    container:
+      image: swift:latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update and install dependencies
+      run: apt-get update && apt-get install -y make g++ python3
+
+    - name: Update vendored dependencies
+      id: update
+      run: |
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
+        python3 scripts/UpdateProtobufSubtrees.py --github-output "$GITHUB_OUTPUT"
+
+    - name: Update Reference Protos
+      if: steps.update.outputs.updated == 'true'
+      id: make_reference_protos
+      # The Reference/upstream contents is generated from Source/protobuf/protobuf, so
+      # update them.
+      #
+      # If this fails, it likely means protobuf and/or abseil have changed and
+      # Package.swift need to be updated. In that case, we'll revert Reference/ and let
+      # the PR get created, it will fail CI, but serve as a notice that something needs
+      # to be done to update things.
+      #
+      # Note: we could move the work in `make reference` to a helper script and skip the
+      # install of Make, but given it shares setup with other targets in the Makefile,
+      # not sure it's worth while.
+      run: |
+        if make reference ; then
+          echo 'as_draft=false' >> $GITHUB_OUTPUT
+          echo 'message=' >> $GITHUB_OUTPUT
+        else
+          echo 'as_draft=true' >> $GITHUB_OUTPUT
+
+          echo 'message<<EOF' >> $GITHUB_OUTPUT
+          echo '' >> $GITHUB_OUTPUT
+          echo '> [!WARNING]' >> $GITHUB_OUTPUT
+          echo '> _make reference_ failed, this PR likely needs _Package.swift_ to be fixed!' >> $GITHUB_OUTPUT
+          echo '' >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+
+          echo ''
+          echo 'WARNING: "make reference" failed, the PR will likely be incomplete.'
+          echo ''
+          git checkout -- Reference
+        fi
+
+    - name: Create Pull Request
+      if: steps.update.outputs.updated == 'true'
+      uses: peter-evans/create-pull-request@v8
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: |
+          Update protobuf to ${{ steps.update.outputs.protobuf_tag }} and abseil-cpp
+
+          - Update vendored protobuf to ${{ steps.update.outputs.protobuf_tag }}
+          - Update vendored abseil to required commit from protobuf_deps.bzl
+        branch: automated/update-protobuf-${{ steps.update.outputs.protobuf_tag }}
+        delete-branch: true
+        draft: ${{ steps.make_reference_protos.outputs.as_draft }}
+        title: 'Update protobuf to ${{ steps.update.outputs.protobuf_tag }}'
+        body: |
+          ## Automated Protobuf Update
+
+          This PR automatically updates the vendored protobuf and abseil-cpp sources.
+          ${{ steps.make_reference_protos.outputs.message }}
+          ### Changes
+          - **Protobuf**: Updated to `${{ steps.update.outputs.protobuf_tag }}`
+          - **Abseil-cpp**: Updated to commit required by protobuf `${{ steps.update.outputs.abseil_commit }}`
+
+          ### Release Notes
+          See the [protobuf ${{ steps.update.outputs.protobuf_tag }} release notes](https://github.com/protocolbuffers/protobuf/releases/tag/${{ steps.update.outputs.protobuf_tag }}) for details.
+
+          ---
+
+          *This PR was automatically created by the [Update Protobuf workflow](https://github.com/${{ github.repository }}/actions/workflows/update_protobuf.yml)*
