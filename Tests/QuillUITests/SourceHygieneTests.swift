@@ -3406,6 +3406,7 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
+        #expect(workflow.contains("QUILLUI_SOLDERSCOPE: \"1\""))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
         #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=\"${QUILL_AVFOUNDATION_SYNTHETIC_CAMERA:-1}\""))
         #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH=\"${QUILL_AVFOUNDATION_SYNTHETIC_WIDTH:-640}\""))

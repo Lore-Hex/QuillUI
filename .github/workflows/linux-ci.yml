@@ -169,6 +169,8 @@ jobs:
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'
 
       - name: SolderScope GTK launch smoke
+        env:
+          QUILLUI_SOLDERSCOPE: "1"
         run: scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png
 
       # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).
