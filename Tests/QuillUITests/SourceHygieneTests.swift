@@ -66,7 +66,7 @@ struct SourceHygieneTests {
         #expect(linuxCI.contains("Swift tests\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(linuxCI.contains("Build QuillUIGtk facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(linuxCI.contains("Build QuillUIQt facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
-        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          TEST_RUN_TIMEOUT: \"180\""))
         #expect(linuxCI.contains("Generic SwiftUI to Qt backend smoke\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
     }
 

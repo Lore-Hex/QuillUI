@@ -148,7 +148,6 @@ jobs:
       - name: GTK offscreen ImageRenderer smoke
         timeout-minutes: 15
         env:
-          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
           TEST_RUN_TIMEOUT: "180"
         run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter imageRendererOffscreenPipelineProducesRealPNG
 
