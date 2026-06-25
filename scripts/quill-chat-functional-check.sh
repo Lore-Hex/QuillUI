@@ -117,7 +117,10 @@ quillui_functional_paste_text() {
 
 quillui_functional_enter_text() {
   local text="$1"
-  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-auto}"
+  # Default to keyboard typing for functional proofs: under Xvfb, an xclip
+  # transfer can complete even when Ctrl+V was not delivered to the GTK text
+  # view, which hides real focus regressions behind a false paste success.
+  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-type}"
 
   case "$input_mode" in
     auto|paste)
