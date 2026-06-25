@@ -58,13 +58,22 @@ quillui_functional_xdotool() {
   DISPLAY="$DISPLAY_ID" timeout "$timeout_seconds" xdotool "$@"
 }
 
+quillui_functional_mousemove_to() {
+  local x="$1"
+  local y="$2"
+  local sync_timeout="${QUILLUI_FUNCTIONAL_MOUSEMOVE_SYNC_TIMEOUT:-2}"
+
+  DISPLAY="$DISPLAY_ID" timeout "$sync_timeout" xdotool mousemove --sync "$x" "$y" 2>/dev/null \
+    || quillui_functional_xdotool mousemove "$x" "$y"
+}
+
 quillui_functional_click_at() {
   local x="$1"
   local y="$2"
   local settle_sleep="${QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP:-0.15}"
   local hold_sleep="${QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP:-0.08}"
 
-  quillui_functional_xdotool mousemove --sync "$x" "$y"
+  quillui_functional_mousemove_to "$x" "$y"
   sleep "$settle_sleep"
   quillui_functional_xdotool mousedown 1
   sleep "$hold_sleep"
