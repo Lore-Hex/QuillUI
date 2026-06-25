@@ -3545,6 +3545,8 @@ struct SourceHygieneTests {
         #expect(!solderScopeWorkflow.contains(".build-solderscope-v4l2"))
         #expect(!solderScopeWorkflow.contains(".build-solderscope-encode"))
         #expect(solderScopeWorkflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual"))
+        #expect(solderScopeWorkflow.contains("SolderScope GTK snapshot smoke"))
+        #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-snapshot.png interaction"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK freeze smoke"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK recording smoke"))
         #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction"))

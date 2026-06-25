@@ -12,7 +12,7 @@ parallelized to the swarm via the issues below.
 | 1. Compiles unmodified | **Build green when fetched** | `QuillSolderScope` product builds from the upstream source after the generic fetch/patch step. The dedicated SolderScope Linux CI fetches upstream, sets `QUILLUI_SOLDERSCOPE=1`, requires source with `QUILLUI_SOLDERSCOPE_REQUIRED=1`, and gates the app-specific API suites. |
 | 2. Launches + renders + input | **GTK launch/input proven** | Xvfb launch/interaction smoke, custom NSView draw host, cursor rects, primary click/drag, scroll-wheel delivery, deterministic synthetic camera frame smoke, real SolderScope command-menu extraction, and `Tests/QuillUITests/SolderScopeChromeConformanceTests.swift` are green. Remaining: mac-reference visual delta closure and broader real-device gesture coverage. |
 | 3. Live camera | **Software path proven** | #515 V4L2 AVCaptureSession backend plus opt-in `QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=1` fixture camera are CI-gated. `scripts/linux-v4l2-loopback-smoke.sh` covers the same V4L2 capture path with a loopback camera on hosts that can load the kernel module. Remaining: real USB microscope/device matrix coverage. |
-| 4. Recording/snapshots | **CI-gated real encoders** | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. CI splits capture into a snapshot/freeze smoke and a recording-only smoke; the snapshot/freeze pass verifies a new snapshot file, verifies that the hosted camera frame remains visible while frozen, and detects the top-right `FROZEN` badge. The recording pass waits for SolderScope's app-level `Recording started`/`Recording saved` logs and rejects a lingering `REC` badge. Remaining: output-directory controls and more real-hardware toolbar/menu coverage. |
+| 4. Recording/snapshots | **CI-gated real encoders** | `NSBitmapImageRep` writes real PNG/JPEG/TIFF data and `AVAssetWriter` can produce real `.mov` files through ffmpeg when present. CI splits capture into dedicated snapshot, freeze, and recording smokes; the snapshot pass verifies a new `SolderScope_*.png`, the freeze pass verifies that the hosted camera frame remains visible while frozen and detects the top-right `FROZEN` badge, and the recording pass waits for SolderScope's app-level `Recording started`/`Recording saved` logs and rejects a lingering `REC` badge. Remaining: output-directory controls and more real-hardware toolbar/menu coverage. |
 | 5. Pixel-parity vs macOS | later | QuillPaint mac-reference pipeline once real-hardware coverage is available |
 
 Wire it: `scripts/fetch-upstream.sh solderscope` materializes the vendored or
@@ -24,8 +24,15 @@ failure rather than a skipped smoke. Measure: `swift build --scratch-path
 
 ## Decisions log
 
+- **2026-06-25 — Snapshot, freeze, and recording are separate hard gates**:
+  CI now runs dedicated snapshot, freeze, and recording interaction passes off
+  the same built `QuillSolderScope` executable. The snapshot pass leaves freeze
+  and recording disabled and fails unless the unmodified app writes a new
+  `SolderScope_*.png`; the freeze pass keeps snapshot disabled so it remains
+  deterministic; the recording pass stays recording-only.
+
 - **2026-06-17 — Capture smoke must reject half-stopped recordings**:
-  CI now runs snapshot and recording as separate interaction passes. The
+  CI runs snapshot and recording as separate interaction passes. The
   recording pass uses shortcut start/stop, waits for
   app-level `Recording started` and `Recording saved` logs before accepting the
   `.mov`, and rejects a lingering lower-left `REC` badge so an early `.mov`
