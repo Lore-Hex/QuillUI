@@ -1033,6 +1033,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("quillui_functional_enter_text()"))
         #expect(functionalScript.contains("xclip -selection clipboard -loops 1"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE"))
+        #expect(functionalScript.contains("${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-type}"))
+        #expect(functionalScript.contains("== \"paste\""))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_SETTLE_SLEEP"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_CLEANUP_DEADLINE"))
         #expect(functionalScript.contains("quillui_functional_xdotool key --clearmodifiers ctrl+v"))

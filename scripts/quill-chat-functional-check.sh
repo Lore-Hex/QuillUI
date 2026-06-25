@@ -109,7 +109,7 @@ quillui_functional_paste_text() {
 quillui_functional_enter_text() {
   local text="$1"
 
-  if [[ "${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-paste}" != "type" ]] \
+  if [[ "${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-type}" == "paste" ]] \
       && quillui_functional_paste_text "$text"; then
     return
   fi
