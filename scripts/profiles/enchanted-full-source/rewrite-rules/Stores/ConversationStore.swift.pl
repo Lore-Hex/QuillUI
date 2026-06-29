@@ -30,3 +30,5 @@ s~        let assistantMessage = MessageSD\(content: "", role: "assistant"\)
 
 s~            try await reloadConversation\(conversation\)
             try\? await loadConversations\(\)~            Task { try? await self.loadConversations() }~g;
+
+s/self\?\.handleComplete\(\)/Task { \@MainActor in self?.handleComplete() }/g; s/self\?\.handleError\(error\.localizedDescription\)/Task { \@MainActor in self?.handleError(error.localizedDescription) }/g; s/self\?\.handleReceive\(response\)/Task { \@MainActor in self?.handleReceive(response) }/g;

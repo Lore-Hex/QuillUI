@@ -2169,6 +2169,78 @@ struct SourceHygieneTests {
         #expect(loweredAgain == lowered)
     }
 
+    @Test("Linux conditional lowering resolves platform-only branches")
+    func linuxConditionalLoweringResolvesPlatformOnlyBranches() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-linux-conditions-\(UUID().uuidString)", isDirectory: true)
+        let sourceDir = sandbox.appendingPathComponent("Sources", isDirectory: true)
+        let sourceFile = sourceDir.appendingPathComponent("ConditionalView.swift")
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        import SwiftUI
+
+        struct ConditionalView: View {
+            var body: some View {
+                Text("Hello")
+                    .padding()
+        #if os(iOS)
+                    .showIf(false)
+        #endif
+            }
+
+            var platform: String {
+        #if os(iOS)
+                "ios"
+        #elseif os(macOS) || os(Linux)
+                "linuxish"
+        #else
+                "other"
+        #endif
+            }
+
+        #if canImport(UIKit)
+            let unresolved = true
+        #endif
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-linux-conditional-compilation.py").path,
+                sourceDir.path,
+            ]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let lowered = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(lowered.contains("Text(\"Hello\")\n            .padding()"))
+        #expect(!lowered.contains(".showIf(false)"))
+        #expect(!lowered.contains("#if os(iOS)"))
+        #expect(lowered.contains("\"linuxish\""))
+        #expect(!lowered.contains("\"ios\""))
+        #expect(!lowered.contains("\"other\""))
+        #expect(lowered.contains("#if canImport(UIKit)"))
+
+        let secondPass = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-linux-conditional-compilation.py").path,
+                sourceDir.path,
+            ]
+        )
+        #expect(secondPass.status == 0, Comment(rawValue: secondPass.output))
+        let loweredAgain = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(loweredAgain == lowered)
+    }
+
     @Test("MarkdownUI table rows render backend-stable full-width dividers")
     func markdownUITableRowsRenderBackendStableFullWidthDividers() throws {
         let root = try packageRoot()
@@ -2593,11 +2665,13 @@ struct SourceHygieneTests {
         let swiftUILoweringRunner = try packageSource("scripts/run-quill-swiftui-lower.sh")
         let appKitLoweringRunner = try packageSource("scripts/run-quill-appkit-lower.sh")
         let mainActorAssignmentLowering = try packageSource("scripts/lower-mainactor-assignments-for-linux.py")
+        let linuxConditionalLowering = try packageSource("scripts/lower-linux-conditional-compilation.py")
         let quillData = try packageSource("Sources/QuillData/QuillData.swift")
         let swiftUICompatibility = try packageSource("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift")
         let observation = try packageSource("Sources/Observation/Observation.swift")
         let foundationModels = try packageSource("Sources/FoundationModels/FoundationModels.swift")
         let mainActorAssignmentLoweringCall = "python3 \"$(dirname \"$0\")/lower-mainactor-assignments-for-linux.py\" \"$SOURCE_DIR\""
+        let linuxConditionalLoweringCall = "python3 \"$(dirname \"$0\")/lower-linux-conditional-compilation.py\" \"$SOURCE_DIR\""
         let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
         let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
         let signalUILowering = try packageSource("scripts/quill-signal-lower-ui.sh")
@@ -2642,12 +2716,18 @@ struct SourceHygieneTests {
         #expect(lowering.contains("(?=public[ \\t]+(?:protocol|class|struct|enum|actor|extension|func|var|let|typealias)\\b)"))
         #expect(lowering.contains("! -name 'Package.swift'"))
         #expect(lowering.contains(mainActorAssignmentLoweringCall))
+        #expect(lowering.contains(linuxConditionalLoweringCall))
         #expect(mainActorAssignmentLowering.contains("MainActor.assumeIsolated"))
+        #expect(linuxConditionalLowering.contains("evaluate_platform_expression"))
+        #expect(linuxConditionalLowering.contains("match.group(1) == \"Linux\""))
+        #expect(linuxConditionalLowering.contains("targetEnvironment"))
         #expect(mainActorAssignmentLowering.contains("NSWindowController"))
         #expect(mainActorAssignmentLowering.contains("controller."))
         #expect(lowering.contains(appKitLoweringCall))
         #expect(lowering.contains(objcLoweringCall))
         #expect((lowering.range(of: mainActorAssignmentLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect((lowering.range(of: mainActorAssignmentLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: linuxConditionalLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect((lowering.range(of: linuxConditionalLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.startIndex))
         #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
         #expect(objcLowering.contains("lower_foundation_bridge_casts"))
         #expect(objcLowering.contains("for cf_type in (\"CFDictionary\", \"CFString\", \"CFURL\", \"CFData\", \"CFMutableData\", \"CFArray\")"))
@@ -2671,6 +2751,7 @@ struct SourceHygieneTests {
         #expect(preparedPackageDependencyScript.contains("scripts/lower-observable-for-swiftopenui.py"))
         #expect(preparedPackageDependencyScript.contains("scripts/ensure-swift-imports.sh"))
         #expect(preparedPackageDependencyScript.contains("scripts/lower-mainactor-assignments-for-linux.py"))
+        #expect(preparedPackageDependencyScript.contains("scripts/lower-linux-conditional-compilation.py"))
         #expect(preparedPackageDependencyScript.contains("scripts/lower-extension-overrides-for-linux.py"))
         #expect(preparedPackageDependencyScript.contains("Sources/QuillSourceLowering"))
         #expect(preparedPackageDependencyScript.contains(#""swift-async-algorithms": ["AsyncAlgorithms"]"#))
@@ -3069,6 +3150,9 @@ struct SourceHygieneTests {
         #expect(linuxSwiftTest.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
         #expect(linuxSwiftTest.contains("swift build --build-tests --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
         #expect(linuxSwiftTest.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        #expect(linuxSwiftTest.contains("SWIFT_INDEX_STORE_PATH=\"$SCRATCH_PATH/quill-index-store\""))
+        #expect(linuxSwiftTest.contains("SWIFT_INDEX_STORE_ARGS=(-Xswiftc -index-store-path -Xswiftc \"$SWIFT_INDEX_STORE_PATH\")"))
+        #expect(linuxSwiftTest.contains("\"${SWIFT_INDEX_STORE_ARGS[@]}\""))
         #expect(quillFoundationRuntimeProbe.contains(".product(name: \"QuillFoundation\", package: \"$PACKAGE_IDENTITY\")"))
         #expect(quillFoundationRuntimeProbe.contains("class_getInstanceMethod(ObjCRuntimeProbe.self"))
         #expect(quillFoundationRuntimeProbe.contains("method_exchangeImplementations(original!, replacement!)"))

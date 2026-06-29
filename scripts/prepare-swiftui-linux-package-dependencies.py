@@ -535,6 +535,7 @@ def package_preparation_fingerprint(root_dir: Path, package_dir: Path, skip_sour
         root_dir / "scripts/run-quill-swiftui-lower.sh",
         root_dir / "scripts/run-quill-appkit-lower.sh",
         root_dir / "scripts/lower-mainactor-assignments-for-linux.py",
+        root_dir / "scripts/lower-linux-conditional-compilation.py",
         root_dir / "scripts/lower-extension-overrides-for-linux.py",
         root_dir / "scripts/lower-objc-interop-for-linux.sh",
         root_dir / "Sources/QuillSourceLowering",

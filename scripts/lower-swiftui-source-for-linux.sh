@@ -75,6 +75,7 @@ if (( ${#swift_files[@]} > 0 )); then
 fi
 
 python3 "$(dirname "$0")/lower-mainactor-assignments-for-linux.py" "$SOURCE_DIR"
+python3 "$(dirname "$0")/lower-linux-conditional-compilation.py" "$SOURCE_DIR"
 "$(dirname "$0")/lower-extension-overrides-for-linux.py" "$SOURCE_DIR"
 "$(dirname "$0")/run-quill-swiftui-lower.sh" "$SOURCE_DIR"
 "$(dirname "$0")/run-quill-appkit-lower.sh" "$SOURCE_DIR"

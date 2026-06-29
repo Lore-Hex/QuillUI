@@ -379,6 +379,8 @@ struct QuillDataSourceLoweringTests {
         // wedge the CI step. Both invocations pass the scratch path through.
         #expect(wrapper.contains("swift build --build-tests --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
         #expect(wrapper.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("SWIFT_INDEX_STORE_PATH=\"$SCRATCH_PATH/quill-index-store\""))
+        #expect(wrapper.contains("SWIFT_INDEX_STORE_ARGS=(-Xswiftc -index-store-path -Xswiftc \"$SWIFT_INDEX_STORE_PATH\")"))
         #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
         // The wrapper pre-builds the isolated SwiftSyntax source-lowering tool
         // untimed and pins QUILLUI_SOURCE_LOWER, so loweringScriptConvertsModelSyntax
@@ -1385,6 +1387,7 @@ struct QuillDataSourceLoweringTests {
         #expect(modelStoreRule.contains("llava:latest"))
         #expect(modelStoreRule.contains("mistral-7b-reference-linux:latest"))
         #expect(modelStoreRule.contains("imageSupport: vision"))
+        #expect(modelStoreRule.contains("MainActor.assumeIsolated"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModels.first"))
         #expect(modelStoreRule.contains("let availableModels = storedModels.filter"))
@@ -1595,6 +1598,9 @@ struct QuillDataSourceLoweringTests {
         #expect(!conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
         #expect(!conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
         #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleComplete() }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleError(error.localizedDescription) }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleReceive(response) }"))
         #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 
         let appStoreRule = try String(
@@ -1690,7 +1696,7 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.components(separatedBy: "import QuillShims").count == 2)
         #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
-        #expect(lowered.contains("#if os(macOS) || os(Linux)"))
+        #expect(!lowered.contains("#if os(macOS) && canImport(AppKit)"))
         #expect(lowered.contains("let action: (@MainActor () -> Void)?"))
         #expect(lowered.contains("""
         Task { @MainActor in
