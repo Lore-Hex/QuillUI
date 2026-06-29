@@ -13,10 +13,12 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shutil
 import sys
 
 
 DIRECTIVE_RE = re.compile(r"^(\s*)#(if|elseif|else|endif)\b(.*)$")
+INACTIVE_PLATFORM_SOURCE_DIRS = {"iOS", "tvOS", "watchOS", "visionOS"}
 OS_RE = re.compile(r"\bos\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)")
 TARGET_ENV_RE = re.compile(
     r"\btargetEnvironment\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)"
@@ -173,6 +175,17 @@ def lower_file(path: pathlib.Path) -> bool:
     return True
 
 
+def prune_inactive_platform_source_dirs(source_dir: pathlib.Path) -> int:
+    pruned = 0
+    for path in sorted(source_dir.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+        if path == source_dir or not path.is_dir():
+            continue
+        if path.name in INACTIVE_PLATFORM_SOURCE_DIRS:
+            shutil.rmtree(path)
+            pruned += 1
+    return pruned
+
+
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print("Usage: lower-linux-conditional-compilation.py SOURCE_DIR", file=sys.stderr)
@@ -183,6 +196,7 @@ def main(argv: list[str]) -> int:
         print(f"Generated source directory does not exist: {source_dir}", file=sys.stderr)
         return 66
 
+    pruned = prune_inactive_platform_source_dirs(source_dir)
     changed = 0
     for source_file in source_dir.rglob("*.swift"):
         if source_file.name == "Package.swift":
@@ -190,6 +204,7 @@ def main(argv: list[str]) -> int:
         if lower_file(source_file):
             changed += 1
 
+    print(f"Pruned {pruned} inactive platform source directories")
     print(f"Resolved Linux platform conditionals in {changed} Swift files")
     return 0
 

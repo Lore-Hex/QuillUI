@@ -2177,9 +2177,31 @@ struct SourceHygieneTests {
             .appendingPathComponent("quillui-linux-conditions-\(UUID().uuidString)", isDirectory: true)
         let sourceDir = sandbox.appendingPathComponent("Sources", isDirectory: true)
         let sourceFile = sourceDir.appendingPathComponent("ConditionalView.swift")
+        let inactiveIOSDir = sourceDir.appendingPathComponent("UI/iOS", isDirectory: true)
+        let inactiveWatchDir = sourceDir.appendingPathComponent("UI/watchOS", isDirectory: true)
+        let desktopDir = sourceDir.appendingPathComponent("UI/macOS", isDirectory: true)
 
         try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: inactiveIOSDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: inactiveWatchDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: desktopDir, withIntermediateDirectories: true)
         defer { try? fileManager.removeItem(at: sandbox) }
+
+        try #"struct DeadIOSView {}"#.write(
+            to: inactiveIOSDir.appendingPathComponent("DeadIOSView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try #"struct DeadWatchView {}"#.write(
+            to: inactiveWatchDir.appendingPathComponent("DeadWatchView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try #"struct DesktopView {}"#.write(
+            to: desktopDir.appendingPathComponent("DesktopView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
 
         try """
         import SwiftUI
@@ -2218,6 +2240,10 @@ struct SourceHygieneTests {
             ]
         )
         #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("Pruned 2 inactive platform source directories"))
+        #expect(!fileManager.fileExists(atPath: inactiveIOSDir.path))
+        #expect(!fileManager.fileExists(atPath: inactiveWatchDir.path))
+        #expect(fileManager.fileExists(atPath: desktopDir.appendingPathComponent("DesktopView.swift").path))
 
         let lowered = try String(contentsOf: sourceFile, encoding: .utf8)
         #expect(lowered.contains("Text(\"Hello\")\n            .padding()"))
@@ -2237,6 +2263,7 @@ struct SourceHygieneTests {
             ]
         )
         #expect(secondPass.status == 0, Comment(rawValue: secondPass.output))
+        #expect(secondPass.output.contains("Pruned 0 inactive platform source directories"))
         let loweredAgain = try String(contentsOf: sourceFile, encoding: .utf8)
         #expect(loweredAgain == lowered)
     }
@@ -3148,11 +3175,9 @@ struct SourceHygieneTests {
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
         #expect(linuxSwiftTest.contains(": \"${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}\""))
         #expect(linuxSwiftTest.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
-        #expect(linuxSwiftTest.contains("swift build --build-tests --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        #expect(linuxSwiftTest.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
+        #expect(!linuxSwiftTest.contains("swift build --build-tests --disable-index-store"))
         #expect(linuxSwiftTest.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
-        #expect(linuxSwiftTest.contains("SWIFT_INDEX_STORE_PATH=\"$SCRATCH_PATH/quill-index-store\""))
-        #expect(linuxSwiftTest.contains("SWIFT_INDEX_STORE_ARGS=(-Xswiftc -index-store-path -Xswiftc \"$SWIFT_INDEX_STORE_PATH\")"))
-        #expect(linuxSwiftTest.contains("\"${SWIFT_INDEX_STORE_ARGS[@]}\""))
         #expect(quillFoundationRuntimeProbe.contains(".product(name: \"QuillFoundation\", package: \"$PACKAGE_IDENTITY\")"))
         #expect(quillFoundationRuntimeProbe.contains("class_getInstanceMethod(ObjCRuntimeProbe.self"))
         #expect(quillFoundationRuntimeProbe.contains("method_exchangeImplementations(original!, replacement!)"))

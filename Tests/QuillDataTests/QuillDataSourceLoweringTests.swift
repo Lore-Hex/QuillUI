@@ -376,11 +376,11 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
         // The wrapper builds the test bundle first (untimed) then runs it with
         // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
-        // wedge the CI step. Both invocations pass the scratch path through.
-        #expect(wrapper.contains("swift build --build-tests --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        // wedge the CI step. The build phase must keep SwiftPM's index store on
+        // because generated test discovery reads index units for test files.
+        #expect(wrapper.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
+        #expect(!wrapper.contains("swift build --build-tests --disable-index-store"))
         #expect(wrapper.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
-        #expect(wrapper.contains("SWIFT_INDEX_STORE_PATH=\"$SCRATCH_PATH/quill-index-store\""))
-        #expect(wrapper.contains("SWIFT_INDEX_STORE_ARGS=(-Xswiftc -index-store-path -Xswiftc \"$SWIFT_INDEX_STORE_PATH\")"))
         #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
         // The wrapper pre-builds the isolated SwiftSyntax source-lowering tool
         // untimed and pins QUILLUI_SOURCE_LOWER, so loweringScriptConvertsModelSyntax

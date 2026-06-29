@@ -43,10 +43,6 @@ done
     [[ -n "$triple" ]] || continue
     mkdir -p "$SCRATCH_PATH/$triple/debug/index/store/v5/units"
   done
-  SWIFT_INDEX_STORE_PATH="$SCRATCH_PATH/quill-index-store"
-  mkdir -p "$SWIFT_INDEX_STORE_PATH/v5/units"
-  SWIFT_INDEX_STORE_ARGS=(-Xswiftc -index-store-path -Xswiftc "$SWIFT_INDEX_STORE_PATH")
-
   # Build the test bundle FIRST, untimed (a cold all-upstreams build can take
   # the better part of an hour on a CI runner). Then run the suite with a TIGHT
   # timeout: separating the two means the timeout bounds only the (fast) test
@@ -67,8 +63,11 @@ done
   done
 
   set +e
+  # Keep the index store enabled for the build phase: SwiftPM's generated test
+  # discovery reads index units for test files and fails if `--disable-index-store`
+  # suppressed them. The skip-build test run below can still disable indexing.
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --build-tests --disable-index-store --scratch-path "$SCRATCH_PATH" "${SWIFT_INDEX_STORE_ARGS[@]}" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
+    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test-build.log"
   build_status=${PIPESTATUS[0]}
   if [[ $build_status -ne 0 ]]; then
@@ -131,7 +130,7 @@ done
   timeout --signal=KILL "$TEST_RUN_TIMEOUT" \
     stdbuf -oL -eL \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift test --skip-build --disable-index-store --scratch-path "$SCRATCH_PATH" "${SWIFT_INDEX_STORE_ARGS[@]}" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
+    swift test --skip-build --disable-index-store --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
   status=${PIPESTATUS[0]}
   set -e
