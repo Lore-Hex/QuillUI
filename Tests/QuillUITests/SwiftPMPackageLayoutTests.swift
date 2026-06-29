@@ -166,6 +166,40 @@ struct SwiftPMPackageLayoutTests {
         #expect(try String(contentsOf: dependencies, encoding: .utf8).isEmpty)
     }
 
+    @Test("Missing manifest package root fails before SwiftPM walks upward")
+    func missingManifestPackageRootFailsBeforeSwiftPMWalksUpward() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let scratch = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillUISwiftPMMissingManifestTests-\(UUID().uuidString)")
+        let packageRoot = scratch.appendingPathComponent("NoManifest")
+        let sourceDir = packageRoot.appendingPathComponent("Sources/App")
+        let output = scratch.appendingPathComponent("Output")
+        defer { try? fileManager.removeItem(at: scratch) }
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: output, withIntermediateDirectories: true)
+
+        let result = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/swiftpm-package-layout-for-linux.py").path,
+                "--package-root", packageRoot.path,
+                "--source-dir", sourceDir.path,
+                "--app-type", "SampleDesktopApp",
+                "--generated-target", "GeneratedSwiftUILinuxApp",
+                "--layout-out", output.appendingPathComponent("layout.tsv").path,
+                "--dependencies-out", output.appendingPathComponent("dependencies.swift").path
+            ]
+        )
+
+        #expect(result.status == 65)
+        #expect(result.output.contains("package root does not contain Package.swift"))
+        #expect(!result.output.contains("target QuillAssetSymbolsTool source path"))
+        #expect(!fileManager.fileExists(atPath: output.appendingPathComponent("layout.tsv").path))
+    }
+
     private func write(_ contents: String, to url: URL) throws {
         try contents.write(to: url, atomically: true, encoding: .utf8)
     }

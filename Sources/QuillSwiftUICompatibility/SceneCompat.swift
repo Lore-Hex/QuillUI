@@ -1,5 +1,12 @@
 import SwiftOpenUI
 
+public extension Window {
+    func windowStyle<S: WindowStyle>(_ style: S) -> Self {
+        _ = style
+        return self
+    }
+}
+
 public struct MenuBarExtra<Content: View, LabelContent: View>: Scene {
     public typealias Body = Never
 

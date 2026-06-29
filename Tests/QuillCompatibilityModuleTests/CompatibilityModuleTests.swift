@@ -400,6 +400,94 @@ struct CompatibilityModuleTests {
         } label: {
             Text("Summary")
         }
+        _ = Color.accentColor
+            .hueRotation(.degrees(-5))
+            .saturation(0.5)
+        _ = Font.system(size: 11).italic()
+        _ = Text("Deleted").strikethrough(true, color: .primary)
+        _ = Text("Deleted")
+            .font(.body)
+            .strikethrough(true, color: .primary)
+        _ = TapGesture(count: 2)
+            .onEnded { (_: TapGesture.Value) in }
+        _ = ProgressView("Loading", value: 42, total: 100)
+        _ = ProgressView {
+            Text("Loading")
+        }
+        _ = ProgressView(value: 0.4, total: 1.0) {
+            Text("Indexing")
+        } currentValueLabel: {
+            Text("40%")
+        }
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 4
+        _ = ProgressView(progress)
+        _ = Stepper("Count", value: .constant(1), in: 0...10, step: 1, format: .number)
+        _ = Stepper("Scale", value: .constant(1.0), in: 0.0...10.0, step: 0.5, format: .number)
+        _ = ColorPicker(selection: .constant(.accentColor), supportsOpacity: false) {
+            EmptyView()
+        }
+        _ = Text("Styled")
+            .bold(true)
+            .italic(false)
+        _ = Text("Gray")
+            .grayscale(0.4)
+        _ = Button("Token") {}
+            .buttonStyle(.link)
+        _ = Picker("Icon Style", selection: .constant("color")) {
+            Text("Color").tag("color")
+            Text("Mono").tag("mono")
+        }
+        .pickerStyle(.radioGroup)
+        _ = ZStack(alignment: .leadingLastTextBaseline) {
+            Text("Description")
+        }
+        _ = Rectangle()
+            .inset(by: -2)
+            .fill(.clear)
+            .listItemTint(.accentColor)
+        _ = Text("Alert")
+            .alert(Text("Confirm"), isPresented: .constant(false)) {
+                Button("OK") {}
+            }
+        _ = Menu("Commit") {
+            Button("Commit and Push...") {}
+        } primaryAction: {}
+        _ = Menu("Commit") {
+            Button("Commit and Push...") {}
+        }
+        var completedAnimation = false
+        withAnimation(.default, {}) {
+            completedAnimation = true
+        }
+        #expect(completedAnimation)
+        _ = Text("Payload Alert")
+            .alert("Confirm Step", isPresented: .constant(false), presenting: Optional("Continue?")) { confirmation in
+                Button(confirmation) {}
+            } message: { confirmation in
+                Text(confirmation)
+            }
+        enum SettingsSelection: Hashable {
+            case general
+        }
+        struct RegistryItem {
+            var name: String
+        }
+        _ = List(selection: .constant(SettingsSelection.general)) {
+            Text("General")
+        }
+        _ = List([RegistryItem(name: "swift")], id: \.name) { item in
+            Text(item.name)
+        }
+        #if os(Linux)
+        _ = Image(ImageResource.gitHubIcon)
+        #endif
+        _ = Window("Settings", id: "settings") {
+            Text("Settings")
+        }
+        .windowToolbarStyle(.unified)
+        .windowResizability(.contentSize)
+        #expect(VerticalAlignment.trailing == .center)
         let verticalTextField = TextField("Message", text: .constant(""), axis: .vertical)
         #expect(verticalTextField.axis == .vertical)
         #expect(TextField("Name", text: .constant("")).axis == .horizontal)
@@ -1565,6 +1653,11 @@ struct CompatibilityModuleTests {
         #expect(result.flatFormatParsed)
         #expect(result.exponentFormatParsed)
         #expect(result.invalidStringReturnsZero)
+
+        let homeProject = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("QuillProject")
+            .path as NSString
+        #expect(homeProject.abbreviatingWithTildeInPath == "~/QuillProject")
     }
 
     @Test("AppKit appearance smoke covers names and best matches")
@@ -1708,6 +1801,7 @@ struct CompatibilityModuleTests {
         #expect(result.childRemovalClearsParent)
         #expect(result.tabbedWindowsRoundTrip)
         #expect(result.applicationTabIdentifierLookup)
+        #expect(result.applicationIconImageIsConcrete)
         #expect(result.sheetLifecycleRoundTrip)
     }
 
@@ -1800,6 +1894,45 @@ struct CompatibilityModuleTests {
         #expect(result.controllerAddedItemsInOrder)
         #expect(result.controllerRemoveClearedLinks)
         #expect(result.factoryBehaviorsRoundTrip)
+    }
+
+    @Test("AppKit compatibility covers CodeEdit active notification spring split item colors and scrollable text view")
+    @MainActor
+    func appKitCompatibilityCoversCodeEditLatestSurface() {
+        #expect(NSApplication.didBecomeActiveNotification.rawValue == "NSApplicationDidBecomeActiveNotification")
+        #expect(NSColor.controlColor.alphaComponent == 1)
+        #expect(NSColor.disabledControlTextColor.alphaComponent == 1)
+
+        let splitItem = NSSplitViewItem(viewController: NSViewController())
+        splitItem.isSpringLoaded = true
+        #expect(splitItem.isSpringLoaded)
+
+        let scrollView = NSTextView.scrollableTextView()
+        #expect(scrollView.documentView is NSTextView)
+        #expect(scrollView.hasVerticalScroller)
+        #expect(scrollView.verticalScroller != nil)
+
+        let imageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-codeedit-image-\(UUID().uuidString).bin")
+        try? Data([0, 1, 2, 3]).write(to: imageURL)
+        defer { try? FileManager.default.removeItem(at: imageURL) }
+        #expect(NSImage(contentsOf: imageURL) != nil)
+    }
+
+    @Test("NSXPC continuation optional reply callbacks infer concrete values")
+    func nsXPCContinuationOptionalReplyCallbacksInferConcreteValues() async throws {
+        final class OptionalDataService: NSObject {
+            func load(reply: @escaping (Data?) -> Void) {
+                reply(Data([1, 2, 3]))
+            }
+        }
+
+        let connection = NSXPCConnection(serviceName: "quill.optional-data")
+        connection.exportedObject = OptionalDataService()
+        let data: Data = try await connection.withContinuation { (service: OptionalDataService, continuation) in
+            service.load(reply: continuation.resumingHandler)
+        }
+        #expect(data == Data([1, 2, 3]))
     }
 
     @Test("AppKit views maintain tracking areas")
@@ -2176,6 +2309,8 @@ struct CompatibilityModuleTests {
         center.setNotificationCategories([])
         center.removeAllDeliveredNotifications()
         center.removeAllPendingNotificationRequests()
+        #expect(!UNNotificationDefaultActionIdentifier.isEmpty)
+        #expect(!UNNotificationDismissActionIdentifier.isEmpty)
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
         let openedURLs = CompatibilityLockedValue<[URL]>([])
@@ -2589,8 +2724,25 @@ struct CompatibilityModuleTests {
     func asyncAlgorithmsAndCarbonContractsCompile() async {
         var iterator = AsyncTimerSequence(interval: .milliseconds(1), clock: .continuous).makeAsyncIterator()
         let firstTick = await iterator.next()
+        let stream = AsyncStream<Int> { continuation in
+            continuation.yield(1)
+            continuation.finish()
+        }
+        var chunks = stream
+            .chunked(by: .repeating(every: .milliseconds(1), clock: .continuous))
+            .makeAsyncIterator()
+        let debouncedStream = AsyncStream<Int> { continuation in
+            continuation.yield(7)
+            continuation.finish()
+        }
+        var debounced = debouncedStream
+            .debounce(for: .milliseconds(1))
+            .makeAsyncIterator()
 
         #expect(firstTick != nil)
+        #expect(await chunks.next() == [1])
+        let debouncedValue = await debounced.next()
+        #expect(debouncedValue == 7)
         #expect(CarbonCompatibility.available == false)
     }
 
@@ -2823,6 +2975,69 @@ struct CompatibilityModuleTests {
         first.send(3)
 
         #expect(values == [1, 2])
+    }
+
+    @Test("Combine MergeMany delivers values from all inputs and completes when empty")
+    func combineMergeManyDeliversValuesAndCompletesWhenEmpty() {
+        let first = PassthroughSubject<Int, Never>()
+        let second = PassthroughSubject<Int, Never>()
+        let third = PassthroughSubject<Int, Never>()
+        var values: [Int] = []
+
+        let cancellable = Publishers.MergeMany([first, second, third])
+            .eraseToAnyPublisher()
+            .sink { values.append($0) }
+
+        first.send(1)
+        second.send(2)
+        third.send(3)
+        cancellable.cancel()
+        first.send(4)
+
+        var emptyCompleted = false
+        _ = Publishers.MergeMany([AnyPublisher<Int, Never>]())
+            .eraseToAnyPublisher()
+            .sink { completion in
+                if case .finished = completion {
+                    emptyCompleted = true
+                }
+            } receiveValue: { _ in
+                Issue.record("Empty MergeMany should not emit values")
+            }
+
+        #expect(values == [1, 2, 3])
+        #expect(emptyCompleted)
+    }
+
+    @Test("Combine CombineLatest emits after both inputs have latest values")
+    func combineCombineLatestEmitsAfterBothInputsHaveLatestValues() {
+        let first = PassthroughSubject<Int, Never>()
+        let second = PassthroughSubject<String, Never>()
+        var values: [(Int, String)] = []
+        var completed = false
+
+        let cancellable = Publishers.CombineLatest(first, second)
+            .eraseToAnyPublisher()
+            .sink { completion in
+                if case .finished = completion {
+                    completed = true
+                }
+            } receiveValue: { value in
+                values.append(value)
+            }
+
+        first.send(1)
+        #expect(values.isEmpty)
+        second.send("a")
+        first.send(2)
+        second.send("b")
+        first.send(completion: .finished)
+        #expect(!completed)
+        second.send(completion: .finished)
+        cancellable.cancel()
+
+        #expect(values.map { "\($0.0):\($0.1)" } == ["1:a", "2:a", "2:b"])
+        #expect(completed)
     }
 
     @Test("Combine merge buffers values beyond current downstream demand")
@@ -3171,6 +3386,66 @@ struct CompatibilityModuleTests {
         let image = try #require(UIImage(named: "message_status_sent"))
         #expect(image.size == CGSize(width: 12, height: 12))
         #expect(image.quillResourceName == "message_status_sent")
+    }
+
+    @Test("Bundle image resources resolve files and symbolsets")
+    func bundleImageResourcesResolveFilesAndSymbolsets() throws {
+        let fileManager = FileManager.default
+        let bundleURL = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillImageBundle-\(UUID().uuidString).bundle", isDirectory: true)
+        let resourcesURL = bundleURL.appendingPathComponent("Resources", isDirectory: true)
+        let symbolsetURL = resourcesURL
+            .appendingPathComponent("Symbols.xcassets", isDirectory: true)
+            .appendingPathComponent("github.symbolset", isDirectory: true)
+        defer { try? fileManager.removeItem(at: bundleURL) }
+        try fileManager.createDirectory(at: symbolsetURL, withIntermediateDirectories: true)
+
+        let imageData = Data("bundle image".utf8)
+        let imageURL = resourcesURL.appendingPathComponent("logo-nobg.png")
+        try imageData.write(to: imageURL)
+
+        try """
+        {
+          "symbols" : [
+            {
+              "filename" : "github.svg",
+              "idiom" : "universal"
+            }
+          ],
+          "info" : { "author" : "xcode", "version" : 1 }
+        }
+        """.write(to: symbolsetURL.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+
+        let symbolData = Data("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"/>".utf8)
+        let symbolURL = symbolsetURL.appendingPathComponent("github.svg")
+        try symbolData.write(to: symbolURL)
+
+        let bundle = try #require(Bundle(url: bundleURL))
+        #expect(QuillResourceLookup.path(
+            forResource: "logo-nobg",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) == imageURL.path)
+        #expect(bundle.image(forResource: "logo-nobg")?.data == imageData)
+
+        if case .filePath(let path) = Image("logo-nobg", bundle: bundle).source {
+            #expect(path == imageURL.path)
+        } else {
+            Issue.record("Image(_:bundle:) should resolve bundle resources to file-backed SwiftOpenUI images")
+        }
+
+        #expect(QuillResourceLookup.path(
+            forResource: "github",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) == symbolURL.path)
+        #expect(bundle.image(forResource: "github")?.data == symbolData)
+
+        if case .filePath(let path) = Image("github", bundle: bundle).source {
+            #expect(path == symbolURL.path)
+        } else {
+            Issue.record("Image(_:bundle:) should resolve bundle symbolsets to file-backed SwiftOpenUI images")
+        }
     }
 
     @Test("System images preserve symbol identity for render backends")
@@ -3805,6 +4080,159 @@ struct CompatibilityModuleTests {
         #expect(String(describing: combined).contains("combined"))
         #expect(String(describing: combined).contains("opacity"))
         #expect(String(describing: combined).contains("slide"))
+
+        let animated = AnyTransition.opacity.animation(.easeInOut(duration: 0.25))
+        #expect(String(describing: animated).contains("animation"))
+
+        struct NoOpModifier: ViewModifier {
+            func body(content: Content) -> some View {
+                content
+            }
+        }
+        let modified = AnyTransition.modifier(
+            active: NoOpModifier(),
+            identity: NoOpModifier()
+        )
+        #expect(String(describing: modified).contains("modifier"))
+    }
+
+    @Test("SwiftUI compatibility covers WelcomeWindow source-level modifiers")
+    func welcomeWindowSwiftUISurfaceCompiles() {
+        struct DropView: View {
+            @Environment(\.controlActiveState)
+            private var controlActiveState
+
+            private var focusShape: some InsettableShape {
+                .rect(cornerRadius: 8)
+            }
+
+            var body: some View {
+                Text("drop")
+                    .background(focusShape.stroke(controlActiveState == .active ? Color.accentColor : Color.clear, lineWidth: 1))
+                    .onDrop(of: [.fileURL], isTargeted: .constant(true)) { providers in
+                        providers.isEmpty
+                    }
+            }
+        }
+
+        struct RecentsView: View {
+            @State private var selection: Set<URL> = []
+            private let recentProjects = [URL(fileURLWithPath: "/tmp/QuillProject")]
+
+            var body: some View {
+                List(recentProjects, id: \.self, selection: $selection) { project in
+                    Text(project.lastPathComponent)
+                }
+                .listStyle(.sidebar)
+                .contextMenu(forSelectionType: URL.self) { items in
+                    if !items.isEmpty {
+                        Button("Copy path") {}
+                    }
+                } primaryAction: { items in
+                    _ = items
+                }
+                .onCopyCommand {
+                    selection.map { NSItemProvider(object: $0.path as NSString) }
+                }
+                .onDeleteCommand {
+                    selection.removeAll()
+                }
+            }
+        }
+
+        let list = RecentsView()
+
+        let scene = Window("Welcome", id: "welcome") {
+            DropView()
+        }
+        .windowStyle(.hiddenTitleBar)
+
+        #expect(String(describing: type(of: list)).contains("RecentsView"))
+        #expect(String(describing: type(of: scene)).contains("Window"))
+    }
+
+    @Test("SwiftUI compatibility covers CodeEdit table, layout, material and scroll surface")
+    func codeEditSwiftUISurfaceCompiles() {
+        struct Row: Identifiable, Hashable {
+            let id = UUID()
+            var name: String
+        }
+
+        struct SurfaceProbe: View {
+            @State private var selection: Set<Row.ID> = []
+            @State private var extensionsEnabled = false
+            private let rows = [Row(name: "Sources")]
+            private let focusedModel = NSObject()
+
+            private var adaptiveLayout: AnyLayout {
+                rows.count > 1 ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(spacing: 8))
+            }
+
+            var body: some View {
+                VStack {
+                    adaptiveLayout {
+                        Text("Navigator")
+                        Text("Editor")
+                    }
+                    .focusedObject(focusedModel)
+                    .transformEnvironment(\.colorScheme) { colorScheme in
+                        colorScheme = .dark
+                    }
+                    .colorScheme(.dark)
+                    .navigationSubtitle("Workspace")
+
+                    Toggle("Extensions", isOn: $extensionsEnabled)
+                        .toggleStyle(.button)
+
+                    Table(rows, selection: $selection) {
+                        TableColumn("Name") { row in
+                            Text(row.name)
+                        }
+                    }
+                    .scrollDisabled(false)
+                    .scrollContentBackground(.hidden)
+                    .contextMenu(forSelectionType: Row.ID.self) { items in
+                        Button("Reveal") { _ = items }
+                    } primaryAction: { items in
+                        _ = items
+                    }
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.regularMaterial)
+                        .containerShape(RoundedRectangle(cornerRadius: 6))
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.accentColor.gradient)
+
+                    List {
+                        Text("Terminal")
+                            .contextMenu(
+                                ContextMenu {
+                                    Button("Delete") {}
+                                }
+                            )
+                    }
+                    .listStyle(.automatic)
+                    .accentColor(.secondary)
+                    .accessibilityElement(children: .contain)
+
+                    Color.coolGray
+                        .hueRotation(.degrees(-5))
+                        .zIndex(1)
+                        .coordinateSpace(name: "editor-tabs")
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
+                        .navigationBarBackButtonHidden(true)
+                        .frame(width: 1, height: 1)
+                }
+            }
+        }
+
+        let view = SurfaceProbe()
+        let focused = Text("Focused").focusedObject(NSObject())
+        #expect(String(describing: type(of: view)).contains("SurfaceProbe"))
+        #expect(String(describing: type(of: focused.body)).contains("Text"))
     }
 
     // MARK: - QuillCompatibilityEvent equality

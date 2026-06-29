@@ -67,6 +67,48 @@ public struct HStack<Content: View>: View, MultiChildView, PrimitiveView {
     }
 }
 
+public struct HStackLayout: Sendable {
+    public let spacing: Double?
+
+    public init(spacing: Double? = nil) {
+        self.spacing = spacing
+    }
+}
+
+public struct VStackLayout: Sendable {
+    public let spacing: Double?
+
+    public init(spacing: Double? = nil) {
+        self.spacing = spacing
+    }
+}
+
+public struct AnyLayout: Sendable {
+    private enum Storage: Sendable {
+        case horizontal(spacing: Double?)
+        case vertical(spacing: Double?)
+    }
+
+    private let storage: Storage
+
+    public init(_ layout: HStackLayout) {
+        self.storage = .horizontal(spacing: layout.spacing)
+    }
+
+    public init(_ layout: VStackLayout) {
+        self.storage = .vertical(spacing: layout.spacing)
+    }
+
+    public func callAsFunction<Content: View>(@ViewBuilder content: () -> Content) -> AnyView {
+        switch storage {
+        case let .horizontal(spacing):
+            return AnyView(HStack(spacing: Int(spacing ?? Double(stackDefaultSpacing)), content: content))
+        case let .vertical(spacing):
+            return AnyView(VStack(spacing: Int(spacing ?? Double(stackDefaultSpacing)), content: content))
+        }
+    }
+}
+
 /// A view that overlays its children on top of each other.
 public struct ZStack<Content: View>: View, MultiChildView, PrimitiveView {
     public typealias Body = Never

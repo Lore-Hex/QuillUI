@@ -36,6 +36,17 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGPath intersects uses recorded path bounds")
+    func pathIntersectsUsesBounds() {
+        let first = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+        let overlapping = CGPath(rect: CGRect(x: 9, y: 9, width: 3, height: 3), transform: nil)
+        let separate = CGPath(rect: CGRect(x: 20, y: 20, width: 3, height: 3), transform: nil)
+
+        #expect(first.intersects(overlapping))
+        #expect(!first.intersects(separate))
+        #expect(!CGPath().intersects(first))
+    }
+
     @Test("CGPath copy(using:) returns a transformed copy without mutating the source")
     func copyUsingTransformDoesNotMutateSource() throws {
         let source = CGMutablePath()
@@ -88,6 +99,17 @@ struct CoreGraphicsPathTests {
         #expect(point.applying(translateThenScale) == CGPoint(x: 22, y: 63))
         #expect(point.applying(CGAffineTransform(translationX: 10, y: 20).scaledBy(x: 2, y: 3)) == CGPoint(x: 12, y: 23))
         #expect(point.applying(CGAffineTransform(scaleX: 2, y: 3).translatedBy(x: 10, y: 20)) == CGPoint(x: 22, y: 63))
+        #expect(point.applying(CGAffineTransform(translationByX: 10, byY: 20)) == CGPoint(x: 11, y: 21))
+    }
+
+    @Test("CGColor copy can replace alpha without mutating components")
+    func colorCopyCanReplaceAlpha() throws {
+        let color = CGColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+        let faded = try #require(color.copy(alpha: 0.75))
+
+        #expect(color.components == [0.1, 0.2, 0.3, 0.4])
+        #expect(faded.components == [0.1, 0.2, 0.3, 0.75])
+        #expect(try #require(CGColor(gray: 0.5, alpha: 1).copy(alpha: 0.25)).components == [0.5, 0.25])
     }
 
     @Test("CGPath roundedRect records cubic corner curves")

@@ -33,6 +33,17 @@ public struct EnvironmentModifierView<Content: View, V>: View {
     public var body: Never { fatalError("EnvironmentModifierView is a primitive view") }
 }
 
+/// A view that mutates an environment value before rendering descendants.
+public struct TransformEnvironmentModifierView<Content: View, V>: View {
+    public typealias Body = Never
+
+    public let content: Content
+    public let keyPath: WritableKeyPath<EnvironmentValues, V>
+    public let transform: (inout V) -> Void
+
+    public var body: Never { fatalError("TransformEnvironmentModifierView is a primitive view") }
+}
+
 public protocol PreferenceKey {
     associatedtype Value
     static var defaultValue: Value { get }
@@ -65,6 +76,18 @@ extension View {
     /// Set an environment value for descendant views.
     public func environment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, _ value: V) -> EnvironmentModifierView<Self, V> {
         EnvironmentModifierView(content: self, keyPath: keyPath, value: value)
+    }
+
+    /// Transform an environment value for descendant views.
+    public func transformEnvironment<V>(
+        _ keyPath: WritableKeyPath<EnvironmentValues, V>,
+        transform: @escaping (inout V) -> Void
+    ) -> TransformEnvironmentModifierView<Self, V> {
+        TransformEnvironmentModifierView(content: self, keyPath: keyPath, transform: transform)
+    }
+
+    public func colorScheme(_ colorScheme: ColorScheme) -> EnvironmentModifierView<Self, ColorScheme> {
+        environment(\.colorScheme, colorScheme)
     }
 
     /// Inject a reference-typed object (typically `@Observable`) into

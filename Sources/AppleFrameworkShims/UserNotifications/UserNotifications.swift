@@ -15,6 +15,9 @@
 import Foundation
 import QuillKit
 
+public let UNNotificationDefaultActionIdentifier = "com.apple.UNNotificationDefaultActionIdentifier"
+public let UNNotificationDismissActionIdentifier = "com.apple.UNNotificationDismissActionIdentifier"
+
 // MARK: - Option sets / enums
 
 public struct UNAuthorizationOptions: OptionSet, Sendable {

@@ -5,10 +5,11 @@ import QuillFoundation
 // DesignSystem: AccountPopoverView / NextPageView / ScrollToView /
 // TagRowView / ToastOverlayView) that the SwiftUI shadow didn't yet provide.
 // Most of these are inert on QuillOS until the GTK/Qt backends implement the
-// matching behavior. `allowsHitTesting`, `onHover`, and `textSelection` are
-// the first exceptions: they carry real wrappers so backends can suppress
-// native hit testing, install native pointer tracking, and toggle native label
-// selectability while unmodified SwiftUI-only app source still type-checks.
+// matching behavior. `allowsHitTesting`, `contentShape`, `onHover`, and
+// `textSelection` are the first exceptions: they carry real wrappers so
+// backends can suppress native hit testing, expand gesture hit targets, install
+// native pointer tracking, and toggle native label selectability while
+// unmodified SwiftUI-only app source still type-checks.
 // These live in
 // QuillSwiftUICompatibility (re-exported by the SwiftUI shadow) rather than
 // QuillUI so DesignSystem, which only imports the shadow, can see them.
@@ -71,6 +72,20 @@ public struct QuillCompatibilityAllowsHitTestingView<Content: View>: View {
     }
 }
 
+public struct QuillCompatibilityContentShapeView<Content: View, ShapeValue: Shape>: View {
+    public let content: Content
+    public let shape: ShapeValue
+
+    public init(content: Content, shape: ShapeValue) {
+        self.content = content
+        self.shape = shape
+    }
+
+    public var body: Never {
+        fatalError("QuillCompatibilityContentShapeView is a backend-rendered primitive")
+    }
+}
+
 public extension View {
     /// Pointer-hover callback (iPadOS/macOS). Disfavored: QuillUI declares a
     /// functional `onHover` returning `OnHoverView`; callers that see both
@@ -84,9 +99,8 @@ public extension View {
     /// Interaction hit-test shape. QuillUI declares a functional
     /// `contentShape` returning a `ContentShapeView`.
     @_disfavoredOverload
-    func contentShape<S: Shape>(_ shape: S) -> Self {
-        _ = shape
-        return self
+    func contentShape<S: Shape>(_ shape: S) -> QuillCompatibilityContentShapeView<Self, S> {
+        QuillCompatibilityContentShapeView(content: self, shape: shape)
     }
 
     /// Whether the view's text is user-selectable. Disfavored so QuillUI's
@@ -140,14 +154,12 @@ public extension View {
     /// forms, e.g. IceCubes AppAccountView's `.foregroundStyle(.white, .green)`).
     /// The shadow only had the single-style form. Only the primary color is
     /// meaningful headless; the secondary/tertiary palette colors are inert.
-    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color) -> Self {
         _ = primary
         _ = secondary
         return self
     }
 
-    @_disfavoredOverload
     func foregroundStyle(_ primary: Color, _ secondary: Color, _ tertiary: Color) -> Self {
         _ = primary
         _ = secondary

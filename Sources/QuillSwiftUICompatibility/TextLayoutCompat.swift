@@ -81,6 +81,7 @@ public extension ToolbarItemPlacement {
     static var confirmationAction: ToolbarItemPlacement { .trailing }
     static var destructiveAction: ToolbarItemPlacement { .trailing }
     static var bottomBar: ToolbarItemPlacement { .primaryAction }
+    static var sidebarToggle: ToolbarItemPlacement { .leading }
 }
 
 public struct ToolbarItemGroup<Content: View>: ToolbarContent, ToolbarContentItemsProvider {

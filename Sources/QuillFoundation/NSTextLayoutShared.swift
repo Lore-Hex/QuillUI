@@ -10,9 +10,9 @@ import Foundation
 // these in both UI modules made every use ambiguous the moment a file could
 // see both worlds (e.g. SwiftUI + UIKit imports in Signal-iOS sources).
 //
-// NSTextAttachment and NSTextStorage intentionally stay per-flavor in the UI
-// modules: their members are image/layout-typed (UIImage vs NSImage), so they
-// cannot share one declaration until the image types converge.
+// NSTextAttachment also lives in QuillFoundation now that the Linux image
+// aliases converge on RSImage. NSTextStorage intentionally stays per-flavor in
+// the UI modules because editing/storage APIs still diverge.
 
 public enum NSTextAlignment: Int, Sendable {
     case left, right, center, justified, natural
@@ -107,4 +107,5 @@ public extension NSAttributedString.Key {
     static let kern = NSAttributedString.Key(rawValue: "NSKern")
     static let baselineOffset = NSAttributedString.Key(rawValue: "NSBaselineOffset")
     static let writingDirection = NSAttributedString.Key(rawValue: "NSWritingDirection")
+    static let selectionBackgroundColor = NSAttributedString.Key(rawValue: "NSSelectionBackgroundColor")
 }

@@ -84,6 +84,67 @@ public extension QuillSelectorDispatching {
     func quillPerform(_ selector: Selector, with sender: Any?) {}
 }
 
+#if os(Linux)
+public typealias Method = UnsafeMutableRawPointer
+
+public func class_getInstanceMethod(_ cls: AnyClass?, _ name: Selector) -> Method? {
+    _ = (cls, name)
+    return UnsafeMutableRawPointer(bitPattern: 1)
+}
+
+public func method_exchangeImplementations(_ method1: Method?, _ method2: Method?) {
+    _ = (method1, method2)
+}
+
+public final class NSMapTable<KeyType, ObjectType>: @unchecked Sendable {
+    private var entries: [(key: KeyType, object: ObjectType)] = []
+
+    public init(
+        keyOptions: NSPointerFunctions.Options = [],
+        valueOptions: NSPointerFunctions.Options = [],
+        capacity: Int = 0
+    ) {
+        _ = (keyOptions, valueOptions, capacity)
+    }
+
+    public static func weakToStrongObjects() -> NSMapTable<KeyType, ObjectType> {
+        NSMapTable<KeyType, ObjectType>(keyOptions: .weakMemory, valueOptions: .strongMemory)
+    }
+
+    public static func strongToWeakObjects() -> NSMapTable<KeyType, ObjectType> {
+        NSMapTable<KeyType, ObjectType>(keyOptions: .strongMemory, valueOptions: .weakMemory)
+    }
+
+    public func object(forKey key: KeyType) -> ObjectType? {
+        entries.first { keysMatch($0.key, key) }?.object
+    }
+
+    public func setObject(_ object: ObjectType?, forKey key: KeyType) {
+        entries.removeAll { keysMatch($0.key, key) }
+        if let object {
+            entries.append((key, object))
+        }
+    }
+
+    public func removeObject(forKey key: KeyType) {
+        entries.removeAll { keysMatch($0.key, key) }
+    }
+
+    public func removeAllObjects() {
+        entries.removeAll()
+    }
+
+    public var count: Int { entries.count }
+
+    private func keysMatch(_ lhs: KeyType, _ rhs: KeyType) -> Bool {
+        if let left = lhs as AnyObject?, let right = rhs as AnyObject? {
+            return left === right
+        }
+        return String(describing: lhs) == String(describing: rhs)
+    }
+}
+#endif
+
 // MARK: - Apple-platform image / color / font / screen typealiases
 
 #if os(macOS)
@@ -163,7 +224,6 @@ public struct QuillCFAllocator: Sendable {
     public init() {}
 }
 
-public let kCFAllocatorDefault = QuillCFAllocator()
 public let kCFBooleanTrue: NSNumber = NSNumber(value: true)
 public let kCFBooleanFalse: NSNumber = NSNumber(value: false)
 
@@ -327,6 +387,11 @@ public final class CGDataProvider: @unchecked Sendable {
         self.url = nil
     }
 
+    public init?(data: NSData) {
+        self.data = data as Data
+        self.url = nil
+    }
+
     public init?(url: CFURL) {
         self.data = nil
         self.url = url
@@ -412,9 +477,23 @@ public final class CGFont: @unchecked Sendable {
 // (.weakObjects / add / remove / allObjects). ObjectType is unconstrained to
 // match `NSHashTable<SomeProtocol>`; identity uses `as AnyObject` (valid for the
 // class instances actually stored).
+public enum NSPointerFunctions {
+    public struct Options: OptionSet, Sendable {
+        public let rawValue: UInt
+        public init(rawValue: UInt) { self.rawValue = rawValue }
+        public static let strongMemory = Options(rawValue: 0)
+        public static let weakMemory = Options(rawValue: 1 << 0)
+        public static let objectPointerPersonality = Options(rawValue: 1 << 1)
+    }
+}
+
 public final class NSHashTable<ObjectType>: @unchecked Sendable {
     private var storage: [ObjectType] = []
     public init() {}
+    public convenience init(options: NSPointerFunctions.Options) {
+        self.init()
+        _ = options
+    }
     public static func weakObjects() -> NSHashTable<ObjectType> { NSHashTable<ObjectType>() }
     public func add(_ object: ObjectType?) {
         guard let object else { return }
@@ -526,6 +605,13 @@ public class CGPath: Hashable, @unchecked Sendable {
 
     public func contains(_ point: CGPoint) -> Bool {
         contains(point, using: .winding, transform: .identity)
+    }
+
+    public func intersects(_ other: CGPath) -> Bool {
+        let lhs = boundingBoxOfPath
+        let rhs = other.boundingBoxOfPath
+        guard !lhs.isNull, !rhs.isNull else { return false }
+        return lhs.intersects(rhs)
     }
 
     public func contains(
@@ -1232,6 +1318,9 @@ public struct CGAffineTransform: Equatable, Sendable {
     public init(translationX tx: CGFloat, y ty: CGFloat) {
         self.init(a: 1, b: 0, c: 0, d: 1, tx: tx, ty: ty)
     }
+    public init(translationByX tx: CGFloat, byY ty: CGFloat) {
+        self.init(translationX: tx, y: ty)
+    }
     public init(scaleX sx: CGFloat, y sy: CGFloat) {
         self.init(a: sx, b: 0, c: 0, d: sy, tx: 0, ty: 0)
     }
@@ -1588,6 +1677,14 @@ public enum CGPathFillRule: Int32, Sendable {
     case evenOdd = 1
 }
 
+public enum CGPathDrawingMode: Int32, Sendable {
+    case fill = 0
+    case eoFill = 1
+    case stroke = 2
+    case fillStroke = 3
+    case eoFillStroke = 4
+}
+
 public final class CGContext {
     /// Pluggable real-drawing backend (see CGContextBackend.swift). nil keeps
     /// the historical compile-only no-op behavior.
@@ -1632,6 +1729,11 @@ public final class CGContext {
     private var quillStateStack: [QuillGraphicsState] = []
     private var quillTransparencyLayerStack: [QuillTransparencyLayer] = []
     private var quillCurrentPath = CGMutablePath()
+    private var quillBitmapDataPointer: UnsafeMutableRawPointer?
+
+    deinit {
+        quillBitmapDataPointer?.deallocate()
+    }
 
     private struct QuillGraphicsState {
         var fillRGBA: [CGFloat]
@@ -3591,6 +3693,18 @@ public final class CGContext {
         return image
     }
 
+    public var data: UnsafeMutableRawPointer? {
+        guard let bytes = quillBitmapBytes, !bytes.isEmpty else { return nil }
+        if quillBitmapDataPointer == nil {
+            quillBitmapDataPointer = UnsafeMutableRawPointer.allocate(
+                byteCount: bytes.count,
+                alignment: MemoryLayout<UInt8>.alignment
+            )
+        }
+        quillBitmapDataPointer?.copyMemory(from: bytes, byteCount: bytes.count)
+        return quillBitmapDataPointer
+    }
+
     public var interpolationQuality: CGInterpolationQuality = .default
     public func setInterpolationQuality(_ quality: CGInterpolationQuality) {
         interpolationQuality = quality
@@ -3660,6 +3774,9 @@ public final class CGContext {
         quillLineDashPhase = phase.isFinite ? phase : 0
         quillLineDashLengths = sanitizedLengths
         quillBackend?.setLineDash(phase: quillLineDashPhase, lengths: sanitizedLengths)
+    }
+    public func setFillColorSpace(_ space: CGColorSpace) {
+        colorSpace = space
     }
     public func setShadow(offset: CGSize, blur: CGFloat) {
         let colorRGBA: [CGFloat] = [0, 0, 0, CGFloat(1) / 3]
@@ -3770,6 +3887,30 @@ public final class CGContext {
         quillBackend?.strokePath()
         quillStrokeBitmapPath(quillCurrentPath)
         clearCurrentPath()
+    }
+    public func drawPath(using mode: CGPathDrawingMode) {
+        switch mode {
+        case .fill:
+            fillPath()
+        case .eoFill:
+            fillPath(using: .evenOdd)
+        case .stroke:
+            strokePath()
+        case .fillStroke:
+            let path = quillCurrentPath
+            quillBackend?.fillPath()
+            quillFillBitmapPath(path, using: .winding)
+            quillBackend?.strokePath()
+            quillStrokeBitmapPath(path)
+            clearCurrentPath()
+        case .eoFillStroke:
+            let path = quillCurrentPath
+            quillBackend?.fillPath(using: .evenOdd)
+            quillFillBitmapPath(path, using: .evenOdd)
+            quillBackend?.strokePath()
+            quillStrokeBitmapPath(path)
+            clearCurrentPath()
+        }
     }
 
     public func beginPath() {
@@ -3891,6 +4032,11 @@ public final class CGContext {
         }
 
         quillAddClip(CGPath(rect: normalizedRect, transform: nil), using: .winding)
+    }
+    public func clip(to rects: [CGRect]) {
+        for rect in rects {
+            clip(to: rect)
+        }
     }
     public func resetClip() {
         quillClipRegions.removeAll()
@@ -4116,6 +4262,43 @@ public enum QuillResourceLookup {
         return nil
     }
 
+    public static func path(
+        forResource name: String,
+        candidateExtensions: [String] = [],
+        in bundle: Bundle?
+    ) -> String? {
+        guard let bundle else {
+            return path(forResource: name, candidateExtensions: candidateExtensions)
+        }
+        guard !name.isEmpty else { return nil }
+
+        for candidate in candidateNames(for: name, extensions: candidateExtensions) {
+            let candidateURL = URL(fileURLWithPath: candidate)
+            let resourceName = candidateURL.deletingPathExtension().path
+            let resourceExtension = candidateURL.pathExtension.isEmpty ? nil : candidateURL.pathExtension
+            if let path = bundle.path(forResource: resourceName, ofType: resourceExtension) {
+                return path
+            }
+        }
+
+        for root in bundleResourceRoots(bundle) {
+            for candidate in candidateNames(for: name, extensions: candidateExtensions) {
+                let url = root.appendingPathComponent(candidate)
+                var isDirectory: ObjCBool = false
+                if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+                   !isDirectory.boolValue {
+                    return url.path
+                }
+            }
+
+            if let assetPath = assetCatalogImagePath(for: name, under: root) {
+                return assetPath
+            }
+        }
+
+        return path(forResource: name, candidateExtensions: candidateExtensions)
+    }
+
     public static func imageSize(forResource name: String) -> CGSize? {
         guard let path = path(forResource: name, candidateExtensions: commonImageExtensions) else {
             return nil
@@ -4128,6 +4311,17 @@ public enum QuillResourceLookup {
         candidateExtensions: [String] = []
     ) -> Data? {
         guard let path = path(forResource: name, candidateExtensions: candidateExtensions) else {
+            return nil
+        }
+        return FileManager.default.contents(atPath: path)
+    }
+
+    public static func data(
+        forResource name: String,
+        candidateExtensions: [String] = [],
+        in bundle: Bundle?
+    ) -> Data? {
+        guard let path = path(forResource: name, candidateExtensions: candidateExtensions, in: bundle) else {
             return nil
         }
         return FileManager.default.contents(atPath: path)
@@ -4175,9 +4369,11 @@ public enum QuillResourceLookup {
 
         let catalogRoots = imageCatalogRoots(under: directory)
         for catalogRoot in catalogRoots {
-            let direct = catalogRoot.appendingPathComponent("\(assetName).imageset", isDirectory: true)
-            if let path = imagePath(inImageset: direct) {
-                return path
+            for assetExtension in ["imageset", "symbolset"] {
+                let direct = catalogRoot.appendingPathComponent("\(assetName).\(assetExtension)", isDirectory: true)
+                if let path = imagePath(inAssetSet: direct) {
+                    return path
+                }
             }
 
             guard let enumerator = FileManager.default.enumerator(
@@ -4187,8 +4383,10 @@ public enum QuillResourceLookup {
             ) else {
                 continue
             }
-            for case let url as URL in enumerator where url.lastPathComponent == "\(assetName).imageset" {
-                if let path = imagePath(inImageset: url) {
+            for case let url as URL in enumerator
+                where url.lastPathComponent == "\(assetName).imageset"
+                    || url.lastPathComponent == "\(assetName).symbolset" {
+                if let path = imagePath(inAssetSet: url) {
                     return path
                 }
             }
@@ -4220,25 +4418,26 @@ public enum QuillResourceLookup {
         }
     }
 
-    private static func imagePath(inImageset imageset: URL) -> String? {
+    private static func imagePath(inAssetSet assetSet: URL) -> String? {
         let fileManager = FileManager.default
         var isDirectory: ObjCBool = false
-        guard fileManager.fileExists(atPath: imageset.path, isDirectory: &isDirectory),
+        guard fileManager.fileExists(atPath: assetSet.path, isDirectory: &isDirectory),
               isDirectory.boolValue else {
             return nil
         }
-        let contentsURL = imageset.appendingPathComponent("Contents.json")
+        let contentsURL = assetSet.appendingPathComponent("Contents.json")
         guard let data = try? Data(contentsOf: contentsURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let images = json["images"] as? [[String: Any]] else {
+              let entries = json["images"] as? [[String: Any]]
+                ?? json["symbols"] as? [[String: Any]] else {
             return nil
         }
 
-        for image in images {
+        for image in entries {
             guard let filename = image["filename"] as? String, !filename.isEmpty else {
                 continue
             }
-            let imageURL = imageset.appendingPathComponent(filename)
+            let imageURL = assetSet.appendingPathComponent(filename)
             var imageIsDirectory: ObjCBool = false
             if fileManager.fileExists(atPath: imageURL.path, isDirectory: &imageIsDirectory),
                !imageIsDirectory.boolValue {
@@ -4285,6 +4484,31 @@ public enum QuillResourceLookup {
             append(candidate)
         }
         return result
+    }
+
+    private static func bundleResourceRoots(_ bundle: Bundle) -> [URL] {
+        var roots: [URL] = []
+        var seen: Set<String> = []
+
+        func append(_ url: URL?) {
+            guard let url else { return }
+            let standardized = url.standardizedFileURL
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: standardized.path, isDirectory: &isDirectory),
+                  isDirectory.boolValue,
+                  seen.insert(standardized.path).inserted else {
+                return
+            }
+            roots.append(standardized)
+        }
+
+        append(bundle.resourceURL)
+        append(bundle.bundleURL)
+        append(bundle.bundleURL.appendingPathComponent("Resources", isDirectory: true))
+        append(bundle.bundleURL
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Resources", isDirectory: true))
+        return roots
     }
 
     private static func localizedStringTablePaths(tableName: String, localization: String, under root: URL) -> [String] {
@@ -4368,6 +4592,21 @@ public enum QuillResourceLookup {
         return URL(fileURLWithPath: path).deletingLastPathComponent()
     }
 }
+
+#if os(Linux)
+public extension Bundle {
+    func image(forResource name: String) -> RSImage? {
+        guard let data = QuillResourceLookup.data(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: self
+        ) else {
+            return nil
+        }
+        return RSImage(data: data)
+    }
+}
+#endif
 
 private enum QuillLocalizedStringTables {
     nonisolated(unsafe) private static var cachedTables: [String: [String: String]?] = [:]
@@ -4814,6 +5053,16 @@ public enum QuillImageCompositingOperation: Sendable {
     case sourceOver
 }
 
+open class RSImageRep: NSObject, @unchecked Sendable {
+    public var pixelsWide: Int
+    public var pixelsHigh: Int
+
+    public init(pixelsWide: Int, pixelsHigh: Int) {
+        self.pixelsWide = pixelsWide
+        self.pixelsHigh = pixelsHigh
+    }
+}
+
 open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public static var supportsSecureCoding: Bool { true }
 
@@ -4845,6 +5094,12 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         }
         #endif
     }
+
+    public convenience init?(contentsOf url: URL) {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        self.init(data: data)
+    }
+
     public init?(named name: String) {
         super.init()
         self.quillResourceName = name
@@ -4882,13 +5137,44 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
             message: "NSImage(systemName:) returns a 32x32 placeholder image for '\(systemName)' on Linux; SF Symbol assets are not loaded through AppKit yet."
         )
     }
+
+    public convenience init?(systemSymbolName symbolName: String, accessibilityDescription: String?) {
+        _ = accessibilityDescription
+        self.init(systemName: symbolName)
+    }
+
     public init(size: CGSize) {
         super.init()
         self.size = size
     }
     public struct SymbolConfiguration {
-        public init(pointSize: CGFloat, weight: Any) {}
+        public struct Scale: RawRepresentable, Hashable, Sendable {
+            public var rawValue: String
+            public init(rawValue: String) {
+                self.rawValue = rawValue
+            }
+
+            public static let small = Scale(rawValue: "small")
+            public static let medium = Scale(rawValue: "medium")
+            public static let large = Scale(rawValue: "large")
+        }
+
+        public init(pointSize: CGFloat, weight: RSFont.Weight) {
+            _ = (pointSize, weight)
+        }
+        public init(pointSize: CGFloat, weight: RSFont.Weight, scale: Scale) {
+            _ = (pointSize, weight, scale)
+        }
+        public init(scale: Scale) {
+            _ = scale
+        }
+        public init(paletteColors: [RSColor]) {
+            _ = paletteColors
+        }
         public init(textStyle: Any) {}
+        public func applying(_ configuration: SymbolConfiguration) -> SymbolConfiguration {
+            configuration
+        }
     }
     public var size: CGSize = CGSize(width: 0, height: 0)
     /// Raw image bytes when the instance was constructed from
@@ -4896,6 +5182,18 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     /// compatibility shape — readers reach back to the original
     /// bytes for re-encoding (e.g. `tiffRepresentation`).
     public var data: Data?
+    public var representations: [RSImageRep] {
+        if let cgImage {
+            return [RSImageRep(pixelsWide: cgImage.width, pixelsHigh: cgImage.height)]
+        }
+        if let data {
+            let width = max(0, Int(size.width.rounded()))
+            let height = max(0, Int(size.height.rounded()))
+            _ = data
+            return [RSImageRep(pixelsWide: width, pixelsHigh: height)]
+        }
+        return []
+    }
     public private(set) var quillResourceName: String?
     public private(set) var quillSystemSymbolName: String?
     private var quillBackingCGImage: CGImage?
@@ -4903,6 +5201,7 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     private var quillFocusContext: CGContext?
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
+    public var alignmentRect: CGRect { CGRect(origin: .zero, size: size) }
     public func pngData() -> Data? { data }
     public func dataRepresentation() -> Data? { data }
     /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
@@ -4937,6 +5236,10 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public static func scaledImageData(_ data: Data, maxPixelSize: Int) -> Data? { data }
     public static var smartBadgeTemplateName: String { "" }
     public func maskWithColor(color: Any) -> RSImage? { self }
+    public func withSymbolConfiguration(_ configuration: SymbolConfiguration) -> RSImage {
+        _ = configuration
+        return self
+    }
     public func resizableImage(withCapInsets capInsets: NSEdgeInsets, resizingMode: ResizingMode = .tile) -> RSImage {
         self.capInsets = capInsets
         self.resizingMode = resizingMode
@@ -5152,6 +5455,50 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
 }
 public typealias UIImage = RSImage
 
+/// Shared Linux text attachment surface. On Apple this type is supplied by
+/// AppKit/UIKit; on Linux both QuillAppKit and QuillUIKit re-export
+/// QuillFoundation, and `NSImage`/`UIImage` converge to `RSImage`, so keeping a
+/// single declaration avoids duplicate-type ambiguity when desktop packages
+/// import SwiftUI + QuillShims.
+open class NSTextAttachment: NSObject {
+    public var image: RSImage?
+    public var bounds: CGRect
+    public var contents: Data?
+    public var fileType: String?
+
+    public override init() {
+        self.image = nil
+        self.bounds = .zero
+        self.contents = nil
+        self.fileType = nil
+        super.init()
+    }
+
+    public init(data contentData: Data?, ofType uti: String?) {
+        self.image = nil
+        self.bounds = .zero
+        self.contents = contentData
+        self.fileType = uti
+        super.init()
+    }
+
+    public required init?(coder: NSCoder) {
+        self.image = nil
+        self.bounds = .zero
+        self.contents = nil
+        self.fileType = nil
+        super.init()
+    }
+}
+
+public extension NSAttributedString {
+    /// Wrap a text attachment in the object-replacement character with the
+    /// standard attachment attribute, matching AppKit/UIKit source shape.
+    convenience init(attachment: NSTextAttachment) {
+        self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
+    }
+}
+
 public struct RSCGColor: Equatable, Sendable {
     public var colorSpace: CGColorSpace?
     public var components: [CGFloat]?
@@ -5212,6 +5559,24 @@ public struct RSCGColor: Equatable, Sendable {
             components: [gray, alpha]
         )
     }
+
+    public func copy(alpha: CGFloat? = nil) -> RSCGColor? {
+        guard let alpha else { return self }
+        var copiedComponents = components ?? [0, 0, 0, self.alpha]
+        switch copiedComponents.count {
+        case 0:
+            copiedComponents = [0, 0, 0, alpha]
+        case 1:
+            copiedComponents.append(alpha)
+        case 2:
+            copiedComponents[1] = alpha
+        case 3:
+            copiedComponents.append(alpha)
+        default:
+            copiedComponents[copiedComponents.count - 1] = alpha
+        }
+        return RSCGColor(quillColorSpace: colorSpace, components: copiedComponents)
+    }
 }
 public typealias CGColor = RSCGColor
 
@@ -5248,7 +5613,9 @@ public enum QuillGraphicsContextState {
     }
 }
 
-public class RSColor: NSObject, @unchecked Sendable {
+public class RSColor: NSObject, NSSecureCoding, @unchecked Sendable {
+    public static var supportsSecureCoding: Bool { true }
+
     // Phase B: real RGBA storage so callers get sensible values back
     // from .redComponent / .cgColor / etc. Stored under underscore-
     // prefixed names so static peers like `NSColor.red` (an extension)
@@ -5261,6 +5628,23 @@ public class RSColor: NSObject, @unchecked Sendable {
     public override init() {
         self._red = 0; self._green = 0; self._blue = 0; self._alpha = 1
     }
+
+    public required init?(coder: NSCoder) {
+        self._red = CGFloat(coder.decodeDouble(forKey: "red"))
+        self._green = CGFloat(coder.decodeDouble(forKey: "green"))
+        self._blue = CGFloat(coder.decodeDouble(forKey: "blue"))
+        let decodedAlpha = coder.containsValue(forKey: "alpha") ? coder.decodeDouble(forKey: "alpha") : 1
+        self._alpha = CGFloat(decodedAlpha)
+        super.init()
+    }
+
+    public func encode(with coder: NSCoder) {
+        coder.encode(Double(_red), forKey: "red")
+        coder.encode(Double(_green), forKey: "green")
+        coder.encode(Double(_blue), forKey: "blue")
+        coder.encode(Double(_alpha), forKey: "alpha")
+    }
+
     public init(red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
         self._red = red; self._green = green; self._blue = blue; self._alpha = alpha
     }
@@ -5302,6 +5686,10 @@ public class RSColor: NSObject, @unchecked Sendable {
         QuillGraphicsContextState.setFillColor(cgColor)
     }
 
+    public func setStroke() {
+        QuillGraphicsContextState.currentContext?.setStrokeColor(cgColor)
+    }
+
     public static let clear = RSColor(red: 0, green: 0, blue: 0, alpha: 0)
     public static let white = RSColor(red: 1, green: 1, blue: 1, alpha: 1)
     public static let black = RSColor(red: 0, green: 0, blue: 0, alpha: 1)
@@ -5320,7 +5708,12 @@ public class RSColor: NSObject, @unchecked Sendable {
     public static let systemGray2 = RSColor(red: 0.68, green: 0.68, blue: 0.70, alpha: 1)
     public static let systemBlue = RSColor(red: 0.00, green: 0.48, blue: 1.00, alpha: 1)
     public static let systemRed = RSColor(red: 1.00, green: 0.23, blue: 0.19, alpha: 1)
+    public static let systemYellow = RSColor(red: 1.00, green: 0.80, blue: 0.00, alpha: 1)
+    public static let linkColor = systemBlue
     public static let pink = RSColor(red: 1.00, green: 0.18, blue: 0.33, alpha: 1)
+    public static let folderBlue = RSColor(red: 0.18, green: 0.47, blue: 0.92, alpha: 1)
+    public static let coolGray = RSColor(red: 0.48, green: 0.52, blue: 0.58, alpha: 1)
+    public static let unemphasizedSelectedTextBackgroundColor = RSColor(red: 0.82, green: 0.84, blue: 0.87, alpha: 1)
 
     /// Returns a 4-tuple [R, G, B, A]. Matches the CGColor.components shape.
     public var cgColor: RSCGColor { RSCGColor(components: [_red, _green, _blue, _alpha]) }
@@ -5420,12 +5813,39 @@ public class RSFont: NSObject, @unchecked Sendable {
         self.fontName = ".AppleSystemUIFont"
     }
     public static func systemFont(ofSize size: CGFloat) -> RSFont { RSFont(pointSize: size) }
-    public enum Weight { case ultraLight, light, regular, medium, semibold, bold, heavy, black }
+    public struct Weight: RawRepresentable, Hashable, Sendable {
+        public var rawValue: CGFloat
+        public init(rawValue: CGFloat) { self.rawValue = rawValue }
+
+        public static let ultraLight = Weight(rawValue: -0.8)
+        public static let thin = Weight(rawValue: -0.6)
+        public static let light = Weight(rawValue: -0.4)
+        public static let regular = Weight(rawValue: 0)
+        public static let medium = Weight(rawValue: 0.23)
+        public static let semibold = Weight(rawValue: 0.3)
+        public static let bold = Weight(rawValue: 0.4)
+        public static let heavy = Weight(rawValue: 0.56)
+        public static let black = Weight(rawValue: 0.62)
+    }
+
+    public struct Width: RawRepresentable, Hashable, Sendable {
+        public var rawValue: CGFloat
+        public init(rawValue: CGFloat) { self.rawValue = rawValue }
+
+        public static let standard = Width(rawValue: 0)
+        public static let compressed = Width(rawValue: -0.3)
+        public static let condensed = Width(rawValue: -0.2)
+        public static let expanded = Width(rawValue: 0.2)
+    }
 
     // UIFont descriptor surface (SSK's bold/italic body-range styling).
-    public var fontDescriptor: UIFontDescriptor { UIFontDescriptor() }
-    public convenience init(descriptor: UIFontDescriptor, size: CGFloat) {
-        self.init(pointSize: size)
+    public var fontDescriptor: UIFontDescriptor {
+        let descriptor = UIFontDescriptor(name: fontName)
+        descriptor.pointSize = pointSize
+        return descriptor
+    }
+    public convenience init?(descriptor: UIFontDescriptor, size: CGFloat) {
+        self.init(pointSize: size == 0 ? descriptor.pointSize : size, fontName: descriptor.name)
     }
 
     // UIFont(name:size:) is failable on UIKit (nil if the named font is absent).
@@ -5436,15 +5856,35 @@ public class RSFont: NSObject, @unchecked Sendable {
         self.init(pointSize: size, fontName: name)
     }
 
-    public func withSize(_ size: CGFloat) -> RSFont { RSFont(pointSize: size) }
+    public func withSize(_ size: CGFloat) -> RSFont { RSFont(pointSize: size, fontName: fontName) }
 
     // Approximate metrics (the real values come from the font's glyph table,
     // unavailable here). lineHeight ~1.2x, capHeight ~0.7x point size -- enough
     // for the SSK avatar/text-measurement call sites to compile and lay out.
+    public var isFixedPitch: Bool {
+        let lowercasedName = fontName.lowercased()
+        return lowercasedName.contains("mono")
+            || lowercasedName.contains("menlo")
+            || lowercasedName.contains("courier")
+            || lowercasedName.contains("console")
+            || lowercasedName.contains("code")
+    }
+    public var numberOfGlyphs: Int { 256 }
     public var lineHeight: CGFloat { pointSize * 1.2 }
     public var capHeight: CGFloat { pointSize * 0.7 }
     public var ascender: CGFloat { pointSize * 0.95 }
     public var descender: CGFloat { -pointSize * 0.25 }
+    public var underlinePosition: CGFloat { -pointSize * 0.1 }
+    public var underlineThickness: CGFloat { max(1, pointSize / 16) }
+
+    public func glyph(withName name: String) -> UInt16 {
+        name.unicodeScalars.first.map { UInt16($0.value & 0xffff) } ?? 0
+    }
+
+    public func advancement(forGlyph glyph: UInt16) -> CGSize {
+        _ = glyph
+        return CGSize(width: max(1, pointSize * 0.62), height: lineHeight)
+    }
 }
 // NOTE: no `UIFont` alias here. The UIKit shim owns the Linux UIFont class
 // (since #427), and SignalServiceKit sees BOTH modules (QuillFoundation is
@@ -5459,6 +5899,8 @@ public class RSFont: NSObject, @unchecked Sendable {
 // (no real font substitution on Linux) but withSymbolicTraits round-trips the
 // requested traits so callers get a non-nil descriptor + a same-size font back.
 public final class UIFontDescriptor: @unchecked Sendable {
+    public let name: String
+    public var pointSize: CGFloat = 13
     public struct SystemDesign: RawRepresentable, Hashable, Sendable, ExpressibleByStringLiteral {
         public var rawValue: String
         public init(rawValue: String) { self.rawValue = rawValue }
@@ -5483,16 +5925,96 @@ public final class UIFontDescriptor: @unchecked Sendable {
         public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
     }
     public var symbolicTraits: SymbolicTraits
-    public init(symbolicTraits: SymbolicTraits = []) {
+    public init(name: String = ".AppleSystemUIFont", symbolicTraits: SymbolicTraits = []) {
+        self.name = name
         self.symbolicTraits = symbolicTraits
     }
     public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
-        UIFontDescriptor(symbolicTraits: symbolicTraits.union(traits))
+        let descriptor = UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
+        descriptor.pointSize = pointSize
+        return descriptor
     }
 
     public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
         _ = design
-        return self
+        let descriptor = UIFontDescriptor(name: name, symbolicTraits: symbolicTraits)
+        descriptor.pointSize = pointSize
+        return descriptor
+    }
+
+    public struct AttributeName: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let name = AttributeName(rawValue: "NSFontNameAttribute")
+        public static let family = AttributeName(rawValue: "NSFontFamilyAttribute")
+        public static let face = AttributeName(rawValue: "NSFontFaceAttribute")
+        public static let size = AttributeName(rawValue: "NSFontSizeAttribute")
+        public static let traits = AttributeName(rawValue: "NSCTFontTraitsAttribute")
+        public static let cascadeList = AttributeName(rawValue: "NSCTFontCascadeListAttribute")
+        public static let textStyle = AttributeName(rawValue: "NSCTFontUIUsageAttribute")
+        public static let featureSettings = AttributeName(rawValue: "NSCTFontFeatureSettingsAttribute")
+        public static let fixedAdvance = AttributeName(rawValue: "NSCTFontFixedAdvanceAttribute")
+    }
+
+    public struct FeatureKey: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let selectorIdentifier = FeatureKey(rawValue: "CTFeatureSelectorIdentifier")
+        public static let typeIdentifier = FeatureKey(rawValue: "CTFeatureTypeIdentifier")
+    }
+
+    public struct TraitKey: RawRepresentable, Equatable, Hashable, Sendable {
+        public var rawValue: String
+        public init(rawValue: String) { self.rawValue = rawValue }
+
+        public static let symbolic = TraitKey(rawValue: "NSCTFontSymbolicTrait")
+        public static let weight = TraitKey(rawValue: "NSCTFontWeightTrait")
+        public static let width = TraitKey(rawValue: "NSCTFontProportionTrait")
+        public static let slant = TraitKey(rawValue: "NSCTFontSlantTrait")
+    }
+
+    public convenience init(fontAttributes: [AttributeName: Any] = [:]) {
+        self.init(name: fontAttributes[.name] as? String ?? ".AppleSystemUIFont")
+        if let size = fontAttributes[.size] as? CGFloat {
+            pointSize = size
+        } else if let size = fontAttributes[.size] as? Double {
+            pointSize = CGFloat(size)
+        }
+    }
+
+    public func addingAttributes(_ attributes: [AttributeName: Any] = [:]) -> UIFontDescriptor {
+        let descriptor = UIFontDescriptor(
+            name: attributes[.name] as? String ?? name,
+            symbolicTraits: symbolicTraits
+        )
+        if let size = attributes[.size] as? CGFloat {
+            descriptor.pointSize = size
+        } else if let size = attributes[.size] as? Double {
+            descriptor.pointSize = CGFloat(size)
+        } else {
+            descriptor.pointSize = pointSize
+        }
+        return descriptor
+    }
+}
+
+public extension UIFontDescriptor.SymbolicTraits {
+    static let classModernSerifs = UIFontDescriptor.SymbolicTraits(rawValue: 3 << 28)
+}
+
+public extension DispatchQueue {
+    func asyncAndWait<T>(execute workItem: () -> T) -> T {
+        if self === DispatchQueue.main && Thread.isMainThread {
+            return workItem()
+        }
+
+        var result: T!
+        sync {
+            result = workItem()
+        }
+        return result
     }
 }
 
@@ -5536,9 +6058,34 @@ public extension CGRect {
     }
 
     func fill() {}
+    func fill(using operation: CGBlendMode) {
+        _ = operation
+    }
 }
 
 #if os(Linux)
+public extension NSAttributedString {
+    var attributeKeys: [String] {
+        guard length > 0 else { return [] }
+        return attributes(at: 0, effectiveRange: nil).keys.map(\.rawValue)
+    }
+}
+
+public extension NSString {
+    var abbreviatingWithTildeInPath: String {
+        let path = self as String
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+        guard !homePath.isEmpty else { return path }
+        if path == homePath {
+            return "~"
+        }
+        if path.hasPrefix(homePath + "/") {
+            return "~" + path.dropFirst(homePath.count)
+        }
+        return path
+    }
+}
+
 public final class ListFormatter: Formatter {
     public var locale: Locale?
 
@@ -5644,6 +6191,104 @@ public let NSEC_PER_MSEC: UInt64 = 1_000_000
 public let NSEC_PER_USEC: UInt64 = 1_000
 public let USEC_PER_SEC: UInt64 = 1_000_000
 public let MSEC_PER_SEC: UInt64 = 1_000
+#endif
+
+// MARK: - FileHandle async bytes and user script task (Linux shims)
+
+#if os(Linux)
+public struct QuillFileHandleAsyncBytes: AsyncSequence {
+    public typealias Element = UInt8
+
+    private let fileHandle: FileHandle
+
+    fileprivate init(fileHandle: FileHandle) {
+        self.fileHandle = fileHandle
+    }
+
+    public struct AsyncIterator: AsyncIteratorProtocol {
+        private var iterator: AsyncThrowingStream<UInt8, Error>.Iterator
+
+        fileprivate init(_ iterator: AsyncThrowingStream<UInt8, Error>.Iterator) {
+            self.iterator = iterator
+        }
+
+        public mutating func next() async throws -> UInt8? {
+            try await iterator.next()
+        }
+    }
+
+    public func makeAsyncIterator() -> AsyncIterator {
+        AsyncIterator(byteStream().makeAsyncIterator())
+    }
+
+    public var lines: AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let handle = fileHandle
+            Task {
+                let data = handle.readDataToEndOfFile()
+                let text = String(decoding: data, as: UTF8.self)
+                for line in text.split(whereSeparator: \.isNewline) {
+                    continuation.yield(String(line))
+                }
+                continuation.finish()
+            }
+        }
+    }
+
+    private func byteStream() -> AsyncThrowingStream<UInt8, Error> {
+        AsyncThrowingStream { continuation in
+            let handle = fileHandle
+            Task {
+                let data = handle.readDataToEndOfFile()
+                for byte in data {
+                    continuation.yield(byte)
+                }
+                continuation.finish()
+            }
+        }
+    }
+}
+
+public extension FileHandle {
+    var bytes: QuillFileHandleAsyncBytes {
+        QuillFileHandleAsyncBytes(fileHandle: self)
+    }
+}
+
+public final class NSUserUnixTask: NSObject, @unchecked Sendable {
+    public let url: URL
+    public var standardInput: FileHandle?
+    public var standardOutput: FileHandle?
+    public var standardError: FileHandle?
+
+    public init(url: URL) throws {
+        self.url = url
+        super.init()
+    }
+
+    public func execute(withArguments arguments: [String] = []) async throws {
+        let process = Process()
+        process.executableURL = url
+        process.arguments = arguments
+        process.standardInput = standardInput
+        process.standardOutput = standardOutput
+        process.standardError = standardError
+
+        try process.run()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0 else {
+            throw NSError(
+                domain: NSCocoaErrorDomain,
+                code: Int(process.terminationStatus),
+                userInfo: [
+                    NSFilePathErrorKey: url.path,
+                    NSLocalizedDescriptionKey: "User Unix task exited with status \(process.terminationStatus)"
+                ]
+            )
+        }
+    }
+}
 #endif
 
 // MARK: - Localization

@@ -4,7 +4,11 @@
 //
 #include <CommonCrypto/CommonCrypto.h>
 
+#if __has_include(<CCryptoBoringSSL_evp.h>)
+#include <CCryptoBoringSSL_evp.h>
+#else
 #include <openssl/evp.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 

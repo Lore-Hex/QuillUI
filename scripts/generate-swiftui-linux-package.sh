@@ -17,6 +17,8 @@ BUILD_SCRATCH="${QUILLUI_GENERATED_BUILD_SCRATCH:-${WORK_ROOT:+$WORK_ROOT/.build
 TARGET_LAYOUT_FILE="${QUILLUI_GENERATED_TARGET_LAYOUT_FILE:-}"
 EXTRA_PACKAGE_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}"
 EXTRA_TARGET_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE:-}"
+PREPARED_PACKAGE_CACHE_DIR="${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-}"
+PREPARED_PACKAGE_DEPENDENCIES_FILE=""
 INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
 BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
@@ -169,12 +171,21 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
     backend_launch_statement="${backend_runner}.run(${APP_ENTRY_TYPE}.self)"
   fi
 
+  appkit_runtime_import=""
+  appkit_runtime_install=""
+  if [[ "$BACKEND_FACADE" != "qt" ]]; then
+    appkit_runtime_import=$'#if canImport(QuillAppKitGTK)\nimport QuillAppKitGTK\n#endif\n'
+    appkit_runtime_install=$'        #if canImport(QuillAppKitGTK)\n        _ = QuillAppKitGTKAutoInstall.didInstall\n        #endif\n'
+  fi
+
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
 import $backend_import
+$appkit_runtime_import
 
 @main
 struct $APP_MAIN_TYPE {
     static func main() {
+$appkit_runtime_install
         $backend_launch_statement
     }
 }
@@ -182,6 +193,7 @@ SWIFT
 fi
 
 source_target_dependencies='                .product(name: "SwiftUI", package: "QuillUI"),
+                .product(name: "SwiftUIIntrospect", package: "QuillUI"),
                 .product(name: "SwiftData", package: "QuillUI"),
                 .product(name: "Combine", package: "QuillUI"),
                 .product(name: "UniformTypeIdentifiers", package: "QuillUI"),
@@ -197,15 +209,24 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "AsyncAlgorithms", package: "QuillUI"),
                 .product(name: "AppKit", package: "QuillUI"),
                 .product(name: "AVFoundation", package: "QuillUI"),
+                .product(name: "AVKit", package: "QuillUI"),
                 .product(name: "Speech", package: "QuillUI"),
+                .product(name: "PDFKit", package: "QuillUI"),
                 .product(name: "PhotosUI", package: "QuillUI"),
+                .product(name: "QuickLook", package: "QuillUI"),
+                .product(name: "QuickLookUI", package: "QuillUI"),
                 .product(name: "UIKit", package: "QuillUI"),
                 .product(name: "IOKit", package: "QuillUI"),
                 .product(name: "Security", package: "QuillUI"),
                 .product(name: "ServiceManagement", package: "QuillUI"),
                 .product(name: "Sparkle", package: "QuillUI"),
+                .product(name: "OSLog", package: "QuillUI"),
+                .product(name: "UserNotifications", package: "QuillUI"),
                 .product(name: "ApplicationServices", package: "QuillUI"),
                 .product(name: "CoreGraphics", package: "QuillUI"),
+                .product(name: "CoreSpotlight", package: "QuillUI"),
+                .product(name: "ExtensionFoundation", package: "QuillUI"),
+                .product(name: "ExtensionKit", package: "QuillUI"),
                 .product(name: "Network", package: "QuillUI"),
                 .product(name: "CryptoKit", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
@@ -256,65 +277,14 @@ dependencies_block() {
   printf '%s' "$block"
 }
 
-swift_string_literal() {
-  python3 - "$1" <<'PY'
-import json
-import sys
-
-print(json.dumps(sys.argv[1]))
-PY
-}
-
-vendored_extra_package_dependency() {
-  local package_line="$1"
-  local package_url=""
-  local package_name=""
-  local identity=""
-  local identity_lower=""
-  local candidate=""
-  local candidates=()
-  local quoted_path=""
-
-  package_url="$(printf '%s\n' "$package_line" | sed -nE 's/.*\.package\((name:[^,]+,[[:space:]]*)?url:[[:space:]]*"([^"]+)".*/\2/p')"
-  [[ -n "$package_url" ]] || {
-    printf '%s\n' "$package_line"
-    return 0
-  }
-
-  package_name="$(printf '%s\n' "$package_line" | sed -nE 's/.*\.package\(name:[[:space:]]*"([^"]+)".*/\1/p')"
-  identity="${package_url%%\?*}"
-  identity="${identity%%#*}"
-  identity="${identity##*/}"
-  identity="${identity%.git}"
-  identity_lower="$(printf '%s' "$identity" | tr '[:upper:]' '[:lower:]')"
-
-  candidates=("$ROOT_DIR/third_party/$identity")
-  if [[ -n "$package_name" ]]; then
-    candidates+=("$ROOT_DIR/third_party/$package_name")
-  fi
-  candidates+=("$ROOT_DIR/third_party/$identity_lower")
-
-  for candidate in "${candidates[@]}"; do
-    if [[ -f "$candidate/Package.swift" ]]; then
-      quoted_path="$(swift_string_literal "$candidate")"
-      if [[ -n "$package_name" ]]; then
-        printf '.package(name: "%s", path: %s)\n' "$package_name" "$quoted_path"
-      else
-        printf '.package(path: %s)\n' "$quoted_path"
-      fi
-      return 0
-    fi
-  done
-
-  printf '%s\n' "$package_line"
-}
-
 append_target_definition() {
   local target_name="$1"
   local dependency_list="$2"
   local resources_line="$3"
   local target_kind=".target"
   local target_dependency_entries
+  local target_swift_settings='                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),'
 
   target_dependency_entries="$(dependencies_block "$dependency_list")"
   if [[ "$target_name" == "$TARGET_NAME" ]]; then
@@ -322,6 +292,9 @@ append_target_definition() {
   fi
   if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" == "gtk" ]]; then
     target_dependency_entries="$(printf '%s,\n                .product(name: "QuillUIGtk", package: "QuillUI")' "$target_dependency_entries")"
+  fi
+  if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" != "qt" ]]; then
+    target_dependency_entries="$(printf '%s,\n                .product(name: "QuillAppKitGTK", package: "QuillUI")' "$target_dependency_entries")"
   fi
   if [[ -n "$target_definitions" ]]; then
     target_definitions+=$',
@@ -336,7 +309,7 @@ $target_dependency_entries
             path: "Sources/$target_name",
 $resources_line
             swiftSettings: [
-                .swiftLanguageMode(.v5)
+$target_swift_settings
             ]
         )
 SWIFT
@@ -379,14 +352,28 @@ if [[ -n "$EXTRA_PACKAGE_DEPENDENCIES_FILE" ]]; then
     echo "Extra package dependency file was not found: $EXTRA_PACKAGE_DEPENDENCIES_FILE" >&2
     exit 66
   fi
+  PREPARED_PACKAGE_DEPENDENCIES_FILE="$WORK_ROOT/prepared-package-dependencies.swift"
+  prepare_dependency_args=(
+    "$ROOT_DIR/scripts/prepare-swiftui-linux-package-dependencies.py"
+    --root-dir "$ROOT_DIR"
+    --work-root "$WORK_ROOT"
+    --dependencies-in "$EXTRA_PACKAGE_DEPENDENCIES_FILE"
+    --dependencies-out "$PREPARED_PACKAGE_DEPENDENCIES_FILE"
+  )
+  if [[ -n "$PREPARED_PACKAGE_CACHE_DIR" ]]; then
+    prepare_dependency_args+=(--prepared-cache-dir "$PREPARED_PACKAGE_CACHE_DIR")
+  fi
+  if [[ "${QUILLUI_REQUIRE_VENDORED_SOURCES:-}" =~ ^(1|true|yes)$ ]]; then
+    prepare_dependency_args+=(--require-vendored-sources)
+  fi
+  python3 "${prepare_dependency_args[@]}"
   while IFS= read -r package_line || [[ -n "$package_line" ]]; do
     package_line="${package_line%%#*}"
     package_line="${package_line#"${package_line%%[![:space:]]*}"}"
     package_line="${package_line%"${package_line##*[![:space:]]}"}"
     [[ -n "$package_line" ]] || continue
-    package_line="$(vendored_extra_package_dependency "$package_line")"
     extra_package_dependencies+=$(printf ',\n        %s' "$package_line")
-  done < "$EXTRA_PACKAGE_DEPENDENCIES_FILE"
+  done < "$PREPARED_PACKAGE_DEPENDENCIES_FILE"
 fi
 
 if [[ -n "$EXTRA_TARGET_DEPENDENCIES_FILE" ]]; then
@@ -480,7 +467,8 @@ if [[ -z "$target_definitions" ]]; then
 $target_dependencies
             ],
 $target_resources            swiftSettings: [
-                .swiftLanguageMode(.v5)
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
             ]
         )
 SWIFT

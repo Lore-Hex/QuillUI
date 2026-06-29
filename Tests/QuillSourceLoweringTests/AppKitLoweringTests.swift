@@ -85,6 +85,22 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("nonisolated required override init() { super.init() }"))
     }
 
+    @Test("NSPanel subclasses get missing no-arg init override in generated Linux source")
+    func panelSubclassNoArgInitGetsOverride() {
+        let source = """
+        class SearchPanel: NSPanel {
+            init() {
+                super.init()
+            }
+        }
+        """
+
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("override init()"))
+        #expect(!lowered.contains("override override"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
     @Test("@objc after a non-brace statement keeps its newline (no consecutive-statements merge)")
     func objcTriviaPreserved() {
         let source = """
@@ -127,6 +143,29 @@ struct AppKitLoweringTests {
     func selectorSystem() {
         let lowered = AppKitLowering().lower(#"menuItem.action = #selector(NSWindow.toggleFullScreen(_:))"#)
         #expect(lowered.contains(#"Selector("toggleFullScreen(_:)")"#))
+    }
+
+    @Test("Objective-C should-close selector dispatch lowers to Quill selector dispatch")
+    func objectiveCShouldCloseSelectorDispatchLowers() {
+        let source = """
+        func close(object: NSObject, shouldCloseSelector: Selector, contextInfo: UnsafeMutableRawPointer?) {
+            // Invoke shouldCloseSelector at delegate
+            let implementation = object.method(for: shouldCloseSelector)
+            let function = unsafeBitCast(
+                implementation,
+                to: (@convention(c)(Any, Selector, Any, Bool, UnsafeMutableRawPointer?) -> Void).self
+            )
+            let areAllOpenedCodeFilesClean = true
+            function(object, shouldCloseSelector, self, areAllOpenedCodeFilesClean, contextInfo)
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("object.method(for:"))
+        #expect(!lowered.contains("unsafeBitCast"))
+        #expect(!lowered.contains("function(object,"))
+        #expect(lowered.contains("contextInfo.assumingMemoryBound(to: Bool.self).pointee = areAllOpenedCodeFilesClean"))
+        #expect(lowered.contains("(object as? QuillSelectorDispatching)?.quillPerform(shouldCloseSelector, with: self)"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
     }
 
     @Test("Non-ObjC attributes are left intact")
@@ -578,6 +617,90 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("nonisolated override var hash: Int"))
         #expect(lowered.contains("nonisolated override func isEqual(_ object: Any?) -> Bool"))
         // Idempotent: a second pass does not double-prepend.
+        #expect(!lowered.contains("nonisolated nonisolated"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("NSTextStorage primitive overrides get `nonisolated` prepended")
+    func nonisolatedNSTextStoragePrimitiveOverrides() {
+        let source = """
+        open class TSYTextStorage: NSTextStorage {
+            public let internalStorage: NSTextStorage
+
+            public init(storage: NSTextStorage) {
+                self.internalStorage = storage
+                super.init(string: storage.string)
+            }
+
+            public override init() {
+                self.internalStorage = NSTextStorage(string: "")
+                super.init(string: "")
+            }
+
+            public override init(string str: String) {
+                self.internalStorage = NSTextStorage(string: str)
+                super.init(string: str)
+            }
+
+            public override init(attributedString attrStr: NSAttributedString) {
+                self.internalStorage = NSTextStorage(attributedString: attrStr)
+                super.init(attributedString: attrStr)
+            }
+
+            public required init?(coder: NSCoder) {
+                self.internalStorage = NSTextStorage(string: "")
+                super.init(coder: coder)
+            }
+
+            open override var string: String {
+                internalStorage.string
+            }
+
+            open override func replaceCharacters(in range: NSRange, with str: String) {}
+            open override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] { [:] }
+            open override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {}
+            open override func edited(_ editedMask: NSTextStorage.EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+            open override func processEditing() {}
+            open override func endEditing() {}
+            open override func beginEditing() {}
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(!lowered.contains("nonisolated public init(storage: NSTextStorage)"))
+        #expect(lowered.contains("nonisolated public override init()"))
+        #expect(lowered.contains("nonisolated public override init(string str: String)"))
+        #expect(lowered.contains("nonisolated public override init(attributedString attrStr: NSAttributedString)"))
+        #expect(lowered.contains("nonisolated public required init?(coder: NSCoder)"))
+        #expect(lowered.contains("nonisolated open override var string: String"))
+        #expect(lowered.contains("nonisolated override open func replaceCharacters(in range: NSRange, with str: String)"))
+        #expect(lowered.contains("nonisolated open override func attributes(at location: Int, effectiveRange range: NSRangePointer?)"))
+        #expect(lowered.contains("nonisolated open override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange)"))
+        #expect(lowered.contains("nonisolated open override func edited(_ editedMask: NSTextStorage.EditActions, range editedRange: NSRange, changeInLength delta: Int)"))
+        #expect(lowered.contains("nonisolated open override func processEditing()"))
+        #expect(lowered.contains("nonisolated open override func endEditing()"))
+        #expect(lowered.contains("nonisolated open override func beginEditing()"))
+        #expect(!lowered.contains("nonisolated nonisolated"))
+        #expect(AppKitLowering().lower(lowered) == lowered)
+    }
+
+    @Test("NSTextStorage-like subclasses synthesize missing nonisolated storage initializers")
+    func nonisolatedNSTextStorageLikeSubclassSynthesizesInitializers() {
+        let source = """
+        public class BufferingTextStorage: TSYTextStorage {
+            private var changeQueue: [String] = []
+
+            override open func replaceCharacters(in range: NSRange, with str: String) {
+                changeQueue.append(str)
+                super.replaceCharacters(in: range, with: str)
+            }
+        }
+        """
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("nonisolated override open func replaceCharacters(in range: NSRange, with str: String)"))
+        #expect(lowered.contains("nonisolated public override init() { super.init() }"))
+        #expect(lowered.contains("nonisolated public override init(string str: String) { super.init(string: str) }"))
+        #expect(lowered.contains("nonisolated public override init(attributedString attrStr: NSAttributedString) { super.init(attributedString: attrStr) }"))
+        #expect(lowered.contains("nonisolated public required init?(coder: NSCoder) { super.init(coder: coder) }"))
         #expect(!lowered.contains("nonisolated nonisolated"))
         #expect(AppKitLowering().lower(lowered) == lowered)
     }
@@ -1097,6 +1220,14 @@ struct AppKitLoweringTests {
         let once = AppKitLowering().lower(source)
         #expect(AppKitLowering().lower(once) == once)
         #expect(once.contains("d?.tableView(tableView"))
+    }
+
+    @Test("NSMenuDelegate optional menuNeedsUpdate call has its ? stripped")
+    func optionalMenuNeedsUpdateDelegateCallStripped() {
+        let source = "func k() { menu.delegate?.menuNeedsUpdate?(menu) }"
+        let lowered = AppKitLowering().lower(source)
+        #expect(lowered.contains("menu.delegate?.menuNeedsUpdate(menu)"))
+        #expect(!lowered.contains(".menuNeedsUpdate?("))
     }
 
     // MARK: - @MainActor deinit completeness (Transform 4)

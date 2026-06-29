@@ -60,6 +60,36 @@ public extension ForEach {
         self.content = content
     }
 
+    init<Element: Identifiable>(
+        _ data: Binding<[Element]>,
+        id: KeyPath<Element, ID>,
+        @ViewBuilder content: @escaping (Binding<Element>) -> Content
+    ) where Data == Binding<Element>, ID == Element.ID {
+        _ = id
+        self.init(data, content: content)
+    }
+
+    init<Element>(
+        _ data: Binding<[Element]>,
+        id keyPath: KeyPath<Element, ID>,
+        @ViewBuilder content: @escaping (Binding<Element>) -> Content
+    ) where Data == Binding<Element> {
+        let indices = Array(data.wrappedValue.indices)
+        self.data = indices.map { index in
+            Binding<Element>(
+                get: { data.wrappedValue[index] },
+                set: { newValue in
+                    var values = data.wrappedValue
+                    guard values.indices.contains(index) else { return }
+                    values[index] = newValue
+                    data.wrappedValue = values
+                }
+            )
+        }
+        self.id = (\Binding<Element>.wrappedValue).appending(path: keyPath)
+        self.content = content
+    }
+
     func onMove(perform action: @escaping (IndexSet, Int) -> Void) -> Self {
         _ = action
         return self
@@ -71,6 +101,16 @@ public extension ForEach {
 public extension ForEach {
     init(_ data: [Data], id: KeyPath<Data, ID>, @ViewBuilder content: @escaping (Data) -> Content) {
         self.data = data
+        self.id = id
+        self.content = content
+    }
+
+    init<C: RandomAccessCollection>(
+        _ data: C,
+        id: KeyPath<C.Element, ID>,
+        @ViewBuilder content: @escaping (C.Element) -> Content
+    ) where Data == C.Element {
+        self.data = Array(data)
         self.id = id
         self.content = content
     }

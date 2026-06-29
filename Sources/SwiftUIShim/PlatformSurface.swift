@@ -16,6 +16,17 @@ public extension UIColor {
     }
 }
 
+public extension Color {
+    init(_ color: NSColor) {
+        self.init(
+            red: Double(color._red),
+            green: Double(color._green),
+            blue: Double(color._blue),
+            opacity: Double(color._alpha)
+        )
+    }
+}
+
 public struct WebAuthenticationSessionAction: Sendable {
     public init() {}
 
@@ -96,6 +107,23 @@ private final class SwiftUIShimImageDataCache: @unchecked Sendable {
 }
 
 public extension Image {
+    @_disfavoredOverload
+    init(_ name: String, bundle: Bundle? = nil) {
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
+    }
+
+    init(_ resource: ImageResource) {
+        self.init(resource.name)
+    }
+
     init(nsImage: NSImage) {
         if let data = nsImage.data, !data.isEmpty {
             self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
@@ -171,6 +199,40 @@ public extension View {
     func onDrop(of supportedContentTypes: [UTType], delegate: some DropDelegate) -> Self {
         _ = supportedContentTypes
         _ = delegate
+        return self
+    }
+
+    @_disfavoredOverload
+    func onDrop(
+        of supportedContentTypes: [UTType],
+        isTargeted: Binding<Bool>? = nil,
+        perform action: @escaping ([NSItemProvider]) -> Bool
+    ) -> Self {
+        _ = supportedContentTypes
+        _ = isTargeted
+        _ = action
+        return self
+    }
+
+    func contextMenu<SelectionValue: Hashable>(
+        forSelectionType selectionType: SelectionValue.Type,
+        @MenuBuilder menu: @escaping (Set<SelectionValue>) -> [MenuElement],
+        primaryAction: ((Set<SelectionValue>) -> Void)? = nil
+    ) -> ContextMenuView<Self> {
+        _ = selectionType
+        _ = primaryAction
+        return contextMenu {
+            menu([])
+        }
+    }
+
+    func onCopyCommand(_ action: @escaping () -> [NSItemProvider]) -> Self {
+        _ = action
+        return self
+    }
+
+    func onDeleteCommand(perform action: @escaping () -> Void) -> Self {
+        _ = action
         return self
     }
 

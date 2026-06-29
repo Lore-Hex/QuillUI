@@ -6,9 +6,16 @@ public extension URLResourceKey {
 }
 
 public extension URLResourceValues {
-    var contentType: UTType? {
+    var contentType: UTType! {
         get { nil }
         set { _ = newValue }
+    }
+}
+
+public extension URL {
+    func appendingPathComponent(_ pathComponent: String, conformingTo contentType: UTType) -> URL {
+        _ = contentType
+        return appendingPathComponent(pathComponent)
     }
 }
 #endif

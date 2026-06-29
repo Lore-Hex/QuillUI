@@ -31,7 +31,7 @@ struct VendoredSourceIgnoreTests {
 
         let result = try run(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: ["git", "-C", root.path, "check-ignore", "-v"] + paths
+            arguments: ["git", "-c", "safe.directory=*", "-C", root.path, "check-ignore", "-v"] + paths
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))

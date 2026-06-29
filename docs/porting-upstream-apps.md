@@ -72,9 +72,17 @@ the **mirror marathon** (UI, design system).
 1. **Fetch into `.upstream/`** (gitignored), or pin small public app sources
    under `vendor/apps/<name>` when clone time dominates CI. Add a
    `fetch_repo <name> <url>` case to `scripts/fetch-upstream.sh` and include
-   `<name>` in the default fetch set so **CI populates it**. The fetch helper
-   prefers `vendor/apps/<name>` unless `QUILLUI_REFRESH_VENDORED_SOURCE=1`.
-   Current vendored app sources include Enchanted and SolderScope.
+   `<name>` in the default fetch set only when CI should populate it. The fetch
+   helper prefers `vendor/apps/<name>` unless
+   `QUILLUI_REFRESH_VENDORED_SOURCE=1`, and the generic Linux builder can read
+   the checkout directly with `--source-app <name> --source-subdir <SourcesDir>`.
+   `--source-app` builds also auto-scan the app's `Package.resolved` files and
+   reuse matching checked-in SwiftPM sources under `third_party/`, so repeat
+   builds avoid clone and working-copy setup work. Use
+   `scripts/vendor-swiftui-app-source.sh <name> [checkout]` to turn a fetched
+   app checkout into a stripped, provenance-tagged `vendor/apps/<name>` tree and
+   vendor the package pins in one step. Current vendored app sources include
+   Enchanted, SolderScope, CodeEdit, and QuillCode.
 2. **Present-gate** so a fresh clone still resolves without `.upstream/`:
    ```swift
    let xPresent = upstreamPresent(".upstream/<name>/.../Sources/<Module>")

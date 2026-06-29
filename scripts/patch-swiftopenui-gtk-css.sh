@@ -5362,6 +5362,20 @@ if start != -1:
     if end == -1:
         raise SystemExit("SwiftOpenUI GTK application lifecycle shape was not recognized")
     text = text[:start] + plain_lifecycle + text[end:]
+group_scene_rendering = '''
+/// GTK4 rendering for Group<Scene> — transparent scene grouping.
+extension Group: GTKWindowRenderable where Content: Scene {
+    func gtkRender(app: OpaquePointer?) {
+        gtkRenderScene(content, app: app)
+    }
+}
+
+'''
+if "extension Group: GTKWindowRenderable where Content: Scene" not in text:
+    marker = "/// Registry for single-instance Window scenes. Tracks factories and live\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK Group<Scene> insertion point was not recognized")
+    text = text.replace(marker, group_scene_rendering + marker, 1)
 path.write_text(text)
 PY
 

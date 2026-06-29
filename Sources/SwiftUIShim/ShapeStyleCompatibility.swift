@@ -1,4 +1,5 @@
 import SwiftOpenUI
+import QuillSwiftUICompatibility
 
 public protocol ShapeStyle {}
 
@@ -20,6 +21,16 @@ public struct AnyShapeStyle: ShapeStyle {
 extension Color: ShapeStyle {}
 extension LinearGradient: ShapeStyle {}
 extension RadialGradient: ShapeStyle {}
+extension Material: ShapeStyle {}
+
+public extension ShapeStyle where Self == Material {
+    static var bar: Material { .bar }
+    static var ultraThinMaterial: Material { .ultraThinMaterial }
+    static var thinMaterial: Material { .thinMaterial }
+    static var regularMaterial: Material { .regularMaterial }
+    static var thickMaterial: Material { .thickMaterial }
+    static var ultraThickMaterial: Material { .ultraThickMaterial }
+}
 
 private func quillShapeStyleView<S: ShapeStyle>(_ style: S) -> AnyView {
     if let color = style as? Color {
@@ -33,6 +44,9 @@ private func quillShapeStyleView<S: ShapeStyle>(_ style: S) -> AnyView {
     }
     if let erased = style as? AnyShapeStyle {
         return erased.quillView
+    }
+    if let material = style as? Material {
+        return AnyView(material)
     }
     return AnyView(Color.clear)
 }
@@ -49,6 +63,9 @@ private func quillShapeStyleColor<S: ShapeStyle>(_ style: S) -> Color {
     }
     if let erased = style as? AnyShapeStyle {
         return erased.quillColor
+    }
+    if let material = style as? Material {
+        return Color.white.opacity(material.opacityValue * 0.92)
     }
     return .clear
 }
@@ -92,5 +109,11 @@ public extension View {
 
     func foregroundStyle<S: ShapeStyle>(_ style: S) -> ForegroundColorView<Self> {
         foregroundColor(quillShapeStyleColor(style))
+    }
+}
+
+public extension Shape {
+    func fill<S: ShapeStyle>(_ style: S) -> FilledShape<Self> {
+        fill(quillShapeStyleColor(style))
     }
 }

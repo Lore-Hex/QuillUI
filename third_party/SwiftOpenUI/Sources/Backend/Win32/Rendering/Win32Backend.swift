@@ -980,6 +980,12 @@ extension TupleScene: Win32WindowRenderable {
     }
 }
 
+extension Group: Win32WindowRenderable where Content: Scene {
+    func win32Render(hInstance: HINSTANCE) {
+        win32RenderScene(content, hInstance: hInstance)
+    }
+}
+
 // MARK: - Win32 Window Registry
 
 /// Registry for single-instance Window scenes. Tracks factories and live

@@ -216,7 +216,8 @@ public struct AppKitLowering {
                      actionClasses: localActionClasses,
                      knownClasses: collector.knownClasses,
                      overriddenSignatures: collector.overriddenSignaturesByType,
-                     classesDeclaringNoArgInit: collector.classesDeclaringNoArgInit)
+                     classesDeclaringNoArgInit: collector.classesDeclaringNoArgInit,
+                     classesDeclaringAnyInit: collector.classesDeclaringAnyInit)
         // Pass 1: the in-place rewrites (strip @objc, #selector→Selector,
         // Timer→QuillTimer.make, os.log import, os(macOS) widening).
         let pass1 = AppKitRewriter(
@@ -303,7 +304,9 @@ public struct AppKitLowering {
         // See LocalFunctionMainActorRewriter.
         let lowered = LocalFunctionMainActorRewriter()
             .rewrite(withDeinit).description
-        return FoundationLowering().lower(lowered)
+        return Self.lowerUnsafeObjectiveCSelectorDispatch(
+            FoundationLowering().lower(lowered)
+        )
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Mirrors
@@ -415,6 +418,26 @@ public struct AppKitLowering {
         }
 
         return output
+    }
+
+    private static func lowerUnsafeObjectiveCSelectorDispatch(_ source: String) -> String {
+        let dispatchLookupPattern = #"(?ms)^([ \t]*)let implementation = object\.method\(for: shouldCloseSelector\)[ \t]*\n\1let function = unsafeBitCast\([ \t]*\n\1[ \t]*implementation,[ \t]*\n\1[ \t]*to: \(@convention\(c\)\(Any, Selector, Any, Bool, UnsafeMutableRawPointer\?\) -> Void\)\.self[ \t]*\n\1\)[ \t]*\n"#
+        let callPattern = #"(?m)^([ \t]*)function\(object, shouldCloseSelector, self, areAllOpenedCodeFilesClean, contextInfo\)"#
+
+        var lowered = source
+        if let lookupRegex = try? NSRegularExpression(pattern: dispatchLookupPattern) {
+            let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
+            lowered = lookupRegex.stringByReplacingMatches(in: lowered, range: range, withTemplate: "")
+        }
+        if let callRegex = try? NSRegularExpression(pattern: callPattern) {
+            let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
+            lowered = callRegex.stringByReplacingMatches(
+                in: lowered,
+                range: range,
+                withTemplate: "$1contextInfo.assumingMemoryBound(to: Bool.self).pointee = areAllOpenedCodeFilesClean\n$1(object as? QuillSelectorDispatching)?.quillPerform(shouldCloseSelector, with: self)"
+            )
+        }
+        return lowered
     }
 
     private static func lineStart(in source: String, containing index: String.Index) -> String.Index {
@@ -603,6 +626,11 @@ public struct HierarchyMap {
     /// (the SheetDisplayableError case), so its subclasses' `init()` overrides must be
     /// `nonisolated` to match.
     private(set) var classesDeclaringNoArgInit: Set<String> = []
+    /// Simple names of classes that declare ANY explicit class-body initializer.
+    /// A class with only `init(args...)` does not necessarily inherit a zero-arg
+    /// initializer, so descendants must not synthesize `override init()` merely
+    /// because the superclass chain reaches NSObject.
+    private(set) var classesDeclaringAnyInit: Set<String> = []
 
     public init() {}
 
@@ -698,6 +726,7 @@ public struct HierarchyMap {
             overriddenSignaturesByClass[owner, default: []].formUnion(sigs)
         }
         classesDeclaringNoArgInit.formUnion(scanner.classesDeclaringNoArgInit)
+        classesDeclaringAnyInit.formUnion(scanner.classesDeclaringAnyInit)
     }
 
     /// Return a copy with the file-local class→superclass entries and the
@@ -709,7 +738,8 @@ public struct HierarchyMap {
         actionClasses localActionClasses: Set<String> = [],
         knownClasses localKnownClasses: Set<String> = [],
         overriddenSignatures localOverriddenSignatures: [String: Set<String>] = [:],
-        classesDeclaringNoArgInit localNoArgInit: Set<String> = []
+        classesDeclaringNoArgInit localNoArgInit: Set<String> = [],
+        classesDeclaringAnyInit localAnyInit: Set<String> = []
     ) -> HierarchyMap {
         var copy = self
         for (qualified, superName) in localSuperclassByType {
@@ -722,6 +752,7 @@ public struct HierarchyMap {
             copy.overriddenSignaturesByClass[HierarchyMap.simpleName(owner), default: []].formUnion(sigs)
         }
         copy.classesDeclaringNoArgInit.formUnion(localNoArgInit.map(HierarchyMap.simpleName))
+        copy.classesDeclaringAnyInit.formUnion(localAnyInit.map(HierarchyMap.simpleName))
         return copy
     }
 
@@ -846,12 +877,17 @@ public struct HierarchyMap {
             //     a bogus `nonisolated override init()` for a class whose foreign base
             //     might be `@MainActor` (or even a non-class).
             guard knownClasses.contains(simple) else { return false }
-            return !classesDeclaringNoArgInit.contains(simple)
+            return !classesDeclaringAnyInit.contains(simple)
         }
         let simpleSuper = HierarchyMap.simpleName(superName)
-        if simpleSuper == "NSObject" { return true }                 // population 1 (direct)
+        if simpleSuper == "NSObject" {
+            return !classesDeclaringAnyInit.contains(simple) || classesDeclaringNoArgInit.contains(simple)
+        }                                                            // population 1 (direct)
         if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false } // forest base
         guard !seen.contains(simpleSuper) else { return false }      // cycle guard
+        if classesDeclaringAnyInit.contains(simple), !classesDeclaringNoArgInit.contains(simple) {
+            return false
+        }
         // In-tree (or unknown-foreign) base: this class's `init()` follows the base's
         // unless it re-declares `init()` (then it's the decl we annotate to match).
         // Either way the effective isolation equals the base's — recurse on the base.
@@ -867,10 +903,17 @@ public struct HierarchyMap {
     func initOverrideShouldBeNonisolated(forClassNamed className: String) -> Bool {
         let simple = HierarchyMap.simpleName(className)
         guard let superName = superclassByClass[simple] else { return false }
+        if classesDeclaringAnyInit.contains(simple), !classesDeclaringNoArgInit.contains(simple) {
+            return false
+        }
         let simpleSuper = HierarchyMap.simpleName(superName)
         if simpleSuper == "NSObject" { return true }
         if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false }
         return classHasNonisolatedNoArgInit(forClassNamed: simpleSuper)
+    }
+
+    func directSuperclassName(forClassNamed className: String) -> String? {
+        superclassByClass[HierarchyMap.simpleName(className)].map(HierarchyMap.simpleName)
     }
 
     /// True iff `className` PROVABLY descends from a `@MainActor` UIKit/AppKit
@@ -994,6 +1037,7 @@ private final class HierarchyScanner: SyntaxVisitor {
     /// (A3 base-init-isolation: a root class with no explicit `init()` has a
     /// `nonisolated` implicit `init()`). Only class-body inits are recorded.
     private(set) var classesDeclaringNoArgInit: Set<String> = []
+    private(set) var classesDeclaringAnyInit: Set<String> = []
     /// `typeStack` tracks the enclosing class OR extended-type name (innermost last)
     /// so a function visit knows its owning type whether it sits in a class body or
     /// an `extension` (overrides can be declared in either).
@@ -1004,9 +1048,11 @@ private final class HierarchyScanner: SyntaxVisitor {
     override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
         // Record a class-body no-arg `init()` (no params, no generics/effects) onto
         // its owning class — the A3 base-init-isolation signal.
-        if protocolDepth == 0, let owner = classStack.last,
-           node.signature.parameterClause.parameters.isEmpty {
+        if protocolDepth == 0, let owner = classStack.last {
+            classesDeclaringAnyInit.insert(owner)
+            if node.signature.parameterClause.parameters.isEmpty {
             classesDeclaringNoArgInit.insert(owner)
+            }
         }
         return .visitChildren
     }
@@ -1116,6 +1162,7 @@ private final class ActionMethodCollector: SyntaxVisitor {
     /// Simple names of classes that declare a class-body no-arg `init()` (A3
     /// base-init-isolation seeding for single-file `lower(_:)`).
     private(set) var classesDeclaringNoArgInit: Set<String> = []
+    private(set) var classesDeclaringAnyInit: Set<String> = []
     private var typeStack: [String] = []
     /// Enclosing CLASS names (innermost last), so an init visit knows its owning
     /// class even when nested in an extension on `typeStack`.
@@ -1157,9 +1204,11 @@ private final class ActionMethodCollector: SyntaxVisitor {
     override func visitPost(_ node: ProtocolDeclSyntax) { protocolDepth -= 1 }
 
     override func visit(_ node: InitializerDeclSyntax) -> SyntaxVisitorContinueKind {
-        if protocolDepth == 0, let owner = classStack.last,
-           node.signature.parameterClause.parameters.isEmpty {
+        if protocolDepth == 0, let owner = classStack.last {
+            classesDeclaringAnyInit.insert(owner)
+            if node.signature.parameterClause.parameters.isEmpty {
             classesDeclaringNoArgInit.insert(owner)
+            }
         }
         return .visitChildren
     }
@@ -1530,6 +1579,7 @@ private final class AppKitRewriter: SyntaxRewriter {
         "pickerView",
         "imagePickerController",
         "controller",          // NSFetchedResultsController / generic delegate(controller:…)
+        "menuNeedsUpdate",
         "webView",
         "player",
     ]
@@ -2160,11 +2210,19 @@ private final class NSApplicationDelegateReusableConformanceRewriter: SyntaxRewr
 ///          is SYNTHESIZED (so its otherwise-implicit `@MainActor init()`, which
 ///          sig6-1 could never reach, stops mismatching `NSObject`).
 ///
-/// Conservative: matches ONLY these exact NSObject member signatures, only when the
-/// decl carries `override` and is not already `nonisolated`, so it never touches an
-/// app's own same-named member that doesn't override NSObject's. In single-file
-/// mode the hierarchy falls back to the file-local chain + the static shim-root
-/// set, exact for same-file chains.
+///  (C) TEXT STORAGE PRIMITIVES — `NSTextStorage`/`NSMutableAttributedString`
+///      storage APIs are nonisolated Foundation/AppKit primitives, not view APIs.
+///      A generated upstream subclass compiled under default MainActor isolation
+///      must therefore mark exact overrides like `string`, `replaceCharacters`,
+///      `setAttributes`, `processEditing`, and the storage initializers
+///      `nonisolated` to match the base declarations.
+///
+/// Conservative: matches ONLY these exact NSObject or NSTextStorage signatures,
+/// only when the decl carries `override`/`required` as appropriate and is not
+/// already `nonisolated`, so it never touches an app's own same-named member that
+/// doesn't override the known base API. In single-file mode the hierarchy falls
+/// back to the file-local chain + the static shim-root set, exact for same-file
+/// chains.
 private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
     private let hierarchy: HierarchyMap
     /// Names of enclosing classes (innermost last) so a member visit knows its
@@ -2182,6 +2240,9 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
     private static func hasNonisolated(_ modifiers: DeclModifierListSyntax) -> Bool {
         modifiers.contains { $0.name.text == "nonisolated" }
     }
+    private static func hasConvenience(_ modifiers: DeclModifierListSyntax) -> Bool {
+        modifiers.contains { $0.name.text == "convenience" }
+    }
 
     /// Insert `nonisolated` as the first modifier, re-anchoring the decl's leading
     /// trivia (newline + indent) onto it so the decl stays on its own line.
@@ -2192,6 +2253,17 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         var nonisolated = DeclModifierSyntax(name: .keyword(.nonisolated), trailingTrivia: .space)
         nonisolated.leadingTrivia = Trivia()
         copy.modifiers = DeclModifierListSyntax([nonisolated] + Array(copy.modifiers))
+        copy.leadingTrivia = savedLeading
+        return copy
+    }
+
+    private static func prependOverride<S: SyntaxProtocol & WithModifiersSyntax>(_ node: S) -> S {
+        var copy = node
+        let savedLeading = copy.leadingTrivia
+        copy.leadingTrivia = Trivia()
+        var override = DeclModifierSyntax(name: .keyword(.override), trailingTrivia: .space)
+        override.leadingTrivia = Trivia()
+        copy.modifiers = DeclModifierListSyntax([override] + Array(copy.modifiers))
         copy.leadingTrivia = savedLeading
         return copy
     }
@@ -2214,9 +2286,17 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         // `init(stickerPackInfo:)`): such a class still implicitly overrides the base
         // `init()` and would mismatch it without an explicit nonisolated override.
         let needsNonisolatedInit = hierarchy.initOverrideShouldBeNonisolated(forClassNamed: node.name.text)
-        return DeclSyntax(Self.synthesizingNonisolatedInitIfNeeded(
+        var updated = Self.synthesizingNonisolatedInitIfNeeded(
             recursed, needsNonisolatedInit: needsNonisolatedInit, memberIndent: memberIndent
-        ))
+        )
+        if ownerIsNSTextStorageSubclass(className: node.name.text) {
+            updated = Self.synthesizingNSTextStorageInitializersIfNeeded(
+                updated,
+                accessPrefix: Self.memberAccessPrefix(for: node),
+                memberIndent: memberIndent
+            )
+        }
+        return DeclSyntax(updated)
     }
 
     /// If `node`'s `init()` override must be `nonisolated` (per A3, to match a
@@ -2303,6 +2383,140 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         return copy
     }
 
+    private func ownerIsNSTextStorageSubclass(className: String? = nil) -> Bool {
+        guard let owner = className ?? classStack.last else { return false }
+        if hierarchy.directSuperclassName(forClassNamed: owner)?.hasSuffix("TextStorage") == true {
+            return true
+        }
+        return owner == "NSTextStorage" || hierarchy.isSubclass(owner, of: "NSTextStorage")
+    }
+
+    private static func memberAccessPrefix(for node: ClassDeclSyntax) -> String {
+        if node.modifiers.contains(where: { $0.name.text == "public" || $0.name.text == "open" }) {
+            return "public "
+        }
+        return ""
+    }
+
+    private static func synthesizingNSTextStorageInitializersIfNeeded(
+        _ node: ClassDeclSyntax,
+        accessPrefix: String,
+        memberIndent: String
+    ) -> ClassDeclSyntax {
+        var existing: Set<NSTextStorageInitializerKind> = []
+        for item in node.memberBlock.members {
+            guard let initDecl = item.decl.as(InitializerDeclSyntax.self),
+                  let kind = nstextStorageInitializerKind(initDecl) else {
+                continue
+            }
+            existing.insert(kind)
+        }
+
+        let missing = NSTextStorageInitializerKind.allCases.filter { !existing.contains($0) }
+        guard !missing.isEmpty else { return node }
+
+        var members = node.memberBlock.members
+        let unavailable = hasUninitializedStoredProperty(node)
+        for kind in missing {
+            let source = nstextStorageInitializerSource(
+                kind,
+                accessPrefix: accessPrefix,
+                memberIndent: memberIndent,
+                unavailable: unavailable
+            )
+            members.append(MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: source)\n")))
+        }
+
+        var copy = node
+        copy.memberBlock.members = members
+        return copy
+    }
+
+    private enum NSTextStorageInitializerKind: CaseIterable {
+        case empty
+        case string
+        case attributedString
+        case coder
+    }
+
+    private static func nstextStorageInitializerKind(_ node: InitializerDeclSyntax) -> NSTextStorageInitializerKind? {
+        let params = Array(node.signature.parameterClause.parameters)
+        switch params.count {
+        case 0:
+            return .empty
+        case 1:
+            switch params[0].firstName.text {
+            case "string": return .string
+            case "attributedString": return .attributedString
+            case "coder": return .coder
+            default: return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    private static func nstextStorageInitializerSource(
+        _ kind: NSTextStorageInitializerKind,
+        accessPrefix: String,
+        memberIndent: String,
+        unavailable: Bool
+    ) -> String {
+        let unavailablePrefix = unavailable
+            ? "\(memberIndent)@available(*, unavailable)\n"
+            : ""
+        let body: String
+        switch kind {
+        case .empty:
+            body = unavailable
+                ? "fatalError(\"init() is unavailable\")"
+                : "super.init()"
+            return "\(unavailablePrefix)\(memberIndent)nonisolated \(accessPrefix)override init() { \(body) }"
+        case .string:
+            body = unavailable
+                ? "fatalError(\"init(string:) is unavailable\")"
+                : "super.init(string: str)"
+            return "\(unavailablePrefix)\(memberIndent)nonisolated \(accessPrefix)override init(string str: String) { \(body) }"
+        case .attributedString:
+            body = unavailable
+                ? "fatalError(\"init(attributedString:) is unavailable\")"
+                : "super.init(attributedString: attrStr)"
+            return "\(unavailablePrefix)\(memberIndent)nonisolated \(accessPrefix)override init(attributedString attrStr: NSAttributedString) { \(body) }"
+        case .coder:
+            body = unavailable
+                ? "fatalError(\"init(coder:) is unavailable\")"
+                : "super.init(coder: coder)"
+            return "\(unavailablePrefix)\(memberIndent)nonisolated \(accessPrefix)required init?(coder: NSCoder) { \(body) }"
+        }
+    }
+
+    private static func hasUninitializedStoredProperty(_ node: ClassDeclSyntax) -> Bool {
+        node.memberBlock.members.contains { item in
+            guard let varDecl = item.decl.as(VariableDeclSyntax.self) else { return false }
+            if varDecl.modifiers.contains(where: { ["static", "class", "lazy"].contains($0.name.text) }) {
+                return false
+            }
+            return varDecl.bindings.contains { binding in
+                if let accessors = binding.accessorBlock {
+                    if case .accessors(let list) = accessors.accessors {
+                        if list.contains(where: { $0.accessorSpecifier.text == "get" }) {
+                            return false
+                        }
+                    } else {
+                        return false
+                    }
+                }
+                if binding.initializer != nil { return false }
+                if varDecl.bindingSpecifier.text == "var",
+                   let type = binding.typeAnnotation?.type,
+                   type.is(OptionalTypeSyntax.self) || type.is(ImplicitlyUnwrappedOptionalTypeSyntax.self) {
+                    return false
+                }
+                return true
+            }
+        }
+    }
+
     override func visit(_ node: FunctionDeclSyntax) -> DeclSyntax {
         let recursed = super.visit(node).cast(FunctionDeclSyntax.self)
         guard Self.hasOverride(recursed.modifiers), !Self.hasNonisolated(recursed.modifiers) else {
@@ -2314,7 +2528,9 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
             && params[0].firstName.text == "_"
             && params[0].type.trimmedDescription == "Any?"
         // (A) Identity member — always nonisolated, regardless of root.
-        guard isIsEqual else { return DeclSyntax(recursed) }
+        let isNSTextStoragePrimitive = ownerIsNSTextStorageSubclass()
+            && Self.isNSTextStorageNonisolatedFunction(recursed)
+        guard isIsEqual || isNSTextStoragePrimitive else { return DeclSyntax(recursed) }
         return DeclSyntax(Self.prependNonisolated(recursed))
     }
 
@@ -2336,13 +2552,21 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         let matches = (name == "description" && type == "String")
             || (name == "debugDescription" && type == "String")
             || (name == "hash" && type == "Int")
+            || (ownerIsNSTextStorageSubclass() && name == "string" && type == "String")
         guard matches else { return DeclSyntax(recursed) }
         return DeclSyntax(Self.prependNonisolated(recursed))
     }
 
     override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
-        let recursed = super.visit(node).cast(InitializerDeclSyntax.self)
+        var recursed = super.visit(node).cast(InitializerDeclSyntax.self)
+        if shouldAddMissingOverrideToNoArgInit(recursed) {
+            recursed = Self.prependOverride(recursed)
+        }
         guard !Self.hasNonisolated(recursed.modifiers) else { return DeclSyntax(recursed) }
+        if ownerIsNSTextStorageSubclass(),
+           Self.isNSTextStorageNonisolatedInitializer(recursed) {
+            return DeclSyntax(Self.prependNonisolated(recursed))
+        }
         // (B) Initializer — only one of the NSObject-base designated inits, and only
         // when the base `init()` being overridden is nonisolated (NSObject-direct, OR
         // an in-tree base whose init is nonisolated — the SheetDisplayableError /
@@ -2388,8 +2612,67 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         return DeclSyntax(Self.wrappingInitBodyInAssumeIsolated(recursed))
     }
 
+    private static func isNSTextStorageNonisolatedFunction(_ node: FunctionDeclSyntax) -> Bool {
+        let params = Array(node.signature.parameterClause.parameters)
+        switch node.name.text {
+        case "replaceCharacters":
+            return params.count == 2
+                && params[0].firstName.text == "in"
+                && params[1].firstName.text == "with"
+        case "attributes":
+            return params.count == 2
+                && params[0].firstName.text == "at"
+                && params[1].firstName.text == "effectiveRange"
+        case "setAttributes":
+            return params.count == 2
+                && params[0].firstName.text == "_"
+                && params[1].firstName.text == "range"
+        case "edited":
+            return params.count == 3
+                && params[0].firstName.text == "_"
+                && params[1].firstName.text == "range"
+                && params[2].firstName.text == "changeInLength"
+        case "beginEditing", "endEditing", "processEditing":
+            return params.isEmpty
+        default:
+            return false
+        }
+    }
+
+    private static func isNSTextStorageNonisolatedInitializer(_ node: InitializerDeclSyntax) -> Bool {
+        let params = Array(node.signature.parameterClause.parameters)
+        switch params.count {
+        case 0:
+            return hasOverride(node.modifiers)
+        case 1:
+            let label = params[0].firstName.text
+            if label == "coder" {
+                return hasOverride(node.modifiers) || hasRequired(node.modifiers)
+            }
+            return ["string", "attributedString"].contains(label)
+                && hasOverride(node.modifiers)
+        default:
+            return false
+        }
+    }
+
     private static func hasRequired(_ modifiers: DeclModifierListSyntax) -> Bool {
         modifiers.contains { $0.name.text == "required" }
+    }
+
+    private func shouldAddMissingOverrideToNoArgInit(_ node: InitializerDeclSyntax) -> Bool {
+        guard !Self.hasOverride(node.modifiers),
+              !Self.hasRequired(node.modifiers),
+              !Self.hasConvenience(node.modifiers),
+              node.optionalMark == nil,
+              node.signature.parameterClause.parameters.isEmpty,
+              let owner = classStack.last else {
+            return false
+        }
+        return hierarchy.isSubclass(owner, of: "NSWindow")
+            || hierarchy.isSubclass(owner, of: "NSPanel")
+            || hierarchy.directSuperclassName(forClassNamed: owner) == "NSWindow"
+            || hierarchy.directSuperclassName(forClassNamed: owner) == "NSPanel"
     }
 
     /// True iff `node`'s body is safe to run `nonisolated` — it touches no

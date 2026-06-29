@@ -13,10 +13,13 @@ FROM swift:6.2-noble
 
 RUN set -eux; \
     for i in 1 2 3 4 5; do apt-get update && break || sleep 5; done; \
-    apt-get install -y --no-install-recommends \
+    for i in 1 2 3 4 5; do \
+      if apt-get install -y --no-install-recommends --fix-missing \
         libgtk-4-dev \
         libgdk-pixbuf-2.0-dev \
         libcairo2-dev \
+        libc++-dev \
+        libc++abi-dev \
         libsqlite3-dev \
         libssl-dev \
         pkg-config \
@@ -33,7 +36,13 @@ RUN set -eux; \
         fonts-noto-color-emoji \
         imagemagick \
         x11-apps \
-        ca-certificates; \
+        ca-certificates; then \
+        break; \
+      fi; \
+      test "$i" != "5"; \
+      apt-get update; \
+      sleep 5; \
+    done; \
     test -f /usr/include/sqlite3.h; \
     test -f /usr/include/openssl/evp.h; \
     rm -rf /var/lib/apt/lists/*

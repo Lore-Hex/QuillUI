@@ -9,5 +9,9 @@ public struct AnyView: View {
         self.wrapped = view
     }
 
+    public init(erasing view: any View) {
+        self.wrapped = view
+    }
+
     public var body: Never { fatalError("AnyView is a primitive view") }
 }

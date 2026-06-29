@@ -840,6 +840,8 @@ quillui_install_linux_backend_smoke_packages() {
     fonts-noto-core
     git
     imagemagick
+    libc++-dev
+    libc++abi-dev
     libgdk-pixbuf-2.0-dev
     libgtk-4-dev
     libsqlite3-dev

@@ -1,6 +1,7 @@
 import Foundation
 
 #if os(Linux)
+#if !QUILLUI_NO_FOUNDATION_MODELS_MACROS
 @attached(member)
 public macro Generable() = #externalMacro(module: "QuillDataMacros", type: "QuillObservableMacro")
 
@@ -9,6 +10,7 @@ public macro Guide(
     description: String,
     _ options: GuideOption...
 ) = #externalMacro(module: "QuillDataMacros", type: "QuillAttributeMacro")
+#endif
 
 public struct GuideOption: Sendable {
     public init() {}

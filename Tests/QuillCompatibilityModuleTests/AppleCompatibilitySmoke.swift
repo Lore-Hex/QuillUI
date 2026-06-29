@@ -207,6 +207,7 @@ enum AppleCompatibilitySmoke {
         var childRemovalClearsParent: Bool
         var tabbedWindowsRoundTrip: Bool
         var applicationTabIdentifierLookup: Bool
+        var applicationIconImageIsConcrete: Bool
         var sheetLifecycleRoundTrip: Bool
     }
 
@@ -658,8 +659,8 @@ enum AppleCompatibilitySmoke {
         let manager = NSFontManager.shared
         let fonts = manager.availableFonts()
         let secondFonts = manager.availableFonts()
-        let families = manager.availableFontFamilies()
-        let secondFamilies = manager.availableFontFamilies()
+        let families = manager.availableFontFamilies
+        let secondFamilies = manager.availableFontFamilies
         let helveticaMembers = manager.availableMembers(ofFontFamily: "Helvetica")
         let secondHelveticaMembers = manager.availableMembers(ofFontFamily: "Helvetica")
 
@@ -1117,6 +1118,11 @@ enum AppleCompatibilitySmoke {
         let applicationTabIdentifierLookup =
             tabMatches.count == 1 &&
             tabMatches.first === matchingTabWindow
+        let applicationIconImageIsConcrete =
+            app.applicationIconImage.size.width.isFinite &&
+            app.applicationIconImage.size.height.isFinite &&
+            app.applicationIconImage.size.width > 0 &&
+            app.applicationIconImage.size.height > 0
 
         let sheetParent = NSWindow()
         let sheet = NSWindow()
@@ -1144,6 +1150,7 @@ enum AppleCompatibilitySmoke {
             childRemovalClearsParent: childRemovalClearsParent,
             tabbedWindowsRoundTrip: tabbedWindowsRoundTrip,
             applicationTabIdentifierLookup: applicationTabIdentifierLookup,
+            applicationIconImageIsConcrete: applicationIconImageIsConcrete,
             sheetLifecycleRoundTrip: sheetLifecycleRoundTrip
         )
     }

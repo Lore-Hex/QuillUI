@@ -10,7 +10,45 @@ import Glibc
 // `import`s QuillFoundation) sees these alongside the real Foundation surface.
 // Grows one gap at a time as vendored upstream code surfaces them.
 
+public typealias kern_return_t = Int32
+public let KERN_SUCCESS: kern_return_t = 0
+public typealias AutoreleasingUnsafeMutablePointer<Pointee> = UnsafeMutablePointer<Pointee>
+
+public struct mach_timebase_info_data_t: Sendable {
+    public var numer: UInt32
+    public var denom: UInt32
+
+    public init(numer: UInt32 = 0, denom: UInt32 = 0) {
+        self.numer = numer
+        self.denom = denom
+    }
+}
+
+public func mach_timebase_info() -> mach_timebase_info_data_t {
+    mach_timebase_info_data_t()
+}
+
+@discardableResult
+public func mach_timebase_info(_ info: UnsafeMutablePointer<mach_timebase_info_data_t>?) -> kern_return_t {
+    info?.pointee = mach_timebase_info_data_t(numer: 1, denom: 1)
+    return KERN_SUCCESS
+}
+
+public func mach_absolute_time() -> UInt64 {
+    clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+}
+
 public extension NSString {
+    /// AppKit text components use this macOS enumeration mode to move across
+    /// caret positions. swift-corelibs currently lacks the symbol; preserving
+    /// the bit lets the call sites compile and keeps the option inert where the
+    /// Linux Foundation implementation does not consume it.
+    static let quillByCaretPositionsRawValue: UInt = 1 << 13
+
+    static var quillByCaretPositionsOption: EnumerationOptions {
+        EnumerationOptions(rawValue: quillByCaretPositionsRawValue)
+    }
+
     /// Clone of Apple's `NSString.localizedStringWithFormat(_:_:)`, absent from
     /// swift-corelibs-foundation. Formats the arguments into `format` (the
     /// Apple version is current-locale-aware; locale only affects numeric
@@ -20,9 +58,33 @@ public extension NSString {
     }
 }
 
+public extension NSString.EnumerationOptions {
+    static let byCaretPositions = NSString.quillByCaretPositionsOption
+}
+
 public extension NSMutableString {
     func appendFormat(_ format: String, _ args: CVarArg...) {
         append(String(format: format, arguments: args))
+    }
+}
+
+public extension NSKeyedUnarchiver {
+    class func unarchivedArrayOfObjects<DecodedObjectType>(
+        ofClass cls: DecodedObjectType.Type,
+        from data: Data
+    ) throws -> [DecodedObjectType]? where DecodedObjectType: NSObject {
+        let decoded = try unarchivedObject(ofClasses: [NSArray.self, cls], from: data)
+        return decoded as? [DecodedObjectType]
+    }
+
+    class func unarchivedDictionary<DecodedKeyType, DecodedObjectType>(
+        ofKeyClass keyCls: DecodedKeyType.Type,
+        objectClass valueCls: DecodedObjectType.Type,
+        from data: Data
+    ) throws -> [DecodedKeyType: DecodedObjectType]?
+    where DecodedKeyType: NSObject, DecodedObjectType: NSObject {
+        let decoded = try unarchivedObject(ofClasses: [NSDictionary.self, keyCls, valueCls], from: data)
+        return decoded as? [DecodedKeyType: DecodedObjectType]
     }
 }
 
@@ -34,6 +96,8 @@ public extension NSString {
 
         public static let suggestedEncodingsKey = EncodingDetectionOptionsKey(rawValue: "NSSuggestedEncodingsKey")
         public static let likelyLanguageKey = EncodingDetectionOptionsKey(rawValue: "NSLikelyLanguageKey")
+        public static let allowLossyKey = EncodingDetectionOptionsKey(rawValue: "NSAllowLossyKey")
+        public static let useOnlySuggestedEncodingsKey = EncodingDetectionOptionsKey(rawValue: "NSUseOnlySuggestedEncodingsKey")
     }
 
     static func stringEncoding(
@@ -52,7 +116,33 @@ public extension NSString {
     }
 }
 
+// swift-corelibs-foundation marks the old NSStringEncoding constants as
+// unavailable aliases to `String.Encoding`. AppKit-era macOS app source still
+// uses the Apple UInt constants directly, e.g. CodeEdit's file-encoding model.
+// Re-export the Apple raw values from QuillFoundation so Linux builds can keep
+// that source shape unchanged.
+public let NSASCIIStringEncoding: UInt = String.Encoding.ascii.rawValue
+public let NSNEXTSTEPStringEncoding: UInt = 2
+public let NSJapaneseEUCStringEncoding: UInt = 3
+public let NSUTF8StringEncoding: UInt = String.Encoding.utf8.rawValue
+public let NSISOLatin1StringEncoding: UInt = String.Encoding.isoLatin1.rawValue
+public let NSSymbolStringEncoding: UInt = 6
+public let NSNonLossyASCIIStringEncoding: UInt = String.Encoding.nonLossyASCII.rawValue
+public let NSShiftJISStringEncoding: UInt = String.Encoding.shiftJIS.rawValue
+public let NSISOLatin2StringEncoding: UInt = String.Encoding.isoLatin2.rawValue
+public let NSUnicodeStringEncoding: UInt = String.Encoding.unicode.rawValue
+public let NSUTF16StringEncoding: UInt = String.Encoding.utf16.rawValue
+public let NSUTF16BigEndianStringEncoding: UInt = String.Encoding.utf16BigEndian.rawValue
+public let NSUTF16LittleEndianStringEncoding: UInt = String.Encoding.utf16LittleEndian.rawValue
+public let NSUTF32StringEncoding: UInt = String.Encoding.utf32.rawValue
+public let NSUTF32BigEndianStringEncoding: UInt = String.Encoding.utf32BigEndian.rawValue
+public let NSUTF32LittleEndianStringEncoding: UInt = String.Encoding.utf32LittleEndian.rawValue
+
 public extension URL {
+    static var libraryDirectory: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library", isDirectory: true)
+    }
+
     struct BookmarkCreationOptions: OptionSet, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
@@ -100,6 +190,28 @@ public extension URL {
 }
 
 public extension NSDictionary {
+    convenience init?(contentsOf url: URL, error outError: AutoreleasingUnsafeMutablePointer<NSError?>?) {
+        do {
+            let data = try Data(contentsOf: url)
+            let object = try PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+            guard let dictionary = object as? [AnyHashable: Any] else {
+                outError?.pointee = NSError(
+                    domain: NSCocoaErrorDomain,
+                    code: CocoaError.fileReadCorruptFile.rawValue
+                )
+                return nil
+            }
+            self.init(dictionary: dictionary)
+        } catch {
+            outError?.pointee = error as NSError
+            return nil
+        }
+    }
+
+    convenience init?(contentsOf url: URL, error: ()) {
+        self.init(contentsOf: url, error: nil as AutoreleasingUnsafeMutablePointer<NSError?>?)
+    }
+
     func fileSize() -> UInt64 {
         for key in [FileAttributeKey.size, "NSFileSize", "size"] as [Any] {
             if let number = self[key] as? NSNumber {
@@ -163,6 +275,41 @@ public extension FileManager {
         let url = root.appendingPathComponent(safeIdentifier, isDirectory: true)
         try? createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+
+    func trashItem(
+        at url: URL,
+        resultingItemURL outResultingURL: AutoreleasingUnsafeMutablePointer<NSURL?>?
+    ) throws {
+        let trashRoot = homeDirectoryForCurrentUser
+            .appendingPathComponent(".local", isDirectory: true)
+            .appendingPathComponent("share", isDirectory: true)
+            .appendingPathComponent("Trash", isDirectory: true)
+            .appendingPathComponent("files", isDirectory: true)
+        try createDirectory(at: trashRoot, withIntermediateDirectories: true)
+
+        let destination = trashRoot.appendingPathComponent(url.lastPathComponent)
+        let finalDestination = uniqueTrashDestination(for: destination)
+        try moveItem(at: url, to: finalDestination)
+        outResultingURL?.pointee = finalDestination as NSURL
+    }
+
+    private func uniqueTrashDestination(for destination: URL) -> URL {
+        guard fileExists(atPath: destination.path) else { return destination }
+        let base = destination.deletingPathExtension()
+        let pathExtension = destination.pathExtension
+        for index in 1...10_000 {
+            let candidateBase = base.deletingLastPathComponent()
+                .appendingPathComponent("\(base.lastPathComponent) \(index)")
+            let candidate = pathExtension.isEmpty
+                ? candidateBase
+                : candidateBase.appendingPathExtension(pathExtension)
+            if !fileExists(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return destination.deletingLastPathComponent()
+            .appendingPathComponent("\(destination.lastPathComponent)-\(UUID().uuidString)")
     }
 }
 
@@ -498,6 +645,8 @@ public extension stat {
 }
 
 public extension DispatchSource {
+    typealias FileSystemObject = DispatchSourceUserDataAdd
+
     static func makeFileSystemObjectSource(
         fileDescriptor: Int32,
         eventMask: DispatchSource.FileSystemEvent,
@@ -507,6 +656,8 @@ public extension DispatchSource {
         return DispatchSource.makeUserDataAddSource(queue: queue)
     }
 }
+
+public typealias DispatchSourceFileSystemObject = DispatchSourceUserDataAdd
 
 /// CoreFoundation's absolute-time clock does not resolve via plain
 /// `import Foundation` on Linux, so Telegram sources that consult it compile

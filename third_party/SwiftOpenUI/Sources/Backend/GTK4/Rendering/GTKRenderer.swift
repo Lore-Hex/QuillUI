@@ -1626,7 +1626,7 @@ extension Button: GTKRenderable, GTKDescribable {
                         color: rgba(255, 255, 255, 0.7);
                         """
                 )
-            case .bordered, .quillPaintMacBordered:
+            case .bordered, .accessoryBarAction, .quillPaintMacBordered:
                 applyCSSToWidget(button, properties: """
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
@@ -2664,8 +2664,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
             )
         }
 
-        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
-        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+        let requestWidth = widthMayGrowWithParent
+            ? minWidth.map(gtkPixelSize) ?? -1
+            : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent
+            ? minHeight.map(gtkPixelSize) ?? -1
+            : gtkPixelSize(layout.containerSize.height)
         if widthMayGrowWithParent && !heightMayGrowWithParent && childExpV {
             return gtkFrameFlexibleWidthFixedHeightClip(
                 child: child,
@@ -4046,6 +4050,24 @@ extension ToggleStyleModifier: GTKRenderable {
         let widget = gtkRenderView(content)
         setCurrentEnvironment(prev)
         return widget
+    }
+}
+
+extension CustomToggleStyleModifier: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.customToggleStyle = style
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let widget = gtkRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension ControlGroupStyleModifier: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(content)
     }
 }
 
@@ -6404,7 +6426,14 @@ private func gtkAlignFromAlignment(_ alignment: Alignment) -> (GtkAlign, GtkAlig
 
 extension Toggle: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        let toggleStyleType = getCurrentEnvironment().toggleStyle
+        let environment = getCurrentEnvironment()
+
+        if let customToggleStyle = environment.customToggleStyle {
+            let configuration = ToggleStyleConfiguration(label: AnyView(Text(label)), isOn: isOn)
+            return gtkRenderView(customToggleStyle.makeBody(configuration: configuration))
+        }
+
+        let toggleStyleType = environment.toggleStyle
 
         if toggleStyleType == .switch {
             return gtkCreateSwitchWidget()
@@ -6918,6 +6947,18 @@ extension EnvironmentModifierView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env[keyPath: keyPath] = value
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let widget = gtkRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension TransformEnvironmentModifierView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        transform(&env[keyPath: keyPath])
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         let widget = gtkRenderView(content)

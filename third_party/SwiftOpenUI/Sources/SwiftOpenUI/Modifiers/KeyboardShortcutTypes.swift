@@ -37,6 +37,7 @@ public struct EventModifiers: OptionSet, Equatable, Hashable, Sendable {
 	public static let control  = EventModifiers(rawValue: 1 << 2)
 	public static let option   = EventModifiers(rawValue: 1 << 3)
 	public static let command  = EventModifiers(rawValue: 1 << 4)
+	public static let numericPad = EventModifiers(rawValue: 1 << 5)
 
 	/// Alias for `.option` (cross-platform convenience).
 	public static let alt = EventModifiers.option

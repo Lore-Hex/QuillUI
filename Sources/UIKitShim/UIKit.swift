@@ -189,10 +189,9 @@ public final class UIFontMetrics: @unchecked Sendable {
 // QuillUIKit (re-exported above) — declaring twins here made `UIApplication.shared`
 // ambiguous once SwiftUI re-exported AppKit (whose QuillUIKit re-export exposes
 // the other copy). Shared text-layout types (NSTextAlignment/NSParagraphStyle/
-// NSUnderlineStyle/NSStringDrawing*/NSAttributedString.Key additions) live in
-// QuillFoundation (NSTextLayoutShared.swift) for the same reason.
-// NSTextAttachment/NSTextStorage stay here: their members are UIKit-flavored
-// (UIImage) and cannot share a declaration with AppKit's NSImage flavor yet.
+// NSUnderlineStyle/NSStringDrawing*/NSAttributedString.Key additions) and
+// NSTextAttachment live in QuillFoundation for the same reason. NSTextStorage
+// stays per-flavor for now because editing/storage APIs still diverge.
 
 
 
@@ -207,21 +206,6 @@ public final class UIFontMetrics: @unchecked Sendable {
 
 
 
-
-// NSTextAttachment: an inline image/data attachment in an attributed string.
-// swift-corelibs Foundation has no NSTextAttachment; SSK (String+SSK) builds one
-// to embed a templated image. Inert holder of image/bounds; rendering deferred.
-open class NSTextAttachment: NSObject {
-    public var image: UIImage?
-    public var bounds: CGRect
-    public var contents: Data?
-    public override init() {
-        self.image = nil
-        self.bounds = .zero
-        self.contents = nil
-        super.init()
-    }
-}
 
 public extension UIImage {
     enum RenderingMode: Int, Sendable {
@@ -272,15 +256,6 @@ public extension Optional where Wrapped == UIImage {
 // Mirror of UIKit's NSUnderlineStyle. Modeled as an OptionSet (matching the
 // platform, where line styles and patterns combine) with the standard raw
 // values; SSK uses `.single.rawValue` for strikethrough/underline attributes.
-
-public extension NSAttributedString {
-    /// NSAttributedString(attachment:) -- wraps a text attachment in an attributed
-    /// string with the attachment attribute under the U+FFFC object-replacement
-    /// character (matches Apple). Image rendering is inert; the attribute is set.
-    convenience init(attachment: NSTextAttachment) {
-        self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
-    }
-}
 
 public extension UIScene {
     enum ActivationState: Sendable {
@@ -1361,16 +1336,16 @@ public func UIGraphicsPopContext() {
 // open) here. Backed by NSMutableAttributedString; editing notifications are
 // inert on Linux.
 
-public struct NSTextStorageEditActions: OptionSet, Sendable {
+public struct UIKitNSTextStorageEditActions: OptionSet, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
-    public static let editedAttributes = NSTextStorageEditActions(rawValue: 1 << 0)
-    public static let editedCharacters = NSTextStorageEditActions(rawValue: 1 << 1)
+    public static let editedAttributes = UIKitNSTextStorageEditActions(rawValue: 1 << 0)
+    public static let editedCharacters = UIKitNSTextStorageEditActions(rawValue: 1 << 1)
 }
 
 open class NSTextStorage: NSMutableAttributedString {
     /// NSTextStorage.EditActions is the nested spelling used by callers.
-    public typealias EditActions = NSTextStorageEditActions
+    public typealias EditActions = UIKitNSTextStorageEditActions
 
     public weak var delegate: AnyObject?
     public private(set) var layoutManagers: [NSLayoutManager] = []
@@ -1412,7 +1387,7 @@ open class NSTextStorage: NSMutableAttributedString {
 
     open func processEditing() {}
 
-    open func edited(_ editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+    open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
 
     // beginEditing()/endEditing() are inherited from NSMutableAttributedString.
     // fixAttributes(in:) is not exposed there, so declare it for the subclass.

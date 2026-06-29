@@ -5,6 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH=".build-linux"
 SWIFT_TEST_ARGS=()
 
+# Focused library/test loops should not accidentally compile every fetched
+# upstream app checkout. Generated app checks opt back in when they need the
+# real app graph.
+: "${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}"
+export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scratch-path)
@@ -59,7 +65,7 @@ done
 
   set +e
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
+    swift build --build-tests --disable-index-store --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test-build.log"
   build_status=${PIPESTATUS[0]}
   if [[ $build_status -ne 0 ]]; then
@@ -83,8 +89,9 @@ done
     case "$arg" in --filter|--filter=*) warm_lower=0 ;; esac
   done
   if [[ $warm_lower -eq 1 ]]; then
-    lower_pkg="$ROOT_DIR/.build/quill-source-lower-package"
-    lower_scratch="$ROOT_DIR/.build/quill-source-lower-tool"
+    lower_cache_key="$(printf '%s' "$ROOT_DIR" | cksum | awk '{print $1}')"
+    lower_pkg="$ROOT_DIR/.build/quill-source-lower-package-$lower_cache_key"
+    lower_scratch="$ROOT_DIR/.build/quill-source-lower-tool-$lower_cache_key"
     warm_dir="$(mktemp -d)"
     printf 'import Foundation\n' > "$warm_dir/Warm.swift"
     # NOTE: leave "$warm_dir/out" uncreated — quill-source-lower refuses to run
@@ -121,7 +128,7 @@ done
   timeout --signal=KILL "$TEST_RUN_TIMEOUT" \
     stdbuf -oL -eL \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift test --skip-build --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
+    swift test --skip-build --disable-index-store --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
   status=${PIPESTATUS[0]}
   set -e

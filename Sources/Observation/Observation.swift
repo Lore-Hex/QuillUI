@@ -1,11 +1,13 @@
 import Foundation
 
 #if os(Linux)
+#if !QUILLUI_NO_OBSERVATION_MACROS
 @attached(member)
 public macro Observable() = #externalMacro(module: "QuillDataMacros", type: "QuillObservableMacro")
 
 @attached(peer)
 public macro ObservationIgnored() = #externalMacro(module: "QuillDataMacros", type: "QuillAttributeMacro")
+#endif
 
 public protocol Observable {}
 

@@ -6,6 +6,10 @@ import QuillFoundation
 public let CSSearchableItemActionType = "com.apple.corespotlightitem"
 public let CSSearchableItemActivityIdentifier = "kCSSearchableItemActivityIdentifier"
 
+public extension String {
+    static let content = "public.content"
+}
+
 open class CSSearchableItemAttributeSet: NSObject, @unchecked Sendable {
     public let itemContentType: String
 
@@ -20,10 +24,15 @@ open class CSSearchableItemAttributeSet: NSObject, @unchecked Sendable {
     public var emailAddresses: [String]?
     public var supportsPhoneCall: NSNumber?
     public var supportsNavigation: NSNumber?
+    public var relatedUniqueIdentifier: String?
 
     public init(itemContentType: String) {
         self.itemContentType = itemContentType
         super.init()
+    }
+
+    public convenience init(contentType: String) {
+        self.init(itemContentType: contentType)
     }
 }
 

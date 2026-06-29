@@ -61,6 +61,7 @@ import Combine
 import AsyncAlgorithms
 import Carbon
 import Security
+import UniformTypeIdentifiers
 import AVFoundation
 import Speech
 import ApplicationServices
@@ -82,6 +83,7 @@ import OllamaKit
 import Sparkle
 import IOKit
 import KeychainSwift
+import SearchKit
 
 final class LinuxCompatibilityProductsTests: XCTestCase {
     // The point of these tests is link-time: each `import` plus a
@@ -103,9 +105,9 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
     }
 
     func testCarbonShim() {
-        // `Sources/Carbon/Carbon.swift` only exposes a placeholder
-        // enum so the module is non-empty.
         _ = CarbonCompatibility.self
+        XCTAssertEqual(kVK_PageUp, 116)
+        XCTAssertEqual(kVK_PageDown, 121)
     }
 
     func testApplicationServicesShim() {
@@ -121,8 +123,53 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertEqual(CGKeyCode.kVK_ANSI_V, 0x09)
     }
 
+    func testQuillClosureFilterAvoidsPredicateOverloadAmbiguity() {
+        let values = quillClosureFilter(["SF Mono", "Inter", "MonoLisa"]) { value in
+            value.contains("Mono")
+        }
+        XCTAssertEqual(values, ["SF Mono", "MonoLisa"])
+    }
+
     func testServiceManagementShim() {
         _ = SMAppService.self
+    }
+
+    func testAppleFoundationAndSecurityCompileAliases() {
+        XCTAssertEqual(Security.noErr, Security.errSecSuccess)
+
+        var object: AnyObject?
+        withUnsafeMutablePointer(to: &object) { pointer in
+            let autoreleasing: AutoreleasingUnsafeMutablePointer<AnyObject?> = pointer
+            autoreleasing.pointee = NSString(string: "ok")
+        }
+        XCTAssertEqual(object as? String, "ok")
+
+        let error = NSError(domain: "QuillFoundation.NSError", code: 0, userInfo: nil)
+        XCTAssertEqual(error.domain, "QuillFoundation.NSError")
+    }
+
+    func testUniformTypeIdentifierOptionalContentTypeShape() {
+        let values: URLResourceValues? = nil
+        let fallback: UTType = values?.contentType ?? .item
+        XCTAssertEqual(fallback, .item)
+        XCTAssertEqual(UTType.aliasFile.identifier, "com.apple.alias-file")
+    }
+
+    func testWindowFullscreenNotificationsCompile() {
+        XCTAssertEqual(
+            NSWindow.didEnterFullScreenNotification.rawValue,
+            "NSWindowDidEnterFullScreenNotification"
+        )
+        XCTAssertEqual(
+            NSWindow.willExitFullScreenNotification.rawValue,
+            "NSWindowWillExitFullScreenNotification"
+        )
+    }
+
+    @MainActor
+    func testOptionalFocusedValueOverloadCompiles() {
+        let view = Text("focused").focusedValue(\.quillOptionalFocusedValue, nil as String?)
+        _ = view
     }
 
     func testAlamofireShim() {
@@ -241,6 +288,36 @@ final class LinuxCompatibilityProductsTests: XCTestCase {
         XCTAssertTrue(keychain.set("token", forKey: "access-token"))
         XCTAssertEqual(keychain.get("access-token"), "token")
         XCTAssertTrue(keychain.clear())
+    }
+
+    func testSearchKitShimIndexesDocuments() {
+        let index = SKIndexCreateWithMutableData(
+            NSMutableData(),
+            nil,
+            kSKIndexInverted,
+            [kSKStopWords: Set<String>(["the"])]
+        )!.takeRetainedValue()
+        let url = URL(fileURLWithPath: "/tmp/QuillSearchKit.swift")
+        let document = SKDocumentCreateWithURL(url)!.takeRetainedValue()
+
+        XCTAssertTrue(SKIndexAddDocumentWithText(index, document, "quill swift linux", true))
+        let documentID = SKIndexGetDocumentID(index, document)
+        XCTAssertGreaterThan(documentID, 0)
+        XCTAssertEqual(SKIndexGetDocumentState(index, document), kSKDocumentStateIndexed)
+
+        let properties = SKIndexGetAnalysisProperties(index).takeRetainedValue() as? [String: Any]
+        XCTAssertEqual(properties?[kSKStopWords] as? Set<String>, ["the"])
+
+        let search = SKSearchCreate(index, "quill", kSKSearchOptionDefault).takeRetainedValue()
+        var ids = [SKDocumentID](repeating: 0, count: 1)
+        var scores = [Float](repeating: 0, count: 1)
+        var foundCount = 0
+        XCTAssertFalse(SKSearchFindMatches(search, 1, &ids, &scores, 1, &foundCount))
+        XCTAssertEqual(foundCount, 1)
+        XCTAssertEqual(ids[0], documentID)
+
+        SKIndexRemoveDocument(index, document)
+        XCTAssertEqual(SKIndexGetDocumentState(index, document), kSKDocumentStateNotIndexed)
     }
 
     func testNetworkShimParsesAddressLiteralsAndHosts() {
@@ -472,6 +549,17 @@ private final class AlamofireRequestCapture: @unchecked Sendable {
         lock.lock()
         storedRequest = request
         lock.unlock()
+    }
+}
+
+private struct QuillOptionalFocusedValueKey: FocusedValueKey {
+    typealias Value = String
+}
+
+private extension FocusedValues {
+    var quillOptionalFocusedValue: String? {
+        get { self[QuillOptionalFocusedValueKey.self] }
+        set { self[QuillOptionalFocusedValueKey.self] = newValue }
     }
 }
 #endif

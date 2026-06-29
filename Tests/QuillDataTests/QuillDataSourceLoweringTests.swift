@@ -61,7 +61,10 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(lowererWrapper.contains("QUILLUI_SOURCE_LOWER"))
+        #expect(lowererWrapper.contains("TOOL_CACHE_KEY=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
         #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-package-$TOOL_CACHE_KEY"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-tool-$TOOL_CACHE_KEY"))
         #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
         #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
         #expect(lowererWrapper.contains("--disable-index-store"))
@@ -369,17 +372,22 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("--scratch-path=*"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+        #expect(wrapper.contains(": \"${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}\""))
+        #expect(wrapper.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
         // The wrapper builds the test bundle first (untimed) then runs it with
         // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
         // wedge the CI step. Both invocations pass the scratch path through.
-        #expect(wrapper.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
-        #expect(wrapper.contains("swift test --skip-build --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("swift build --build-tests --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        #expect(wrapper.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
         #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
         // The wrapper pre-builds the isolated SwiftSyntax source-lowering tool
         // untimed and pins QUILLUI_SOURCE_LOWER, so loweringScriptConvertsModelSyntax
         // execs a prebuilt binary instead of cold-building swift-syntax inside
         // the timeout-bounded run (that cold build wedged the CI suite).
         #expect(wrapper.contains("export QUILLUI_SOURCE_LOWER="))
+        #expect(wrapper.contains("lower_cache_key=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
+        #expect(wrapper.contains(".build/quill-source-lower-package-$lower_cache_key"))
+        #expect(wrapper.contains(".build/quill-source-lower-tool-$lower_cache_key"))
 
         let preparationScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),
@@ -1641,6 +1649,16 @@ struct QuillDataSourceLoweringTests {
                 }
             }
 
+            func shorthandFixtures(
+                image: NSImage,
+                symbolConfiguration: NSImage.SymbolConfiguration,
+                point: CGPoint
+            ) {
+                _ = image.withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+                _ = symbolConfiguration.applying(.init(pointSize: 15, weight: .bold))
+                _ = point.applying(.init(translationX: 1, y: 2))
+            }
+
             var body: some View {
         #if os(macOS) && canImport(AppKit)
                 Text("desktop")
@@ -1673,14 +1691,14 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
         #expect(lowered.contains("#if os(macOS) || os(Linux)"))
-        #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(lowered.contains("let action: (@MainActor () -> Void)?"))
         #expect(lowered.contains("""
-        Task {
+        Task { @MainActor in
             action?()
         }
 """))
         #expect(lowered.contains("""
-        Task { [action] in
+        Task { @MainActor [action] in
             action?()
         }
 """))
@@ -1689,11 +1707,15 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("private var cachedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
+        #expect(lowered.contains("image.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))"))
+        #expect(lowered.contains("symbolConfiguration.applying(NSImage.SymbolConfiguration(pointSize: 15, weight: .bold))"))
+        #expect(lowered.contains("point.applying(.init(translationX: 1, y: 2))"))
+        #expect(!lowered.contains("point.applying(NSImage.SymbolConfiguration(translationX: 1, y: 2))"))
         #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@Observable"))
-        #expect(!lowered.contains("@MainActor"))
+        #expect(lowered.contains("@MainActor\nstruct DesktopRoot: View {"))
         #expect(!lowered.contains("#Preview"))
     }
 

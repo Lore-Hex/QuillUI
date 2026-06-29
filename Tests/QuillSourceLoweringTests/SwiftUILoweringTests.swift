@@ -19,8 +19,8 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("struct MyApp: App"))
     }
 
-    @Test("@MainActor attribute is stripped from decls")
-    func mainActorAttributeStripped() {
+    @Test("@MainActor attribute is preserved on decls")
+    func mainActorAttributePreserved() {
         let source = """
         @MainActor
         final class AppModel {
@@ -28,11 +28,33 @@ struct SwiftUILoweringTests {
         }
 
         @MainActor func bootstrap() {}
+        enum Helpers { @MainActor static func bootstrap() {} }
         """
         let lowered = SwiftUILowering().lower(source)
-        #expect(!lowered.contains("@MainActor"))
+        #expect(lowered.contains("@MainActor\nfinal class AppModel"))
+        #expect(lowered.contains("@MainActor func bootstrap()"))
+        #expect(lowered.contains("@MainActor static func bootstrap()"))
         #expect(lowered.contains("final class AppModel"))
-        #expect(lowered.contains("func bootstrap()"))
+    }
+
+    @Test("@MainActor is preserved for explicit static result-builder buildBlock methods")
+    func mainActorPreservedForStaticResultBuilderBuildBlock() {
+        let source = """
+        @resultBuilder
+        public enum ActionsBuilder {
+            @MainActor public static func buildBlock<V1: View>(_ view1: V1) -> WelcomeActions {
+                .one(AnyView(view1))
+            }
+
+            @MainActor static func buildBlock() -> WelcomeActions {
+                .none
+            }
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("@MainActor public static func buildBlock<V1: View>(_ view1: V1) -> WelcomeActions"))
+        #expect(lowered.contains("@MainActor static func buildBlock() -> WelcomeActions"))
+        #expect(lowered.components(separatedBy: "@MainActor").count - 1 == 2)
     }
 
     @Test("stripped declaration attributes preserve member boundaries")
@@ -52,11 +74,11 @@ struct SwiftUILoweringTests {
         let lowered = SwiftUILowering().lower(source)
         #expect(!lowered.contains("}func"))
         #expect(!lowered.contains("}var"))
-        #expect(lowered.contains("}\n\n    func togglePanel()"))
-        #expect(lowered.contains("\n    var allowPrinting = true"))
+        #expect(lowered.contains("}\n\n    @MainActor func togglePanel()"))
+        #expect(lowered.contains("\n    @MainActor var allowPrinting = true"))
     }
 
-    @Test("@MainActor is stripped from inline function type expressions")
+    @Test("@MainActor is preserved in inline function type expressions")
     func mainActorInsideTypeExpression() {
         let source = """
         struct DesktopRoot {
@@ -64,8 +86,7 @@ struct SwiftUILoweringTests {
         }
         """
         let lowered = SwiftUILowering().lower(source)
-        #expect(!lowered.contains("@MainActor"))
-        #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(lowered.contains("let action: (@MainActor () -> Void)?"))
     }
 
     @Test("@Observable classes gain QuillObservableObject and publish stored vars")
@@ -256,12 +277,12 @@ struct SwiftUILoweringTests {
         """
         let lowered = SwiftUILowering().lower(source)
         #expect(!lowered.contains("@main"))
-        #expect(!lowered.contains("@MainActor"))
+        #expect(lowered.contains("@MainActor"))
         #expect(!lowered.contains("@Observable"))
         #expect(lowered.contains("final class AppModel: QuillObservableObject"))
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
-        #expect(lowered.contains("struct Root: View {"))
-        #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(lowered.contains("@MainActor\nstruct Root: View {"))
+        #expect(lowered.contains("let action: (@MainActor () -> Void)?"))
     }
 
     @Test("Unrelated attributes are preserved")
@@ -306,7 +327,7 @@ struct SwiftUILoweringTests {
         let second = SwiftUILowering().lower(first)
         #expect(first == second)
         #expect(!first.contains("@main"))
-        #expect(!first.contains("@MainActor"))
+        #expect(first.contains("@MainActor"))
         #expect(!first.contains("@Observable"))
         #expect(first.contains("final class AppModel: QuillObservableObject {"))
         #expect(first.contains("@QuillPublished var count = 0"))
@@ -369,6 +390,7 @@ struct SwiftUILoweringTests {
             var body: some View { Text("hi") }
         }
 
+        @available(macOS 14.0, *)
         #Preview {
             Root()
         }
@@ -379,7 +401,281 @@ struct SwiftUILoweringTests {
         """
         let lowered = SwiftUILowering().lower(source)
         #expect(!lowered.contains("#Preview"))
+        #expect(!lowered.contains("@available(macOS 14.0, *)"))
         #expect(lowered.contains("struct Root: View"))
+    }
+
+    @Test("Top-level #Preview at end of file is removed")
+    func previewBlockAtEndOfFileRemoved() {
+        let source = """
+        import SwiftUI
+
+        struct SettingsPane: View {
+            var body: some View { Text("Settings") }
+        }
+
+        #Preview {
+            SettingsPane()
+        }
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(!lowered.contains("#Preview"))
+        #expect(lowered.contains("struct SettingsPane: View"))
+    }
+
+    @Test("Apple framework submodule imports lower to parent shim modules")
+    func appleFrameworkSubmoduleImportsLowerToParentShimModules() {
+        let source = """
+        import Foundation.NSDate
+        import PDFKit.PDFView
+        @preconcurrency import UIKit.UIGestureRecognizerSubclass
+
+        let date = NSDate()
+        """
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("import Foundation"))
+        #expect(lowered.contains("import PDFKit"))
+        #expect(lowered.contains("@preconcurrency import UIKit"))
+        #expect(!lowered.contains("Foundation.NSDate"))
+        #expect(!lowered.contains("PDFKit.PDFView"))
+        #expect(!lowered.contains("UIKit.UIGestureRecognizerSubclass"))
+    }
+
+    @Test("URLRequest constructor calls qualify FoundationNetworking on Linux")
+    func urlRequestConstructorCallsQualifyFoundationNetworking() {
+        let source = """
+        import Foundation
+
+        enum GitRouter {
+            func request(_ url: URL) -> URLRequest? {
+                URLRequest(url: url)
+            }
+
+            func existing(_ url: URL) -> URLRequest {
+                Foundation.URLRequest(url: url)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("import Foundation\nimport FoundationNetworking"))
+        #expect(lowered.contains("FoundationNetworking.URLRequest(url: url)"))
+        #expect(!lowered.contains("Foundation.URLRequest(url: url)"))
+        #expect(!lowered.contains("FoundationNetworking.Foundation.URLRequest"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("FoundationNetworking async URLSession protocol requirements remain visible on Linux")
+    func foundationNetworkingAsyncURLSessionRequirementsRemainVisible() {
+        let source = """
+        import Foundation
+        #if canImport(FoundationNetworking)
+        import FoundationNetworking
+        #endif
+
+        protocol GitURLSession {
+        #if !canImport(FoundationNetworking)
+            func data(for request: URLRequest, delegate: URLSessionTaskDelegate?) async throws -> (Data, URLResponse)
+
+            func upload(
+                for request: URLRequest,
+                from bodyData: Data,
+                delegate: URLSessionTaskDelegate?
+            ) async throws -> (Data, URLResponse)
+        #endif
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("#if true"))
+        #expect(lowered.contains("func data(for request: URLRequest, delegate: URLSessionTaskDelegate?) async throws -> (Data, URLResponse)"))
+        #expect(lowered.contains("func upload(\n        for request: URLRequest,"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("NSFontManager availableFontFamilies method calls lower to property access")
+    func nsFontManagerAvailableFontFamiliesCallsLowerToPropertyAccess() {
+        let source = """
+        import AppKit
+
+        func families() -> [String] {
+            NSFontManager.shared.availableFontFamilies()
+        }
+
+        func monospaced() -> [String] {
+            let availableFontFamilies = NSFontManager.shared.availableFontFamilies
+            return availableFontFamilies.filter { $0.contains("Mono") }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("NSFontManager.shared.availableFontFamilies"))
+        #expect(!lowered.contains("availableFontFamilies()"))
+        #expect(lowered.contains("let availableFontFamilies: [String] = NSFontManager.shared.availableFontFamilies"))
+        #expect(lowered.contains("return quillClosureFilter(availableFontFamilies) { $0.contains(\"Mono\") }"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("AttributedString foregroundColor dynamic member lowers to helper")
+    func attributedStringForegroundColorDynamicMemberLowersToHelper() {
+        let source = """
+        import SwiftUI
+
+        func info() -> AttributedString {
+            var attrString = AttributedString("Mason Registry")
+            if let linkRange = attrString.range(of: "Mason Registry") {
+                attrString[linkRange].link = URL(string: "https://mason-registry.dev/")
+                attrString[linkRange].foregroundColor = NSColor.linkColor
+            }
+            return attrString
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("quillSetAttributedStringForegroundColor(&attrString, range: linkRange, color: NSColor.linkColor)"))
+        #expect(!lowered.contains("].foregroundColor ="))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Projected collection isEmpty checks lower to wrapped collection checks")
+    func projectedCollectionIsEmptyChecksLowerToWrappedCollectionChecks() {
+        let source = """
+        import SwiftUI
+
+        struct AccountsSettingsView: View {
+            @State var accounts: [String] = []
+
+            var body: some View {
+                if $accounts.isEmpty {
+                    Text("No accounts")
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("if accounts.isEmpty {"))
+        #expect(!lowered.contains("$accounts.isEmpty"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("POSIX sysconf buffer sizes lower to Int for Glibc allocation APIs")
+    func posixSysconfBufferSizesLowerToInt() {
+        let source = """
+        func loadUser() {
+            let bufsize = sysconf(_SC_GETPW_R_SIZE_MAX)
+            let buffer = UnsafeMutablePointer<Int8>.allocate(capacity: bufsize)
+            _ = buffer
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("let bufsize = Int(sysconf(Int32(_SC_GETPW_R_SIZE_MAX)))"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Axis and Edge tuple switches gain default case for OptionSet axis")
+    func axisEdgeTupleSwitchesGainDefaultCase() {
+        let source = """
+        func split(_ direction: Edge) {
+            switch (axis, direction) {
+            case (.horizontal, .trailing), (.vertical, .bottom):
+                insertAfter()
+            case (.horizontal, .leading), (.vertical, .top):
+                insertBefore()
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("default:\n            break"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Axis initializer switches gain horizontal default for OptionSet exhaustiveness")
+    func axisInitializerSwitchesGainHorizontalDefault() {
+        let source = """
+        enum SplitViewAxis {
+            case vertical, horizontal
+
+            init(_ swiftUI: Axis) {
+                switch swiftUI {
+                case .vertical: self = .vertical
+                case .horizontal: self = .horizontal
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("default:"))
+        #expect(lowered.contains("self = .horizontal"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("XPC continuation data decoded by JSONDecoder is annotated as Data")
+    func jsonDecoderContinuationDataIsAnnotated() {
+        let source = """
+        import Foundation
+
+        enum ExtensionKind: Decodable {}
+
+        struct ExtensionInfo {
+            static func getAvailableFeatures(_ connection: NSXPCConnection) async throws -> [ExtensionKind] {
+                let encodedAvailableFeatures = try await connection.withContinuation { (service: XPCWrappable, continuation) in
+                    service.getExtensionKinds(reply: continuation.resumingHandler)
+                }
+                return try JSONDecoder().decode([ExtensionKind].self, from: encodedAvailableFeatures)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("let encodedAvailableFeatures: Data = try await connection.withContinuation"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("optional published MergeMany chains lower to named local publishers")
+    func optionalPublishedMergeManyChainsLowerToNamedLocalPublishers() {
+        let source = """
+        import Combine
+
+        extension WindowController {
+            internal func listenToDocumentEdited(workspace: WorkspaceDocument) {
+                workspace.editorManager?.$activeEditor
+                    .flatMap({ editor in
+                        editor.$tabs
+                    })
+                    .compactMap({ tab in
+                        Publishers.MergeMany(tab.elements.compactMap({ $0.file.fileDocumentPublisher }))
+                    })
+                    .switchToLatest()
+                    .compactMap({ fileDocument in
+                        fileDocument?.isDocumentEditedPublisher
+                    })
+                    .flatMap({ $0 })
+                    .sink { isDocumentEdited in
+                        if isDocumentEdited {
+                            self.setDocumentEdited(true)
+                            return
+                        }
+
+                        self.updateDocumentEdited(workspace: workspace)
+                    }
+                    .store(in: &cancellables)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("if let _quillCombinePipeline0Source = workspace.editorManager?.$activeEditor {"))
+        #expect(lowered.contains("let _quillCombinePipeline0Children = _quillCombinePipeline0Source"))
+        #expect(lowered.contains("let _quillCombinePipeline0Documents = _quillCombinePipeline0Children"))
+        #expect(lowered.contains("Publishers.MergeMany(tab.elements.compactMap { $0.file.fileDocumentPublisher })"))
+        #expect(lowered.contains("let _quillCombinePipeline0Values = _quillCombinePipeline0Documents"))
+        #expect(lowered.contains("_quillCombinePipeline0Values\n            .sink { isDocumentEdited in"))
+        #expect(!lowered.contains("workspace.editorManager?.$activeEditor\n                    .flatMap({ editor in"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
     }
 
     @Test("os(macOS) widening only affects #if conditions, not regular code")
@@ -428,6 +724,241 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("VStack(alignment: .leading, spacing: 8) {"))
         #expect(lowered.contains("            _quillSplitBody0Part0"))
         #expect(lowered.contains(".background(Color.white)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Large ViewBuilder content properties are split like body builders")
+    func largeContentBuilderIsSplitIntoHelpers() {
+        let rows = (0..<30).map { index in
+            """
+                        Text("Tab \(index)")
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct ComplexTab: View {
+            @ViewBuilder var content: some View {
+                HStack(alignment: .center, spacing: 3) {
+                    // Tab content
+        \(rows)
+                }
+                .frame(maxHeight: .infinity)
+                .accessibilityLabel("Tab")
+            }
+
+            var body: some View {
+                content
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("@ViewBuilder\n    private var _quillSplitBody0Part0: some View"))
+        #expect(lowered.contains("EmptyView()"))
+        #expect(lowered.contains("HStack(alignment: .center, spacing: 3) {"))
+        #expect(lowered.contains(".accessibilityLabel(\"Tab\")"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Large GeometryReader bodies are extracted into proxy helpers")
+    func largeGeometryReaderBodyIsExtractedIntoProxyHelper() {
+        let rows = (0..<34).map { index in
+            """
+                            Text("Crumb \(index)")
+                                .font(.caption)
+                                .frame(width: proxy.size.width)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct JumpBar: View {
+            var body: some View {
+                GeometryReader { proxy in
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 0) {
+        \(rows)
+                        }
+                    }
+                    .onAppear {
+                        _ = proxy.size.width
+                    }
+                    .onChange(of: proxy.size.width) { _, _ in
+                        _ = proxy.size.height
+                    }
+        #if compiler(>=6.2)
+                    .background(Text("new compiler"))
+        #else
+                    .background(Text("old compiler"))
+        #endif
+                }
+                .padding(.horizontal, 4)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("GeometryReader { proxy in\n            _quillSplitBody0Geometry(proxy)\n        }"))
+        #expect(lowered.contains("@ViewBuilder\n    private func _quillSplitBody0Geometry(_ proxy: GeometryProxy) -> some View"))
+        #expect(lowered.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        #expect(lowered.contains("#if compiler(>=6.2)"))
+        #expect(lowered.contains(".padding(.horizontal, 4)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Generated GeometryReader helpers split root TrackableScrollView closures")
+    func generatedGeometryReaderHelperSplitsTrackableScrollViewClosure() {
+        let rows = (0..<30).map { index in
+            """
+                                Text("Tab \(index)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                    .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct EditorTabs: View {
+            var body: some View {
+                GeometryReader { geometryProxy in
+                    TrackableScrollView(.horizontal, showIndicators: false) {
+                        ScrollViewReader { scrollReader in
+                            HStack(alignment: .center, spacing: -1) {
+        \(rows)
+                            }
+                            .onAppear {
+                                scrollReader.scrollTo("selected")
+                            }
+                            .onChange(of: geometryProxy.size.width) { _, _ in
+                                scrollReader.scrollTo("selected")
+                            }
+                            .frame(height: 28)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .overlay(alignment: .leading) {
+                        Color.clear.opacity(0.5)
+                    }
+                    .overlay(alignment: .trailing) {
+                        Color.clear.opacity(0.5)
+                    }
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("_quillSplitBody0Geometry(geometryProxy)"))
+        #expect(lowered.contains("_quillSplitBody1TrackableContent(geometryProxy)"))
+        #expect(lowered.contains("private func _quillSplitBody1TrackableContent(_ geometryProxy: GeometryProxy) -> some View"))
+        #expect(lowered.contains("_quillSplitBody2ScrollReaderContent(scrollReader, geometryProxy)"))
+        #expect(lowered.contains("private func _quillSplitBody2ScrollReaderContent(_ scrollReader: ScrollViewProxy, _ geometryProxy: GeometryProxy) -> some View"))
+        #expect(lowered.contains("var view = AnyView("))
+        #expect(lowered.contains("return view"))
+        #expect(lowered.contains(".onChange(of: geometryProxy.size.width)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Generated helper splitting preserves renamed GeometryReader parameters")
+    func generatedHelperSplittingPreservesRenamedGeometryReaderParameters() {
+        let rows = (0..<30).map { index in
+            """
+                                Text("Tab \(index)")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.primary)
+                                    .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct EditorTabs: View {
+            var body: some View {
+                GeometryReader { proxy in
+                    TrackableScrollView(.horizontal, showIndicators: false) {
+                        ScrollViewReader { scrollReader in
+                            HStack(alignment: .center, spacing: -1) {
+        \(rows)
+                            }
+                            .onAppear {
+                                scrollReader.scrollTo("selected")
+                            }
+                            .onChange(of: proxy.size.width) { _, _ in
+                                scrollReader.scrollTo("selected")
+                            }
+                            .frame(height: 28)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .overlay(alignment: .leading) {
+                        Color.clear.opacity(0.5)
+                    }
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("_quillSplitBody0Geometry(proxy)"))
+        #expect(lowered.contains("_quillSplitBody1TrackableContent(proxy)"))
+        #expect(lowered.contains("private func _quillSplitBody1TrackableContent(_ proxy: GeometryProxy) -> some View"))
+        #expect(lowered.contains("_quillSplitBody2ScrollReaderContent(scrollReader, proxy)"))
+        #expect(lowered.contains("private func _quillSplitBody2ScrollReaderContent(_ scrollReader: ScrollViewProxy, _ proxy: GeometryProxy) -> some View"))
+        #expect(lowered.contains(".onChange(of: proxy.size.width)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("Large SwiftUI body splitting keeps multiline conditional expressions together")
+    func largeBodySplitKeepsMultilineConditionalExpressionsTogether() {
+        let rows = (0..<34).map { index in
+            """
+                    Text("Row \(index)")
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct WorkspacePanel: View {
+            @EnvironmentObject private var model: WorkspaceModel
+
+            var body: some View {
+                VStack {
+                    if model.hasLeadingSidebar
+                        && (
+                            model.navigatorVisibility != .hidden
+                            || model.inspectorVisibility != .hidden
+                        ) {
+                        SidebarView()
+                    }
+        \(rows)
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        let normalizedWhitespace = lowered.replacingOccurrences(
+            of: #" +"#,
+            with: " ",
+            options: .regularExpression
+        )
+        #expect(lowered.contains("@ViewBuilder\n    private var _quillSplitBody0Part0: some View"))
+        #expect(normalizedWhitespace.contains("if model.hasLeadingSidebar\n && ("))
+        #expect(normalizedWhitespace.contains("model.navigatorVisibility != .hidden\n || model.inspectorVisibility != .hidden"))
+        #expect(!lowered.contains("private var _quillSplitBody0Part1: some View {\n        &&"))
+        #expect(!lowered.contains("if model.hasLeadingSidebar\n    }"))
+        #expect(!lowered.contains("_quillSplitBody0Part34}"))
         #expect(SwiftUILowering().lower(lowered) == lowered)
     }
 
@@ -492,6 +1023,212 @@ struct SwiftUILoweringTests {
         #expect(!lowered.contains("_quillSplitBody"))
         #expect(lowered.contains("#if os(visionOS)"))
         #expect(lowered.contains(".frame(width: 600, height: 600)"))
+    }
+
+    @Test("simple ViewThatFits children lower to explicit AnyView array")
+    func simpleViewThatFitsChildrenLowerToExplicitAnyViewArray() {
+        let source = """
+        import SwiftUI
+
+        struct FindPanelView: View {
+            @ObservedObject var viewModel: FindPanelViewModel
+            @FocusState private var focus: FindPanelFocus?
+            @State private var findModePickerWidth: CGFloat = 1.0
+
+            var body: some View {
+                ViewThatFits {
+                    FindPanelContent(
+                        viewModel: viewModel,
+                        focus: $focus,
+                        findModePickerWidth: $findModePickerWidth,
+                        condensed: false
+                    )
+                    FindPanelContent(
+                        viewModel: viewModel,
+                        focus: $focus,
+                        findModePickerWidth: $findModePickerWidth,
+                        condensed: true
+                    )
+                }
+                .padding(.horizontal, 5)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("ViewThatFits(children: ["))
+        #expect(lowered.contains("AnyView(\n                FindPanelContent("))
+        #expect(lowered.contains("condensed: false"))
+        #expect(lowered.contains("condensed: true"))
+        #expect(lowered.contains("])\n        .padding(.horizontal, 5)"))
+        #expect(!lowered.contains("ViewThatFits {\n"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("large ViewThatFits modifier chains split the base view into a helper")
+    func largeViewThatFitsModifierChainsSplitBaseViewIntoHelper() {
+        let modifiers = (0..<8).map { index in
+            """
+                    .onChange(of: viewModel.value\(index)) { newValue in
+                        viewModel.handle(newValue)
+                    }
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct FindPanelView: View {
+            @ObservedObject var viewModel: FindPanelViewModel
+
+            var body: some View {
+                ViewThatFits {
+                    FindPanelContent(viewModel: viewModel, condensed: false)
+                    FindPanelContent(viewModel: viewModel, condensed: true)
+                }
+                .padding(.horizontal, 5)
+                .frame(height: viewModel.panelHeight)
+                .background(.bar)
+        \(modifiers)
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("@ViewBuilder\n    private var _quillSplitBody0Part0: some View"))
+        #expect(lowered.contains("var body: some View {\n        var view = AnyView("))
+        #expect(lowered.contains("            _quillSplitBody0Part0"))
+        #expect(lowered.contains("        view = AnyView(view\n            .onChange(of: viewModel.value0)"))
+        #expect(lowered.contains("        return view"))
+        #expect(lowered.contains("ViewThatFits(children: ["))
+        #expect(lowered.contains(".frame(height: viewModel.panelHeight)"))
+        #expect(lowered.contains(".background(Material.bar)"))
+        #expect(lowered.contains(".onChange(of: viewModel.value7)"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("large conditional SwiftUI bodies lower to explicit AnyView return flow")
+    func largeConditionalBodyLowersToAnyViewReturnFlow() {
+        let observers = (0..<4).map { index in
+            """
+                            .onChange(of: model.value\(index)) { _, newValue in
+                                model.handle(newValue, manager: manager)
+                            }
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct WorkspaceLikeView: View {
+            @EnvironmentObject private var model: WorkspaceModel
+
+            var body: some View {
+                if model.fileManager != nil, let manager = model.manager {
+                    VStack {
+                        SplitViewReader { proxy in
+                            SplitView(axis: .vertical) {
+                                EditorAreaView()
+                                UtilityAreaView()
+                            }
+                            .edgesIgnoringSafeArea(.top)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .overlay(alignment: .top) {
+                                StatusBarView(proxy: proxy)
+                            }
+        \(observers)
+                            .task {
+                                await manager.refresh()
+                            }
+                            .onReceive(NotificationCenter.default.publisher(for: Window.willCloseNotification)) { output in
+                                model.persist(output)
+                            }
+                        }
+                    }
+                    .background(EffectView(.contentBackground))
+                    .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                        model.handleDrop(providers)
+                    }
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("workspace area")
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("guard model.fileManager != nil, let manager = model.manager else {"))
+        #expect(lowered.contains("return AnyView(EmptyView())"))
+        #expect(lowered.contains("var view = AnyView("))
+        #expect(lowered.contains("view = AnyView(view\n            .background(EffectView(.contentBackground))"))
+        #expect(lowered.contains("view = AnyView(view\n            .onDrop(of: [.fileURL], isTargeted: nil)"))
+        #expect(lowered.contains("return view"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("large conditional builder items with observer chains move to local AnyView functions")
+    func largeConditionalBuilderItemsWithObserverChainsMoveToLocalAnyViewFunctions() {
+        let observers = (0..<4).map { index in
+            """
+                            .onChange(of: model.value\(index)) { _, newValue in
+                                model.handle(newValue, manager: manager)
+                            }
+            """
+        }.joined(separator: "\n")
+
+        let source = """
+        import SwiftUI
+
+        struct WorkspaceLikeView: View {
+            @EnvironmentObject private var model: WorkspaceModel
+
+            var body: some View {
+                if model.fileManager != nil, let manager = model.manager {
+                    VStack {
+                        EditorAreaView()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .overlay(alignment: .top) {
+                                StatusBarView()
+                            }
+        \(observers)
+                            .task {
+                                await manager.refresh()
+                            }
+                    }
+                    .background(EffectView(.contentBackground))
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("func _quillSplitBody0Part0() -> AnyView"))
+        #expect(lowered.contains("_quillSplitBody0Part0()"))
+        #expect(lowered.contains("view = AnyView(view\n                .onChange(of: model.value0)"))
+        #expect(lowered.contains("return view"))
+        #expect(SwiftUILowering().lower(lowered) == lowered)
+    }
+
+    @Test("ViewThatFits with local declarations is left intact")
+    func viewThatFitsWithLocalDeclarationsIsLeftIntact() {
+        let source = """
+        import SwiftUI
+
+        struct Root: View {
+            var body: some View {
+                ViewThatFits {
+                    let title = "Local"
+                    Text(title)
+                    Text("Fallback")
+                }
+            }
+        }
+        """
+
+        let lowered = SwiftUILowering().lower(source)
+        #expect(lowered.contains("ViewThatFits {"))
+        #expect(!lowered.contains("ViewThatFits(children:"))
+        #expect(lowered.contains("let title = \"Local\""))
     }
 
     @Test("lowerInPlace rewrites .swift files and leaves other files alone")

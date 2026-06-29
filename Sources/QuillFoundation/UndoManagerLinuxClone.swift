@@ -58,17 +58,18 @@ open class UndoManager: NSObject, @unchecked Sendable {
         }
     }
 
-    public func registerUndo(withTarget target: AnyObject, selector: Selector, object: Any?) {
-        registerUndo(withTarget: target) { target in
-            (target as? QuillSelectorDispatching)?.quillPerform(selector, with: object)
+    open func registerUndo(withTarget target: Any, selector: Selector, object anObject: Any?) {
+        guard let object = target as AnyObject? else { return }
+        registerUndo(withTarget: object) { target in
+            (target as? QuillSelectorDispatching)?.quillPerform(selector, with: anObject)
         }
     }
 
-    public func beginUndoGrouping() {
+    open func beginUndoGrouping() {
         actionGroups.append([])
     }
 
-    public func endUndoGrouping() {
+    open func endUndoGrouping() {
         guard let group = actionGroups.popLast(), !group.isEmpty else { return }
 
         let groupedAction = makeGroupedAction(from: group, name: group.last?.name ?? "")
@@ -80,7 +81,7 @@ open class UndoManager: NSObject, @unchecked Sendable {
         }
     }
 
-    public func undo() {
+    open func undo() {
         guard let action = undoStack.popLast() else { return }
         undoing = true
         if action.grouped {
@@ -95,7 +96,7 @@ open class UndoManager: NSObject, @unchecked Sendable {
         redoActionName = action.name
     }
 
-    public func redo() {
+    open func redo() {
         guard let action = redoStack.popLast() else { return }
         redoing = true
         if action.grouped {
@@ -126,8 +127,10 @@ open class UndoManager: NSObject, @unchecked Sendable {
         }
     }
 
-    public var canUndo: Bool { !undoStack.isEmpty }
-    public var canRedo: Bool { !redoStack.isEmpty }
+    open var canUndo: Bool { !undoStack.isEmpty }
+    open var canRedo: Bool { !redoStack.isEmpty }
+    open var undoCount: Int { undoStack.count }
+    open var redoCount: Int { redoStack.count }
     public var groupsByEvent: Bool = true
     public var levelsOfUndo: Int = 0 {
         didSet {
@@ -138,8 +141,8 @@ open class UndoManager: NSObject, @unchecked Sendable {
     public var undoActionName: String = ""
     public var redoActionName: String = ""
     public func setActionName(_ name: String) { undoActionName = name }
-    public var isUndoing: Bool { undoing }
-    public var isRedoing: Bool { redoing }
+    open var isUndoing: Bool { undoing }
+    open var isRedoing: Bool { redoing }
     public func disableUndoRegistration() { registrationEnabled = false }
     public func enableUndoRegistration() { registrationEnabled = true }
     public var isUndoRegistrationEnabled: Bool { registrationEnabled }
@@ -179,5 +182,12 @@ open class UndoManager: NSObject, @unchecked Sendable {
         guard levelsOfUndo > 0, redoStack.count > levelsOfUndo else { return }
         redoStack.removeFirst(redoStack.count - levelsOfUndo)
     }
+}
+
+public extension NSNotification.Name {
+    static let NSUndoManagerWillUndoChange = NSNotification.Name("NSUndoManagerWillUndoChangeNotification")
+    static let NSUndoManagerDidUndoChange = NSNotification.Name("NSUndoManagerDidUndoChangeNotification")
+    static let NSUndoManagerWillRedoChange = NSNotification.Name("NSUndoManagerWillRedoChangeNotification")
+    static let NSUndoManagerDidRedoChange = NSNotification.Name("NSUndoManagerDidRedoChangeNotification")
 }
 #endif

@@ -1,5 +1,6 @@
 import Foundation
 #if os(Linux)
+import CoreFoundation
 import Glibc
 #endif
 
@@ -2216,16 +2217,9 @@ public typealias CFArray = [Any]
 public typealias CFString = String
 public typealias CFDictionary = [String: Any]
 public typealias CFTypeRef = AnyObject
-// CFError aliases to NSError (a class), NOT the `Error` protocol: SignalUI's
-// font registration (SUIEnvironment.swift) declares `var error: Unmanaged<CFError>?`
-// and Unmanaged<T> requires T: AnyObject. NSError also matches the CoreText shim's
-// `CFError = NSError`, so the two modules' typealiases denote the same type rather
-// than conflicting. NSError carries `localizedDescription`, so CFErrorCopyDescription
-// is unchanged, and `CFError?` parameters stay class-optionals (Security.swift).
-public typealias CFError = NSError
 
-public func CFErrorCopyDescription(_ error: CFError) -> CFString {
-    error.localizedDescription
+public func CFErrorCopyDescription(_ error: CoreFoundation.CFError) -> CFString {
+    String(describing: error)
 }
 
 public struct QuillUnmanagedStringConstant: Sendable {

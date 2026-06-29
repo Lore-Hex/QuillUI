@@ -13,14 +13,9 @@ public typealias CFIndex = CoreFoundation.CFIndex
 public typealias CFRange = CoreFoundation.CFRange
 public typealias CFAttributedString = NSAttributedString
 public typealias CGGlyph = UInt16
-// `CFError` is owned by QuillKit (alongside CFString/CFURL). CoreText must not
-// also export it publicly: SUIEnvironment imports both modules and an exported
-// twin here made the name ambiguous. CoreText's only use (the CTFontManager
-// error out-pointer below) spells the underlying NSError directly.
-
-public func CFRangeMake(_ loc: CFIndex, _ len: CFIndex) -> CFRange {
-    CFRange(location: loc, length: len)
-}
+// `CFError` is owned by corelibs CoreFoundation. CoreText must not export a
+// competing alias: app code commonly imports multiple Apple shim modules, and
+// duplicate CFError typealiases make unqualified `CFError` ambiguous.
 
 public final class CTFramesetter {
     fileprivate let attributedString: NSAttributedString
@@ -66,12 +61,16 @@ public func CTFontManagerRegisterFontsForURL(
     error?.pointee = nil
     return true
 }
-public final class CTLine {
+public final class CTLine: Equatable {
     fileprivate let length: Int
 
     fileprivate init(length: Int = 0) {
         self.length = length
     }
+}
+
+public func == (lhs: CTLine, rhs: CTLine) -> Bool {
+    lhs === rhs
 }
 
 public final class CTRun {
@@ -94,6 +93,15 @@ public enum CTLineTruncationType: UInt32, Sendable {
     case start = 0
     case end = 1
     case middle = 2
+}
+
+public struct CTLineBoundsOptions: OptionSet, Sendable {
+    public let rawValue: UInt32
+    public init(rawValue: UInt32) { self.rawValue = rawValue }
+    public static let useOpticalBounds = CTLineBoundsOptions(rawValue: 1 << 0)
+    public static let useGlyphPathBounds = CTLineBoundsOptions(rawValue: 1 << 1)
+    public static let useHangingPunctuation = CTLineBoundsOptions(rawValue: 1 << 2)
+    public static let useTypographicBounds = CTLineBoundsOptions(rawValue: 1 << 3)
 }
 
 public func CTFramesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTFramesetter {
@@ -177,6 +185,16 @@ public func CTFontCopyFullName(_ font: CTFont) -> CFString {
     font.fontName
 }
 
+public func CTFontDrawGlyphs(
+    _ font: CTFont,
+    _ glyphs: [CGGlyph],
+    _ positions: inout [CGPoint],
+    _ count: Int,
+    _ context: CGContext
+) {
+    _ = (font, glyphs, positions, count, context)
+}
+
 public func CTFontManagerCopyAvailablePostScriptNames() -> CFArray {
     ["Helvetica", ".AppleSystemUIFont"]
 }
@@ -194,7 +212,7 @@ public func CTFontManagerRegisterGraphicsFont(
     return true
 }
 
-public func CTTypesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTTypesetter? {
+public func CTTypesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTTypesetter {
     CTTypesetter(attributedString)
 }
 
@@ -202,6 +220,14 @@ public func CTTypesetterSuggestLineBreak(_ typesetter: CTTypesetter, _ startInde
     let remaining = max(0, typesetter.attributedString.length - startIndex)
     guard width.isFinite, width > 0 else { return remaining }
     return min(remaining, max(1, Int(width / 7)))
+}
+
+public func CTTypesetterSuggestClusterBreak(_ typesetter: CTTypesetter, _ startIndex: CFIndex, _ width: Double) -> CFIndex {
+    CTTypesetterSuggestLineBreak(typesetter, startIndex, width)
+}
+
+public func CTTypesetterCreateLine(_ typesetter: CTTypesetter, _ stringRange: CFRange) -> CTLine {
+    CTTypesetterCreateLineWithOffset(typesetter, stringRange, 0)
 }
 
 public func CTTypesetterCreateLineWithOffset(_ typesetter: CTTypesetter, _ stringRange: CFRange, _ offset: Double) -> CTLine {
@@ -223,6 +249,15 @@ public func CTLineGetTypographicBounds(
     descent?.pointee = 3
     leading?.pointee = 0
     return Double(line.length) * 7
+}
+
+public func CTLineGetBoundsWithOptions(_ line: CTLine, _ options: CTLineBoundsOptions) -> CGRect {
+    _ = options
+    var ascent: CGFloat = 0
+    var descent: CGFloat = 0
+    var leading: CGFloat = 0
+    let width = CTLineGetTypographicBounds(line, &ascent, &descent, &leading)
+    return CGRect(x: 0, y: -descent, width: width, height: ascent + descent + leading)
 }
 
 public func CTLineGetTrailingWhitespaceWidth(_ line: CTLine) -> Double {

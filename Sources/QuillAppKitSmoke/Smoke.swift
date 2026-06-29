@@ -109,7 +109,7 @@ func smokeAppearanceMatching() -> Bool {
 func smokeFontManagerFallbacks() -> Bool {
     let manager = NSFontManager.shared
     let fonts = manager.availableFonts()
-    let families = manager.availableFontFamilies()
+    let families = manager.availableFontFamilies
     return !fonts.isEmpty &&
         !families.isEmpty &&
         fonts == fonts.sorted() &&

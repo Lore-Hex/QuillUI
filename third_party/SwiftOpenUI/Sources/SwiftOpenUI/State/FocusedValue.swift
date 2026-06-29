@@ -22,6 +22,8 @@ public protocol FocusedValueKey {
 /// not from the focused control's ancestor chain. True focus-chain
 /// semantics are deferred to a future milestone.
 public struct FocusedValues {
+	public init() {}
+
 	/// Read a focused value for the active window.
 	public subscript<K: FocusedValueKey>(key: K.Type) -> K.Value? {
 		get { FocusedValuesStore.shared.resolve(key) }
@@ -225,6 +227,64 @@ public final class FocusedValuesStore {
 	}
 }
 
+// MARK: - Key-path focused values
+
+/// Focused values published through an arbitrary `FocusedValues` key path.
+///
+/// SwiftUI allows applications to define focused values as computed properties
+/// that internally use private `FocusedValueKey` types. Generic call sites such
+/// as `focusedValue(keyPath, disabled ? nil : value)` cannot recover that
+/// private key type on Linux, so this store preserves the key-path/value pair
+/// directly. Values remain scoped to the active native window, matching the
+/// window-granularity semantics of `FocusedValuesStore`.
+public final class FocusedKeyPathValuesStore {
+	public static let shared = FocusedKeyPathValuesStore()
+
+	private var valuesByWindow: [Int: [AnyKeyPath: Any]] = [:]
+	#if canImport(Foundation)
+	private let lock = NSLock()
+	#endif
+
+	private init() {}
+
+	public func publish<Value>(
+		_ value: Value,
+		for keyPath: WritableKeyPath<FocusedValues, Value?>,
+		windowID: Int = FocusedValuesStore.shared.currentActiveWindowID
+	) {
+		#if canImport(Foundation)
+		lock.lock()
+		defer { lock.unlock() }
+		#endif
+		valuesByWindow[windowID, default: [:]][keyPath] = value
+	}
+
+	public func clear<Value>(
+		_ keyPath: WritableKeyPath<FocusedValues, Value?>,
+		windowID: Int = FocusedValuesStore.shared.currentActiveWindowID
+	) {
+		#if canImport(Foundation)
+		lock.lock()
+		defer { lock.unlock() }
+		#endif
+		valuesByWindow[windowID]?[keyPath] = nil
+		if valuesByWindow[windowID]?.isEmpty == true {
+			valuesByWindow[windowID] = nil
+		}
+	}
+
+	public func resolve<Value>(
+		_ keyPath: KeyPath<FocusedValues, Value?>,
+		windowID: Int = FocusedValuesStore.shared.currentActiveWindowID
+	) -> Value? {
+		#if canImport(Foundation)
+		lock.lock()
+		defer { lock.unlock() }
+		#endif
+		return valuesByWindow[windowID]?[keyPath] as? Value
+	}
+}
+
 // MARK: - @FocusedValue property wrapper
 
 /// Reads a value from the active window's focused-value providers.
@@ -241,10 +301,9 @@ public struct FocusedValue<Value> {
 	private let resolve: () -> Value?
 
 	public init(_ keyPath: KeyPath<FocusedValues, Value?>) {
-		// Capture the keyPath for deferred resolution.
-		// We use FocusedValues subscript which delegates to FocusedValuesStore.
 		self.resolve = {
-			FocusedValues()[keyPath: keyPath]
+			FocusedKeyPathValuesStore.shared.resolve(keyPath)
+				?? FocusedValues()[keyPath: keyPath]
 		}
 	}
 
@@ -267,6 +326,28 @@ public struct FocusedValueView<Content: View, K: FocusedValueKey>: View, Primiti
 	public var body: Never { fatalError() }
 }
 
+/// Publishes a key-path focused value while rendering its content.
+public struct OptionalFocusedValueView<Content: View, Value>: View {
+	public let content: Content
+	public let keyPath: WritableKeyPath<FocusedValues, Value?>
+	public let value: Value?
+
+	public init(content: Content, keyPath: WritableKeyPath<FocusedValues, Value?>, value: Value?) {
+		self.content = content
+		self.keyPath = keyPath
+		self.value = value
+	}
+
+	public var body: some View {
+		if let value {
+			FocusedKeyPathValuesStore.shared.publish(value, for: keyPath)
+		} else {
+			FocusedKeyPathValuesStore.shared.clear(keyPath)
+		}
+		return content
+	}
+}
+
 extension View {
 	/// Publishes a value to the focused-value system for the current window.
 	public func focusedValue<K: FocusedValueKey>(
@@ -283,5 +364,17 @@ extension View {
 		_ value: K.Value
 	) -> FocusedValueView<Self, K> {
 		FocusedValueView(content: self, keyType: key, value: value)
+	}
+
+	/// Source-compatibility overload for SwiftUI code that gates a focused
+	/// value with an optional expression. The key-path-only form cannot recover
+	/// the FocusedValueKey type on Linux when the value is `nil`, so preserve the
+	/// view and let focused-value-aware call sites continue compiling.
+	@_disfavoredOverload
+	public func focusedValue<Value>(
+		_ keyPath: WritableKeyPath<FocusedValues, Value?>,
+		_ value: Value?
+	) -> OptionalFocusedValueView<Self, Value> {
+		OptionalFocusedValueView(content: self, keyPath: keyPath, value: value)
 	}
 }

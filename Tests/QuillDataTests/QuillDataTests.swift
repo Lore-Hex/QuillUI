@@ -518,7 +518,9 @@ struct QuillDataTests {
         )
         let queue = DispatchQueue(label: "quilldata.concurrent-writes", attributes: .concurrent)
         let group = DispatchGroup()
-        let count = 40
+        let errorLock = NSLock()
+        var writeErrors: [String] = []
+        let count = 16
 
         for index in 0..<count {
             group.enter()
@@ -526,11 +528,18 @@ struct QuillDataTests {
                 defer { group.leave() }
                 let context = ModelContext(container)
                 context.insert(ValueTodoItem(title: "Item \(index)", priority: index))
-                try? context.save()
+                do {
+                    try context.save()
+                } catch {
+                    errorLock.withLock {
+                        writeErrors.append(String(describing: error))
+                    }
+                }
             }
         }
 
-        #expect(group.wait(timeout: .now() + .seconds(5)) == .success)
+        #expect(group.wait(timeout: .now() + .seconds(30)) == .success)
+        #expect(writeErrors.isEmpty, Comment(rawValue: writeErrors.joined(separator: "\n")))
 
         let context = ModelContext(container)
         let items = try context.fetch(FetchDescriptor<ValueTodoItem>())

@@ -177,14 +177,6 @@ public extension FocusState {
     }
 }
 
-public struct ContextMenu {
-    public var menuElements: [MenuElement]
-
-    public init(@MenuBuilder menuItems: () -> [MenuElement]) {
-        self.menuElements = menuItems()
-    }
-}
-
 public enum TextSelectability: Sendable {
     case enabled
     case disabled
@@ -335,6 +327,7 @@ public extension Image {
         return self
     }
 
+    @_disfavoredOverload
     func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> Image {
         recordQuillUIFallback(
             "symbolRenderingMode",
@@ -386,44 +379,6 @@ public struct LabeledContent<Content: View>: View {
                 .multilineTextAlignment(.trailing)
         }
     }
-}
-
-public struct AccessibilityChildBehavior: Hashable, Sendable {
-    private let rawValue: String
-
-    private init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let combine = AccessibilityChildBehavior("combine")
-    public static let ignore = AccessibilityChildBehavior("ignore")
-}
-
-public struct AccessibilityLabelView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let label: String
-
-    public var body: Never { fatalError("AccessibilityLabelView is a primitive view") }
-}
-
-public struct AccessibilityValueView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let value: String
-
-    public var body: Never { fatalError("AccessibilityValueView is a primitive view") }
-}
-
-public struct AccessibilityElementView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let children: AccessibilityChildBehavior
-
-    public var body: Never { fatalError("AccessibilityElementView is a primitive view") }
 }
 
 public struct ImageScaleView<Content: View>: View {
@@ -757,6 +712,18 @@ public extension View {
         accessibilityValue(String(describing: value))
     }
 
+    func accessibilityHint(_ hint: String) -> AccessibilityHintView<Self> {
+        recordQuillUIFallback(
+            "accessibilityHint",
+            message: "View accessibility hints are propagated to native accessibility descriptions on Linux."
+        )
+        return AccessibilityHintView(content: self, hint: hint)
+    }
+
+    func accessibilityHint<T>(_ hint: T) -> AccessibilityHintView<Self> {
+        accessibilityHint(String(describing: hint))
+    }
+
     func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
         recordQuillUIFallback(
             "accessibilityElement(children:)",
@@ -877,11 +844,9 @@ public extension View {
         }
     }
 
-    func contextMenu(_ contextMenu: ContextMenu) -> ContextMenuView<Self> {
-        self.contextMenu {
-            contextMenu.menuElements
-        }
-    }
+    // `contextMenu(_ contextMenu: ContextMenu)` is canonical in
+    // QuillSwiftUICompatibility so files importing SwiftUI and QuillUI see one
+    // ContextMenu type and one overload.
 
     // `matchedGeometryEffect` is canonical in QuillSwiftUICompatibility
     // (DesignSystemSurfaceCompat.swift) — main canonicalized it there, so
@@ -901,21 +866,8 @@ public extension View {
     func focusedSceneValue<Value>(
         _ keyPath: WritableKeyPath<FocusedValues, Value?>,
         _ value: Value
-    ) -> Self {
-        recordQuillUIFallback(
-            "focusedSceneValue",
-            message: "focusedSceneValue is currently a source-compatibility fallback on Linux."
-        )
-        return self
-    }
-
-    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "GroupedFormStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
+    ) -> OptionalFocusedValueView<Self, Value> {
+        OptionalFocusedValueView(content: self, keyPath: keyPath, value: value)
     }
 
 }
@@ -977,6 +929,10 @@ extension AccessibilityLabelView: QuillAccessibilityLabelRepresentable {
 }
 
 extension AccessibilityValueView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AccessibilityHintView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 

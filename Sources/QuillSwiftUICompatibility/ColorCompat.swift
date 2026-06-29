@@ -25,6 +25,7 @@ extension Color {
     public static var systemGray2: Color { Color(RSColor.systemGray2) }
     public static var systemBlue: Color { Color(RSColor.systemBlue) }
     public static var systemRed: Color { Color(RSColor.systemRed) }
+    public static var coolGray: Color { Color(RSColor.coolGray) }
     public static var grayCustom: Color { Color("grayCustom") }
     public static var gray2Custom: Color { Color("gray2Custom") }
     public static var gray3Custom: Color { Color("gray3Custom") }
@@ -40,6 +41,18 @@ extension Color {
     /// Bridge UIKit/AppKit-style platform colors into the SwiftUI color value.
     public init(_ color: RSColor) {
         self.init(red: color._red, green: color._green, blue: color._blue, opacity: color._alpha)
+    }
+
+    /// SwiftUI exposes `Color.cgColor` as optional because dynamic colors may not
+    /// resolve immediately. Quill colors are concrete RGBA values, so the bridge
+    /// can always return an sRGB-compatible CGColor.
+    public var cgColor: RSCGColor? {
+        RSCGColor(components: [
+            CGFloat(red),
+            CGFloat(green),
+            CGFloat(blue),
+            CGFloat(alpha)
+        ])
     }
 
     /// SwiftUI's labeled platform-color bridges. `NSColor`/`UIColor` are both
@@ -74,6 +87,16 @@ extension Color {
     public init(_ colorSpace: RGBColorSpace, red: Double, green: Double, blue: Double, opacity: Double = 1.0) {
         _ = colorSpace
         self.init(red: red, green: green, blue: blue, opacity: opacity)
+    }
+
+    public func hueRotation(_ angle: Angle) -> Color {
+        _ = angle
+        return self
+    }
+
+    public func saturation(_ amount: Double) -> Color {
+        _ = amount
+        return self
     }
 
     private static func assetColor(named name: String) -> Color {

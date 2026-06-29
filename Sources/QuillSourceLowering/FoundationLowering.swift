@@ -11,9 +11,48 @@ public struct FoundationLowering {
     public func lower(_ source: String) -> String {
         let tree = Parser.parse(source: source)
         let checkingTypeVariables = NSTextCheckingTypeVariableScanner.variableNames(in: tree)
-        return FoundationRewriter(checkingTypeVariables: checkingTypeVariables)
+        let lowered = FoundationRewriter(checkingTypeVariables: checkingTypeVariables)
             .rewrite(tree)
             .description
+        return Self.lowerLinuxFoundationCompatibility(Self.removeUnavailableFormatterOverrides(lowered))
+    }
+
+    private static func lowerLinuxFoundationCompatibility(_ source: String) -> String {
+        var lowered = source
+            .replacingOccurrences(of: "Unmanaged<CFURL>", with: "Unmanaged<NSURL>")
+            .replacingOccurrences(of: "Foundation.URLRequest", with: "URLRequest")
+            .replacingOccurrences(of: "Foundation.URLSession", with: "URLSession")
+            .replacingOccurrences(of: "Foundation.URLSessionConfiguration", with: "URLSessionConfiguration")
+            .replacingOccurrences(of: "Foundation.HTTPURLResponse", with: "HTTPURLResponse")
+            .replacingOccurrences(of: "Foundation.URLResponse", with: "URLResponse")
+
+        if lowered.contains("Process.ExecutionParameters"),
+           !lowered.contains("import ProcessEnv"),
+           let regex = try? NSRegularExpression(pattern: #"(?m)^((?:@preconcurrency[ \t]+)?import[ \t]+Foundation\b.*)$"#) {
+            let range = NSRange(lowered.startIndex..<lowered.endIndex, in: lowered)
+            if let match = regex.firstMatch(in: lowered, range: range),
+               let lineRange = Range(match.range(at: 1), in: lowered) {
+                lowered.replaceSubrange(lineRange, with: "\(lowered[lineRange])\nimport ProcessEnv")
+            } else {
+                lowered = "import ProcessEnv\n" + lowered
+            }
+        }
+
+        return lowered
+    }
+
+    private static func removeUnavailableFormatterOverrides(_ source: String) -> String {
+        let pattern = #"(?m)^([ \t]*)override[ \t]+((?:(?:open|public|internal|fileprivate|private)[ \t]+)?)func[ \t]+(getObjectValue|isPartialStringValid)\b"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else {
+            return source
+        }
+
+        let range = NSRange(source.startIndex..<source.endIndex, in: source)
+        return regex.stringByReplacingMatches(
+            in: source,
+            range: range,
+            withTemplate: "$1$2func $3"
+        )
     }
 
     @discardableResult
@@ -62,6 +101,10 @@ private final class FoundationRewriter: SyntaxRewriter {
             return loweredCheckingTypeInsert
         }
 
+        if let loweredNSError = lowerNSErrorEmptyInitializer(recursed) {
+            return loweredNSError
+        }
+
         guard let call = recursed.as(FunctionCallExprSyntax.self),
               let callee = call.calledExpression.as(DeclReferenceExprSyntax.self),
               callee.baseName.text == "NSSortDescriptor",
@@ -84,6 +127,20 @@ private final class FoundationRewriter: SyntaxRewriter {
         copy.calledExpression = quillKey
         copy.arguments = arguments
         return ExprSyntax(copy)
+    }
+
+    private func lowerNSErrorEmptyInitializer(_ recursed: ExprSyntax) -> ExprSyntax? {
+        guard let call = recursed.as(FunctionCallExprSyntax.self),
+              let callee = call.calledExpression.as(DeclReferenceExprSyntax.self),
+              callee.baseName.text == "NSError",
+              call.arguments.isEmpty else {
+            return nil
+        }
+
+        var replacement = ExprSyntax("NSError(domain: \"QuillFoundation.NSError\", code: 0, userInfo: nil)")
+        replacement.leadingTrivia = call.leadingTrivia
+        replacement.trailingTrivia = call.trailingTrivia
+        return replacement
     }
 
     override func visit(_ node: MemberAccessExprSyntax) -> ExprSyntax {

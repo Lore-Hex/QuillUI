@@ -18,6 +18,164 @@ public protocol PreviewProvider {
     @ViewBuilder @MainActor static var previews: Previews { get }
 }
 
+// MARK: - Private SwiftUI Compatibility Surface
+
+public protocol _ViewTraitKey {
+    associatedtype Value
+    static var defaultValue: Value { get }
+}
+
+public enum _VariadicView {
+    public struct Child: @preconcurrency Identifiable, View {
+        public var id: AnyHashable
+
+        public init(id: AnyHashable = AnyHashable(0)) {
+            self.id = id
+        }
+
+        public subscript<K: _ViewTraitKey>(_ key: K.Type) -> K.Value {
+            _ = key
+            return K.defaultValue
+        }
+
+        public var body: Never {
+            fatalError("_VariadicView.Child is a primitive compatibility view")
+        }
+    }
+
+    public struct Children: RandomAccessCollection {
+        private var storage: [Child]
+
+        public init(_ storage: [Child] = []) {
+            self.storage = storage
+        }
+
+        public var startIndex: Int { storage.startIndex }
+        public var endIndex: Int { storage.endIndex }
+
+        public subscript(index: Int) -> Child {
+            storage[index]
+        }
+    }
+
+    public struct Tree<Root, Content: View>: View {
+        public let root: Root
+        public let content: Content
+
+        public init(_ root: Root, @ViewBuilder content: () -> Content) {
+            self.root = root
+            self.content = content()
+        }
+
+        public var body: some View {
+            content
+        }
+    }
+}
+
+public protocol _VariadicView_UnaryViewRoot {
+    associatedtype Body: View
+    @ViewBuilder func body(children: _VariadicView.Children) -> Body
+}
+
+public protocol _VariadicView_MultiViewRoot {
+    associatedtype Body: View
+    @ViewBuilder func body(children: _VariadicView.Children) -> Body
+}
+
+public extension View {
+    func _trait<K: _ViewTraitKey>(_ key: K.Type, _ value: K.Value) -> Self {
+        _ = (key, value)
+        return self
+    }
+}
+
+@propertyWrapper
+public struct FocusedObject<ObjectType>: DynamicProperty {
+    private let resolve: () -> ObjectType?
+
+    public init() {
+        self.resolve = { nil }
+    }
+
+    public init(_ keyPath: KeyPath<FocusedValues, ObjectType?>) {
+        self.resolve = {
+            FocusedKeyPathValuesStore.shared.resolve(keyPath)
+                ?? FocusedValues()[keyPath: keyPath]
+        }
+    }
+
+    public init(_ keyPath: WritableKeyPath<FocusedValues, ObjectType?>) {
+        self.resolve = {
+            FocusedKeyPathValuesStore.shared.resolve(keyPath)
+                ?? FocusedValues()[keyPath: keyPath]
+        }
+    }
+
+    public var wrappedValue: ObjectType? { resolve() }
+}
+
+@propertyWrapper
+public struct FocusedBinding<Value>: DynamicProperty {
+    private let resolve: () -> Binding<Value>?
+    public var wrappedValue: Binding<Value>? { resolve() }
+    public var projectedValue: Binding<Value>? { wrappedValue }
+
+    public init(_ keyPath: KeyPath<FocusedValues, Binding<Value>?>) {
+        self.resolve = {
+            FocusedKeyPathValuesStore.shared.resolve(keyPath)
+                ?? FocusedValues()[keyPath: keyPath]
+        }
+    }
+
+    public init(_ keyPath: WritableKeyPath<FocusedValues, Binding<Value>?>) {
+        self.resolve = {
+            FocusedKeyPathValuesStore.shared.resolve(keyPath)
+                ?? FocusedValues()[keyPath: keyPath]
+        }
+    }
+}
+
+public struct FocusedObjectModifierView<Content: View, ObjectType>: View {
+    public typealias Body = Content
+    public let content: Content
+    public let object: ObjectType?
+
+    public init(content: Content, object: ObjectType?) {
+        self.content = content
+        self.object = object
+    }
+
+    public var body: Content {
+        content
+    }
+}
+
+public extension View {
+    func focusedObject<ObjectType>(_ object: ObjectType?) -> FocusedObjectModifierView<Self, ObjectType> {
+        FocusedObjectModifierView(content: self, object: object)
+    }
+}
+
+private struct AccentColorKey: EnvironmentKey {
+    static let defaultValue: Color? = Color.accentColor
+}
+
+public extension EnvironmentValues {
+    var accentColor: Color? {
+        get { self[AccentColorKey.self] }
+        set { self[AccentColorKey.self] = newValue }
+    }
+}
+
+public struct ContextMenu {
+    public var menuElements: [MenuElement]
+
+    public init(@MenuBuilder menuItems: () -> [MenuElement]) {
+        self.menuElements = menuItems()
+    }
+}
+
 public struct RedactionReasons: OptionSet, Sendable {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
@@ -125,9 +283,11 @@ public struct GroupBox<Label: View, Content: View>: View {
 
 public struct PlainListStyle: Sendable {
     public init() {}
+    public static let automatic = PlainListStyle()
     public static let plain = PlainListStyle()
     public static let insetGrouped = PlainListStyle()
     public static let grouped = PlainListStyle()
+    public static let sidebar = PlainListStyle()
 }
 
 public struct LocalizedStringKey: Equatable, ExpressibleByStringLiteral, ExpressibleByStringInterpolation, Sendable {
@@ -253,14 +413,22 @@ public extension Text {
 
 public struct SymbolEffect: Sendable {
     public init() {}
+    public static let bounce = SymbolEffect()
     public static let variableColor = SymbolEffect()
     public static let pulse = SymbolEffect()
+    public var down: SymbolEffect { self }
+    public var wholeSymbol: SymbolEffect { self }
     public var iterative: SymbolEffect { self }
 }
 
 public struct SymbolEffectOptions: Sendable {
     public init() {}
     public static let `default` = SymbolEffectOptions()
+    public static let nonRepeating = SymbolEffectOptions()
+    public func speed(_ value: Double) -> SymbolEffectOptions {
+        _ = value
+        return self
+    }
     public static func `repeat`(_ count: Int) -> SymbolEffectOptions {
         _ = count
         return SymbolEffectOptions()
@@ -295,12 +463,33 @@ public struct AnyTransition: Sendable, CustomStringConvertible {
         AnyTransition("push(\(edge.rawValue))")
     }
 
+    public static func offset(_ offset: CGSize) -> AnyTransition {
+        AnyTransition("offset(\(offset.width), \(offset.height))")
+    }
+
+    public static func offset(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition {
+        .offset(CGSize(width: x, height: y))
+    }
+
     public static func asymmetric(insertion: AnyTransition, removal: AnyTransition) -> AnyTransition {
         AnyTransition("asymmetric(\(insertion.description), \(removal.description))")
     }
 
+    public static func modifier<Active: ViewModifier, Identity: ViewModifier>(
+        active: Active,
+        identity: Identity
+    ) -> AnyTransition {
+        _ = (active, identity)
+        return AnyTransition("modifier")
+    }
+
     public func combined(with transition: AnyTransition) -> AnyTransition {
         AnyTransition("combined(\(description), \(transition.description))")
+    }
+
+    public func animation(_ animation: Animation?) -> AnyTransition {
+        _ = animation
+        return AnyTransition("animation(\(description))")
     }
 }
 
@@ -325,8 +514,14 @@ public struct GlassEffectShape: Sendable {
 }
 
 public struct Material: View, Sendable {
-    public init() {}
+    public var opacityValue: Double
+
+    public init(opacity: Double = 1) {
+        opacityValue = opacity
+    }
+
     public var body: some View { EmptyView() }
+    public static let bar = Material()
     public static let ultraThinMaterial = Material()
     public static let ultraThin = Material()
     public static let thinMaterial = Material()
@@ -334,6 +529,10 @@ public struct Material: View, Sendable {
     public static let thickMaterial = Material()
     public static let ultraThickMaterial = Material()
     public static let ultraThick = Material()
+
+    public func opacity(_ opacity: Double) -> Material {
+        Material(opacity: opacity)
+    }
 }
 
 public struct HoverEffect: Sendable {
@@ -709,14 +908,17 @@ public struct ScrollTargetBehavior: Sendable {
     public static let viewAligned = ScrollTargetBehavior()
 }
 
-public struct Transaction: Sendable {
+public struct Transaction: @unchecked Sendable {
     public var disablesAnimations: Bool
+    public var animation: Animation?
+
     public init(disablesAnimations: Bool = false) {
         self.disablesAnimations = disablesAnimations
+        self.animation = nil
     }
 
     public init(animation: Animation?) {
-        _ = animation
+        self.animation = animation
         self.disablesAnimations = false
     }
 }
@@ -782,6 +984,11 @@ public extension View {
             message: "scrollContentBackground is preserved as scroll content background metadata on Linux."
         )
         return ScrollContentBackgroundView(content: self, visibility: visibility)
+    }
+
+    func scrollDisabled(_ disabled: Bool = true) -> Self {
+        _ = disabled
+        return self
     }
 }
 
@@ -859,6 +1066,16 @@ private struct DefaultMinListRowHeightKey: EnvironmentKey {
     static let defaultValue = 44
 }
 
+public enum ControlActiveState: Equatable, Sendable {
+    case key
+    case active
+    case inactive
+}
+
+private struct ControlActiveStateKey: EnvironmentKey {
+    static let defaultValue = ControlActiveState.active
+}
+
 public extension EnvironmentValues {
     var sizeCategory: ContentSizeCategory {
         get { self[ContentSizeCategoryKey.self] }
@@ -900,11 +1117,60 @@ public extension EnvironmentValues {
         set { self[DefaultMinListRowHeightKey.self] = newValue }
     }
 
+    var controlActiveState: ControlActiveState {
+        get { self[ControlActiveStateKey.self] }
+        set { self[ControlActiveStateKey.self] = newValue }
+    }
+
+}
+
+public protocol InsettableShape: Shape {}
+
+public struct InsetShape<Base: InsettableShape>: InsettableShape {
+    public typealias Body = Never
+
+    public let base: Base
+    public let amount: CGFloat
+
+    public init(base: Base, amount: CGFloat) {
+        self.base = base
+        self.amount = amount
+    }
+
+    nonisolated public func path(in rect: CGRect) -> Path {
+        Path(rect.insetBy(dx: amount, dy: amount))
+    }
+
+    public var body: Never { fatalError("InsetShape is a primitive shape") }
+}
+
+public extension InsettableShape {
+    @MainActor
+    func inset(by amount: CGFloat) -> InsetShape<Self> {
+        InsetShape(base: self, amount: amount)
+    }
 }
 
 public extension Shape where Self == Circle {
     @MainActor
     static var circle: Circle { Circle() }
+}
+
+extension Circle: InsettableShape {}
+extension Rectangle: InsettableShape {}
+extension RoundedRectangle: InsettableShape {}
+extension Capsule: InsettableShape {}
+
+public extension InsettableShape where Self == Capsule {
+    @MainActor
+    static var capsule: Capsule { Capsule() }
+}
+
+public extension InsettableShape where Self == RoundedRectangle {
+    @MainActor
+    static func rect(cornerRadius: CGFloat = 0) -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius)
+    }
 }
 
 public struct ToolbarSpacer: ToolbarContent, ToolbarContentItemsProvider {
@@ -998,6 +1264,7 @@ public extension ButtonStyleType {
     static var glass: ButtonStyleType { .bordered }
     static var glassProminent: ButtonStyleType { .borderedProminent }
     static var borderless: ButtonStyleType { .plain }
+    static var link: ButtonStyleType { .plain }
 }
 
 public struct LabelStyleType: Sendable {
@@ -1266,7 +1533,7 @@ public extension Binding {
 public extension ViewThatFits {
     init(in axes: Axis, @ViewThatFitsBuilder content: () -> [AnyView]) {
         _ = axes
-        self.init(content: content)
+        self.init(children: content())
     }
 }
 
@@ -1274,6 +1541,12 @@ public extension ForEach {
     func onDelete(perform action: @escaping (IndexSet) -> Void) -> Self {
         _ = action
         return self
+    }
+}
+
+public extension Spacer {
+    init(minLength: CGFloat?) {
+        self.init(minLength: minLength.map { Int($0.rounded()) })
     }
 }
 
@@ -1292,6 +1565,42 @@ public extension Shape {
         _ = material
         return fill(Color.white.opacity(0.92))
     }
+}
+
+public struct MatchedGeometryProperties: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let position = MatchedGeometryProperties(rawValue: 1 << 0)
+    public static let size = MatchedGeometryProperties(rawValue: 1 << 1)
+    public static let frame: MatchedGeometryProperties = [.position, .size]
+}
+
+public enum BlendMode: Sendable {
+    case normal
+    case multiply
+    case screen
+    case overlay
+    case darken
+    case lighten
+    case colorDodge
+    case colorBurn
+    case softLight
+    case hardLight
+    case difference
+    case exclusion
+    case hue
+    case saturation
+    case color
+    case luminosity
+    case sourceAtop
+    case destinationOver
+    case destinationOut
+    case plusDarker
+    case plusLighter
 }
 
 public extension Double {
@@ -1371,12 +1680,37 @@ public extension Text {
     }
 
     @_disfavoredOverload
+    func bold(_ isActive: Bool) -> Text {
+        _ = isActive
+        return self
+    }
+
+    @_disfavoredOverload
     func italic() -> Text {
         self
     }
 
+    @_disfavoredOverload
+    func italic(_ isActive: Bool) -> Text {
+        _ = isActive
+        return self
+    }
+
+    @_disfavoredOverload
+    func strikethrough(_ isActive: Bool = true, color: Color?) -> Text {
+        _ = isActive
+        _ = color
+        return self
+    }
+
     static func + (lhs: Text, rhs: Text) -> Text {
         Text(styledRuns: lhs.runs + rhs.runs)
+    }
+}
+
+public extension Font {
+    func italic() -> Font {
+        self
     }
 }
 
@@ -1452,13 +1786,50 @@ public extension GridItem {
     }
 }
 
-public extension ForEach {
-    init<C: RandomAccessCollection>(
-        _ data: C,
-        id: KeyPath<C.Element, ID>,
-        @ViewBuilder content: @escaping (C.Element) -> Content
-    ) where Data == C.Element {
-        self.init(Array(data), id: id, content: content)
+public extension List {
+    init<Data, ID, RowContent>(
+        _ data: Data,
+        id: KeyPath<Data.Element, ID>,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent
+    ) where Content == ForEach<Data.Element, ID, RowContent>,
+            Data: RandomAccessCollection,
+            ID: Hashable,
+            RowContent: View {
+        self.init {
+            ForEach(Array(data), id: id, content: rowContent)
+        }
+    }
+
+    init<Data, ID, RowContent>(
+        _ data: Data,
+        id: KeyPath<Data.Element, ID>,
+        selection: Binding<Set<Data.Element>>,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent
+    ) where Content == ForEach<Data.Element, ID, RowContent>,
+            Data: RandomAccessCollection,
+            Data.Element: Hashable,
+            ID: Hashable,
+            RowContent: View {
+        _ = selection
+        self.init {
+            ForEach(Array(data), id: id, content: rowContent)
+        }
+    }
+
+    init<Data, ID, RowContent>(
+        _ data: Data,
+        id: KeyPath<Data.Element, ID>,
+        selection: Binding<Set<Data.Element>>?,
+        @ViewBuilder rowContent: @escaping (Data.Element) -> RowContent
+    ) where Content == ForEach<Data.Element, ID, RowContent>,
+            Data: RandomAccessCollection,
+            Data.Element: Hashable,
+            ID: Hashable,
+            RowContent: View {
+        _ = selection
+        self.init {
+            ForEach(Array(data), id: id, content: rowContent)
+        }
     }
 }
 
@@ -1547,16 +1918,6 @@ public extension Section {
         _ = header()
         _ = footer()
         self.init(nil, content: content)
-    }
-}
-
-public extension Menu {
-    init<Label: View>(
-        @MenuBuilder content: () -> [MenuElement],
-        @ViewBuilder label: () -> Label
-    ) {
-        let builtLabel = label()
-        self.init("", elements: content(), labelView: AnyView(builtLabel))
     }
 }
 
@@ -1666,6 +2027,14 @@ public struct GroupedFormStyle: Sendable {
     public static let grouped = GroupedFormStyle()
 }
 
+public extension View {
+    func formStyle(_ style: GroupedFormStyle) -> Self {
+        _ = style
+        recordSwiftUICompatibilityFallback("formStyle")
+        return self
+    }
+}
+
 public struct TextContentType: Hashable, Sendable {
     public var rawValue: String
     public init(_ rawValue: String) { self.rawValue = rawValue }
@@ -1743,8 +2112,19 @@ public struct TableColumn<RowValue, Content: View>: View {
         self.content = content
     }
 
+    public init<Value>(_ title: String, value: KeyPath<RowValue, Value>) where Content == Text {
+        self.title = title
+        self.content = { row in
+            Text(String(describing: row[keyPath: value]))
+        }
+    }
+
     public var body: some View {
         Text(title)
+    }
+
+    public func render(_ row: RowValue) -> Content {
+        content(row)
     }
 
     public func width(min: Double? = nil, max: Double? = nil) -> Self {
@@ -1756,14 +2136,20 @@ public struct TableColumn<RowValue, Content: View>: View {
 
 public struct AnyTableColumn<RowValue>: View {
     public var title: String
+    private var content: @MainActor (RowValue) -> AnyView
 
     @MainActor
     public init<Content: View>(_ column: TableColumn<RowValue, Content>) {
         self.title = column.title
+        self.content = { row in AnyView(column.render(row)) }
     }
 
     public var body: some View {
         Text(title)
+    }
+
+    public func cell(for row: RowValue) -> AnyView {
+        content(row)
     }
 }
 
@@ -1783,34 +2169,183 @@ public enum TableColumnBuilder<RowValue> {
 public struct Table<RowValue>: View {
     public var rows: [RowValue]
     public var columns: [AnyTableColumn<RowValue>]
+    private var isRowSelected: (@MainActor (RowValue) -> Bool)?
+    private var selectRow: (@MainActor (RowValue) -> Void)?
 
     public init(_ rows: [RowValue], @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]) {
         self.rows = rows
         self.columns = columns()
+        self.isRowSelected = nil
+        self.selectRow = nil
+    }
+
+    public init<Data: RandomAccessCollection>(
+        _ rows: Data,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) where Data.Element == RowValue {
+        self.rows = Array(rows)
+        self.columns = columns()
+        self.isRowSelected = nil
+        self.selectRow = nil
+    }
+
+    public init<SelectionValue: Hashable>(
+        _ rows: [RowValue],
+        selection: Binding<Set<SelectionValue>>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) {
+        _ = selection
+        self.rows = rows
+        self.columns = columns()
+        self.isRowSelected = nil
+        self.selectRow = nil
+    }
+
+    public init<SelectionValue: Hashable>(
+        _ rows: [RowValue],
+        selection: Binding<Set<SelectionValue>>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) where RowValue: Identifiable, RowValue.ID == SelectionValue {
+        var selection = selection
+        self.rows = rows
+        self.columns = columns()
+        self.isRowSelected = { row in
+            selection.wrappedValue.contains(row.id)
+        }
+        self.selectRow = { row in
+            selection.wrappedValue = [row.id]
+        }
+    }
+
+    public init<SelectionValue: Hashable, Data: RandomAccessCollection>(
+        _ rows: Data,
+        selection: Binding<Set<SelectionValue>>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) where Data.Element == RowValue {
+        self.rows = Array(rows)
+        self.columns = columns()
+        self.isRowSelected = nil
+        self.selectRow = nil
+    }
+
+    public init<SelectionValue: Hashable, Data: RandomAccessCollection>(
+        _ rows: Data,
+        selection: Binding<Set<SelectionValue>>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) where Data.Element == RowValue, RowValue: Identifiable, RowValue.ID == SelectionValue {
+        var selection = selection
+        self.rows = Array(rows)
+        self.columns = columns()
+        self.isRowSelected = { row in
+            selection.wrappedValue.contains(row.id)
+        }
+        self.selectRow = { row in
+            selection.wrappedValue = [row.id]
+        }
+    }
+
+    public init<SelectionValue: Hashable>(
+        _ rows: [RowValue],
+        selection: Binding<SelectionValue?>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) where RowValue: Identifiable, RowValue.ID == SelectionValue {
+        var selection = selection
+        self.rows = rows
+        self.columns = columns()
+        self.isRowSelected = { row in
+            selection.wrappedValue == row.id
+        }
+        self.selectRow = { row in
+            selection.wrappedValue = row.id
+        }
+    }
+
+    public init<SortOrder>(
+        _ rows: [RowValue],
+        sortOrder: Binding<[SortOrder]>,
+        @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
+    ) {
+        _ = sortOrder
+        self.rows = rows
+        self.columns = columns()
+        self.isRowSelected = nil
+        self.selectRow = nil
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(columns.enumerated()), id: \.offset) { _, column in
-                column
+        VStack(alignment: .leading, spacing: 0) {
+            if !columns.isEmpty {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    ForEach(0..<columns.count, id: \.self) { columnIndex in
+                        Text(columns[columnIndex].title)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+
+            ForEach(0..<rows.count, id: \.self) { rowIndex in
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    ForEach(0..<columns.count, id: \.self) { columnIndex in
+                        columns[columnIndex]
+                            .cell(for: rows[rowIndex])
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.vertical, 4)
+                .background((isRowSelected?(rows[rowIndex]) ?? false) ? Color.accentColor.opacity(0.12) : Color.clear)
+                .onTapGesture {
+                    selectRow?(rows[rowIndex])
+                }
             }
         }
     }
 }
 
-public struct DragGesture: Sendable {
+public protocol Gesture {
+    associatedtype Value
+}
+
+public struct GestureMask: OptionSet, Sendable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let gesture = GestureMask(rawValue: 1 << 0)
+    public static let subviews = GestureMask(rawValue: 1 << 1)
+    public static let all: GestureMask = [.gesture, .subviews]
+}
+
+public struct DragGesture: Gesture, Sendable {
     public struct Value: Sendable {
+        public var startLocation: CGPoint
+        public var location: CGPoint
         public var translation: CGSize
 
-        public init(translation: CGSize = .zero) {
+        public init(
+            startLocation: CGPoint = .zero,
+            location: CGPoint = .zero,
+            translation: CGSize = .zero
+        ) {
+            self.startLocation = startLocation
+            self.location = location
             self.translation = translation
         }
     }
 
+    public var minimumDistance: CGFloat
+    public var coordinateSpace: CoordinateSpace
     private var onChangedAction: (@Sendable (Value) -> Void)?
     private var onEndedAction: (@Sendable (Value) -> Void)?
 
-    public init() {}
+    public init(minimumDistance: CGFloat = 10, coordinateSpace: CoordinateSpace = .local) {
+        self.minimumDistance = minimumDistance
+        self.coordinateSpace = coordinateSpace
+    }
 
     public func onChanged(_ action: @escaping @Sendable (Value) -> Void) -> DragGesture {
         var copy = self
@@ -1822,6 +2357,59 @@ public struct DragGesture: Sendable {
         var copy = self
         copy.onEndedAction = action
         return copy
+    }
+}
+
+public struct TapGesture: Gesture, Sendable {
+    public typealias Value = Void
+    public var count: Int
+    private var onEndedAction: (@Sendable (Value) -> Void)?
+
+    public init(count: Int = 1) {
+        self.count = count
+    }
+
+    public func onEnded(_ action: @escaping @Sendable (Value) -> Void) -> TapGesture {
+        var copy = self
+        copy.onEndedAction = action
+        return copy
+    }
+
+    public func onEnded(_ action: @escaping @Sendable () -> Void) -> TapGesture {
+        onEnded { _ in action() }
+    }
+}
+
+public extension View {
+    @_disfavoredOverload
+    func strikethrough(_ isActive: Bool = true, color: Color?) -> Self {
+        _ = isActive
+        _ = color
+        return self
+    }
+
+    @_disfavoredOverload
+    func gesture<G: Gesture>(_ gesture: G) -> Self {
+        _ = gesture
+        return self
+    }
+
+    @_disfavoredOverload
+    func gesture<G: Gesture>(_ gesture: G, including mask: GestureMask) -> Self {
+        _ = (gesture, mask)
+        return self
+    }
+
+    @_disfavoredOverload
+    func simultaneousGesture<G: Gesture>(_ gesture: G, including mask: GestureMask = .all) -> Self {
+        _ = (gesture, mask)
+        return self
+    }
+
+    @_disfavoredOverload
+    func highPriorityGesture<G: Gesture>(_ gesture: G, including mask: GestureMask = .all) -> Self {
+        _ = (gesture, mask)
+        return self
     }
 }
 
@@ -2045,8 +2633,65 @@ public enum ListRowSeparatorTrailingAlignmentID: AlignmentID {
 
 public extension VerticalAlignment {
     static var leading: VerticalAlignment { .center }
+    static var trailing: VerticalAlignment { .center }
     static var listRowSeparatorLeading: VerticalAlignment { VerticalAlignment(ListRowSeparatorLeadingAlignmentID.self) }
     static var listRowSeparatorTrailing: VerticalAlignment { VerticalAlignment(ListRowSeparatorTrailingAlignmentID.self) }
+}
+
+public extension ProgressView {
+    init(_ title: String, value: Double, total: Double = 1.0) {
+        _ = title
+        self.init(value: value, total: total)
+    }
+}
+
+public extension Stepper {
+    init(
+        _ label: String = "",
+        value: Binding<Double>,
+        in range: ClosedRange<Double> = 0...100,
+        step: Double = 1,
+        format: NumberFormatStyle
+    ) {
+        _ = format
+        self.init(label, value: value, in: range, step: step)
+    }
+
+    init(
+        _ label: String = "",
+        value: Binding<Int>,
+        in range: ClosedRange<Int> = 0...100,
+        step: Int = 1,
+        format: NumberFormatStyle
+    ) {
+        _ = format
+        self.init(label, value: value, in: range, step: step)
+    }
+}
+
+public extension List {
+    init<SelectionValue: Hashable>(
+        selection: Binding<SelectionValue>,
+        @ViewBuilder content: () -> Content
+    ) {
+        _ = selection
+        self.init(content: content)
+    }
+}
+
+public enum WindowToolbarStyle: Sendable {
+    case automatic
+    case expanded
+    case preference
+    case unified
+    case unifiedCompact
+}
+
+public extension Scene {
+    func windowToolbarStyle(_ style: WindowToolbarStyle) -> Self {
+        _ = style
+        return self
+    }
 }
 
 public struct ColorPicker<Label: View>: View {
@@ -2063,6 +2708,18 @@ public struct ColorPicker<Label: View>: View {
         self.selection = selection
     }
 
+    public init(selection: Binding<Color>, supportsOpacity: Bool, @ViewBuilder label: () -> Label) {
+        _ = supportsOpacity
+        self.label = label()
+        self.selection = selection
+    }
+
+    public init<T>(_ title: T, selection: Binding<Color>, supportsOpacity: Bool) where Label == Text {
+        _ = supportsOpacity
+        self.label = Text(String(describing: title))
+        self.selection = selection
+    }
+
     public var body: some View {
         label
     }
@@ -2072,8 +2729,22 @@ public struct LabeledContent<Content: View>: View {
     public let title: String
     public let content: Content
 
+    public init<Label: View>(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> Label
+    ) {
+        self.title = String(describing: Label.self)
+        self.content = content()
+        _ = label()
+    }
+
     public init<T>(_ title: T, @ViewBuilder content: () -> Content) {
         self.title = String(describing: title)
+        self.content = content()
+    }
+
+    public init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
         self.content = content()
     }
 
@@ -2128,6 +2799,10 @@ public extension VStack {
     }
 }
 
+public extension PickerStyle {
+    static var radioGroup: PickerStyle { .segmented }
+}
+
 public extension View {
     func task<ID: Equatable>(
         id: ID,
@@ -2143,6 +2818,16 @@ public extension View {
         _ = style
         recordSwiftUICompatibilityFallback("listStyle(PlainListStyle)")
         return self
+    }
+
+    func accentColor(_ accentColor: Color?) -> EnvironmentModifierView<Self, Color?> {
+        environment(\.accentColor, accentColor)
+    }
+
+    func contextMenu(_ contextMenu: ContextMenu) -> ContextMenuView<Self> {
+        self.contextMenu {
+            contextMenu.menuElements
+        }
     }
 
     func pickerStyle(_ style: PickerStyle) -> Self {
@@ -2276,6 +2961,38 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func listItemTint(_ tint: Color?) -> Self {
+        _ = tint
+        recordSwiftUICompatibilityFallback("listItemTint")
+        return self
+    }
+
+    @_disfavoredOverload
+    func zIndex(_ value: Double) -> Self {
+        _ = value
+        return self
+    }
+
+    @_disfavoredOverload
+    func coordinateSpace(name: String) -> Self {
+        _ = name
+        return self
+    }
+
+    @_disfavoredOverload
+    func transaction(_ transform: (inout Transaction) -> Void) -> Self {
+        var transaction = Transaction()
+        transform(&transaction)
+        return self
+    }
+
+    @_disfavoredOverload
+    func navigationBarBackButtonHidden(_ hidden: Bool = true) -> Self {
+        _ = hidden
+        return self
+    }
+
     // Disfavored: QuillUI.Compatibility has the FUNCTIONAL overload (it
     // threads \.colorScheme through the environment). Code that imports
     // both modules (e.g. the generated Enchanted Linux app) must resolve
@@ -2287,33 +3004,33 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func accessibilityLabel(_ label: String) -> Self {
-        _ = label
-        return self
+    func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self> {
+        AccessibilityLabelView(content: self, label: label)
     }
 
     @_disfavoredOverload
-    func accessibilityLabel<T>(_ label: T) -> Self {
-        _ = label
-        return self
+    func accessibilityLabel<T>(_ label: T) -> AccessibilityLabelView<Self> {
+        accessibilityLabel(String(describing: label))
     }
 
     @_disfavoredOverload
-    func accessibilityValue(_ value: String) -> Self {
-        _ = value
-        return self
+    func accessibilityValue(_ value: String) -> AccessibilityValueView<Self> {
+        AccessibilityValueView(content: self, value: value)
     }
 
     @_disfavoredOverload
-    func accessibilityValue<T>(_ value: T) -> Self {
-        _ = value
-        return self
+    func accessibilityValue<T>(_ value: T) -> AccessibilityValueView<Self> {
+        accessibilityValue(String(describing: value))
     }
 
     @_disfavoredOverload
-    func accessibilityElement(children: AccessibilityChildBehavior) -> Self {
-        _ = children
-        return self
+    func accessibilityElement() -> AccessibilityElementView<Self> {
+        AccessibilityElementView(content: self, children: .combine)
+    }
+
+    @_disfavoredOverload
+    func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
+        AccessibilityElementView(content: self, children: children)
     }
 
     @_disfavoredOverload
@@ -2329,15 +3046,13 @@ public extension View {
     }
 
     @_disfavoredOverload
-    func accessibilityHint(_ hint: String) -> Self {
-        _ = hint
-        return self
+    func accessibilityHint(_ hint: String) -> AccessibilityHintView<Self> {
+        AccessibilityHintView(content: self, hint: hint)
     }
 
     @_disfavoredOverload
-    func accessibilityHint<T>(_ hint: T) -> Self {
-        _ = hint
-        return self
+    func accessibilityHint<T>(_ hint: T) -> AccessibilityHintView<Self> {
+        accessibilityHint(String(describing: hint))
     }
 
     @_disfavoredOverload
@@ -2505,6 +3220,12 @@ public extension View {
         return onChange(of: value, action)
     }
 
+    func grayscale(_ amount: Double) -> Self {
+        _ = amount
+        recordSwiftUICompatibilityFallback("grayscale")
+        return self
+    }
+
     func onTapGesture(count: Int = 1, perform action: @escaping (CGPoint) -> Void) -> TapGestureView<Self> {
         onTapGesture(count: count) {
             action(.zero)
@@ -2528,6 +3249,22 @@ public extension View {
         return self
     }
 
+    func alert<Presented, Actions: View, Message: View>(
+        _ title: String,
+        isPresented: Binding<Bool>,
+        presenting data: Presented?,
+        @ViewBuilder actions: (Presented) -> Actions,
+        @ViewBuilder message: (Presented) -> Message
+    ) -> Self {
+        _ = title
+        _ = isPresented
+        if let data {
+            _ = actions(data)
+            _ = message(data)
+        }
+        return self
+    }
+
     func alert<Actions: View>(
         _ title: String,
         isPresented: Binding<Bool>,
@@ -2536,6 +3273,30 @@ public extension View {
         _ = title
         _ = isPresented
         _ = actions()
+        return self
+    }
+
+    func alert<Actions: View>(
+        _ title: Text,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions
+    ) -> Self {
+        _ = title
+        _ = isPresented
+        _ = actions()
+        return self
+    }
+
+    func alert<Actions: View, Message: View>(
+        _ title: Text,
+        isPresented: Binding<Bool>,
+        @ViewBuilder actions: () -> Actions,
+        @ViewBuilder message: () -> Message
+    ) -> Self {
+        _ = title
+        _ = isPresented
+        _ = actions()
+        _ = message()
         return self
     }
 
@@ -2645,6 +3406,11 @@ public extension View {
         return self
     }
 
+    func containerShape<S: Shape>(_ shape: S) -> Self {
+        _ = shape
+        return self
+    }
+
     func navigationBarTitleDisplayMode(_ displayMode: NavigationBarTitleDisplayMode) -> Self {
         _ = displayMode
         return self
@@ -2662,6 +3428,11 @@ public extension View {
         return self
     }
 
+    func navigationSubtitle<T>(_ subtitle: T) -> Self {
+        _ = subtitle
+        return self
+    }
+
     func matchedGeometryEffect<ID: Hashable>(
         id: ID,
         in namespace: Namespace.ID
@@ -2671,6 +3442,28 @@ public extension View {
         recordSwiftUICompatibilityFallback(
             "matchedGeometryEffect",
             message: "matchedGeometryEffect is currently a source-compatibility fallback on Linux."
+        )
+        return self
+    }
+
+    func matchedGeometryEffect<ID: Hashable>(
+        id: ID,
+        in namespace: Namespace.ID,
+        properties: MatchedGeometryProperties = .frame,
+        anchor: UnitPoint = .center,
+        isSource: Bool = true
+    ) -> Self {
+        _ = properties
+        _ = anchor
+        _ = isSource
+        return matchedGeometryEffect(id: id, in: namespace)
+    }
+
+    func blendMode(_ blendMode: BlendMode) -> Self {
+        _ = blendMode
+        recordSwiftUICompatibilityFallback(
+            "blendMode",
+            message: "blendMode is currently a source-compatibility fallback on Linux."
         )
         return self
     }
@@ -2828,6 +3621,27 @@ public extension Menu {
     }
 }
 
+public extension TextField {
+    init<Value>(_ title: String, value: Binding<Value>, formatter: Formatter) {
+        let text = Binding<String>(
+            get: {
+                formatter.string(for: value.wrappedValue) ?? String(describing: value.wrappedValue)
+            },
+            set: { newText in
+                if let stringValue = newText as? Value {
+                    value.wrappedValue = stringValue
+                }
+            }
+        )
+        self.init(title, text: text)
+    }
+
+    init(_ title: String, text: Binding<String>, prompt: Text, axis: Axis = .horizontal) {
+        _ = prompt
+        self.init(title, text: text, axis: axis)
+    }
+}
+
 public extension View {
     func searchable(
         text: Binding<String>,
@@ -2880,6 +3694,19 @@ public extension View {
 
 public extension GeometryProxy {
     subscript(_ rect: CGRect) -> CGRect { rect }
+}
+
+public func quillSetAttributedStringForegroundColor(
+    _ attributedString: inout AttributedString,
+    range: Range<AttributedString.Index>,
+    color: RSColor
+) {
+    _ = color
+    attributedString[range].link = attributedString[range].link
+}
+
+public extension Alignment {
+    static var leadingLastTextBaseline: Alignment { .leading }
 }
 
 public extension Array {

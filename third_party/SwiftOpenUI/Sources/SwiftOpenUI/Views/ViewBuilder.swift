@@ -12,8 +12,10 @@ public struct ViewBuilder {
         EmptyView()
     }
 
-    public static func buildBlock<each Content: View>(_ content: repeat each Content) -> TupleView<repeat each Content> {
-        TupleView(repeat each content)
+    public static func buildBlock<each Content: View>(_ content: repeat each Content) -> ViewList {
+        var children: [any View] = []
+        repeat children.append(contentsOf: childViews(from: each content))
+        return ViewList(children)
     }
 
     public static func buildOptional<Content: View>(_ content: Content?) -> Content? {

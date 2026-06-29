@@ -61,6 +61,11 @@ public struct RoundedRectangle: Shape, PrimitiveView {
         self.style = style
     }
 
+    public init(cornerSize: CGSize, style: RoundedCornerStyle = .circular) {
+        self.cornerRadius = min(Double(cornerSize.width), Double(cornerSize.height))
+        self.style = style
+    }
+
     public func path(in rect: CGRect) -> Path {
         var p = Path()
         p.addRoundedRect(in: rect, cornerRadius: cornerRadius)
@@ -68,6 +73,12 @@ public struct RoundedRectangle: Shape, PrimitiveView {
     }
 
     public var body: Never { fatalError() }
+}
+
+public extension Shape where Self == RoundedRectangle {
+    static func rect(cornerRadius: Double = 0, style: RoundedCornerStyle = .circular) -> RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: style)
+    }
 }
 
 // MARK: - Capsule
@@ -124,6 +135,32 @@ public struct StrokedShape<S: Shape>: View, PrimitiveView {
     public var body: Never { fatalError() }
 }
 
+public struct TrimmedShape<S: Shape>: Shape, PrimitiveView {
+    public typealias Body = Never
+    public let shape: S
+    public let startFraction: Double
+    public let endFraction: Double
+
+    public func path(in rect: CGRect) -> Path {
+        shape.path(in: rect)
+    }
+
+    public var body: Never { fatalError() }
+}
+
+public struct ContainerRelativeShape: Shape, PrimitiveView {
+    public typealias Body = Never
+    public init() {}
+
+    public func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRoundedRect(in: rect, cornerRadius: min(rect.size.width, rect.size.height) * 0.16)
+        return path
+    }
+
+    public var body: Never { fatalError() }
+}
+
 extension Shape {
     /// Fill this shape with a color.
     public func fill(_ color: Color) -> FilledShape<Self> {
@@ -140,6 +177,18 @@ extension Shape {
         StrokedShape(shape: self, color: color, style: style)
     }
 
+    public func stroke(style: StrokeStyle) -> StrokedShape<Self> {
+        StrokedShape(shape: self, color: .primary, style: style)
+    }
+
+    public func stroke(lineWidth: Double = 1) -> StrokedShape<Self> {
+        StrokedShape(shape: self, color: .primary, style: StrokeStyle(lineWidth: lineWidth))
+    }
+
+    public func trim(from startFraction: Double = 0, to endFraction: Double = 1) -> TrimmedShape<Self> {
+        TrimmedShape(shape: self, startFraction: startFraction, endFraction: endFraction)
+    }
+
     /// Stroke the border of this shape with a color and line width. SwiftUI's
     /// strokeBorder draws the stroke entirely inside the shape bounds; this
     /// implementation currently aliases to `stroke`, which centers the stroke
@@ -147,6 +196,10 @@ extension Shape {
     /// insetting-by-lineWidth-/2 can be added later if needed.
     public func strokeBorder(_ color: Color, lineWidth: Double = 1) -> StrokedShape<Self> {
         StrokedShape(shape: self, color: color, style: StrokeStyle(lineWidth: lineWidth))
+    }
+
+    public func strokeBorder(lineWidth: Double = 1) -> StrokedShape<Self> {
+        StrokedShape(shape: self, color: .primary, style: StrokeStyle(lineWidth: lineWidth))
     }
 
     /// Stroke the border of this shape with a color and stroke style.

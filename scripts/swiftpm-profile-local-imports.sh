@@ -26,13 +26,20 @@ quillui_profile_maybe_discover_local_import_dependencies() {
   local combined_target_dependencies_file="$import_dir/target-dependencies-combined.txt"
   local next_package_dependencies_file=""
   local next_target_dependencies_file=""
+  local discover_args=(
+    --root-dir "$root_dir"
+    --source-dir "$source_dir"
+    --package-dependencies-out "$package_dependencies_file"
+    --target-dependencies-out "$target_dependencies_file"
+  )
 
   mkdir -p "$import_dir"
-  "$root_dir/scripts/discover-local-swiftpm-import-dependencies.py" \
-    --root-dir "$root_dir" \
-    --source-dir "$source_dir" \
-    --package-dependencies-out "$package_dependencies_file" \
-    --target-dependencies-out "$target_dependencies_file"
+  if [[ -n "${QUILLUI_PROFILE_RESOLVED_PACKAGE_ROOT:-}" ]]; then
+    discover_args+=(--exclude-package-root "$QUILLUI_PROFILE_RESOLVED_PACKAGE_ROOT")
+  elif [[ -n "${QUILLUI_PROFILE_PACKAGE_ROOT:-}" ]]; then
+    discover_args+=(--exclude-package-root "$QUILLUI_PROFILE_PACKAGE_ROOT")
+  fi
+  "$root_dir/scripts/discover-local-swiftpm-import-dependencies.py" "${discover_args[@]}"
 
   next_package_dependencies_file="$(quillui_profile_combine_dependency_file "${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}" "$package_dependencies_file" "$combined_package_dependencies_file")"
   if [[ -n "$next_package_dependencies_file" ]]; then

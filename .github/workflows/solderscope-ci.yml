@@ -34,11 +34,13 @@ jobs:
       - name: Install Linux dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --fix-missing \
             ca-certificates \
             ffmpeg \
             git \
             imagemagick \
+            libc++-dev \
+            libc++abi-dev \
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \
@@ -92,7 +94,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --fix-missing \
             ca-certificates \
             dbus-x11 \
             ffmpeg \
@@ -101,6 +103,8 @@ jobs:
             fonts-noto-core \
             git \
             imagemagick \
+            libc++-dev \
+            libc++abi-dev \
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \

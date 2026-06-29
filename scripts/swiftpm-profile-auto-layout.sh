@@ -20,6 +20,7 @@ quillui_profile_maybe_derive_swiftpm_layout() {
   fi
 
   [[ -n "$package_root" && -f "$package_root/Package.swift" ]] || return 0
+  package_root="$(cd "$package_root" && pwd)"
 
   local auto_layout_dir="$work_root/swiftpm-layout"
   local auto_layout_file="$auto_layout_dir/target-layout.tsv"
@@ -38,6 +39,7 @@ quillui_profile_maybe_derive_swiftpm_layout() {
     auto_layout_args+=(--entry-target "$entry_target")
   fi
   "$root_dir/scripts/swiftpm-package-layout-for-linux.py" "${auto_layout_args[@]}"
+  export QUILLUI_PROFILE_RESOLVED_PACKAGE_ROOT="$package_root"
   export QUILLUI_GENERATED_TARGET_LAYOUT_FILE="$auto_layout_file"
 
   if [[ -n "${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}" && -s "$auto_dependencies_file" ]]; then
