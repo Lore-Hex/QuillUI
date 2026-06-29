@@ -72,6 +72,8 @@ public enum CommandGroupPlacement: Equatable, Hashable {
 	case sidebar
 	/// Replaces the Window Size commands (Window menu).
 	case windowSize
+	/// Replaces the single-window list commands (Window menu).
+	case singleWindowList
 	/// Replaces the Help commands (Help menu).
 	case help
 	/// Replaces text formatting commands.
@@ -151,7 +153,7 @@ private func commandMenuTitle(for placement: CommandGroupPlacement) -> String {
 		return "Edit"
 	case .toolbar, .sidebar:
 		return "View"
-	case .windowSize:
+	case .windowSize, .singleWindowList:
 		return "Window"
 	case .help:
 		return "Help"
@@ -209,6 +211,8 @@ private func commandPlacementSortKey(_ placement: CommandGroupPlacement) -> (ran
 		}
 	case .windowSize:
 		return (80, "windowSize")
+	case .singleWindowList:
+		return (81, "singleWindowList")
 	case .help:
 		return (90, "help")
 	}
@@ -321,12 +325,27 @@ public struct CommandsBuilder {
 		component ?? CommandCollection([])
 	}
 
+	public static func buildOptional<C: Commands>(_ component: C?) -> CommandCollection {
+		if let component {
+			return CommandCollection([component])
+		}
+		return CommandCollection([])
+	}
+
 	public static func buildEither(first component: CommandCollection) -> CommandCollection {
 		component
 	}
 
 	public static func buildEither(second component: CommandCollection) -> CommandCollection {
 		component
+	}
+
+	public static func buildEither<C: Commands>(first component: C) -> CommandCollection {
+		CommandCollection([component])
+	}
+
+	public static func buildEither<C: Commands>(second component: C) -> CommandCollection {
+		CommandCollection([component])
 	}
 }
 
@@ -571,6 +590,12 @@ extension CommandCollection: TupleCommandsProtocol {
 	}
 }
 
+extension Group: TupleCommandsProtocol where Content: Commands {
+	func collectInto(_ result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
+		collectCommandGroups(content, into: &result)
+	}
+}
+
 private func collectKnownCommand(_ command: any Commands, into result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
 	if let group = command as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
@@ -622,6 +647,21 @@ private func commandsDebugLog(_ message: String) {
 extension WindowGroup {
 	/// Attaches app-level menu commands to this window group.
 	public func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> WindowGroup {
+		commandsDebugLog("installed commands factory type=\(C.self)")
+		globalCommandsFactory = {
+			let commandTree = commands()
+			let groups = extractCommandGroups(from: commandTree)
+			let itemCount = groups.values.reduce(0) { $0 + $1.count }
+			commandsDebugLog("commands factory invoked type=\(C.self) placements=\(groups.count) items=\(itemCount)")
+			return groups
+		}
+		return self
+	}
+}
+
+public extension Scene {
+	/// Attaches app-level menu commands to any scene-like value.
+	func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> Self {
 		commandsDebugLog("installed commands factory type=\(C.self)")
 		globalCommandsFactory = {
 			let commandTree = commands()

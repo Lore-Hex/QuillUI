@@ -73,3 +73,47 @@ public enum WindowLaunchBehavior: Sendable {
     /// Window is not shown at launch; opened programmatically via `openWindow`.
     case suppressed
 }
+
+public enum SwiftOpenUIWindowLifecycleEventKind: Sendable {
+    case didOpen
+    case didClose
+}
+
+public struct SwiftOpenUIWindowLifecycleEvent: Sendable {
+    public let kind: SwiftOpenUIWindowLifecycleEventKind
+    public let id: String
+    public let title: String
+    public let nativeHandle: Int?
+
+    public init(kind: SwiftOpenUIWindowLifecycleEventKind, id: String, title: String, nativeHandle: Int?) {
+        self.kind = kind
+        self.id = id
+        self.title = title
+        self.nativeHandle = nativeHandle
+    }
+}
+
+@MainActor
+public enum SwiftOpenUIWindowLifecycle {
+    public typealias Handler = @MainActor (SwiftOpenUIWindowLifecycleEvent) -> Void
+
+    private static var handlers: [Handler] = []
+
+    public static func addHandler(_ handler: @escaping Handler) {
+        handlers.append(handler)
+    }
+
+    public static func notifyWindowOpened(id: String, title: String, nativeHandle: Int? = nil) {
+        notify(.init(kind: .didOpen, id: id, title: title, nativeHandle: nativeHandle))
+    }
+
+    public static func notifyWindowClosed(id: String, title: String = "", nativeHandle: Int? = nil) {
+        notify(.init(kind: .didClose, id: id, title: title, nativeHandle: nativeHandle))
+    }
+
+    private static func notify(_ event: SwiftOpenUIWindowLifecycleEvent) {
+        for handler in handlers {
+            handler(event)
+        }
+    }
+}

@@ -184,6 +184,7 @@ extension WindowGroup: GTKWindowRenderable {
             return
         }
 
+        gtkBackendDebugLog("WindowGroup render start title=\(title) content=\(Content.self)")
         let window: UnsafeMutablePointer<GtkWidget>
         if let app {
             window = gtk_application_window_new(gtkApplicationPointer(app))!
@@ -191,6 +192,7 @@ extension WindowGroup: GTKWindowRenderable {
             window = gtk_window_new()!
         }
         let winPtr = windowPointer(window)
+        gtkBackendDebugLog("WindowGroup window created title=\(title) handle=\(Int(bitPattern: winPtr))")
         gtk_window_set_title(winPtr, title)
         if quillHidesTitleBar {
             // .windowStyle(.hiddenTitleBar): no server-side decorations, as on
@@ -203,7 +205,10 @@ extension WindowGroup: GTKWindowRenderable {
         wgEnv.windowID = Int(bitPattern: winPtr)
         setCurrentEnvironment(wgEnv)
 
+        gtkBackendDebugLog("WindowGroup content render start title=\(title)")
         let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let contentTypeName = String(cString: g_type_name(gtk_swift_get_widget_type(contentWidget)))
+        gtkBackendDebugLog("WindowGroup content render end title=\(title) widget=\(contentTypeName)")
         if let titlebarWidget = findTitlebar(in: contentWidget) {
             gtk_window_set_titlebar(winPtr, titlebarWidget)
         }
@@ -272,7 +277,9 @@ extension WindowGroup: GTKWindowRenderable {
         }
         gtkAttachKeyboardShortcutController(to: winWidget)
         gtkAttachWindowActivationHandler(to: winWidget)
+        gtkBackendDebugLog("WindowGroup present title=\(title) handle=\(Int(bitPattern: winPtr))")
         gtk_window_present(winPtr)
+        gtkBackendDebugLog("WindowGroup presented title=\(title)")
     }
 }
 
@@ -840,6 +847,7 @@ public struct GTK4Backend: RenderBackend {
         }
 
         let factory: (OpaquePointer?) -> Void = { appPtr in
+            gtkBackendDebugLog("app activate type=\(A.self)")
             // Inject openWindow action into the environment so views
             // can programmatically open Window scenes by id.
             var env = getCurrentEnvironment()
@@ -851,8 +859,11 @@ public struct GTK4Backend: RenderBackend {
             // App.init/App.body are @MainActor (Apple semantics); the GTK app
             // activate callback runs on the GTK main loop == main thread.
             MainActor.assumeIsolated {
+                gtkBackendDebugLog("app init start type=\(A.self)")
                 let instance = A()
+                gtkBackendDebugLog("app body render start type=\(A.self) body=\(A.Body.self)")
                 gtkRenderScene(instance.body, app: appPtr)
+                gtkBackendDebugLog("app body render end type=\(A.self)")
             }
         }
 
@@ -903,6 +914,11 @@ extension Window: GTKWindowRenderable {
         }
         let winPtr = windowPointer(window)
         gtk_window_set_title(winPtr, title)
+        SwiftOpenUIWindowLifecycle.notifyWindowOpened(
+            id: id,
+            title: title,
+            nativeHandle: Int(bitPattern: winPtr)
+        )
 
         // Set window ID in environment for keyboard shortcut scoping
         var wsEnv = getCurrentEnvironment()
@@ -937,9 +953,16 @@ extension Window: GTKWindowRenderable {
         // use-after-free on subsequent open(id:) calls.
         let windowId = id
         GTK4WindowRegistry.shared.setLiveWindow(id: windowId, window: winPtr)
+        let windowTitle = title
+        let nativeHandle = Int(bitPattern: winPtr)
 
         let box = ClosureBox {
             GTK4WindowRegistry.shared.clearLiveWindow(id: windowId)
+            SwiftOpenUIWindowLifecycle.notifyWindowClosed(
+                id: windowId,
+                title: windowTitle,
+                nativeHandle: nativeHandle
+            )
         }
         let ud = Unmanaged.passRetained(box).toOpaque()
         g_signal_connect_data(
@@ -960,8 +983,17 @@ extension Window: GTKWindowRenderable {
 /// GTK4 rendering for TupleScene — renders both child scenes.
 extension TupleScene: GTKWindowRenderable {
     func gtkRender(app: OpaquePointer?) {
+        gtkBackendDebugLog("TupleScene render scene0=\(S0.self) scene1=\(S1.self)")
         gtkRenderScene(scene0, app: app)
         gtkRenderScene(scene1, app: app)
+    }
+}
+
+/// GTK4 rendering for Group<Scene> — transparent scene grouping.
+extension Group: GTKWindowRenderable where Content: Scene {
+    func gtkRender(app: OpaquePointer?) {
+        gtkBackendDebugLog("Group<Scene> render content=\(Content.self)")
+        gtkRenderScene(content, app: app)
     }
 }
 
@@ -1002,7 +1034,9 @@ class GTK4WindowRegistry {
 /// Recursively render a Scene. Terminal scenes (WindowGroup, Window) render
 /// directly; composite scenes recurse through their body.
 private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
+    gtkBackendDebugLog("render scene type=\(S.self) body=\(S.Body.self)")
     if let renderable = scene as? GTKWindowRenderable {
+        gtkBackendDebugLog("render primitive scene type=\(S.self)")
         renderable.gtkRender(app: app)
         return
     }
@@ -1010,5 +1044,7 @@ private func gtkRenderScene<S: Scene>(_ scene: S, app: OpaquePointer?) {
     // (Apple semantics); scene rendering only runs on the GTK main loop.
     if S.Body.self != Never.self {
         MainActor.assumeIsolated { gtkRenderScene(scene.body, app: app) }
+    } else {
+        gtkBackendDebugLog("skip primitive scene without GTK renderer type=\(S.self)")
     }
 }
