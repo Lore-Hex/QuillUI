@@ -183,8 +183,10 @@ source caches without cloning the app or creating fresh remote working copies.
 The build script stamps successful app-lockfile scans, so once the vendored
 source and `third_party/` package trees are in place, identical follow-up builds
 do not spend time walking the dependency graph just to prove it is already
-vendored. Use `--resolve` only when intentionally hydrating missing SwiftPM
-checkouts.
+vendored. Use `--hydrate-missing` only when intentionally refreshing missing
+SwiftPM checkouts from the exact revisions pinned in `Package.resolved`; use
+`--resolve` only when the app checkout itself needs SwiftPM to create or update
+those pins.
 
 `--source-app` is the preferred path for shared agent work. The builder resolves
 `vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,

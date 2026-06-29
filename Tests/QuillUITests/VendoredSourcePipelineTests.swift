@@ -84,6 +84,71 @@ struct VendoredSourcePipelineTests {
         }
     }
 
+    @Test("Enchanted SwiftPM dependency sources are vendored for offline app builds")
+    func enchantedSwiftPMDependencySourcesAreVendoredForOfflineAppBuilds() throws {
+        let root = try packageRoot()
+        let trackedFiles = try gitTrackedFiles(in: root)
+        guard !trackedFiles.isEmpty else {
+            return
+        }
+
+        for path in [
+            "third_party/ActivityIndicatorView/Package.swift",
+            "third_party/Alamofire/Package.swift",
+            "third_party/KeyboardShortcuts/Package.swift",
+            "third_party/Magnet/Package.swift",
+            "third_party/MarkdownUI/Package.swift",
+            "third_party/NetworkImage/Package.swift",
+            "third_party/OllamaKit/Package.swift",
+            "third_party/Sauce/Package.swift",
+            "third_party/Splash/Package.swift",
+            "third_party/SwiftCMark/Package.swift",
+            "third_party/Vortex/Package.swift",
+            "third_party/WrappingHStack/Package.swift"
+        ] {
+            #expect(trackedFiles.contains(path), Comment(rawValue: "Missing Enchanted vendored source: \(path)"))
+        }
+
+        for path in trackedFiles {
+            guard path.hasPrefix("third_party/ActivityIndicatorView/")
+                || path.hasPrefix("third_party/Alamofire/")
+                || path.hasPrefix("third_party/KeyboardShortcuts/")
+                || path.hasPrefix("third_party/Magnet/")
+                || path.hasPrefix("third_party/MarkdownUI/")
+                || path.hasPrefix("third_party/NetworkImage/")
+                || path.hasPrefix("third_party/OllamaKit/")
+                || path.hasPrefix("third_party/Sauce/")
+                || path.hasPrefix("third_party/Splash/")
+                || path.hasPrefix("third_party/SwiftCMark/")
+                || path.hasPrefix("third_party/Vortex/")
+                || path.hasPrefix("third_party/WrappingHStack/")
+            else {
+                continue
+            }
+
+            #expect(!path.contains("/.git/"))
+            #expect(!path.contains("/Tests/"))
+            #expect(!path.contains("/test/"))
+            #expect(!path.contains("/Demo/"))
+            #expect(!path.contains("/Playground/"))
+            #expect(!path.contains("/Sandbox/"))
+            #expect(!path.contains(" Example/"))
+            #expect(!path.contains("/.github/"))
+            #expect(!path.contains("/docs/"))
+            #expect(!path.contains("/Documentation/"))
+            #expect(!path.contains(".docc/"))
+            #expect(!path.contains("/Examples/"))
+            #expect(!path.contains("/Assets/"))
+            #expect(!path.contains("/Images/"))
+            #expect(!path.contains("/tools/"))
+            #expect(!path.contains("/wrappers/"))
+            #expect(!path.contains("/Carthage/"))
+            #expect(!path.contains(".xcodeproj/"))
+            #expect(!path.contains(".xcworkspace/"))
+            #expect(!path.hasSuffix(".xcframework.zip"))
+        }
+    }
+
     @Test("Generated package layout omits QuillUI-provided compatibility packages")
     func generatedPackageLayoutOmitsQuillUIProvidedCompatibilityPackages() throws {
         let root = try packageRoot()

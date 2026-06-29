@@ -9,6 +9,7 @@ DRY_RUN=0
 VENDOR_APP_SOURCE=1
 VENDOR_DEPENDENCIES=1
 RESOLVE_DEPENDENCIES=0
+HYDRATE_DEPENDENCIES=0
 FULL_DEPENDENCIES=0
 PACKAGE_RESOLVED_ARGS=()
 
@@ -30,6 +31,8 @@ Options:
                         Default is no-network/no-resolve.
   --no-resolve          Do not run swift package resolve before dependency
                         vendoring. This is the default.
+  --hydrate-missing     Clone missing Package.resolved pins at their exact
+                        revisions before dependency vendoring.
   --full-deps           Copy full dependency checkouts instead of slim sources.
   --no-app-source       Skip vendor/apps/APP copy and only vendor dependencies.
   --no-deps             Skip third_party dependency vendoring.
@@ -108,6 +111,10 @@ while [[ $# -gt 0 ]]; do
       RESOLVE_DEPENDENCIES=0
       shift
       ;;
+    --hydrate-missing)
+      HYDRATE_DEPENDENCIES=1
+      shift
+      ;;
     --full-deps)
       FULL_DEPENDENCIES=1
       shift
@@ -171,6 +178,7 @@ if [[ "$VENDOR_DEPENDENCIES" == "1" ]]; then
     dependency_args+=("--app" "$APP_NAME")
   fi
   [[ "$RESOLVE_DEPENDENCIES" == "1" ]] || dependency_args+=("--no-resolve")
+  [[ "$HYDRATE_DEPENDENCIES" == "0" ]] || dependency_args+=("--hydrate-missing")
   [[ "$FULL_DEPENDENCIES" == "0" ]] || dependency_args+=("--full")
   [[ "$DRY_RUN" == "0" ]] || dependency_args+=("--dry-run")
   [[ -z "$SCRATCH_PATH" ]] || dependency_args+=("--scratch-path" "$SCRATCH_PATH")

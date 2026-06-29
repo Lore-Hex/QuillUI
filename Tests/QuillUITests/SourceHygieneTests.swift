@@ -3097,6 +3097,8 @@ struct SourceHygieneTests {
         let fileManager = FileManager.default
         let vendorScriptURL = root.appendingPathComponent("scripts/vendor-swiftpm-sources.sh")
         let vendorScript = try String(contentsOf: vendorScriptURL, encoding: .utf8)
+        let hydrateScriptURL = root.appendingPathComponent("scripts/hydrate-swiftpm-checkouts-from-resolved.py")
+        let hydrateScript = try String(contentsOf: hydrateScriptURL, encoding: .utf8)
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let swiftOpenUIManifest = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
@@ -3116,6 +3118,7 @@ struct SourceHygieneTests {
         )
 
         #expect(fileManager.isExecutableFile(atPath: vendorScriptURL.path))
+        #expect(fileManager.fileExists(atPath: hydrateScriptURL.path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/Package.swift").path))
@@ -3169,6 +3172,9 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("quillui_resolve_app_checkout_dir \"$ROOT_DIR\" \"$app_name\""))
         #expect(vendorScript.contains("-name Package.resolved -type f -print"))
         #expect(vendorScript.contains("--package-resolved PATH"))
+        #expect(vendorScript.contains("--hydrate-missing"))
+        #expect(vendorScript.contains("hydrate_missing_package_checkouts()"))
+        #expect(vendorScript.contains("scripts/hydrate-swiftpm-checkouts-from-resolved.py"))
         #expect(vendorScript.contains("QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1"))
         #expect(vendorScript.contains("dev_only = {"))
         #expect(vendorScript.contains("shim_only = {"))
@@ -3197,17 +3203,31 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("quillui-swiftpm-vendor/v1"))
         #expect(vendorScript.contains(".quillui-vendor-source-fingerprint"))
         #expect(vendorScript.contains("[[ \"$(cat \"$metadata_file\")\" == \"$metadata\" ]]"))
-        #expect(vendorScript.contains("rsync -a --delete"))
+        #expect(vendorScript.contains("rsync -a --delete --delete-excluded"))
         #expect(vendorScript.contains("chmod -R u+w \"$destination\""))
         #expect(vendorScript.contains("--exclude '.git'"))
         #expect(vendorScript.contains("--exclude '.build'"))
         #expect(vendorScript.contains("--exclude '.build-*'"))
         #expect(vendorScript.contains("--exclude '.swiftpm'"))
         #expect(vendorScript.contains("--exclude 'Tests'"))
+        #expect(vendorScript.contains("--exclude 'test'"))
+        #expect(vendorScript.contains("--exclude '*.docc'"))
+        #expect(vendorScript.contains("--exclude 'Assets'"))
+        #expect(vendorScript.contains("--exclude 'Images'"))
+        #expect(vendorScript.contains("--exclude '*Example*'"))
+        #expect(vendorScript.contains("--exclude 'Demo'"))
+        #expect(vendorScript.contains("--exclude 'Playground'"))
+        #expect(vendorScript.contains("--exclude 'Sandbox'"))
+        #expect(vendorScript.contains("--exclude '*Tests'"))
+        #expect(vendorScript.contains("--exclude 'tools'"))
+        #expect(vendorScript.contains("--exclude 'wrappers'"))
         #expect(vendorScript.contains("--exclude 'TestApplication'"))
         #expect(vendorScript.contains("--exclude 'TerminalApp'"))
+        #expect(vendorScript.contains("--exclude '*.xcodeproj'"))
+        #expect(vendorScript.contains("--exclude '*.xcworkspace'"))
         #expect(vendorScript.contains("--exclude 'Makefile'"))
         #expect(vendorScript.contains("--exclude 'Documentation'"))
+        #expect(vendorScript.contains("--exclude 'Carthage'"))
         #expect(vendorScript.contains("--full"))
         #expect(vendorScript.contains("patch_swift_crypto_manifest()"))
         #expect(vendorScript.contains("patch_swift_tree_sitter_manifest()"))
@@ -3217,6 +3237,15 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("GRDB.swift"))
         #expect(vendorScript.contains("SwiftSoup"))
         #expect(vendorScript.contains("JavaScriptKit"))
+        #expect(hydrateScript.contains("CANONICAL_PACKAGE_NAMES"))
+        #expect(hydrateScript.contains("\"activityindicatorview\": \"ActivityIndicatorView\""))
+        #expect(hydrateScript.contains("\"swift-markdown-ui\": \"MarkdownUI\""))
+        #expect(hydrateScript.contains("\"sparkle\""))
+        #expect(hydrateScript.contains("Package.resolved pin lacks location or revision"))
+        #expect(hydrateScript.contains("already vendored {pin.package} -> third_party/{pin.package}"))
+        #expect(hydrateScript.contains("would hydrate {pin.package} from {pin.location} @ {pin.revision}"))
+        #expect(hydrateScript.contains("[\"git\", \"clone\", \"--quiet\", pin.location"))
+        #expect(hydrateScript.contains("[\"git\", \"checkout\", \"--quiet\", pin.revision]"))
         #expect(dependencyPrepScript.contains("def ensure_user_writable_tree(path: Path) -> None:"))
         #expect(dependencyPrepScript.contains("stat.S_IWUSR"))
         #expect(dependencyPrepScript.contains("ensure_user_writable_tree(prepared_dir)"))
@@ -3259,6 +3288,10 @@ struct SourceHygieneTests {
         try fileManager.copyItem(
             at: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
             to: scriptsDir.appendingPathComponent("quillui-vendored-source.sh")
+        )
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/hydrate-swiftpm-checkouts-from-resolved.py"),
+            to: scriptsDir.appendingPathComponent("hydrate-swiftpm-checkouts-from-resolved.py")
         )
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: vendorScript.path)
         try """
@@ -3307,6 +3340,23 @@ struct SourceHygieneTests {
         #expect(result.output.contains("warning: no checkout found for CodeEditTextView"), Comment(rawValue: result.output))
         #expect(!result.output.contains("SwiftSnapshotTesting"), Comment(rawValue: result.output))
         #expect(!result.output.contains("SwiftLintPlugin"), Comment(rawValue: result.output))
+
+        let hydrateResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--hydrate-missing", "--app", "demo"]
+        )
+
+        #expect(hydrateResult.status == 0, Comment(rawValue: hydrateResult.output))
+        #expect(
+            hydrateResult.output.contains("would hydrate AsyncAlgorithms from https://github.com/apple/swift-async-algorithms.git @ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            Comment(rawValue: hydrateResult.output)
+        )
+        #expect(
+            hydrateResult.output.contains("would hydrate CodeEditTextView from https://github.com/CodeEditApp/CodeEditTextView.git @ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            Comment(rawValue: hydrateResult.output)
+        )
+        #expect(!hydrateResult.output.contains("would hydrate SwiftSnapshotTesting"), Comment(rawValue: hydrateResult.output))
+        #expect(!hydrateResult.output.contains("would hydrate SwiftLintPlugin"), Comment(rawValue: hydrateResult.output))
 
         let devResult = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
@@ -6703,6 +6753,9 @@ struct SourceHygieneTests {
         #expect(vendorSwiftUIAppSource.contains("vendor-app-source.sh"))
         #expect(vendorSwiftUIAppSource.contains("vendor-swiftpm-sources.sh"))
         #expect(vendorSwiftUIAppSource.contains("--no-resolve"))
+        #expect(vendorSwiftUIAppSource.contains("--hydrate-missing"))
+        #expect(vendorSwiftUIAppSource.contains("HYDRATE_DEPENDENCIES=1"))
+        #expect(vendorSwiftUIAppSource.contains("dependency_args+=(\"--hydrate-missing\")"))
         #expect(vendorSwiftUIAppSource.contains("append_package_resolved_files_from_source"))
         #expect(enchantedWorkflow.contains("--source-app enchanted"))
         #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))

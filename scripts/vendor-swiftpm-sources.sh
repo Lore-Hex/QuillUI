@@ -7,6 +7,7 @@ SCRATCH_PATH="$ROOT_DIR/.build"
 RESOLVE=1
 DRY_RUN=0
 SLIM=1
+HYDRATE_MISSING=0
 PACKAGES=()
 PACKAGE_RESOLVED_FILES=()
 APP_NAMES=()
@@ -34,6 +35,8 @@ Options:
   --scratch-path PATH    SwiftPM scratch path whose checkouts/ directory is used.
                          Defaults to .build.
   --no-resolve           Do not run swift package resolve before copying.
+  --hydrate-missing      Clone missing Package.resolved pins at their exact
+                         revisions into scratch checkouts before copying.
   --full                 Copy full checkouts instead of the default slim source copy.
   --dry-run              Print the copies that would be performed.
   --list                 Print known package names.
@@ -351,6 +354,10 @@ while [[ $# -gt 0 ]]; do
       RESOLVE=0
       shift
       ;;
+    --hydrate-missing)
+      HYDRATE_MISSING=1
+      shift
+      ;;
     --full)
       SLIM=0
       shift
@@ -406,6 +413,26 @@ case "$SCRATCH_PATH" in
   /*) ;;
   *) SCRATCH_PATH="$ROOT_DIR/$SCRATCH_PATH" ;;
 esac
+
+hydrate_missing_package_checkouts() {
+  local hydrate_args=(
+    "python3"
+    "$ROOT_DIR/scripts/hydrate-swiftpm-checkouts-from-resolved.py"
+    "--root-dir" "$ROOT_DIR"
+    "--scratch-path" "$SCRATCH_PATH"
+  )
+  local resolved_file
+
+  for resolved_file in "${PACKAGE_RESOLVED_FILES[@]}"; do
+    hydrate_args+=("--package-resolved" "$resolved_file")
+  done
+  [[ "$DRY_RUN" == "0" ]] || hydrate_args+=("--dry-run")
+  "${hydrate_args[@]}"
+}
+
+if [[ "$HYDRATE_MISSING" == "1" && ${#PACKAGE_RESOLVED_FILES[@]} -gt 0 ]]; then
+  hydrate_missing_package_checkouts
+fi
 
 if [[ "$RESOLVE" == "1" && "$DRY_RUN" != "1" ]]; then
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
@@ -489,21 +516,40 @@ vendor_one() {
       --exclude '.vscode'
       --exclude '.idea'
       --exclude 'Tests'
+      --exclude 'test'
       --exclude 'docs'
       --exclude 'Docs'
       --exclude 'Documentation'
+      --exclude '*.docc'
       --exclude 'Examples'
       --exclude 'Example'
+      --exclude '*Example*'
+      --exclude 'Assets'
+      --exclude 'Images'
+      --exclude 'Demo'
+      --exclude 'Demos'
+      --exclude 'Playground'
+      --exclude 'Playgrounds'
+      --exclude 'Sandbox'
+      --exclude '*Tests'
       --exclude 'TestApplication'
       --exclude 'TestAppHelper'
       --exclude 'UITests'
       --exclude 'TerminalApp'
       --exclude 'Benchmarks'
       --exclude 'Benchmark'
+      --exclude 'bench'
       --exclude 'Performance'
       --exclude 'FuzzTesting'
+      --exclude 'fuzz'
+      --exclude 'man'
+      --exclude 'tools'
+      --exclude 'wrappers'
       --exclude 'PluginExamples'
       --exclude 'Reference'
+      --exclude 'Carthage'
+      --exclude '*.xcodeproj'
+      --exclude '*.xcworkspace'
       --exclude 'Makefile'
     )
   fi
@@ -519,7 +565,7 @@ vendor_one() {
   fi
 
   mkdir -p "$ROOT_DIR/third_party"
-  rsync -a --delete \
+  rsync -a --delete --delete-excluded \
     "${rsync_excludes[@]}" \
     "$source/" "$destination/"
   if [[ -n "$metadata" ]]; then
