@@ -2343,7 +2343,7 @@ private func gtkRenderFallbackZStack(
     return opaqueFromWidget(overlay)
 }
 
-extension Group: GTKRenderable {
+extension Group: GTKRenderable where Content: View {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         var needsHExpand = false
