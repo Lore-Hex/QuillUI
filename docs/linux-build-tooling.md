@@ -101,8 +101,11 @@ scripts/build-swiftui-linux-app.sh \
 
 That command reads from `vendor/apps/codeedit/CodeEdit` when present and falls
 back to `.upstream/codeedit/CodeEdit`; it does not fetch network source during
-the build. It also reuses the vendored CodeEdit SwiftPM package sources already
-under `third_party/`, only copying from local checkouts when needed. Set
+the build. When the vendored path is selected, the builder prints the vendored
+source fingerprint such as `vendored codeedit source snapshot: git:<commit>`, so
+CI and agent logs show that the fast checked-in source path was used. It also
+reuses the vendored CodeEdit SwiftPM package sources already under
+`third_party/`, only copying from local checkouts when needed. Set
 `QUILLUI_REFRESH_VENDORED_SOURCE=1` only when intentionally testing a freshly
 fetched `.upstream/<name>` checkout.
 

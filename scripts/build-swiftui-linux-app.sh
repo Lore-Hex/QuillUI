@@ -458,6 +458,7 @@ MSG
   case "$SOURCE_CHECKOUT_DIR" in
     "$ROOT_DIR/vendor/apps/$SOURCE_APP")
       echo "==> using vendored $SOURCE_APP source at vendor/apps/$SOURCE_APP"
+      quillui_print_vendored_app_source_summary "$ROOT_DIR" "$SOURCE_APP"
       ;;
     "$ROOT_DIR/.upstream/$SOURCE_APP")
       echo "==> using upstream $SOURCE_APP source at .upstream/$SOURCE_APP"

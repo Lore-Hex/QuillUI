@@ -1493,6 +1493,15 @@ struct SourceHygieneTests {
             public static let value = "vendored"
         }
         """.write(to: sourceDir.appendingPathComponent("Demo.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:1234567890abcdef
+        """.write(
+            to: sourceDir.deletingLastPathComponent().appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
 
         let resolveVendoredResult = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
@@ -1508,6 +1517,22 @@ struct SourceHygieneTests {
         #expect(
             resolveVendoredResult.output.trimmingCharacters(in: .whitespacesAndNewlines) == sourceDir.path,
             Comment(rawValue: resolveVendoredResult.output)
+        )
+
+        let summaryResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_print_vendored_app_source_summary \"$1\" demo",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+            ]
+        )
+        #expect(summaryResult.status == 0, Comment(rawValue: summaryResult.output))
+        #expect(
+            summaryResult.output.contains("vendored demo source snapshot: git:1234567890abcdef"),
+            Comment(rawValue: summaryResult.output)
         )
 
         let materializeResult = try runSourceHygieneProcess(
@@ -4776,13 +4801,19 @@ struct SourceHygieneTests {
     func genericQtRendererReadsSwiftUIBodiesThroughMainActorIsolation() throws {
         let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
         let smokeApp = try packageSource("Sources/BackendQt/QtSmokeApp.swift")
+        let smokeScript = try packageSource("scripts/linux-qt-generic-smoke-check.sh")
 
         #expect(renderer.contains("MainActor.assumeIsolated {\n        rendered = qtRenderView(view.body)\n    }"))
         #expect(!renderer.contains("\n    return qtRenderView(view.body)\n    // Stateless composite view"))
         #expect(smokeApp.contains(".onKeyPress(.tab)"))
         #expect(smokeApp.contains("textFieldValue = \"Qt onKeyPress tab\""))
         #expect(smokeApp.contains(".keyboardShortcut(.defaultAction)"))
+        #expect(smokeApp.contains("qtSmokeInteractionLog(\"keyboardShortcut default\")"))
         #expect(smokeApp.contains("textFieldValue = \"Qt keyboardShortcut default\""))
+        #expect(smokeScript.contains("QUILLUI_QT_GENERIC_VERIFY_SHORTCUT"))
+        #expect(smokeScript.contains("xdotool key --window \"$window_id\" --clearmodifiers Return"))
+        #expect(smokeScript.contains("grep -q \"\\\\[qt-smoke\\\\] keyboardShortcut default\""))
+        #expect(smokeScript.contains("Qt .keyboardShortcut(.defaultAction) did not reach the Swift action."))
     }
 
     @Test("Generic and WireGuard Qt hosts use shared native runtime contracts")
@@ -6426,6 +6457,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("SOURCE_DIR=\"$SOURCE_CHECKOUT_DIR/$SOURCE_SUBDIR\""))
         #expect(buildSource.contains("PACKAGE_ROOT=\"$SOURCE_CHECKOUT_DIR\""))
         #expect(buildSource.contains("using vendored $SOURCE_APP source at vendor/apps/$SOURCE_APP"))
+        #expect(buildSource.contains("quillui_print_vendored_app_source_summary \"$ROOT_DIR\" \"$SOURCE_APP\""))
         #expect(buildSource.contains("using upstream $SOURCE_APP source at .upstream/$SOURCE_APP"))
         #expect(buildSource.contains("--prepared-package-cache-dir"))
         #expect(buildSource.contains("QUILLUI_APP_PREPARED_PACKAGE_CACHE_DIR"))
@@ -6625,6 +6657,8 @@ struct SourceHygieneTests {
         #expect(vendoredSource.contains("quillui_materialize_vendored_app_source()"))
         #expect(vendoredSource.contains("quillui_resolve_app_checkout_dir()"))
         #expect(vendoredSource.contains("quillui_resolve_app_source_dir()"))
+        #expect(vendoredSource.contains("quillui_print_vendored_app_source_summary()"))
+        #expect(vendoredSource.contains("vendored %s source snapshot"))
         #expect(vendoredSource.contains("quillui_upstream_app_source_dir()"))
         #expect(vendoredSource.contains("vendor/apps/$name"))
         #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))

@@ -38,6 +38,27 @@ typedef void (*quill_qt_bridge_toggle_callback)(int checked, void *user_data);
 // Hover callback for pointer enter/leave. `hovered` is 1 on enter, 0 on leave.
 typedef void (*quill_qt_bridge_hover_callback)(int hovered, void *user_data);
 
+// Focus callback for keyboard focus enter/leave. `focused` is 1 on focus in,
+// 0 on focus out.
+typedef void (*quill_qt_bridge_focus_callback)(int focused, void *user_data);
+
+// Key press callback for SwiftUI `.onKeyPress`. `key` is a Unicode scalar
+// matching SwiftOpenUI KeyEquivalent: Return=\r, Escape=0x1B, Tab=\t,
+// arrows=0xF700...0xF703, DeleteForward=0xF728. Return non-zero to stop Qt
+// event propagation.
+typedef int (*quill_qt_bridge_key_callback)(int key, void *user_data);
+
+// Window-level keyboard shortcut callback. `modifiers` uses SwiftOpenUI
+// EventModifiers raw bits: capsLock=1, shift=2, control=4, option=8,
+// command=16, numericPad=32. On Linux, Qt Control/Meta keys are both surfaced
+// as SwiftUI's command modifier so app-authored `.keyboardShortcut(.command)`
+// works as the expected desktop accelerator.
+typedef int (*quill_qt_bridge_shortcut_callback)(
+    int key,
+    int modifiers,
+    void *user_data
+);
+
 // Text callback for line edits. `text` is a UTF-8 string valid for the call.
 typedef void (*quill_qt_bridge_text_callback)(const char *text, void *user_data);
 
@@ -197,11 +218,83 @@ void quill_qt_widget_install_hover_recursive(
     quill_qt_bridge_click_callback destroy
 );
 
+// Install focus enter/leave filters on every QWidget in a rendered subtree.
+// `destroy` releases the retained Swift callback box when the subtree dies.
+void quill_qt_widget_install_focus_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_focus_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Install key-press filters on every QWidget in a rendered subtree. The filter
+// emits SwiftOpenUI-compatible KeyEquivalent scalar values and stops the event
+// when the Swift callback returns non-zero.
+void quill_qt_widget_install_key_press_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_key_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Install a QApplication-level key dispatcher scoped to `window`. This sees
+// key presses from current and future focused descendants, matching GTK's
+// window capture shortcut path.
+void quill_qt_widget_install_shortcut_dispatcher(
+    QuillQtWidgetHandle window,
+    quill_qt_bridge_shortcut_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Invoke `callback` once when `widget` is destroyed, then invoke `destroy` to
+// release the retained callback box.
+void quill_qt_widget_connect_destroyed(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Request keyboard focus for the first natively focusable QWidget in a subtree.
+void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget);
+
+// Clear keyboard focus if it is currently held by a QWidget in this subtree.
+void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget);
+
 // Toggle whether a rendered subtree receives pointer/focus events. Passing 0
 // mirrors SwiftUI's `.allowsHitTesting(false)` without dimming the widgets.
 void quill_qt_widget_set_allows_hit_testing_recursive(
     QuillQtWidgetHandle widget,
     int enabled
+);
+
+// Toggle Qt enabled state on every QWidget in a rendered SwiftUI subtree.
+// Unlike allowsHitTesting(false), this also lets Qt apply its native disabled
+// visual treatment and prevents keyboard activation.
+void quill_qt_widget_set_enabled_recursive(
+    QuillQtWidgetHandle widget,
+    int enabled
+);
+
+// Set a native Qt tooltip and accessibility description on every QWidget in a
+// rendered SwiftUI subtree. Empty strings are forwarded verbatim, matching
+// SwiftUI `.help("")` and GTK's tooltip clearing behavior.
+void quill_qt_widget_set_tooltip_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
+);
+
+// Set native Qt accessibility metadata on every QWidget in a rendered SwiftUI
+// subtree, matching SwiftUI accessibilityLabel/accessibilityValue wrappers.
+void quill_qt_widget_set_accessible_name_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
+);
+
+void quill_qt_widget_set_accessible_description_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
 );
 
 // Register the bundled Material Symbols font for this QApplication process.
@@ -308,6 +401,15 @@ void quill_qt_line_edit_set_text(
 void quill_qt_line_edit_connect_text_changed(
     QuillQtWidgetHandle line_edit,
     quill_qt_bridge_text_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Connect QLineEdit::returnPressed() to SwiftUI's submit action. `destroy`
+// releases `user_data` when the line edit is destroyed.
+void quill_qt_line_edit_connect_return_pressed(
+    QuillQtWidgetHandle line_edit,
+    quill_qt_bridge_click_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy
 );

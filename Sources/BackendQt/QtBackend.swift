@@ -112,9 +112,16 @@ extension WindowGroup: QtWindowRenderable {
         }
 
         qtBackendTrace("WindowGroup.qtRender: building root content view")
+        let previousEnvironment = getCurrentEnvironment()
+        var windowEnvironment = previousEnvironment
+        let windowID = Int(bitPattern: qtHandle(window))
+        windowEnvironment.windowID = windowID
+        setCurrentEnvironment(windowEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
         let content = qtRenderView(self.content)
         qtBackendTrace("WindowGroup.qtRender: root content view built")
         quill_qt_bridge_window_set_content(qtHandle(window), qtHandle(content))
+        qtInstallKeyboardShortcutDispatcher(on: window, windowID: windowID)
         // Root content fills the window's client area.
         quill_qt_bridge_widget_set_geometry(
             qtHandle(content), 0, 0, Int32(width), Int32(height)

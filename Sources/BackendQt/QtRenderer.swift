@@ -361,6 +361,138 @@ func qtRenderOverlayContainer(
     return container
 }
 
+private enum QtPresentationKind {
+    case sheet
+    case popover
+
+    var padding: Int32 {
+        switch self {
+        case .sheet: return 16
+        case .popover: return 12
+        }
+    }
+
+    var minimumSize: (width: Int32, height: Int32) {
+        switch self {
+        case .sheet: return (360, 180)
+        case .popover: return (240, 120)
+        }
+    }
+
+    var maximumSize: (width: Int32, height: Int32) {
+        switch self {
+        case .sheet: return (760, 620)
+        case .popover: return (420, 420)
+        }
+    }
+
+    var styleSheet: String {
+        switch self {
+        case .sheet:
+            return """
+            background-color: #f8f8fb;
+            border: 1px solid rgba(0, 0, 0, 0.16);
+            border-radius: 12px;
+            """
+        case .popover:
+            return """
+            background-color: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.14);
+            border-radius: 10px;
+            """
+        }
+    }
+}
+
+private func qtClamp(_ value: Int32, minimum: Int32, maximum: Int32) -> Int32 {
+    min(max(value, minimum), maximum)
+}
+
+private func qtResolvedSize(_ widget: OpaquePointer) -> (width: Int32, height: Int32) {
+    var width: Int32 = 0
+    var height: Int32 = 0
+    quill_qt_bridge_widget_resolved_size(qtHandle(widget), &width, &height)
+    return (width, height)
+}
+
+private func qtRenderPresentationPanel(
+    child: OpaquePointer,
+    kind: QtPresentationKind
+) -> OpaquePointer {
+    let natural = qtResolvedSize(child)
+    let padding = kind.padding
+    let minimum = kind.minimumSize
+    let maximum = kind.maximumSize
+    let panelWidth = qtClamp(
+        natural.width + padding * 2,
+        minimum: minimum.width,
+        maximum: maximum.width
+    )
+    let panelHeight = qtClamp(
+        natural.height + padding * 2,
+        minimum: minimum.height,
+        maximum: maximum.height
+    )
+
+    let panel = qtOpaque(quill_qt_bridge_container_create())
+    quill_qt_bridge_widget_set_stylesheet(qtHandle(panel), kind.styleSheet)
+    quill_qt_bridge_widget_set_fixed_size(qtHandle(panel), panelWidth, panelHeight)
+    quill_qt_bridge_widget_add_child(qtHandle(panel), qtHandle(child))
+    quill_qt_bridge_widget_set_geometry(
+        qtHandle(child),
+        padding,
+        padding,
+        max(1, panelWidth - padding * 2),
+        max(1, panelHeight - padding * 2)
+    )
+    return panel
+}
+
+private func qtRenderPresentedView<V: View>(
+    _ view: V,
+    dismiss: @escaping () -> Void
+) -> OpaquePointer {
+    let previous = getCurrentEnvironment()
+    var environment = previous
+    environment.dismiss = DismissAction(handler: dismiss)
+    environment.isPresentedInSheet = true
+    setCurrentEnvironment(environment)
+    defer { setCurrentEnvironment(previous) }
+
+    return swiftOpenUIWithPresentationDismissAction(dismiss) {
+        qtRenderView(view)
+    }
+}
+
+private func qtRenderPresentationOverlay(
+    base: OpaquePointer,
+    presented: OpaquePointer,
+    horizontal: QtOverlayHorizontalAlignment,
+    vertical: QtOverlayVerticalAlignment
+) -> OpaquePointer {
+    let baseSize = qtResolvedSize(base)
+    let presentedSize = qtResolvedSize(presented)
+    let overlay = qtOpaque(quill_qt_make_overlay_container())
+    quill_qt_bridge_widget_set_fixed_size(
+        qtHandle(overlay),
+        max(baseSize.width, presentedSize.width),
+        max(baseSize.height, presentedSize.height)
+    )
+    quill_qt_overlay_container_add_child(
+        qtHandle(overlay),
+        qtHandle(base),
+        QtOverlayHorizontalAlignment.leading.rawValue,
+        QtOverlayVerticalAlignment.top.rawValue
+    )
+    quill_qt_overlay_container_add_child(
+        qtHandle(overlay),
+        qtHandle(presented),
+        horizontal.rawValue,
+        vertical.rawValue
+    )
+    return overlay
+}
+
 private let qtLazyVGridDefaultSpacing = 4
 
 private func qtLazyVGridColumnCount(gridItems: [GridItem], childCount: Int) -> Int {
@@ -442,14 +574,147 @@ final class QtBoolClosureBox {
     init(_ closure: @escaping (Bool) -> Void) { self.closure = closure }
 }
 
+final class QtFocusClosureBox {
+    let focusChanged: (Bool) -> Void
+    let destroyed: () -> Void
+
+    init(
+        focusChanged: @escaping (Bool) -> Void,
+        destroyed: @escaping () -> Void
+    ) {
+        self.focusChanged = focusChanged
+        self.destroyed = destroyed
+    }
+}
+
 final class QtStringClosureBox {
     let closure: (String) -> Void
     init(_ closure: @escaping (String) -> Void) { self.closure = closure }
 }
 
+final class QtKeyPressActionBox {
+    let actions: [KeyPressAction]
+
+    init(actions: [KeyPressAction]) {
+        self.actions = actions
+    }
+
+    func handle(keyCode: Int32) -> Bool {
+        guard let key = qtKeyEquivalent(for: keyCode) else { return false }
+        for action in actions.reversed() where action.key == key {
+            if action.handler() == .handled {
+                return true
+            }
+        }
+        return false
+    }
+}
+
+final class QtShortcutDispatchBox {
+    let windowID: Int
+
+    init(windowID: Int) {
+        self.windowID = windowID
+    }
+
+    func handle(keyCode: Int32, modifiersRawValue: Int32) -> Bool {
+        guard let key = qtKeyEquivalent(for: keyCode) else { return false }
+        let shortcut = KeyboardShortcut(
+            key,
+            modifiers: EventModifiers(rawValue: Int(modifiersRawValue))
+        )
+        return KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)
+    }
+}
+
 final class QtIntClosureBox {
     let closure: (Int) -> Void
     init(_ closure: @escaping (Int) -> Void) { self.closure = closure }
+}
+
+func qtKeyEquivalent(for keyCode: Int32) -> KeyEquivalent? {
+    guard let scalar = UnicodeScalar(UInt32(bitPattern: keyCode)) else { return nil }
+    return KeyEquivalent(Character(scalar))
+}
+
+func qtInstallKeyPressActions(
+    on widget: OpaquePointer,
+    actions: [KeyPressAction],
+    environment: EnvironmentValues
+) {
+    guard !actions.isEmpty else { return }
+
+    let boundActions = actions.map { action in
+        KeyPressAction(key: action.key) {
+            let previous = getCurrentEnvironment()
+            setCurrentEnvironment(environment)
+            defer { setCurrentEnvironment(previous) }
+            return action.handler()
+        }
+    }
+    let box = Unmanaged.passRetained(QtKeyPressActionBox(actions: boundActions)).toOpaque()
+    let callback: quill_qt_bridge_key_callback = { key, userData in
+        guard let userData else { return 0 }
+        return Unmanaged<QtKeyPressActionBox>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+            .handle(keyCode: key) ? 1 : 0
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtKeyPressActionBox>.fromOpaque(userData).release()
+    }
+    quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)
+}
+
+func qtInstallKeyboardShortcutDispatcher(on window: OpaquePointer, windowID: Int) {
+    let box = Unmanaged.passRetained(QtShortcutDispatchBox(windowID: windowID)).toOpaque()
+    let callback: quill_qt_bridge_shortcut_callback = { key, modifiers, userData in
+        guard let userData else { return 0 }
+        return Unmanaged<QtShortcutDispatchBox>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+            .handle(keyCode: key, modifiersRawValue: modifiers) ? 1 : 0
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtShortcutDispatchBox>.fromOpaque(userData).release()
+    }
+    quill_qt_widget_install_shortcut_dispatcher(qtHandle(window), callback, box, destroy)
+}
+
+func qtRegisterKeyboardShortcut(
+    _ shortcut: KeyboardShortcut,
+    on widget: OpaquePointer,
+    action: @escaping () -> Void,
+    environment: EnvironmentValues
+) {
+    let boundAction = {
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        action()
+    }
+    let registrationID = KeyboardShortcutRegistry.shared.register(
+        shortcut,
+        windowID: environment.windowID,
+        action: boundAction
+    )
+    let box = Unmanaged.passRetained(QtClosureBox {
+        KeyboardShortcutRegistry.shared.unregister(id: registrationID)
+    }).toOpaque()
+    let destroyed: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+            .closure()
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+    }
+    quill_qt_widget_connect_destroyed(qtHandle(widget), destroyed, box, destroy)
 }
 
 func qtTextLabel(from view: any View) -> String {
@@ -652,8 +917,176 @@ extension QuillCompatibilityAllowsHitTestingView: QtRenderable {
     }
 }
 
+extension QuillCompatibilityContentShapeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let child = qtRenderView(content)
+        let container = qtOpaque(quill_qt_bridge_container_create())
+
+        var naturalW: Int32 = 0
+        var naturalH: Int32 = 0
+        quill_qt_bridge_widget_resolved_size(qtHandle(child), &naturalW, &naturalH)
+
+        quill_qt_bridge_widget_set_fixed_size(qtHandle(container), naturalW, naturalH)
+        quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))
+        quill_qt_bridge_widget_set_geometry(qtHandle(child), 0, 0, naturalW, naturalH)
+        return container
+    }
+}
+
+extension HelpView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        quill_qt_widget_set_tooltip_recursive(qtHandle(widget), text)
+        return widget
+    }
+}
+
+extension DisabledView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        if isDisabled {
+            quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)
+        }
+        return widget
+    }
+}
+
+extension FocusedView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        let state = focusState
+        let callbackKey = AnyHashable(Int(bitPattern: qtHandle(widget)))
+
+        state.storage.addPlatformFocusCallback(key: callbackKey) { newValue in
+            if newValue == true {
+                quill_qt_widget_request_focus_recursive(qtHandle(widget))
+            } else {
+                quill_qt_widget_clear_focus_recursive(qtHandle(widget))
+            }
+        }
+
+        let box = Unmanaged.passRetained(QtFocusClosureBox(
+            focusChanged: { focused in
+                if focused {
+                    if !state.wrappedValue {
+                        state.storage.setValue(true)
+                    }
+                } else if state.wrappedValue {
+                    state.storage.setValue(false)
+                }
+            },
+            destroyed: {
+                state.storage.removePlatformFocusCallback(key: callbackKey)
+            }
+        )).toOpaque()
+
+        let focusChanged: quill_qt_bridge_focus_callback = { focused, userData in
+            guard let userData else { return }
+            Unmanaged<QtFocusClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .focusChanged(focused != 0)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            let retained = Unmanaged<QtFocusClosureBox>.fromOpaque(userData)
+            retained.takeUnretainedValue().destroyed()
+            retained.release()
+        }
+
+        quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        return widget
+    }
+}
+
+extension FocusedEqualsView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        let state = focusState
+        let matchValue = value
+        let callbackKey = AnyHashable(Int(bitPattern: qtHandle(widget)))
+
+        state.storage.addPlatformFocusCallback(key: callbackKey) { newValue in
+            if newValue == matchValue {
+                quill_qt_widget_request_focus_recursive(qtHandle(widget))
+            } else if newValue == nil {
+                quill_qt_widget_clear_focus_recursive(qtHandle(widget))
+            }
+        }
+
+        let box = Unmanaged.passRetained(QtFocusClosureBox(
+            focusChanged: { focused in
+                if focused {
+                    state.storage.setValue(matchValue)
+                } else if state.storage.value == matchValue {
+                    state.storage.setValue(nil)
+                }
+            },
+            destroyed: {
+                state.storage.removePlatformFocusCallback(key: callbackKey)
+            }
+        )).toOpaque()
+
+        let focusChanged: quill_qt_bridge_focus_callback = { focused, userData in
+            guard let userData else { return }
+            Unmanaged<QtFocusClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .focusChanged(focused != 0)
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            let retained = Unmanaged<QtFocusClosureBox>.fromOpaque(userData)
+            retained.takeUnretainedValue().destroyed()
+            retained.release()
+        }
+
+        quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        return widget
+    }
+}
+
+extension AccessibilityIdentifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        quill_qt_bridge_widget_set_object_name(qtHandle(widget), identifier)
+        return widget
+    }
+}
+
+extension AccessibilityLabelView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        quill_qt_widget_set_accessible_name_recursive(qtHandle(widget), label)
+        return widget
+    }
+}
+
+extension AccessibilityValueView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        quill_qt_widget_set_accessible_description_recursive(qtHandle(widget), value)
+        return widget
+    }
+}
+
+extension AccessibilityHintView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let widget = qtRenderView(content)
+        quill_qt_widget_set_accessible_description_recursive(qtHandle(widget), hint)
+        return widget
+    }
+}
+
+extension AccessibilityElementView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content)
+    }
+}
+
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        let environment = getCurrentEnvironment()
         let title = qtTextLabel(from: label)
         let bound = qtBindActionToCurrentEnvironment(action)
         let box = Unmanaged.passRetained(QtClosureBox(bound)).toOpaque()
@@ -667,7 +1100,27 @@ extension Button: QtRenderable {
             Unmanaged<QtClosureBox>.fromOpaque(userData).release()
         }
 
-        return qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        if let shortcut = environment.keyboardShortcut {
+            qtRegisterKeyboardShortcut(
+                shortcut,
+                on: button,
+                action: action,
+                environment: environment
+            )
+        }
+        return button
+    }
+}
+
+extension KeyboardShortcutView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.keyboardShortcut = shortcut
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
     }
 }
 
@@ -730,6 +1183,7 @@ private func qtAddMenuAction(
 
 extension TextField: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        let environment = getCurrentEnvironment()
         let lineEdit = qtOpaque(quill_qt_make_line_edit())
         quill_qt_line_edit_set_placeholder_text(qtHandle(lineEdit), title)
         quill_qt_line_edit_set_text(qtHandle(lineEdit), text.wrappedValue)
@@ -754,7 +1208,57 @@ extension TextField: QtRenderable {
         }
 
         quill_qt_line_edit_connect_text_changed(qtHandle(lineEdit), textChanged, box, destroy)
+
+        if let submitAction = environment.submitAction {
+            let submit = qtBindActionToCurrentEnvironment {
+                submitAction()
+            }
+            let submitBox = Unmanaged.passRetained(QtClosureBox(submit)).toOpaque()
+            let returnPressed: quill_qt_bridge_click_callback = { userData in
+                guard let userData else { return }
+                Unmanaged<QtClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+            }
+            let submitDestroy: quill_qt_bridge_click_callback = { userData in
+                guard let userData else { return }
+                Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+            }
+            quill_qt_line_edit_connect_return_pressed(
+                qtHandle(lineEdit),
+                returnPressed,
+                submitBox,
+                submitDestroy
+            )
+        }
+
+        qtInstallKeyPressActions(
+            on: lineEdit,
+            actions: environment.keyPressActions,
+            environment: environment
+        )
+
         return lineEdit
+    }
+}
+
+extension OnKeyPressView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.keyPressActions.append(KeyPressAction(key: key, handler: action))
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension OnSubmitView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.submitAction = SubmitAction(handler: action)
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
     }
 }
 
@@ -934,6 +1438,74 @@ extension ScrollView: QtRenderable {
         let child = qtRenderView(content)
         quill_qt_scroll_area_set_widget(qtHandle(scroll), qtHandle(child))
         return scroll
+    }
+}
+
+extension SheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let base = qtRenderView(content)
+        guard isPresented.wrappedValue else {
+            return base
+        }
+
+        let binding = isPresented
+        let dismissAction = {
+            binding.wrappedValue = false
+            onDismiss?()
+        }
+        let sheet = qtRenderPresentedView(sheetContent(), dismiss: dismissAction)
+        let panel = qtRenderPresentationPanel(child: sheet, kind: .sheet)
+        return qtRenderPresentationOverlay(
+            base: base,
+            presented: panel,
+            horizontal: .center,
+            vertical: .center
+        )
+    }
+}
+
+extension ItemSheetModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let base = qtRenderView(content)
+        guard let presentedItem = item.wrappedValue else {
+            return base
+        }
+
+        let binding = item
+        let dismissAction = {
+            binding.wrappedValue = nil
+            onDismiss?()
+        }
+        let sheet = qtRenderPresentedView(sheetContent(presentedItem), dismiss: dismissAction)
+        let panel = qtRenderPresentationPanel(child: sheet, kind: .sheet)
+        return qtRenderPresentationOverlay(
+            base: base,
+            presented: panel,
+            horizontal: .center,
+            vertical: .center
+        )
+    }
+}
+
+extension PopoverView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let base = qtRenderView(content)
+        guard isPresented.wrappedValue else {
+            return base
+        }
+
+        let binding = isPresented
+        let dismissAction = {
+            binding.wrappedValue = false
+        }
+        let popover = qtRenderPresentedView(popoverContent, dismiss: dismissAction)
+        let panel = qtRenderPresentationPanel(child: popover, kind: .popover)
+        return qtRenderPresentationOverlay(
+            base: base,
+            presented: panel,
+            horizontal: .center,
+            vertical: .top
+        )
     }
 }
 #endif

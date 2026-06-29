@@ -23,6 +23,7 @@
 // The point is that all of this is plain SwiftUI; the renderer is app-agnostic.
 
 #if canImport(CQtBridge)
+import Foundation
 import QuillSwiftUICompatibility
 import SwiftOpenUI
 
@@ -44,6 +45,10 @@ enum QtSmokeMetrics {
     static let panelBlue: Double = 39.0 / 255.0
     static let listWidth: Double = 300
     static let listHeight: Double = 120
+}
+
+private func qtSmokeInteractionLog(_ message: String) {
+    FileHandle.standardError.write(Data("[qt-smoke] \(message)\n".utf8))
 }
 
 public struct QtSmokeApp: App {
@@ -112,6 +117,11 @@ struct QtSmokeView: View {
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
                     isOpen.toggle()
                 }
+                Button("Default shortcut") {
+                    qtSmokeInteractionLog("keyboardShortcut default")
+                    textFieldValue = "Qt keyboardShortcut default"
+                }
+                .keyboardShortcut(.defaultAction)
 
                 Toggle(
                     isCheckboxOn ? "QCheckBox Toggle (on)" : "QCheckBox Toggle (off)",
@@ -119,6 +129,10 @@ struct QtSmokeView: View {
                 )
 
                 TextField("QLineEdit placeholder", text: $textFieldValue)
+                    .onKeyPress(.tab) {
+                        textFieldValue = "Qt onKeyPress tab"
+                        return .handled
+                    }
                 Text("TextField echo: \(textFieldValue)")
                 Text("Selectable Qt transcript")
                     .textSelection(.enabled)

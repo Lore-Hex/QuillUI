@@ -27,6 +27,36 @@ quillui_has_vendored_app_source() {
     quillui_vendored_app_source_dir "$root_dir" "$name" >/dev/null
 }
 
+quillui_vendored_app_source_fingerprint_file() {
+    local root_dir="$1"
+    local name="$2"
+    local source_dir="$root_dir/vendor/apps/$name"
+
+    if [[ -f "$source_dir/.quillui-vendor-source-fingerprint" ]]; then
+        printf '%s\n' "$source_dir/.quillui-vendor-source-fingerprint"
+        return 0
+    fi
+
+    return 1
+}
+
+quillui_print_vendored_app_source_summary() {
+    local root_dir="$1"
+    local name="$2"
+    local fingerprint_file=""
+    local source_identity=""
+
+    if fingerprint_file="$(quillui_vendored_app_source_fingerprint_file "$root_dir" "$name")"; then
+        source_identity="$(awk -F= '$1 == "source" { print $2; exit }' "$fingerprint_file" 2>/dev/null || true)"
+        if [[ -n "$source_identity" ]]; then
+            printf '==> vendored %s source snapshot: %s\n' "$name" "$source_identity"
+            return 0
+        fi
+    fi
+
+    printf '==> vendored %s source snapshot: unmarked legacy copy\n' "$name"
+}
+
 quillui_upstream_app_source_dir() {
     local root_dir="$1"
     local name="$2"

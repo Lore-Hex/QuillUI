@@ -21,6 +21,7 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QList>
 #include <QListView>
@@ -55,6 +56,8 @@ inline QWidget *asWidget(QuillQtWidgetHandle handle) {
 inline QString utf8(const char *value) {
     return value == nullptr ? QString() : QString::fromUtf8(value);
 }
+
+bool widgetContains(QWidget *root, QWidget *candidate);
 
 QSize resolvedWidgetSize(QWidget *target) {
     if (target == nullptr) {
@@ -222,6 +225,280 @@ private:
     std::shared_ptr<QuillQtHoverState> state_;
 };
 
+class QuillQtFocusState final {
+public:
+    QuillQtFocusState(
+        quill_qt_bridge_focus_callback callback,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : callback_(callback),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtFocusState() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+    }
+
+    void update(bool focused) {
+        if (focused_ == focused) {
+            return;
+        }
+        focused_ = focused;
+        if (callback_ != nullptr) {
+            callback_(focused ? 1 : 0, userData_);
+        }
+    }
+
+private:
+    quill_qt_bridge_focus_callback callback_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+    bool focused_ = false;
+};
+
+class QuillQtFocusFilter final : public QObject {
+public:
+    QuillQtFocusFilter(
+        std::shared_ptr<QuillQtFocusState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          state_(std::move(state))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::FocusIn:
+            state_->update(true);
+            break;
+        case QEvent::FocusOut:
+            state_->update(false);
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::shared_ptr<QuillQtFocusState> state_;
+};
+
+class QuillQtKeyPressState final {
+public:
+    QuillQtKeyPressState(
+        quill_qt_bridge_key_callback callback,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : callback_(callback),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtKeyPressState() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+    }
+
+    bool handle(int key) {
+        if (callback_ == nullptr || key == 0) {
+            return false;
+        }
+        return callback_(key, userData_) != 0;
+    }
+
+private:
+    quill_qt_bridge_key_callback callback_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+};
+
+class QuillQtShortcutState final {
+public:
+    QuillQtShortcutState(
+        quill_qt_bridge_shortcut_callback callback,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : callback_(callback),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtShortcutState() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+    }
+
+    bool handle(int key, int modifiers) {
+        if (callback_ == nullptr || key == 0) {
+            return false;
+        }
+        return callback_(key, modifiers, userData_) != 0;
+    }
+
+private:
+    quill_qt_bridge_shortcut_callback callback_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+};
+
+int quillQtKeyEquivalent(QKeyEvent *event) {
+    if (event == nullptr) {
+        return 0;
+    }
+
+    switch (event->key()) {
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        return '\r';
+    case Qt::Key_Escape:
+        return 0x1B;
+    case Qt::Key_Backspace:
+        return 0x7F;
+    case Qt::Key_Delete:
+        return 0xF728;
+    case Qt::Key_Tab:
+    case Qt::Key_Backtab:
+        return '\t';
+    case Qt::Key_Up:
+        return 0xF700;
+    case Qt::Key_Down:
+        return 0xF701;
+    case Qt::Key_Left:
+        return 0xF702;
+    case Qt::Key_Right:
+        return 0xF703;
+    case Qt::Key_Space:
+        return ' ';
+    default:
+        break;
+    }
+
+    const QString text = event->text();
+    if (text.isEmpty()) {
+        return 0;
+    }
+    const uint scalar = text.at(0).unicode();
+    return scalar == 0 ? 0 : static_cast<int>(scalar);
+}
+
+int quillQtEventModifiers(QKeyEvent *event) {
+    if (event == nullptr) {
+        return 0;
+    }
+
+    const Qt::KeyboardModifiers qtModifiers = event->modifiers();
+    int modifiers = 0;
+    // SwiftOpenUI EventModifiers raw bits.
+    constexpr int shift = 1 << 1;
+    constexpr int option = 1 << 3;
+    constexpr int command = 1 << 4;
+    constexpr int numericPad = 1 << 5;
+
+    if (qtModifiers & Qt::ShiftModifier) {
+        modifiers |= shift;
+    }
+    if (qtModifiers & Qt::AltModifier) {
+        modifiers |= option;
+    }
+    // Match the GTK backend and desktop convention: app-authored command
+    // shortcuts are activated by Control on Linux. Meta is accepted as command
+    // too for keyboards/window managers that surface it separately.
+    if ((qtModifiers & Qt::ControlModifier) || (qtModifiers & Qt::MetaModifier)) {
+        modifiers |= command;
+    }
+    if (qtModifiers & Qt::KeypadModifier) {
+        modifiers |= numericPad;
+    }
+    return modifiers;
+}
+
+class QuillQtKeyPressFilter final : public QObject {
+public:
+    QuillQtKeyPressFilter(
+        std::shared_ptr<QuillQtKeyPressState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          state_(std::move(state))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() != QEvent::KeyPress) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        if (state_->handle(quillQtKeyEquivalent(keyEvent))) {
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::shared_ptr<QuillQtKeyPressState> state_;
+};
+
+class QuillQtShortcutFilter final : public QObject {
+public:
+    QuillQtShortcutFilter(
+        QWidget *window,
+        std::shared_ptr<QuillQtShortcutState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          window_(window),
+          state_(std::move(state))
+    {
+    }
+
+    ~QuillQtShortcutFilter() override {
+        if (qApp != nullptr) {
+            qApp->removeEventFilter(this);
+        }
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() != QEvent::KeyPress) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        QWidget *target = qobject_cast<QWidget *>(watched);
+        if (!widgetContains(window_, target)) {
+            return QObject::eventFilter(watched, event);
+        }
+
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        if (state_->handle(
+                quillQtKeyEquivalent(keyEvent),
+                quillQtEventModifiers(keyEvent)
+            )) {
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QWidget *window_;
+    std::shared_ptr<QuillQtShortcutState> state_;
+};
+
 void installHoverFilterRecursive(
     QWidget *target,
     const std::shared_ptr<QuillQtHoverState> &state
@@ -241,6 +518,76 @@ void installHoverFilterRecursive(
     for (QWidget *child : children) {
         installHoverFilterRecursive(child, state);
     }
+}
+
+void installFocusFilterRecursive(
+    QWidget *target,
+    const std::shared_ptr<QuillQtFocusState> &state
+) {
+    if (target == nullptr) {
+        return;
+    }
+
+    target->installEventFilter(new QuillQtFocusFilter(state, target));
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        installFocusFilterRecursive(child, state);
+    }
+}
+
+void installKeyPressFilterRecursive(
+    QWidget *target,
+    const std::shared_ptr<QuillQtKeyPressState> &state
+) {
+    if (target == nullptr) {
+        return;
+    }
+
+    target->installEventFilter(new QuillQtKeyPressFilter(state, target));
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        installKeyPressFilterRecursive(child, state);
+    }
+}
+
+bool widgetContains(QWidget *root, QWidget *candidate) {
+    if (root == nullptr || candidate == nullptr) {
+        return false;
+    }
+    for (QWidget *cursor = candidate; cursor != nullptr; cursor = cursor->parentWidget()) {
+        if (cursor == root) {
+            return true;
+        }
+    }
+    return false;
+}
+
+QWidget *firstFocusableWidget(QWidget *target) {
+    if (target == nullptr || !target->isEnabled()) {
+        return nullptr;
+    }
+    if (target->focusPolicy() != Qt::NoFocus) {
+        return target;
+    }
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        if (QWidget *focusable = firstFocusableWidget(child)) {
+            return focusable;
+        }
+    }
+    return nullptr;
 }
 
 // Stderr breadcrumb for the generic-backend smoke. The runtime crash this fix
@@ -591,6 +938,117 @@ void quill_qt_widget_install_hover_recursive(
     );
 }
 
+void quill_qt_widget_install_focus_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_focus_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    installFocusFilterRecursive(
+        target,
+        std::make_shared<QuillQtFocusState>(callback, user_data, destroy)
+    );
+}
+
+void quill_qt_widget_install_key_press_recursive(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_key_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    installKeyPressFilterRecursive(
+        target,
+        std::make_shared<QuillQtKeyPressState>(callback, user_data, destroy)
+    );
+}
+
+void quill_qt_widget_install_shortcut_dispatcher(
+    QuillQtWidgetHandle window,
+    quill_qt_bridge_shortcut_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *target = asWidget(window);
+    if (target == nullptr || qApp == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    QuillQtShortcutFilter *filter = new QuillQtShortcutFilter(
+        target,
+        std::make_shared<QuillQtShortcutState>(callback, user_data, destroy),
+        target
+    );
+    qApp->installEventFilter(filter);
+}
+
+void quill_qt_widget_connect_destroyed(
+    QuillQtWidgetHandle widget,
+    quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        if (callback != nullptr && user_data != nullptr) {
+            callback(user_data);
+        }
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    QObject::connect(target, &QObject::destroyed, target, [callback, destroy, user_data]() {
+        if (callback != nullptr) {
+            callback(user_data);
+        }
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+    });
+}
+
+void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    QWidget *focusable = firstFocusableWidget(target);
+    if (focusable == nullptr) {
+        return;
+    }
+    if (QWidget *window = focusable->window()) {
+        window->activateWindow();
+        window->raise();
+    }
+    focusable->setFocus(Qt::OtherFocusReason);
+}
+
+void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget) {
+    QWidget *target = asWidget(widget);
+    QWidget *focused = QApplication::focusWidget();
+    if (!widgetContains(target, focused)) {
+        return;
+    }
+    focused->clearFocus();
+}
+
 void quill_qt_widget_set_allows_hit_testing_recursive(
     QuillQtWidgetHandle widget,
     int enabled
@@ -615,6 +1073,102 @@ void quill_qt_widget_set_allows_hit_testing_recursive(
         quill_qt_widget_set_allows_hit_testing_recursive(
             reinterpret_cast<QuillQtWidgetHandle>(child),
             enabled
+        );
+    }
+}
+
+void quill_qt_widget_set_enabled_recursive(
+    QuillQtWidgetHandle widget,
+    int enabled
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    target->setEnabled(enabled != 0);
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_enabled_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            enabled
+        );
+    }
+}
+
+void quill_qt_widget_set_tooltip_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    const QString tooltip = utf8(text);
+    target->setToolTip(tooltip);
+    target->setAccessibleDescription(tooltip);
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_tooltip_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            text
+        );
+    }
+}
+
+void quill_qt_widget_set_accessible_name_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    const QString name = utf8(text);
+    target->setAccessibleName(name);
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_accessible_name_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            text
+        );
+    }
+}
+
+void quill_qt_widget_set_accessible_description_recursive(
+    QuillQtWidgetHandle widget,
+    const char *text
+) {
+    QWidget *target = asWidget(widget);
+    if (target == nullptr) {
+        return;
+    }
+
+    const QString description = utf8(text);
+    target->setAccessibleDescription(description);
+
+    const QList<QWidget *> children = target->findChildren<QWidget *>(
+        QString(),
+        Qt::FindDirectChildrenOnly
+    );
+    for (QWidget *child : children) {
+        quill_qt_widget_set_accessible_description_recursive(
+            reinterpret_cast<QuillQtWidgetHandle>(child),
+            text
         );
     }
 }
@@ -864,6 +1418,33 @@ void quill_qt_line_edit_connect_text_changed(
                 callback(utf8Text.constData(), user_data);
             }
         );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(lineEdit, &QObject::destroyed, lineEdit, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+void quill_qt_line_edit_connect_return_pressed(
+    QuillQtWidgetHandle line_edit,
+    quill_qt_bridge_click_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QLineEdit *lineEdit = qobject_cast<QLineEdit *>(asWidget(line_edit));
+    if (lineEdit == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(lineEdit, &QLineEdit::returnPressed, lineEdit, [callback, user_data]() {
+            callback(user_data);
+        });
     }
 
     if (destroy != nullptr) {
