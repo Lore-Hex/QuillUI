@@ -72,3 +72,38 @@ swiftly-*.tar.gz
 # live under a named fixture or docs directory, not as root temp files.
 .tmp-*
 tmp-*
+
+# Vendored SwiftPM dependency caches should contain buildable source, manifests,
+# licenses, and resources. Keep upstream CI, local build products, tests, docs,
+# and prebuilt archives out of the repository-level vendor cache.
+third_party/**/.build/
+third_party/**/.build-*/
+third_party/**/.github/
+third_party/**/.swiftpm/
+third_party/**/DerivedData/
+third_party/Sparkle/
+third_party/**/Tests/
+third_party/**/test/
+third_party/**/docs/
+third_party/**/Docs/
+third_party/**/Documentation/
+third_party/**/Evolution/
+third_party/**/Example/
+third_party/**/Examples/
+third_party/**/TestApplication/
+third_party/**/TestAppHelper/
+third_party/**/UITests/
+third_party/**/TerminalApp/
+third_party/**/Benchmark/
+third_party/**/Benchmarks/
+third_party/**/Performance/
+third_party/**/PluginExamples/
+third_party/**/Reference/
+third_party/**/Utils/
+third_party/**/Xcode/
+third_party/**/Makefile
+third_party/**/*.docc/
+third_party/**/*.playground/
+third_party/**/*.xcodeproj/
+third_party/**/*.xcworkspace/
+third_party/**/*.xcframework.zip

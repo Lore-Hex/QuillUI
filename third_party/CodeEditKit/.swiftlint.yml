@@ -1,0 +1,15 @@
+disabled_rules:
+  - force_cast
+
+line_length: 160
+
+type_name:
+  allowed_symbols: ['_']
+  excluded:
+    - ID
+
+identifier_name:
+  min_length: 2
+  allowed_symbols: ['$', '_']
+  excluded:
+    - id

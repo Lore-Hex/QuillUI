@@ -120,6 +120,19 @@ VENDORED_PACKAGE_ALIASES = {
     "wrappinghstack": ["WrappingHStack"],
     "zipfoundation": ["ZIPFoundation"],
 }
+QUILL_PROVIDED_PACKAGE_IDENTITIES = {
+    "activityindicatorview",
+    "alamofire",
+    "keyboardshortcuts",
+    "magnet",
+    "ollamakit",
+    "sparkle",
+    "splash",
+    "swift-markdown-ui",
+    "swiftui-introspect",
+    "vortex",
+    "wrappinghstack",
+}
 
 
 @dataclass(frozen=True)
@@ -215,6 +228,15 @@ def dependency_package_name(parsed: PackageLine, package_dir: Path) -> str | Non
         if identity:
             return identity
     return package_name_from_manifest(package_dir)
+
+
+def is_quill_provided_package(parsed: PackageLine) -> bool:
+    names: list[str] = []
+    if parsed.url:
+        names.append(package_identity_from_url(parsed.url))
+    if parsed.package_name:
+        names.append(parsed.package_name)
+    return any(normalized_package_component(name) in QUILL_PROVIDED_PACKAGE_IDENTITIES for name in names)
 
 
 def normalized_package_component(value: str) -> str:
@@ -1072,6 +1094,8 @@ def main() -> int:
             continue
         stripped_lines.append(stripped)
         parsed = parse_package_line(stripped)
+        if is_quill_provided_package(parsed):
+            continue
         package_dir = resolved_package_dir(root_dir, parsed)
         if package_dir is None:
             if require_vendored_sources and parsed.url:
@@ -1093,6 +1117,8 @@ def main() -> int:
         prepared_count = len(materialized)
         for stripped in stripped_lines:
             parsed = parse_package_line(stripped)
+            if is_quill_provided_package(parsed):
+                continue
             package_dir = resolved_package_dir(root_dir, parsed)
             if package_dir is None or package_dir in materialized:
                 continue
@@ -1113,6 +1139,8 @@ def main() -> int:
     output_lines: list[str] = []
     seen_output_lines: set[str] = set()
     for stripped in stripped_lines:
+        if is_quill_provided_package(parse_package_line(stripped)):
+            continue
         rewritten = rewritten_line(root_dir, work_root, stripped, args.skip_source_lowering, materialized)
         if require_vendored_sources and PACKAGE_URL_RE.search(rewritten):
             unresolved_remote_dependencies.append(rewritten)

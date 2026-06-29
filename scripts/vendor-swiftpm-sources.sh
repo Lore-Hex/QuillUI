@@ -239,6 +239,9 @@ dev_only = {
     "swift-snapshot-testing",
     "swiftlintplugin",
 }
+shim_only = {
+    "sparkle",
+}
 canonical = {
     "activityindicatorview": "ActivityIndicatorView",
     "aboutwindow": "AboutWindow",
@@ -299,6 +302,8 @@ for pin in data.get("pins", []):
         basename = basename[:-4]
     key = identity or basename.lower()
     if not include_dev_packages and key in dev_only:
+        continue
+    if key in shim_only:
         continue
     names.append(canonical.get(key, basename))
 
@@ -488,11 +493,18 @@ vendor_one() {
       --exclude 'Docs'
       --exclude 'Documentation'
       --exclude 'Examples'
+      --exclude 'Example'
+      --exclude 'TestApplication'
+      --exclude 'TestAppHelper'
+      --exclude 'UITests'
+      --exclude 'TerminalApp'
       --exclude 'Benchmarks'
+      --exclude 'Benchmark'
       --exclude 'Performance'
       --exclude 'FuzzTesting'
       --exclude 'PluginExamples'
       --exclude 'Reference'
+      --exclude 'Makefile'
     )
   fi
 

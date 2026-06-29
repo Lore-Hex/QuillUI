@@ -1,0 +1,47 @@
+// swift-tools-version: 5.9
+
+import PackageDescription
+
+let settings: [SwiftSetting] = [
+	.enableExperimentalFeature("StrictConcurrency")
+]
+
+let package = Package(
+	name: "SwiftTreeSitter",
+	platforms: [
+		.macOS(.v10_13),
+		.macCatalyst(.v13),
+		.iOS(.v12),
+		.tvOS(.v12),
+		.watchOS(.v5),
+		.visionOS(.v1),
+	],
+	products: [
+		.library(name: "SwiftTreeSitter", targets: ["SwiftTreeSitter"]),
+		.library(name: "SwiftTreeSitterLayer", targets: ["SwiftTreeSitterLayer"]),
+	],
+	dependencies: [
+		.package(name: "TreeSitter", path: "../tree-sitter")
+	],
+	targets: [
+		.target(
+			name: "TestTreeSitterSwift",
+			path: "tree-sitter-swift",
+			sources: ["src/parser.c", "src/scanner.c"],
+			publicHeadersPath: "bindings/swift",
+			cSettings: [.headerSearchPath("src")]
+		),
+		.target(
+			name: "SwiftTreeSitter",
+			dependencies: [
+				.product(name: "TreeSitter", package: "TreeSitter")
+			],
+			swiftSettings: settings
+		),
+		.target(
+			name: "SwiftTreeSitterLayer",
+			dependencies: ["SwiftTreeSitter"],
+			swiftSettings: settings
+		),
+	]
+)

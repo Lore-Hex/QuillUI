@@ -20,6 +20,71 @@ def fail(message: str) -> None:
     raise SystemExit(65)
 
 
+QUILLUI_PROVIDED_PRODUCTS = {
+    "ActivityIndicatorView",
+    "Alamofire",
+    "AppKit",
+    "ApplicationServices",
+    "AsyncAlgorithms",
+    "AVFoundation",
+    "AVKit",
+    "Carbon",
+    "Cocoa",
+    "Combine",
+    "CoreGraphics",
+    "CoreImage",
+    "CoreSpotlight",
+    "CoreText",
+    "CoreTransferable",
+    "CryptoKit",
+    "ExtensionFoundation",
+    "ExtensionKit",
+    "IOKit",
+    "KeyboardShortcuts",
+    "Magnet",
+    "MarkdownUI",
+    "Network",
+    "OllamaKit",
+    "OSLog",
+    "PDFKit",
+    "PhotosUI",
+    "QuickLook",
+    "QuickLookUI",
+    "QuillData",
+    "QuillFoundation",
+    "QuillKit",
+    "QuillShims",
+    "QuillUI",
+    "Security",
+    "ServiceManagement",
+    "Sparkle",
+    "Splash",
+    "SwiftData",
+    "SwiftUI",
+    "SwiftUIIntrospect",
+    "UIKit",
+    "UniformTypeIdentifiers",
+    "UserNotifications",
+    "Vortex",
+    "WebKit",
+    "WrappingHStack",
+}
+
+QUILLUI_PROVIDED_PACKAGE_IDENTITIES = {
+    "activityindicatorview",
+    "alamofire",
+    "keyboardshortcuts",
+    "magnet",
+    "ollamakit",
+    "sparkle",
+    "splash",
+    "swift-markdown-ui",
+    "swiftui-introspect",
+    "vortex",
+    "wrappinghstack",
+}
+
+
 def dump_package(package_root: Path) -> dict:
     try:
         output = subprocess.check_output(
@@ -50,6 +115,8 @@ def dependency_token(dependency: dict, known_targets: set[str]) -> tuple[str | N
         name, package = dependency["byName"][:2]
         if name in known_targets:
             return name, None
+        if name in QUILLUI_PROVIDED_PRODUCTS:
+            return None, None
         if package:
             return None, f"product:{name}:{package}"
         return None, name
@@ -58,8 +125,17 @@ def dependency_token(dependency: dict, known_targets: set[str]) -> tuple[str | N
         return name, None
     if "product" in dependency:
         name, package = dependency["product"][:2]
+        if name in QUILLUI_PROVIDED_PRODUCTS:
+            return None, None
         return None, f"product:{name}:{package}"
     return None, None
+
+
+def package_identity_from_url(url: str) -> str:
+    identity = url.split("?", 1)[0].split("#", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+    if identity.endswith(".git"):
+        identity = identity[:-4]
+    return identity.lower()
 
 
 def local_dependencies(target: dict, known_targets: set[str]) -> list[str]:
@@ -91,6 +167,8 @@ def package_dependency_line(dependency: dict) -> str | None:
         if not remotes:
             return None
         url = remotes[0]["urlString"]
+        if package_identity_from_url(url) in QUILLUI_PROVIDED_PACKAGE_IDENTITIES:
+            return None
         requirement = item.get("requirement") or {}
         if "range" in requirement:
             lower = requirement["range"][0]["lowerBound"]
@@ -191,6 +269,12 @@ def main() -> None:
 
     package_root = Path(args.package_root).resolve()
     source_dir = Path(args.source_dir).resolve()
+    manifest = package_root / "Package.swift"
+    if not manifest.is_file():
+        fail(f"package root does not contain Package.swift: {package_root}")
+    if not source_dir.is_dir():
+        fail(f"source dir was not found: {source_dir}")
+
     package = dump_package(package_root)
     targets = {target["name"]: target for target in package.get("targets", [])}
     known_targets = set(targets)

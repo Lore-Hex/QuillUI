@@ -1,0 +1,11 @@
+timeout-*
+slow-unit-*
+timeout-*
+slow-unit-*
+fuzz-*.log
+xcuserdata
+crash-*
+DerivedData
+.deriveddata
+.build
+.DS_Store
