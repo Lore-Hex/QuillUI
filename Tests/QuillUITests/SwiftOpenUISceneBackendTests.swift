@@ -49,6 +49,20 @@ struct SwiftOpenUISceneBackendTests {
         #expect(source.contains("func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> Self"))
     }
 
+    @Test("Group supports view scene and command content")
+    func groupSupportsViewSceneAndCommandContent() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Group.swift"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("public struct Group<Content>"))
+        #expect(source.contains("extension Group: View, PrimitiveView, MultiChildView, TransparentMultiChildView where Content: View"))
+        #expect(source.contains("extension Group: Scene where Content: Scene"))
+        #expect(source.contains("extension Group: Commands where Content: Commands"))
+    }
+
     @Test("Window lifecycle observers expose native handles to compatibility shims")
     func windowLifecycleObserversExposeNativeHandles() throws {
         let root = try packageRoot()
