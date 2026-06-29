@@ -441,6 +441,66 @@ if [[ "$RESOLVE" == "1" && "$DRY_RUN" != "1" ]]; then
     --scratch-path "$SCRATCH_PATH"
 fi
 
+sync_vendored_source_tree() {
+  local source="$1"
+  local destination="$2"
+  shift 2
+
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --delete-excluded "$@" "$source/" "$destination/"
+    return
+  fi
+
+  python3 - "$source" "$destination" "$@" <<'PY'
+import fnmatch
+import shutil
+import sys
+from pathlib import Path
+
+source = Path(sys.argv[1])
+destination = Path(sys.argv[2])
+raw_args = sys.argv[3:]
+patterns = []
+index = 0
+while index < len(raw_args):
+    if raw_args[index] == "--exclude" and index + 1 < len(raw_args):
+        patterns.append(raw_args[index + 1].rstrip("/"))
+        index += 2
+    else:
+        index += 1
+
+def ignored(path: Path) -> bool:
+    relative = path.relative_to(source)
+    rel = relative.as_posix()
+    name = path.name
+    for pattern in patterns:
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(rel, pattern):
+            return True
+        if any(fnmatch.fnmatch(part, pattern) for part in relative.parts):
+            return True
+    return False
+
+if destination.exists():
+    shutil.rmtree(destination)
+destination.parent.mkdir(parents=True, exist_ok=True)
+destination.mkdir(parents=True, exist_ok=True)
+
+for path in source.rglob("*"):
+    if ignored(path):
+        continue
+    relative = path.relative_to(source)
+    target = destination / relative
+    if path.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+    elif path.is_symlink():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.symlink_to(path.readlink())
+    elif path.is_file():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, target)
+PY
+}
+
 vendor_one() {
   local package="$1"
   local source="$SCRATCH_PATH/checkouts/$package"
@@ -565,9 +625,7 @@ vendor_one() {
   fi
 
   mkdir -p "$ROOT_DIR/third_party"
-  rsync -a --delete --delete-excluded \
-    "${rsync_excludes[@]}" \
-    "$source/" "$destination/"
+  sync_vendored_source_tree "$source" "$destination" "${rsync_excludes[@]}"
   if [[ -n "$metadata" ]]; then
     printf '%s\n' "$metadata" > "$metadata_file"
   fi

@@ -7,7 +7,7 @@ struct VendoredSourceIgnoreTests {
     func gitIgnoreHidesSlimVendoredTreeSitterCheckoutBulk() throws {
         let root = try packageRoot()
         let paths = [
-            "third_party/tree-sitter/.cargo",
+            "third_party/tree-sitter/.cargo/config.toml",
             "third_party/tree-sitter/.dockerignore",
             "third_party/tree-sitter/.editorconfig",
             "third_party/tree-sitter/.gitattributes",
@@ -19,14 +19,14 @@ struct VendoredSourceIgnoreTests {
             "third_party/tree-sitter/FUNDING.json",
             "third_party/tree-sitter/build.zig",
             "third_party/tree-sitter/build.zig.zon",
-            "third_party/tree-sitter/cli",
-            "third_party/tree-sitter/highlight",
-            "third_party/tree-sitter/lib/binding_rust",
-            "third_party/tree-sitter/lib/binding_web",
-            "third_party/tree-sitter/lib/language",
+            "third_party/tree-sitter/cli/src/main.rs",
+            "third_party/tree-sitter/highlight/src/lib.rs",
+            "third_party/tree-sitter/lib/binding_rust/lib.rs",
+            "third_party/tree-sitter/lib/binding_web/index.js",
+            "third_party/tree-sitter/lib/language/src/parser.c",
             "third_party/tree-sitter/rustfmt.toml",
-            "third_party/tree-sitter/tags",
-            "third_party/tree-sitter/xtask"
+            "third_party/tree-sitter/tags/index",
+            "third_party/tree-sitter/xtask/src/main.rs"
         ]
 
         let result = try run(

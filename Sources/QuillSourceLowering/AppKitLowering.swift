@@ -903,9 +903,6 @@ public struct HierarchyMap {
     func initOverrideShouldBeNonisolated(forClassNamed className: String) -> Bool {
         let simple = HierarchyMap.simpleName(className)
         guard let superName = superclassByClass[simple] else { return false }
-        if classesDeclaringAnyInit.contains(simple), !classesDeclaringNoArgInit.contains(simple) {
-            return false
-        }
         let simpleSuper = HierarchyMap.simpleName(superName)
         if simpleSuper == "NSObject" { return true }
         if HierarchyMap.mainActorInitRoots.contains(simpleSuper) { return false }

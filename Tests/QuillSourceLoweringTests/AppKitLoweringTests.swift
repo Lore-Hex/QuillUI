@@ -672,7 +672,7 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("nonisolated public override init(attributedString attrStr: NSAttributedString)"))
         #expect(lowered.contains("nonisolated public required init?(coder: NSCoder)"))
         #expect(lowered.contains("nonisolated open override var string: String"))
-        #expect(lowered.contains("nonisolated override open func replaceCharacters(in range: NSRange, with str: String)"))
+        #expect(lowered.contains("nonisolated open override func replaceCharacters(in range: NSRange, with str: String)"))
         #expect(lowered.contains("nonisolated open override func attributes(at location: Int, effectiveRange range: NSRangePointer?)"))
         #expect(lowered.contains("nonisolated open override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange)"))
         #expect(lowered.contains("nonisolated open override func edited(_ editedMask: NSTextStorage.EditActions, range editedRange: NSRange, changeInLength delta: Int)"))

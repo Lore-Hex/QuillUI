@@ -3637,8 +3637,7 @@ public extension TextField {
     }
 
     init(_ title: String, text: Binding<String>, prompt: Text, axis: Axis = .horizontal) {
-        _ = prompt
-        self.init(title, text: text, axis: axis)
+        self.init(prompt.content.isEmpty ? title : prompt.content, text: text, axis: axis)
     }
 }
 

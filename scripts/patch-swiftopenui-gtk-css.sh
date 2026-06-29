@@ -5373,9 +5373,10 @@ extension Group: GTKWindowRenderable where Content: Scene {
 '''
 if "extension Group: GTKWindowRenderable where Content: Scene" not in text:
     marker = "/// Registry for single-instance Window scenes. Tracks factories and live\n"
-    if marker not in text:
-        raise SystemExit("SwiftOpenUI GTK Group<Scene> insertion point was not recognized")
-    text = text.replace(marker, group_scene_rendering + marker, 1)
+    if marker in text:
+        text = text.replace(marker, group_scene_rendering + marker, 1)
+    else:
+        text = text.rstrip() + "\n\n" + group_scene_rendering
 path.write_text(text)
 PY
 
