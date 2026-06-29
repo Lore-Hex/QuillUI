@@ -1,2 +1,2 @@
 s/import QuillShims\n(?!import QuillUI)/import QuillShims\nimport QuillUI/;
-s~    var body: some View \{.*?\n    \}\n(?=\}\n\n(?:#Preview|#endif))~    var body: AnyView {\n        AnyView(QuillChatComposer(message: \$message, isLoading: conversationState == .loading, supportsImages: selectedModel?.supportsImages ?? false, selectedImage: \$selectedImage, onStop: { onStopGenerateTap() }, onSend: { sendMessage() }))\n    }\n~s;
+s~    var body: some View \{.*?\n\}\n\s*\z~    var body: AnyView {\n        AnyView(QuillChatComposer(message: \$message, isLoading: conversationState == .loading, supportsImages: selectedModel?.supportsImages ?? false, selectedImage: \$selectedImage, onStop: { onStopGenerateTap() }, onSend: { sendMessage() }))\n    }\n}\n~s;

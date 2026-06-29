@@ -82,15 +82,8 @@ jobs:
             zstd
           rm -rf /var/lib/apt/lists/*
 
-      - name: Restore upstream source cache
-        uses: ./.github/actions/upstream-cache
-        with:
-          cache-name: enchanted
-
-      - name: Fetch Enchanted upstream source
-        env:
-          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
-        run: scripts/fetch-upstream.sh enchanted
+      - name: Confirm vendored Enchanted source
+        run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md
 
       - name: Run strict Enchanted GTK mac-reference verifier
         run: |

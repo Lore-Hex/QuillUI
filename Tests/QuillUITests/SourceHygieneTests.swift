@@ -4231,6 +4231,55 @@ struct SourceHygieneTests {
         #expect(!FileManager.default.fileExists(atPath: inputFieldsTemplate.path))
     }
 
+    @Test("Enchanted composer rewrite replaces post-lowering split body")
+    func enchantedComposerRewriteReplacesPostLoweringSplitBody() throws {
+        let root = try packageRoot()
+        let rule = root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl")
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillui-input-fields-rule-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fixture = tempDir.appendingPathComponent("InputFields_macOS.swift")
+        try """
+        @preconcurrency import SwiftUI
+        import QuillShims
+        struct InputFieldsView: View {
+            @Binding var message: String
+            var conversationState: ConversationState
+            var onStopGenerateTap: @MainActor () -> Void
+            var selectedModel: LanguageModelSD?
+            @Binding private var selectedImage: Image?
+
+            var body: some View {
+                HStack {
+                    _quillSplitBody0Part0
+                }
+            }
+
+            @ViewBuilder
+            private var _quillSplitBody0Part0: some View {
+                Text("old composer")
+            }
+        }
+
+        """.write(to: fixture, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["perl", "-0pi", rule.path, fixture.path]
+        )
+        #expect(result.status == 0)
+
+        let rewritten = try String(contentsOf: fixture, encoding: .utf8)
+        #expect(rewritten.contains("import QuillShims\nimport QuillUI"))
+        #expect(rewritten.contains("var body: AnyView"))
+        #expect(rewritten.contains("QuillChatComposer("))
+        #expect(rewritten.contains("selectedImage: $selectedImage"))
+        #expect(!rewritten.contains("_quillSplitBody0Part0"))
+        #expect(!rewritten.contains("old composer"))
+    }
+
     @Test("Apple service aliases live in reusable compatibility modules")
     func appleServiceAliasesLiveInReusableCompatibilityModules() throws {
         let root = try packageRoot()
@@ -6872,6 +6921,10 @@ struct SourceHygieneTests {
         #expect(vendorSwiftUIAppSource.contains("append_package_resolved_files_from_source"))
         #expect(enchantedWorkflow.contains("--source-app enchanted"))
         #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))
+        #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
+        #expect(enchantedWorkflow.contains("scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md"))
+        #expect(!enchantedWorkflow.contains("Restore upstream source cache"))
+        #expect(!enchantedWorkflow.contains("scripts/fetch-upstream.sh enchanted"))
         #expect(!enchantedWorkflow.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
         #expect(!enchantedWorkflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
         #expect(!workflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
