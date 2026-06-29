@@ -1495,7 +1495,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
           else
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-490}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1521,7 +1521,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
             token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-640}"
           else
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-680}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-666}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
