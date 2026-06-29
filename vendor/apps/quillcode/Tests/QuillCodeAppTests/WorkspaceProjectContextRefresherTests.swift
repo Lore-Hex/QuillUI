@@ -1,0 +1,166 @@
+import XCTest
+import QuillCodeCore
+@testable import QuillCodeApp
+
+final class WorkspaceProjectContextRefresherTests: XCTestCase {
+    func testRefreshLocalProjectMetadataReloadsGlobalAndProjectContext() throws {
+        let projectRoot = try makeQuillCodeTestDirectory()
+        let globalMemoryDirectory = projectRoot.appendingPathComponent("global-memories")
+        let projectMemoryDirectory = projectRoot.appendingPathComponent(".quillcode/memories")
+        try FileManager.default.createDirectory(at: globalMemoryDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: projectMemoryDirectory, withIntermediateDirectories: true)
+        try "Prefer focused Swift tests.\n".write(
+            to: projectRoot.appendingPathComponent("AGENTS.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "Global preference.\n".write(
+            to: globalMemoryDirectory.appendingPathComponent("global.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "Project preference.\n".write(
+            to: projectMemoryDirectory.appendingPathComponent("project.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let projectID = UUID()
+        var projects = [
+            ProjectRef(id: projectID, name: "Project", path: projectRoot.path)
+        ]
+        let globalMemories = WorkspaceProjectContextRefresher.globalMemories(directory: globalMemoryDirectory)
+
+        WorkspaceProjectContextRefresher.refreshLocalProjectMetadata(
+            projectID: projectID,
+            projects: &projects
+        )
+
+        XCTAssertEqual(globalMemories.map(\.title), ["Global"])
+        XCTAssertEqual(projects.first?.instructions.map(\.path), ["AGENTS.md"])
+        XCTAssertEqual(projects.first?.memories.map(\.title), ["Project"])
+
+        let snapshot = WorkspaceProjectContextRefresher.threadContext(
+            projectID: projectID,
+            projects: projects,
+            globalMemories: globalMemories
+        )
+        XCTAssertEqual(snapshot.instructions.map(\.title), ["Project AGENTS.md"])
+        XCTAssertEqual(snapshot.memories.map(\.title), ["Global", "Project"])
+    }
+
+    func testThreadContextSyncUsesThreadProjectBeforeFallback() {
+        let fallbackProjectID = UUID()
+        let threadProjectID = UUID()
+        let projects = [
+            Self.project(id: fallbackProjectID, instructionTitle: "Fallback instruction", memoryTitle: "Fallback memory"),
+            Self.project(id: threadProjectID, instructionTitle: "Thread instruction", memoryTitle: "Thread memory")
+        ]
+        let globalMemories = [
+            Self.memory(id: "global", scope: .global, title: "Global memory")
+        ]
+        var thread = ChatThread(title: "Thread", projectID: threadProjectID)
+
+        WorkspaceProjectContextRefresher.syncThreadContext(
+            &thread,
+            fallbackProjectID: fallbackProjectID,
+            projects: projects,
+            globalMemories: globalMemories
+        )
+
+        XCTAssertEqual(thread.instructions.map(\.title), ["Thread instruction"])
+        XCTAssertEqual(thread.memories.map(\.title), ["Global memory", "Thread memory"])
+
+        WorkspaceProjectContextRefresher.syncThreadMemories(
+            &thread,
+            fallbackProjectID: fallbackProjectID,
+            projects: projects,
+            globalMemories: []
+        )
+        XCTAssertEqual(thread.instructions.map(\.title), ["Thread instruction"])
+        XCTAssertEqual(thread.memories.map(\.title), ["Thread memory"])
+    }
+
+    func testContextBuildersUseTheSameInstructionAndMemorySnapshot() {
+        let projectID = UUID()
+        let projects = [
+            Self.project(id: projectID, instructionTitle: "Project instruction", memoryTitle: "Project memory")
+        ]
+        let globalMemories = [
+            Self.memory(id: "global", scope: .global, title: "Global memory")
+        ]
+
+        let threadContext = WorkspaceProjectContextRefresher.threadCreationContext(
+            projectID: projectID,
+            mode: .auto,
+            model: TrustedRouterDefaults.fastModel,
+            projects: projects,
+            globalMemories: globalMemories
+        )
+        XCTAssertEqual(threadContext.projectID, projectID)
+        XCTAssertEqual(threadContext.mode, .auto)
+        XCTAssertEqual(threadContext.model, TrustedRouterDefaults.fastModel)
+        XCTAssertEqual(threadContext.instructions.map(\.title), ["Project instruction"])
+        XCTAssertEqual(threadContext.memories.map(\.title), ["Global memory", "Project memory"])
+
+        let request = WorkspaceWorktreeCreateRequest(path: "feature", branch: "feature/context")
+        let worktreeContext = WorkspaceProjectContextRefresher.worktreeOpenContext(
+            request: request,
+            projectID: projectID,
+            mode: .review,
+            model: TrustedRouterDefaults.synthModel,
+            projects: projects,
+            globalMemories: globalMemories
+        )
+        XCTAssertEqual(worktreeContext.path, request.path)
+        XCTAssertEqual(worktreeContext.branch, request.branch)
+        XCTAssertEqual(worktreeContext.projectID, projectID)
+        XCTAssertEqual(worktreeContext.mode, .review)
+        XCTAssertEqual(worktreeContext.model, TrustedRouterDefaults.synthModel)
+        XCTAssertEqual(worktreeContext.instructions.map(\.title), ["Project instruction"])
+        XCTAssertEqual(worktreeContext.memories.map(\.title), ["Global memory", "Project memory"])
+
+        let openContext = WorkspaceProjectContextRefresher.worktreeOpenContext(
+            request: WorkspaceWorktreeOpenRequest(path: "feature"),
+            projectID: projectID,
+            mode: .auto,
+            model: TrustedRouterDefaults.fastModel,
+            projects: projects,
+            globalMemories: globalMemories
+        )
+        XCTAssertEqual(openContext.path, "feature")
+        XCTAssertEqual(openContext.branch, "")
+        XCTAssertEqual(openContext.instructions.map(\.title), ["Project instruction"])
+        XCTAssertEqual(openContext.memories.map(\.title), ["Global memory", "Project memory"])
+    }
+
+    private static func project(id: UUID, instructionTitle: String, memoryTitle: String) -> ProjectRef {
+        ProjectRef(
+            id: id,
+            name: instructionTitle,
+            path: "/tmp/\(id.uuidString)",
+            instructions: [
+                ProjectInstruction(
+                    path: "\(instructionTitle).md",
+                    title: instructionTitle,
+                    content: instructionTitle,
+                    byteCount: instructionTitle.utf8.count
+                )
+            ],
+            memories: [
+                memory(id: memoryTitle, scope: .project, title: memoryTitle)
+            ]
+        )
+    }
+
+    private static func memory(id: String, scope: MemoryScope, title: String) -> MemoryNote {
+        MemoryNote(
+            id: id,
+            scope: scope,
+            title: title,
+            content: title,
+            relativePath: "\(scope.rawValue)/\(id).md",
+            byteCount: title.utf8.count
+        )
+    }
+}

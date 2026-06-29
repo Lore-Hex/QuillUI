@@ -27,6 +27,54 @@ quillui_has_vendored_app_source() {
     quillui_vendored_app_source_dir "$root_dir" "$name" >/dev/null
 }
 
+quillui_upstream_app_source_dir() {
+    local root_dir="$1"
+    local name="$2"
+    local source_dir="$root_dir/.upstream/$name"
+
+    if [[ -d "$source_dir" ]]; then
+        printf '%s\n' "$source_dir"
+        return 0
+    fi
+
+    return 1
+}
+
+quillui_resolve_app_checkout_dir() {
+    local root_dir="$1"
+    local name="$2"
+    local source_dir
+
+    if ! quillui_vendored_source_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
+        if source_dir="$(quillui_vendored_app_source_dir "$root_dir" "$name")"; then
+            printf '%s\n' "$source_dir"
+            return 0
+        fi
+    fi
+
+    if source_dir="$(quillui_upstream_app_source_dir "$root_dir" "$name")"; then
+        printf '%s\n' "$source_dir"
+        return 0
+    fi
+
+    quillui_vendored_app_source_dir "$root_dir" "$name"
+}
+
+quillui_resolve_app_source_dir() {
+    local root_dir="$1"
+    local name="$2"
+    local subdir="${3:-}"
+    local checkout_dir
+
+    checkout_dir="$(quillui_resolve_app_checkout_dir "$root_dir" "$name")" || return 1
+    if [[ -n "$subdir" ]]; then
+        printf '%s/%s\n' "$checkout_dir" "$subdir"
+        return 0
+    fi
+
+    printf '%s\n' "$checkout_dir"
+}
+
 quillui_materialize_vendored_app_source() {
     local root_dir="$1"
     local name="$2"
@@ -47,8 +95,14 @@ quillui_materialize_vendored_app_source() {
             ;;
     esac
 
-    echo "==> using vendored $name source at vendor/apps/$name"
-    rm -rf "$dest"
     mkdir -p "$(dirname "$dest")"
-    cp -a "$source_dir" "$dest"
+    if command -v rsync >/dev/null 2>&1; then
+        echo "==> syncing vendored $name source from vendor/apps/$name"
+        mkdir -p "$dest"
+        rsync -a --delete "$source_dir"/ "$dest"/
+    else
+        echo "==> using vendored $name source at vendor/apps/$name"
+        rm -rf "$dest"
+        cp -a "$source_dir" "$dest"
+    fi
 }

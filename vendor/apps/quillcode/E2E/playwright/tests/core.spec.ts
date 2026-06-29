@@ -1,0 +1,125 @@
+import { test, expect } from '@playwright/test';
+import {
+  elementRect,
+  harnessURL,
+  openSidebarTools,
+  openTopBarOverflow
+} from './harness-helpers';
+
+test('mock harness executes simple command flow', async ({ page }) => {
+  await page.goto(harnessURL());
+  await expect(page.getByTestId('workspace')).toBeVisible();
+  await expect(page.getByTestId('top-bar')).toBeVisible();
+  await expect(page.getByTestId('sidebar')).toBeVisible();
+  await expect(page.getByTestId('project-item')).toContainText('QuillCode');
+  await expect(page.getByTestId('project-item')).toHaveAttribute('aria-current', 'true');
+  await expect(page.getByTestId('transcript-empty')).toBeVisible();
+  await expect(page.locator('[data-testid="top-bar"] [data-testid="model-picker-button"]')).toHaveCount(0);
+  await expect(page.getByTestId('composer-surface')).toBeVisible();
+  await expect(page.getByTestId('composer-controls')).toBeVisible();
+  await expect(page.locator('[data-testid="composer"] [data-testid="model-picker-button"]')).toBeVisible();
+  await expect(page.getByTestId('model-picker-button')).toHaveText('Nike 1.0');
+  await expect(page.getByTestId('model-picker-button')).not.toContainText('Auto');
+  await expect(page.getByTestId('mode-picker-button')).toBeVisible();
+  await expect(page.getByTestId('mode-picker-button')).not.toContainText('Mode');
+  await expect(page.getByTestId('mode-pill')).toHaveText('Auto');
+  await expect(page.locator('[data-testid="mode-picker-button"] .mode-dot')).toHaveCount(1);
+  await expect(page.getByTestId('composer-agent-status')).toHaveCount(0);
+  const modelButtonBounds = await elementRect(page, '[data-testid="model-picker-button"]');
+  const modeButtonBounds = await elementRect(page, '[data-testid="mode-picker-button"]');
+  expect(modeButtonBounds.left - modelButtonBounds.right).toBeGreaterThanOrEqual(8);
+  await page.getByTestId('model-picker-button').click();
+  await expect(page.getByTestId('model-category')).toHaveCount(2);
+  await page.getByTestId('model-picker-button').click();
+  await expect(page.getByTestId('send-button')).toBeDisabled();
+
+  await expect(page.getByTestId('new-chat-button')).toBeVisible();
+  await expect(page.getByTestId('sidebar-search-button')).toBeVisible();
+  await expect(page.getByTestId('extensions-button')).toBeVisible();
+  await expect(page.getByTestId('automations-button')).toBeVisible();
+  await openSidebarTools(page);
+  await expect(page.getByTestId('sidebar-tools-section-title')).toHaveText([
+    'Navigate',
+    'Workspace',
+    'Context'
+  ]);
+  await expect(page.locator('[data-testid="sidebar-tools-section"][data-command-group="navigate"]')).toContainText('Command palette');
+  await expect(page.locator('[data-testid="sidebar-tools-section"][data-command-group="workspace"]')).toContainText('Terminal');
+  await page.getByTestId('sidebar-tools-button').click();
+  await expect(page.getByTestId('sidebar-tools-menu')).not.toHaveAttribute('open', '');
+
+  await openTopBarOverflow(page);
+  await expect(page.getByTestId('top-bar-overflow-command-palette')).toBeVisible();
+  await expect(page.getByTestId('top-bar-overflow-search')).toBeVisible();
+  await expect(page.getByTestId('top-bar-overflow-computer-use')).toBeVisible();
+  await expect(page.getByTestId('top-bar-overflow-settings')).toBeVisible();
+  await expect(page.getByTestId('top-bar-overflow-keyboard-shortcuts')).toBeVisible();
+  await expect(page.getByTestId('top-bar-overflow-stop-all')).toHaveCount(0);
+  await expect(page.getByTestId('top-bar-stop-button')).toHaveCount(0);
+  await page.getByTestId('top-bar-overflow-settings').click();
+  await expect(page.getByTestId('settings-panel')).toBeVisible();
+  await expect(page.getByTestId('settings-key-status')).toHaveText('Not signed in');
+  await page.getByTestId('settings-sign-in').click();
+  await expect(page.getByTestId('last-opened-url')).toHaveText('http://localhost:3000/callback');
+  await page.getByLabel('TrustedRouter API base URL').fill('https://api.trustedrouter.test/v1');
+  await page.getByLabel('Authentication').selectOption('developer-override');
+  await page.getByLabel('Replace API key').fill('sk-tr-v1-test');
+  await page.getByTestId('settings-save').click();
+  await expect(page.getByTestId('settings-panel')).toBeHidden();
+  await expect(page.getByTestId('agent-status')).toHaveText('TrustedRouter ready');
+
+  await page.getByTestId('model-picker-button').click();
+  await page.getByTestId('model-search').fill('glm');
+  await page.getByTestId('model-option').click();
+  await expect(page.getByTestId('model-picker-button')).toHaveText('z-ai/GLM 5.2');
+  await expect(page.getByTestId('mode-pill')).toHaveText('Auto');
+
+  await page.getByLabel('Message').fill('run whoami');
+  await expect(page.getByTestId('send-button')).toBeEnabled();
+  await page.getByRole('button', { name: 'Send' }).click();
+
+  await expect(page.getByTestId('sidebar-item')).toContainText('run whoami');
+  await expect(page.getByTestId('sidebar-item')).toContainText('z-ai/GLM 5.2');
+  await expect(page.getByTestId('top-bar-title')).toHaveText('run whoami');
+  await expect(page.getByTestId('top-bar-subtitle')).toContainText('QuillCode - Auto');
+  await expect(page.getByTestId('tool-card-title')).toHaveText('host.shell.run');
+  await expect(page.getByTestId('tool-card')).toHaveAttribute('data-status', 'done');
+  await expect(page.getByTestId('tool-card-subtitle')).toHaveText('Completed · whoami');
+  await expect(page.getByTestId('tool-card')).toHaveAttribute('data-density', 'collapsed');
+  await expect(page.getByTestId('tool-card-input')).toContainText('whoami');
+  await expect(page.getByTestId('tool-card-output')).toContainText('mock-user');
+  await expect(page.getByTestId('tool-card-details')).not.toHaveAttribute('open', '');
+  await expect(page.getByTestId('tool-card-details')).toContainText('Show details');
+  await expect(page.getByText('You are `mock-user` in this workspace.')).toBeVisible();
+  await expect(page.getByTestId('message-copy').first()).toHaveText('Copy');
+  await page.getByTestId('message-copy').first().click();
+  await expect(page.getByTestId('message-copy').first()).toHaveText('Copied');
+  await expect(page.getByTestId('message-copy').first()).toHaveAttribute('data-copied', 'true');
+  await expect(page.getByTestId('tool-card-copy')).toHaveText('Copy output');
+  await page.getByTestId('tool-card-copy').click();
+  await expect(page.getByTestId('tool-card-copy')).toHaveText('Copied');
+  await expect(page.getByTestId('tool-card-copy')).toHaveAttribute('data-copied', 'true');
+  await expect(page.getByTestId('message-use-as-draft')).toHaveCount(1);
+  await page.getByTestId('message-use-as-draft').click();
+  await expect(page.getByLabel('Message')).toHaveValue('run whoami');
+  await expect(page.getByTestId('send-button')).toBeEnabled();
+  await expect(page.getByTestId('message-feedback-up')).toHaveCount(1);
+  await expect(page.getByTestId('message-feedback-down')).toHaveCount(1);
+  await page.getByTestId('message-feedback-up').click();
+  await expect(page.getByTestId('message-feedback-up')).toHaveAttribute('data-selected', 'true');
+  await expect(page.getByTestId('message-feedback-down')).toHaveAttribute('data-selected', 'false');
+  await page.getByTestId('message-feedback-down').click();
+  await expect(page.getByTestId('message-feedback-up')).toHaveAttribute('data-selected', 'false');
+  await expect(page.getByTestId('message-feedback-down')).toHaveAttribute('data-selected', 'true');
+
+  const transcriptItems = page.locator('[data-testid="message"], [data-testid="tool-card"]');
+  await expect(transcriptItems.nth(0)).toContainText('run whoami');
+  await expect(transcriptItems.nth(1)).toContainText('host.shell.run');
+  await expect(transcriptItems.nth(2)).toContainText('You are `mock-user` in this workspace.');
+  await expect(page.getByTestId('message-retry')).toHaveCount(1);
+  await page.getByTestId('message-retry').click();
+  await expect(page.getByTestId('tool-card')).toHaveCount(2);
+  await expect(page.getByTestId('message').filter({ hasText: 'You are `mock-user` in this workspace.' })).toHaveCount(2);
+  await expect(page.getByTestId('message-retry')).toHaveCount(1);
+  await expect(page.getByTestId('message-use-as-draft')).toHaveCount(2);
+});
