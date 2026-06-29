@@ -78,6 +78,7 @@ def main() -> int:
     for relative in [
         "scripts/quillui-source-cache-key.py",
         "scripts/profiles/generic-swiftui.sh",
+        "scripts/swiftpm-profile-lowered-source-cache.sh",
         "scripts/run-quill-source-lower.sh",
         "scripts/lower-swiftui-source-for-linux.sh",
         "scripts/lower-observable-for-swiftopenui.py",
