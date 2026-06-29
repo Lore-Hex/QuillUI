@@ -10,6 +10,7 @@ PRODUCT_NAME="${QUILLUI_ENCHANTED_PRODUCT_NAME:-${QUILLUI_QUILL_CHAT_PRODUCT_NAM
 BACKEND_FACADE="${QUILLUI_ENCHANTED_BACKEND_FACADE:-${QUILLUI_QUILL_CHAT_BACKEND_FACADE:-${QUILLUI_APP_BACKEND_FACADE:-}}}"
 RUN_ARGS=()
 BACKEND_FACADE_ARGS=()
+SOURCE_ARGS=()
 
 usage() {
   cat <<MSG
@@ -79,9 +80,15 @@ if [[ -n "$BACKEND_FACADE" ]]; then
   BACKEND_FACADE_ARGS=(--backend-facade "$BACKEND_FACADE")
 fi
 
+if [[ -z "${QUILLUI_APP_SOURCE_DIR:-}" && -z "${ENCHANTED_SOURCE_DIR:-}" && -z "${QUILL_CHAT_DIR:-}" ]]; then
+  SOURCE_ARGS=(--source-app enchanted --source-subdir Enchanted)
+else
+  SOURCE_ARGS=(--source-dir "$APP_DIR")
+fi
+
 "$ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
   --profile enchanted-full-source \
-  --source-dir "$APP_DIR" \
+  "${SOURCE_ARGS[@]}" \
   --app-type EnchantedApp \
   --product-name "$PRODUCT_NAME" \
   --workdir "$WORK_ROOT" \

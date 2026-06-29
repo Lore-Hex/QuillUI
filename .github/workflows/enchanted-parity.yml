@@ -57,7 +57,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --fix-missing \
             ca-certificates \
             dbus-x11 \
             fontconfig \
@@ -66,6 +66,8 @@ jobs:
             fonts-noto-core \
             git \
             imagemagick \
+            libc++-dev \
+            libc++abi-dev \
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \
@@ -101,11 +103,10 @@ jobs:
       - name: Package real-source GTK release artifact
         shell: bash
         run: |
-          source scripts/quillui-enchanted-source.sh
-          ENCHANTED_APP_DIR="$(quillui_resolve_enchanted_source_dir "$PWD")"
           scripts/package-swiftui-linux-app.sh \
             --profile enchanted-full-source \
-            --source-dir "$ENCHANTED_APP_DIR" \
+            --source-app enchanted \
+            --source-subdir Enchanted \
             --app-type EnchantedApp \
             --product-name quill-chat-linux \
             --workdir .build/quill-chat-linux-gtk \

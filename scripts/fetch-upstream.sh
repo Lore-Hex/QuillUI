@@ -2974,11 +2974,7 @@ fi
 for name in "${want[@]}"; do
     case "$name" in
         enchanted)
-            if quillui_has_vendored_app_source "$ROOT_DIR" enchanted && ! quillui_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
-                echo "==> using vendored enchanted source at vendor/apps/enchanted"
-            else
-                fetch_repo enchanted https://github.com/gluonfield/enchanted.git
-            fi
+            fetch_repo enchanted https://github.com/gluonfield/enchanted.git
             ;;
         netnewswire)
             fetch_repo netnewswire https://github.com/Ranchero-Software/NetNewsWire.git

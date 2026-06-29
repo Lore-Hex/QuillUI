@@ -328,7 +328,8 @@ AppStream metainfo, and an optional tarball:
 ```bash
 scripts/package-swiftui-linux-app.sh \
   --profile enchanted-full-source \
-  --source-dir /path/to/Enchanted \
+  --source-app enchanted \
+  --source-subdir Enchanted \
   --app-type EnchantedApp \
   --product-name quill-chat-linux \
   --artifact-dir .build/releases/quill-chat-linux-gtk \
