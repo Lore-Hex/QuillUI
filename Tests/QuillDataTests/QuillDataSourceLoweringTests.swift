@@ -682,6 +682,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_settings_click_y)}\""))
         #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}\""))
         #expect(interactionScript.contains("endpoint_y=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}\""))
+        #expect(interactionScript.contains("type_text \"${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}\""))
         #expect(interactionScript.contains("token_x=\"${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}\""))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-680}\""))
         #expect(interactionScript.contains("ping_x=\"${QUILLUI_BACKEND_PING_CLICK_X:-1000}\""))

@@ -1507,7 +1507,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         click_at "$endpoint_x" "$endpoint_y"
         sleep 1
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434}"
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+        sleep 0.2
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}"
         sleep 1
         ;;
       settings-bearer-token-typed)
