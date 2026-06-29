@@ -4203,8 +4203,11 @@ struct SourceHygieneTests {
         let inputFieldsTemplate = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/Components/InputFields_macOS.swift")
 
         #expect(inputFieldsRule.contains("import QuillUI"))
+        #expect(inputFieldsRule.contains("var body: AnyView"))
         #expect(inputFieldsRule.contains("QuillChatComposer("))
         #expect(inputFieldsRule.contains("selectedImage: \\$selectedImage"))
+        #expect(inputFieldsRule.contains("onStop: { onStopGenerateTap() }"))
+        #expect(inputFieldsRule.contains("onSend: { sendMessage() }"))
         #expect(!profileLowering.contains("QuillChatComposer("))
         #expect(controls.contains("public struct QuillChatComposer: View"))
         #expect(controls.contains("@Binding public var selectedImage: Image?"))
