@@ -64,6 +64,21 @@ struct SwiftOpenUISceneBackendTests {
         #expect(source.contains("public static func notifyWindowClosed"))
     }
 
+    @Test("Generated app smoke script falls back to root screenshots")
+    func generatedAppSmokeScriptFallsBackToRootScreenshots() throws {
+        let root = try packageRoot()
+        let source = try String(
+            contentsOf: root.appendingPathComponent("scripts/linux-generated-swiftui-app-smoke.sh"),
+            encoding: .utf8
+        )
+
+        #expect(source.contains("xdotool search --onlyvisible --pid \"$app_pid\""))
+        #expect(source.contains("xdotool search --onlyvisible --name \".*\""))
+        #expect(source.contains("import -window root \"$SCREENSHOT_PATH\""))
+        #expect(source.contains("Generated app smoke ok: $APP_LABEL"))
+        #expect(source.contains("QUILLUI_GTK_DEBUG_ACTIONS=1 enables GTK scene diagnostics"))
+    }
+
     private func packageRoot() throws -> URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 {
