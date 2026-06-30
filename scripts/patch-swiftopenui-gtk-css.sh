@@ -3067,12 +3067,14 @@ private func gtkFocusSheetEditable(
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
     guard gtk_swift_is_widget(widget) != 0 else { return }
     gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
     gtk_widget_set_focusable(widget, 1)
     let grabbed = gtk_swift_root_grab_focus(widget)
     gtkDebugLog("sheet focus widget grab=\\(grabbed) target=\\(gtkButtonDebugSource("editable", widget: widget))")
     if let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
         let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
         gtk_widget_set_can_target(delegateWidget, 1)
+        gtk_widget_set_can_focus(delegateWidget, 1)
         gtk_widget_set_focusable(delegateWidget, 1)
         _ = gtk_swift_root_grab_focus(delegateWidget)
         gtkScheduleSheetEditableFocus(delegateWidget)
@@ -3090,6 +3092,7 @@ private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWid
         defer { g_object_unref(gpointer(target.widget)) }
         guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
         gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
         gtk_widget_set_focusable(target.widget, 1)
         let grabbed = gtk_swift_root_grab_focus(target.widget)
         gtkDebugLog("sheet focus idle grab=\\(grabbed) target=\\(gtkButtonDebugSource("editable", widget: target.widget))")
