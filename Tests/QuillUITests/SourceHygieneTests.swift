@@ -4551,6 +4551,7 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("restore-keys:"))
         #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
         #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
+        #expect(loweredSourceCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
         #expect(loweredSourceCacheAction.contains("quillui-${{ runner.os }}-lowered-source-${{ inputs.cache-name }}-"))
         #expect(loweredSourceCacheAction.contains("scripts/quillui-source-cache-key.py"))
         #expect(loweredSourceCacheAction.contains("scripts/swiftpm-profile-lowered-source-cache.sh"))

@@ -14,7 +14,7 @@ runs:
       shell: bash
       run: |
         digest="$(
-          git ls-files -s \
+          git -c 'safe.directory=*' ls-files -s \
             .github/actions/lowered-source-cache/action.yml \
             scripts/quillui-source-cache-key.py \
             scripts/profiles/generic-swiftui.sh \
