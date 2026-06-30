@@ -130,6 +130,12 @@ intentionally refreshing the vendored app tree from the same source snapshot.
 If `vendor/apps/<name>/QUILLUI_VENDOR.md` already exists, the helper preserves
 that note across refreshes so app-specific upstream commit and license metadata
 do not get replaced by generic local cache details.
+When `scripts/fetch-upstream.sh` materializes a vendored app into `.upstream`,
+the shared source helper writes `.quillui-materialized-vendor-source-fingerprint`
+next to the copied checkout. Repeated fetches skip the `rsync --delete` copy when
+that stamp still matches the vendored source fingerprint, which keeps patched
+disposable checkouts such as SolderScope fast while still refreshing when the
+vendored source changes.
 
 Profiles are plugin-style shell entry points. The builder passes them a stable
 environment contract:

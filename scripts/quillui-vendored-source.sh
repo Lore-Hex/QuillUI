@@ -110,12 +110,16 @@ quillui_materialize_vendored_app_source() {
     local name="$2"
     local dest="$3"
     local source_dir
+    local source_fingerprint_file
+    local materialized_fingerprint_file
 
     if quillui_vendored_source_truthy "${QUILLUI_REFRESH_VENDORED_SOURCE:-0}"; then
         return 1
     fi
 
     source_dir="$(quillui_vendored_app_source_dir "$root_dir" "$name")" || return 1
+    source_fingerprint_file="$source_dir/.quillui-vendor-source-fingerprint"
+    materialized_fingerprint_file="$dest/.quillui-materialized-vendor-source-fingerprint"
 
     case "$dest" in
         "$root_dir/.upstream"/*) ;;
@@ -125,7 +129,21 @@ quillui_materialize_vendored_app_source() {
             ;;
     esac
 
+    if [[ -d "$dest" \
+        && -f "$source_fingerprint_file" \
+        && -f "$materialized_fingerprint_file" ]] \
+        && cmp -s "$source_fingerprint_file" "$materialized_fingerprint_file"; then
+        echo "==> reused materialized vendored $name source at .upstream/$name"
+        return 0
+    fi
+
     mkdir -p "$(dirname "$dest")"
+    if [[ -d "$dest" \
+        && -f "$source_fingerprint_file" \
+        && -f "$materialized_fingerprint_file" ]]; then
+        echo "==> refreshing materialized vendored $name source at .upstream/$name"
+        rm -rf "$dest"
+    fi
     if command -v rsync >/dev/null 2>&1; then
         echo "==> syncing vendored $name source from vendor/apps/$name"
         mkdir -p "$dest"
@@ -134,5 +152,8 @@ quillui_materialize_vendored_app_source() {
         echo "==> using vendored $name source at vendor/apps/$name"
         rm -rf "$dest"
         cp -a "$source_dir" "$dest"
+    fi
+    if [[ -f "$source_fingerprint_file" ]]; then
+        cp "$source_fingerprint_file" "$materialized_fingerprint_file"
     fi
 }

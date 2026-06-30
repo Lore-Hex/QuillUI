@@ -1551,6 +1551,61 @@ struct SourceHygieneTests {
         #expect(materializeResult.output.contains("vendored demo source"))
         #expect(materializeResult.output.contains("vendor/apps/demo"))
         #expect(fileManager.fileExists(atPath: destination.appendingPathComponent("App/Demo.swift").path))
+        #expect(fileManager.fileExists(atPath: destination.appendingPathComponent(".quillui-materialized-vendor-source-fingerprint").path))
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "patched"
+        }
+        """.write(to: destination.appendingPathComponent("App/Demo.swift"), atomically: true, encoding: .utf8)
+
+        let reusedMaterializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$2\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+                destination.path,
+            ]
+        )
+        #expect(reusedMaterializeResult.status == 0, Comment(rawValue: reusedMaterializeResult.output))
+        #expect(reusedMaterializeResult.output.contains("reused materialized vendored demo source"))
+        let reusedDestinationSource = try String(contentsOf: destination.appendingPathComponent("App/Demo.swift"), encoding: .utf8)
+        #expect(reusedDestinationSource.contains("\"patched\""))
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "updated"
+        }
+        """.write(to: sourceDir.appendingPathComponent("Demo.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:fedcba0987654321
+        """.write(
+            to: sourceDir.deletingLastPathComponent().appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let refreshedMaterializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$2\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+                destination.path,
+            ]
+        )
+        #expect(refreshedMaterializeResult.status == 0, Comment(rawValue: refreshedMaterializeResult.output))
+        #expect(refreshedMaterializeResult.output.contains("refreshing materialized vendored demo source"))
+        #expect(refreshedMaterializeResult.output.contains("vendored demo source"))
+        let refreshedDestinationSource = try String(contentsOf: destination.appendingPathComponent("App/Demo.swift"), encoding: .utf8)
+        #expect(refreshedDestinationSource.contains("\"updated\""))
 
         let resolveRefreshResult = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
@@ -6914,6 +6969,10 @@ struct SourceHygieneTests {
         #expect(vendoredSource.contains("vendor/apps/$name"))
         #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
         #expect(vendoredSource.contains("refusing to materialize vendored $name outside .upstream"))
+        #expect(vendoredSource.contains(".quillui-materialized-vendor-source-fingerprint"))
+        #expect(vendoredSource.contains("cmp -s"))
+        #expect(vendoredSource.contains("reused materialized vendored $name source"))
+        #expect(vendoredSource.contains("refreshing materialized vendored $name source"))
         #expect(vendoredSource.contains("rsync -a --delete"))
         #expect(vendoredSource.contains("syncing vendored $name source"))
         #expect(vendorAppSource.contains("QUILLUI_VENDOR.md"))
