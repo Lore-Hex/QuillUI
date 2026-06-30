@@ -14,15 +14,16 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+source "$ROOT_DIR/scripts/swiftpm-profile-lowered-source-cache.sh"
 
 UPSTREAM_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
 WORK_ROOT="${QUILLUI_GENERATED_APP_WORKDIR:-${QUILLUI_GENERATED_ENCHANTED_FULL_WORKDIR:-$ROOT_DIR/.build/generated-enchanted-full-source-check}}"
-SOURCE_COPY="$WORK_ROOT/source/Enchanted"
-LOWERED_COPY="$WORK_ROOT/lowered/Enchanted"
 PACKAGE_DIR="$WORK_ROOT/package"
 MODE="${QUILLUI_GENERATED_APP_MODE:-${QUILLUI_GENERATED_ENCHANTED_MODE:-check}}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-EnchantedApp}"
 APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
+LOWERED_SOURCE_CACHE_DIR="${QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR:-$ROOT_DIR/.build/quillui-lowered-source-cache}"
+REUSE_LOWERED_SOURCE="${QUILLUI_PROFILE_REUSE_LOWERED_SOURCE:-1}"
 
 case "$MODE" in
   check)
@@ -64,12 +65,16 @@ if [[ ! -d "$UPSTREAM_DIR" ]]; then
   exit 66
 fi
 
-rm -rf "$WORK_ROOT"
-mkdir -p "$SOURCE_COPY"
-cp -R "$UPSTREAM_DIR"/. "$SOURCE_COPY"/
-
-"$ROOT_DIR/scripts/run-quill-source-lower.sh" "$SOURCE_COPY" "$LOWERED_COPY"
-"$ROOT_DIR/scripts/lower-swiftui-source-for-linux.sh" "$LOWERED_COPY"
+mkdir -p "$WORK_ROOT"
+rm -rf "$PACKAGE_DIR"
+quillui_profile_prepare_lowered_source \
+  "$ROOT_DIR" \
+  "$UPSTREAM_DIR" \
+  "$WORK_ROOT" \
+  "$LOWERED_SOURCE_CACHE_DIR" \
+  "$REUSE_LOWERED_SOURCE"
+SOURCE_COPY="$QUILLUI_PROFILE_SOURCE_COPY"
+LOWERED_COPY="$QUILLUI_PROFILE_LOWERED_COPY"
 
 "$ROOT_DIR/scripts/profiles/enchanted-full-source/lower-profile-source.sh" "$LOWERED_COPY"
 
