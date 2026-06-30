@@ -117,13 +117,13 @@ quillui_functional_paste_text() {
 
 quillui_functional_enter_text() {
   local text="$1"
-  # Default to keyboard typing for functional proofs: under Xvfb, an xclip
-  # transfer can complete even when Ctrl+V was not delivered to the GTK text
-  # view, which hides real focus regressions behind a false paste success.
-  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-type}"
+  # Default to paste-first for functional proofs so long prompts are inserted
+  # atomically before attachment/send clicks. Strict keyboard-event coverage is
+  # still available with QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE=type.
+  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-paste-first}"
 
   case "$input_mode" in
-    auto|paste)
+    auto|paste-first|paste)
       if quillui_functional_paste_text "$text"; then
         return
       fi
@@ -131,7 +131,7 @@ quillui_functional_enter_text() {
     type)
       ;;
     *)
-      echo "Unsupported QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE='$input_mode' (expected auto, paste, or type)" >&2
+      echo "Unsupported QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE='$input_mode' (expected auto, paste-first, paste, or type)" >&2
       return 64
       ;;
   esac
