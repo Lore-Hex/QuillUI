@@ -116,6 +116,11 @@ jobs:
         with:
           cache-name: default
 
+      - name: Restore lowered source cache
+        uses: ./.github/actions/lowered-source-cache
+        with:
+          cache-name: default
+
       - name: Fetch upstream sources
         env:
           QUILLUI_TRUST_UPSTREAM_CACHE: "1"

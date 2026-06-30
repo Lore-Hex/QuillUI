@@ -4528,6 +4528,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent(".github/actions/upstream-cache/action.yml"),
             encoding: .utf8
         )
+        let loweredSourceCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/lowered-source-cache/action.yml"),
+            encoding: .utf8
+        )
         let upstreamFetch = try String(
             contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
             encoding: .utf8
@@ -4536,6 +4540,7 @@ struct SourceHygieneTests {
         #expect(workflows.contains("uses: actions/checkout@v5"))
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
         #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
+        #expect(workflows.contains("uses: ./.github/actions/lowered-source-cache"))
         #expect(workflows.contains("QUILLUI_TRUST_UPSTREAM_CACHE: \"1\""))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
@@ -4544,6 +4549,14 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("path: .upstream"))
         #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
         #expect(upstreamCacheAction.contains("restore-keys:"))
+        #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
+        #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
+        #expect(loweredSourceCacheAction.contains("quillui-${{ runner.os }}-lowered-source-${{ inputs.cache-name }}-"))
+        #expect(loweredSourceCacheAction.contains("scripts/quillui-source-cache-key.py"))
+        #expect(loweredSourceCacheAction.contains("scripts/swiftpm-profile-lowered-source-cache.sh"))
+        #expect(loweredSourceCacheAction.contains("Sources/QuillSourceLowering"))
+        #expect(loweredSourceCacheAction.contains("vendor/apps"))
+        #expect(loweredSourceCacheAction.contains("restore-keys:"))
         #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
         #expect(upstreamFetch.contains("using cached $name"))
         #expect(upstreamFetch.contains("reset_repo_to_commit"))
@@ -6928,6 +6941,8 @@ struct SourceHygieneTests {
         #expect(enchantedWorkflow.contains("--source-app enchanted"))
         #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))
         #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
+        #expect(enchantedWorkflow.contains("Restore lowered source cache"))
+        #expect(enchantedWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
         #expect(enchantedWorkflow.contains("scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md"))
         #expect(!enchantedWorkflow.contains("Restore upstream source cache"))
         #expect(!enchantedWorkflow.contains("scripts/fetch-upstream.sh enchanted"))
