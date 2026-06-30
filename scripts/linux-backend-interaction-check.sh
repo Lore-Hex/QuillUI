@@ -1492,10 +1492,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_y="$(quill_chat_settings_click_y)"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-459}"
           else
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-490}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-459}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1518,10 +1518,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_y="$(quill_chat_settings_click_y)"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-640}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-624}"
           else
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-666}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-624}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1543,9 +1543,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
-            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-706}"
+            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-644}"
           else
-            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-684}"
+            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-644}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1567,7 +1567,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_x="$(quill_chat_settings_click_x)"
           settings_y="$(quill_chat_settings_click_y)"
           model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}"
-          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-772}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-598}"
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
