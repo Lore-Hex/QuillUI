@@ -665,7 +665,55 @@ run_list_selection_or_header_interaction() {
 }
 
 type_text() {
-  DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
+  local text="$1"
+  local method="${QUILLUI_BACKEND_TYPE_METHOD:-paste-first}"
+
+  case "$method" in
+    paste)
+      paste_text "$text"
+      ;;
+    type)
+      DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$text"
+      ;;
+    paste-first|*)
+      paste_text "$text" || DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$text"
+      ;;
+  esac
+}
+
+paste_text() {
+  local text="$1"
+  local clipboard_pid
+  local paste_settle_sleep="${QUILLUI_BACKEND_PASTE_SETTLE_SLEEP:-0.2}"
+  local paste_cleanup_deadline
+
+  command -v xclip >/dev/null 2>&1 || return 1
+
+  printf '%s' "$text" \
+    | DISPLAY="$DISPLAY_ID" xclip -selection clipboard -loops 1 >/dev/null 2>&1 &
+  clipboard_pid=$!
+  sleep "$paste_settle_sleep"
+
+  if DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+v; then
+    paste_cleanup_deadline=$((SECONDS + ${QUILLUI_BACKEND_PASTE_CLEANUP_DEADLINE:-2}))
+    while kill -0 "$clipboard_pid" 2>/dev/null; do
+      if (( SECONDS >= paste_cleanup_deadline )); then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$clipboard_pid" 2>/dev/null; then
+      kill "$clipboard_pid" 2>/dev/null || true
+      wait "$clipboard_pid" 2>/dev/null || true
+      return 1
+    fi
+    wait "$clipboard_pid"
+    return $?
+  fi
+
+  kill "$clipboard_pid" 2>/dev/null || true
+  wait "$clipboard_pid" 2>/dev/null || true
+  return 1
 }
 
 type_multiline_text() {
