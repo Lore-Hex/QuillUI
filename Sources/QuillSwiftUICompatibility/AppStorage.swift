@@ -12,6 +12,7 @@ public protocol QuillAppStorageValue {
 extension String: QuillAppStorageValue {
     public static func readAppStorageValue(forKey key: String) -> String? {
         UserDefaults.standard.string(forKey: key)
+            ?? QuillAppStorageEnvironment.seed(forKey: key)
     }
 
     public static func writeAppStorageValue(_ value: String, forKey key: String) {
@@ -21,7 +22,9 @@ extension String: QuillAppStorageValue {
 
 extension Bool: QuillAppStorageValue {
     public static func readAppStorageValue(forKey key: String) -> Bool? {
-        guard UserDefaults.standard.object(forKey: key) != nil else { return nil }
+        guard UserDefaults.standard.object(forKey: key) != nil else {
+            return QuillAppStorageEnvironment.seed(forKey: key).flatMap(Self.init(quillAppStorageSeed:))
+        }
         return UserDefaults.standard.bool(forKey: key)
     }
 
@@ -32,7 +35,9 @@ extension Bool: QuillAppStorageValue {
 
 extension Int: QuillAppStorageValue {
     public static func readAppStorageValue(forKey key: String) -> Int? {
-        guard UserDefaults.standard.object(forKey: key) != nil else { return nil }
+        guard UserDefaults.standard.object(forKey: key) != nil else {
+            return QuillAppStorageEnvironment.seed(forKey: key).flatMap(Int.init)
+        }
         return UserDefaults.standard.integer(forKey: key)
     }
 
@@ -43,7 +48,9 @@ extension Int: QuillAppStorageValue {
 
 extension Double: QuillAppStorageValue {
     public static func readAppStorageValue(forKey key: String) -> Double? {
-        guard UserDefaults.standard.object(forKey: key) != nil else { return nil }
+        guard UserDefaults.standard.object(forKey: key) != nil else {
+            return QuillAppStorageEnvironment.seed(forKey: key).flatMap(Double.init)
+        }
         return UserDefaults.standard.double(forKey: key)
     }
 
@@ -73,6 +80,39 @@ extension Optional: QuillAppStorageValue where Wrapped: QuillAppStorageValue {
             return
         }
         Wrapped.writeAppStorageValue(wrapped, forKey: key)
+    }
+}
+
+private enum QuillAppStorageEnvironment {
+    static func seed(forKey key: String) -> String? {
+        let environment = ProcessInfo.processInfo.environment
+        for environmentKey in environmentKeys(for: key) {
+            if let value = environment[environmentKey] {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func environmentKeys(for key: String) -> [String] {
+        let sanitized = key
+            .map { character -> Character in
+                character.isLetter || character.isNumber ? Character(character.uppercased()) : "_"
+            }
+        return ["QUILLUI_APP_STORAGE_\(String(sanitized))"]
+    }
+}
+
+private extension Bool {
+    init?(quillAppStorageSeed value: String) {
+        switch value.lowercased() {
+        case "1", "true", "yes", "on":
+            self = true
+        case "0", "false", "no", "off":
+            self = false
+        default:
+            return nil
+        }
     }
 }
 

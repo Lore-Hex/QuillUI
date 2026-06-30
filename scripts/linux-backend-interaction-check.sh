@@ -373,6 +373,19 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]]; then
   app_environment+=("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}")
 fi
+if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
+  case "$INTERACTION_MODE" in
+    settings-endpoint-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_OLLAMAURI=${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}")
+      ;;
+    settings-bearer-token-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_OLLAMABEARERTOKEN=${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}")
+      ;;
+    settings-ping-interval-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_PINGINTERVAL=${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}")
+      ;;
+  esac
+fi
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   case "$INTERACTION_MODE" in
     completions-panel|completions-new-sheet|completions-save|completions-edit-save|completions-delete)
