@@ -42,6 +42,7 @@ QUILL_PREP_PRODUCTS = {
     "Alamofire",
     "AppKit",
     "ApplicationServices",
+    "AuthenticationServices",
     "AsyncAlgorithms",
     "AVFoundation",
     "AVKit",
@@ -418,6 +419,23 @@ def package_requires_quill_preparation(package_dir: Path) -> bool:
     return bool(quill_imports_by_target(package_dir))
 
 
+def package_declares_quill_products_for_imports(package_dir: Path, imports_by_target: dict[str, set[str]]) -> bool:
+    if not imports_by_target:
+        return False
+    manifest_path = package_dir / "Package.swift"
+    if not manifest_path.is_file():
+        return False
+    manifest = manifest_path.read_text(encoding="utf-8", errors="ignore")
+    if '.package(name: "QuillUI"' not in manifest:
+        return False
+
+    required_products = {"QuillShims"}
+    for imports in imports_by_target.values():
+        required_products.update(imports)
+
+    return all(f'.product(name: "{product}", package: "QuillUI")' in manifest for product in required_products)
+
+
 def package_dependency_graph_requires_preparation(
     root_dir: Path,
     package_dir: Path,
@@ -432,6 +450,8 @@ def package_dependency_graph_requires_preparation(
     seen.add(package_dir)
 
     for dependency in local_package_dependencies(root_dir, package_dir):
+        if is_quillui_root_dependency(root_dir, dependency):
+            continue
         dependency_dir = dependency.package_dir.resolve()
         if dependency_dir in materialized:
             return True
@@ -440,6 +460,10 @@ def package_dependency_graph_requires_preparation(
         if package_dependency_graph_requires_preparation(root_dir, dependency_dir, materialized, seen):
             return True
     return False
+
+
+def is_quillui_root_dependency(root_dir: Path, dependency: LocalPackageDependency) -> bool:
+    return dependency.package_name == "QuillUI" and dependency.package_dir.resolve() == root_dir.resolve()
 
 
 def sanitize_path_component(value: str) -> str:
@@ -881,7 +905,9 @@ def normalize_local_package_dependencies(
     url_replacements: dict[str, tuple[Path, str | None]] = {}
     for dependency in local_package_dependencies(root_dir, source_package_dir):
         package_name = dependency.package_name or package_name_from_manifest(dependency.package_dir)
-        if (
+        if is_quillui_root_dependency(root_dir, dependency):
+            replacement = root_dir.resolve()
+        elif (
             dependency.package_dir in root_package_paths
             and not package_requires_quill_preparation(dependency.package_dir)
             and not package_dependency_graph_requires_preparation(root_dir, dependency.package_dir, materialized)
@@ -984,6 +1010,8 @@ def prepare_package(
         return materialized[package_dir]
 
     imports = quill_imports_by_target(package_dir)
+    if not force and package_declares_quill_products_for_imports(package_dir, imports):
+        return None
     dependency_graph_requires_preparation = package_dependency_graph_requires_preparation(root_dir, package_dir, materialized)
     if package_dir in root_package_paths and not imports and not force and not dependency_graph_requires_preparation:
         return None

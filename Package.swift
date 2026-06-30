@@ -553,6 +553,7 @@ products += [
     .library(name: "FoundationModels", targets: ["FoundationModels"]),
     .library(name: "Speech", targets: ["Speech"]),
     .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
+    .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
     .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
     .library(name: "Alamofire", targets: ["Alamofire"]),
     .library(name: "MarkdownUI", targets: ["MarkdownUI"]),

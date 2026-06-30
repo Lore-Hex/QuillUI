@@ -662,6 +662,203 @@ struct SourceHygieneTests {
         #expect(!preparedManifest.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
     }
 
+    @Test("Generated app builder reuses Linux-ready vendored package dependencies")
+    func generatedAppBuilderReusesLinuxReadyVendoredPackageDependencies() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-linux-ready-vendor-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/LinuxReadySDK")
+        let packageSources = packageDir.appendingPathComponent("Sources/LinuxReadySDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LinuxReadySDK",
+            products: [.library(name: "LinuxReadySDK", targets: ["LinuxReadySDK"])],
+            dependencies: [
+                .package(name: "QuillUI", path: "\(sandbox.path)")
+            ],
+            targets: [
+                .target(
+                    name: "LinuxReadySDK",
+                    dependencies: [
+                        .product(name: "AuthenticationServices", package: "QuillUI"),
+                        .product(name: "CryptoKit", package: "QuillUI"),
+                        .product(name: "QuillShims", package: "QuillUI"),
+                        .product(name: "Security", package: "QuillUI"),
+                    ]
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if canImport(AuthenticationServices)
+        import AuthenticationServices
+        #endif
+        #if canImport(CryptoKit)
+        import CryptoKit
+        #endif
+        #if canImport(Security)
+        import Security
+        #endif
+
+        public struct LinuxReadySDKClient {}
+        """.write(to: packageSources.appendingPathComponent("LinuxReadySDKClient.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "LinuxReadySDK", url: "https://example.com/LinuxReadySDK.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedPackagePath = packageDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"LinuxReadySDK\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedPackagePath)
+                || rewrittenDependencies.contains("/private\(resolvedPackagePath)")
+        )
+        #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
+        #expect(!rewrittenDependencies.contains("prepared-packages/LinuxReadySDK"))
+        #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
+    }
+
+    @Test("Generated app builder does not prepare the QuillUI root dependency")
+    func generatedAppBuilderDoesNotPrepareTheQuillUIRootDependency() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-root-dependency-prep-\(UUID().uuidString)")
+        let rendererDir = sandbox.appendingPathComponent("third_party/Renderer")
+        let rendererSources = rendererDir.appendingPathComponent("Sources/Renderer")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: rendererSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Renderer",
+            products: [.library(name: "Renderer", targets: ["Renderer"])],
+            dependencies: [
+                .package(name: "QuillUI", path: "../..")
+            ],
+            targets: [
+                .target(name: "Renderer")
+            ]
+        )
+        """.write(to: rendererDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct RendererView: View {
+            public var body: some View { Text("renderer") }
+        }
+        """.write(to: rendererSources.appendingPathComponent("RendererView.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "Renderer", path: "\(rendererDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        let preparedRenderer = try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("Renderer-") })
+        let preparedManifest = try String(
+            contentsOf: preparedRenderer.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let resolvedRoot = sandbox.resolvingSymlinksInPath().path
+
+        #expect(preparedManifest.contains(".package(name: \"QuillUI\", path:"))
+        #expect(preparedManifest.contains(resolvedRoot) || preparedManifest.contains("/private\(resolvedRoot)"))
+        #expect(!preparedManifest.contains("prepared-cache/QuillUI-"))
+        #expect(cacheEntries.allSatisfy { !$0.lastPathComponent.hasPrefix("QuillUI-") })
+    }
+
     @Test("Generated app builder keeps prepared local dependency graphs internally consistent")
     func generatedAppBuilderKeepsPreparedLocalDependencyGraphsInternallyConsistent() throws {
         let root = try packageRoot()
@@ -2819,12 +3016,15 @@ struct SourceHygieneTests {
         #expect(preparedPackageDependencyScript.contains("\"CoreSpotlight\""))
         #expect(preparedPackageDependencyScript.contains("\"ExtensionFoundation\""))
         #expect(preparedPackageDependencyScript.contains("\"ExtensionKit\""))
+        #expect(preparedPackageDependencyScript.contains("\"AuthenticationServices\""))
         #expect(preparedPackageDependencyScript.contains("PREPARED_SWIFT_SETTINGS"))
         #expect(preparedPackageDependencyScript.contains("PREPARED_FINGERPRINT_FILE"))
         #expect(preparedPackageDependencyScript.contains("--prepared-cache-dir"))
         #expect(preparedPackageDependencyScript.contains("def prepared_package_directory("))
         #expect(preparedPackageDependencyScript.contains("reused prepared local SwiftPM dependency"))
         #expect(preparedPackageDependencyScript.contains("VENDORED_PACKAGE_ALIASES"))
+        #expect(preparedPackageDependencyScript.contains("package_declares_quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("is_quillui_root_dependency"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_tool_input"))
         #expect(preparedPackageDependencyScript.contains("read_bytes()"))
@@ -3276,6 +3476,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftTreeSitter/Package.swift"),
             encoding: .utf8
         )
+        let trustedRouterManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/trusted-router-swift/Package.swift"),
+            encoding: .utf8
+        )
         let dependencyPrepScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py"),
             encoding: .utf8
@@ -3328,6 +3532,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"third_party/SwiftSoup\""))
         #expect(manifest.contains("path: \"third_party/CodeEditSourceEditor\""))
         #expect(manifest.contains("path: \"third_party/SwiftTerm\""))
+        #expect(manifest.contains(".library(name: \"AuthenticationServices\", targets: [\"AuthenticationServices\"])"))
         #expect(manifest.contains("\"SwiftUIIntrospect\""))
         #expect(manifest.contains("\"AsyncAlgorithms\""))
         #expect(vendorScript.contains("trusted-router-swift"))
@@ -3356,6 +3561,12 @@ struct SourceHygieneTests {
         #expect(swiftCryptoManifest.contains("// QuillUI vendors swift-crypto next to swift-asn1"))
         #expect(swiftCryptoManifest.contains(".package(path: \"../swift-asn1\")"))
         #expect(swiftTreeSitterManifest.contains(".package(name: \"TreeSitter\", path: \"../tree-sitter\")"))
+        #expect(trustedRouterManifest.contains("// swift-tools-version: 6.0"))
+        #expect(trustedRouterManifest.contains(".package(name: \"QuillUI\", path: \"../..\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"AuthenticationServices\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
         #expect(vendorScript.contains("Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,"))
         #expect(vendorScript.contains("default_packages()"))
         #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
