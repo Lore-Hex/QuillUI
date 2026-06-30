@@ -5839,6 +5839,8 @@ struct SourceHygieneTests {
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_ACTIVE_SHORTCUT_FALLBACK"))
+        #expect(solderScopeSmoke.contains("shortcut $label active key s"))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
         #expect(smokeLib.contains("requested_backend=\"$(quillui_require_requested_backend_for_product \"$product\")\""))

@@ -199,6 +199,10 @@ quillui_solderscope_drive_snapshot_action() {
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label key s" >&2
       quillui_solderscope_send_key "$window_id" s
+      if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_SNAPSHOT_ACTIVE_SHORTCUT_FALLBACK:-1}"; then
+        echo "SolderScope interaction smoke: shortcut $label active key s" >&2
+        QUILLUI_SOLDERSCOPE_KEY_DRIVER=active quillui_solderscope_send_key "$window_id" s
+      fi
       ;;
     none)
       ;;
