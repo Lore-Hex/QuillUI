@@ -1533,7 +1533,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         click_at "$token_x" "$token_y"
         sleep 1
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345}"
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}"
         sleep 1
         ;;
       settings-ping-interval-typed)

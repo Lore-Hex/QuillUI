@@ -685,6 +685,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("type_text \"${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}\""))
         #expect(interactionScript.contains("token_x=\"${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}\""))
         #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-666}\""))
+        #expect(interactionScript.contains("type_text \"${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}\""))
         #expect(interactionScript.contains("ping_x=\"${QUILLUI_BACKEND_PING_CLICK_X:-1000}\""))
         #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-684}\""))
         #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
