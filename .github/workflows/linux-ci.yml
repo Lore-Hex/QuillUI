@@ -120,6 +120,7 @@ jobs:
         uses: ./.github/actions/lowered-source-cache
         with:
           cache-name: default
+          source-app: enchanted
 
       - name: Fetch upstream sources
         env:

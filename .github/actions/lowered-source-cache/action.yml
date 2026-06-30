@@ -5,6 +5,10 @@ inputs:
   cache-name:
     description: Stable name for the lowered source set used by this workflow.
     required: true
+  source-app:
+    description: Optional vendored app source name to scope the cache key to vendor/apps/SOURCE_APP.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -13,6 +17,17 @@ runs:
       id: cache-key
       shell: bash
       run: |
+        source_app="${{ inputs.source-app }}"
+        source_paths=(vendor/apps)
+        if [[ -n "$source_app" ]]; then
+          case "$source_app" in
+            *[!A-Za-z0-9._-]*)
+              echo "::error::source-app must be a simple vendored app directory name"
+              exit 2
+              ;;
+          esac
+          source_paths=("vendor/apps/$source_app")
+        fi
         digest="$(
           git -c 'safe.directory=*' ls-files -s \
             .github/actions/lowered-source-cache/action.yml \
@@ -32,7 +47,7 @@ runs:
             Sources/quill-source-lower \
             Sources/quill-lower-swiftui \
             Sources/quill-lower-appkit \
-            vendor/apps \
+            "${source_paths[@]}" \
             | git hash-object --stdin
         )"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"

@@ -53,7 +53,11 @@ lowering profiles:
   QuillUI lowering-tool inputs, so repeated vendored-source builds can skip the
   full source copy plus SwiftUI/AppKit lowering phase while keeping upstream app
   source read-only. Set `QUILLUI_PROFILE_REUSE_LOWERED_SOURCE=0` for a forced
-  recopy/re-lower pass.
+  recopy/re-lower pass. CI workflows that use
+  `.github/actions/lowered-source-cache` should pass `source-app: <name>` when
+  they build one vendored app; that scopes the restored cache key to
+  `vendor/apps/<name>` instead of invalidating Enchanted because QuillCode,
+  CodeEdit, or another vendored fixture changed.
 - `--source-app` builds automatically scan `Package.resolved` below the selected
   checkout and copy matching local SwiftPM checkouts into `third_party/` before
   lowering. The scan uses `--no-resolve` by default, so normal local and CI builds

@@ -86,6 +86,7 @@ jobs:
         uses: ./.github/actions/lowered-source-cache
         with:
           cache-name: enchanted
+          source-app: enchanted
 
       - name: Confirm vendored Enchanted source
         run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md

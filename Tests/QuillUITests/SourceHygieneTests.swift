@@ -3469,8 +3469,14 @@ struct SourceHygieneTests {
 
         let devResult = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
-            arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--app", "demo"],
-            environment: ["QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES": "1"]
+            arguments: [
+                "QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1",
+                vendorScript.path,
+                "--no-resolve",
+                "--dry-run",
+                "--app",
+                "demo",
+            ]
         )
 
         #expect(devResult.status == 0, Comment(rawValue: devResult.output))
@@ -4551,6 +4557,9 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("restore-keys:"))
         #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
         #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
+        #expect(loweredSourceCacheAction.contains("source-app:"))
+        #expect(loweredSourceCacheAction.contains("source_paths=(vendor/apps)"))
+        #expect(loweredSourceCacheAction.contains("source_paths=(\"vendor/apps/$source_app\")"))
         #expect(loweredSourceCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
         #expect(loweredSourceCacheAction.contains("quillui-${{ runner.os }}-lowered-source-${{ inputs.cache-name }}-"))
         #expect(loweredSourceCacheAction.contains("scripts/quillui-source-cache-key.py"))
@@ -6944,6 +6953,7 @@ struct SourceHygieneTests {
         #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
         #expect(enchantedWorkflow.contains("Restore lowered source cache"))
         #expect(enchantedWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(enchantedWorkflow.contains("source-app: enchanted"))
         #expect(enchantedWorkflow.contains("scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md"))
         #expect(!enchantedWorkflow.contains("Restore upstream source cache"))
         #expect(!enchantedWorkflow.contains("scripts/fetch-upstream.sh enchanted"))
