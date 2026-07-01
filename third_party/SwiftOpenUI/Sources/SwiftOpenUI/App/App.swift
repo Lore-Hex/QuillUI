@@ -103,6 +103,26 @@ public struct WindowGroup<Content: View>: Scene {
     public var body: Never { fatalError("WindowGroup is a primitive scene") }
 }
 
+/// A menu-bar/status-area extra scene.
+public struct MenuBarExtra<Content: View, LabelContent: View>: Scene {
+    public typealias Body = Never
+
+    public let content: Content
+    public let label: LabelContent
+
+    public init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> LabelContent
+    ) {
+        self.content = content()
+        self.label = label()
+    }
+
+    public var body: Never {
+        fatalError("MenuBarExtra is a primitive scene")
+    }
+}
+
 /// A composite scene that holds two child scenes.
 public struct TupleScene<S0: Scene, S1: Scene>: Scene {
     public typealias Body = Never

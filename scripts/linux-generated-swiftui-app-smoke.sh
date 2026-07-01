@@ -93,6 +93,30 @@ cleanup() {
 }
 trap cleanup EXIT
 
+largest_visible_window() {
+  local display_id="$1"
+  shift
+
+  local candidate width height key value area best_window="" best_area=-1
+  while read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    width=0
+    height=0
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+    area=$((width * height))
+    if (( area > best_area )); then
+      best_area="$area"
+      best_window="$candidate"
+    fi
+  done < <(DISPLAY="$display_id" "$@" 2>/dev/null)
+  printf '%s\n' "$best_window"
+}
+
 Xvfb "$DISPLAY_ID" -screen 0 "$SCREEN_SIZE" >"$xvfb_log" 2>&1 &
 xvfb_pid=$!
 sleep 1
@@ -121,13 +145,11 @@ fi
 window_id=""
 if command -v xdotool >/dev/null 2>&1; then
   window_id="$(
-    DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --pid "$app_pid" --name ".*" 2>/dev/null |
-      head -n 1 || true
+    largest_visible_window "$DISPLAY_ID" xdotool search --onlyvisible --pid "$app_pid" --name ".*"
   )"
   if [[ -z "$window_id" ]]; then
     window_id="$(
-      DISPLAY="$DISPLAY_ID" xdotool search --onlyvisible --name ".*" 2>/dev/null |
-        head -n 1 || true
+      largest_visible_window "$DISPLAY_ID" xdotool search --onlyvisible --name ".*"
     )"
   fi
 fi

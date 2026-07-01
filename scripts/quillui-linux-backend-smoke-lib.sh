@@ -84,15 +84,49 @@ quillui_backend_reference_window_defaults() {
 quillui_find_visible_window_by_name() {
   local display_id="$1"
   local name="$2"
+  local candidate width height key value area best_window="" best_area=-1
 
-  DISPLAY="$display_id" xdotool search --onlyvisible --name "$name" 2>/dev/null | head -n 1 || true
+  while read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    width=0
+    height=0
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+    area=$((width * height))
+    if (( area > best_area )); then
+      best_area="$area"
+      best_window="$candidate"
+    fi
+  done < <(DISPLAY="$display_id" xdotool search --onlyvisible --name "$name" 2>/dev/null)
+  printf '%s\n' "$best_window"
 }
 
 quillui_find_visible_window_for_pid() {
   local display_id="$1"
   local pid="$2"
+  local candidate width height key value area best_window="" best_area=-1
 
-  DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
+  while read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    width=0
+    height=0
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+    area=$((width * height))
+    if (( area > best_area )); then
+      best_area="$area"
+      best_window="$candidate"
+    fi
+  done < <(DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null)
+  printf '%s\n' "$best_window"
 }
 
 # Poll until the app's main window is visible AND plausibly window-sized.

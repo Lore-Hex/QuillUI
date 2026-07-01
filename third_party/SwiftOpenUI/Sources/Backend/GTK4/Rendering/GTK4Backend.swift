@@ -989,6 +989,63 @@ extension TupleScene: GTKWindowRenderable {
     }
 }
 
+/// GTK fallback for SwiftUI's MenuBarExtra.
+///
+/// GTK4 has no cross-desktop tray primitive in core GTK, so this renders a
+/// small auxiliary menu-button window. The label is always visible and clicking
+/// it opens the scene's SwiftUI content in a GTK popover. Applications that
+/// provide an AppIndicator/libayatana integration can opt out with
+/// `QUILLUI_GTK_MENU_BAR_EXTRA_FALLBACK=0`.
+extension MenuBarExtra: GTKWindowRenderable {
+    func gtkRender(app: OpaquePointer?) {
+        guard ProcessInfo.processInfo.environment["QUILLUI_GTK_MENU_BAR_EXTRA_FALLBACK"] != "0" else {
+            gtkBackendDebugLog("MenuBarExtra fallback disabled label=\(LabelContent.self)")
+            return
+        }
+
+        gtkBackendDebugLog("MenuBarExtra render start label=\(LabelContent.self) content=\(Content.self)")
+        let window: UnsafeMutablePointer<GtkWidget>
+        if let app {
+            window = gtk_application_window_new(gtkApplicationPointer(app))!
+        } else {
+            window = gtk_window_new()!
+        }
+        let winPtr = windowPointer(window)
+        gtk_window_set_title(winPtr, "MenuBarExtra")
+        gtk_window_set_decorated(winPtr, 0)
+        gtk_window_set_resizable(winPtr, 0)
+        gtk_window_set_default_size(winPtr, 180, 44)
+
+        let button = gtk_menu_button_new()!
+        gtk_widget_set_margin_top(button, 6)
+        gtk_widget_set_margin_bottom(button, 6)
+        gtk_widget_set_margin_start(button, 8)
+        gtk_widget_set_margin_end(button, 8)
+        gtk_widget_set_halign(button, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(button, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(button, 1)
+        gtk_widget_set_vexpand(button, 1)
+
+        let labelWidget = widgetFromOpaque(gtkRenderView(label))
+        gtk_swift_menu_button_set_always_show_arrow(button, 0)
+        gtk_swift_menu_button_set_child(button, labelWidget)
+
+        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        let scrolled = gtk_scrolled_window_new()!
+        gtk_widget_set_size_request(scrolled, 340, 560)
+        gtk_scrolled_window_set_child(OpaquePointer(scrolled), contentWidget)
+
+        let popover = gtk_popover_new()!
+        gtk_swift_popover_set_child(popover, scrolled)
+        gtk_swift_menu_button_set_popover(button, popover)
+
+        gtk_window_set_child(winPtr, button)
+        gtkBackendDebugLog("MenuBarExtra present handle=\(Int(bitPattern: winPtr))")
+        gtk_window_present(winPtr)
+        gtkBackendDebugLog("MenuBarExtra presented handle=\(Int(bitPattern: winPtr))")
+    }
+}
+
 /// GTK4 rendering for Group<Scene> — transparent scene grouping.
 extension Group: GTKWindowRenderable where Content: Scene {
     func gtkRender(app: OpaquePointer?) {

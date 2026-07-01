@@ -33,6 +33,31 @@ struct SwiftOpenUISceneBackendTests {
         #expect(source.contains("Group<Scene> render content=\\(Content.self)"))
     }
 
+    @Test("MenuBarExtra is a core scene with a GTK fallback renderer")
+    func menuBarExtraIsCoreSceneWithGTKFallbackRenderer() throws {
+        let root = try packageRoot()
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/App/App.swift"),
+            encoding: .utf8
+        )
+        let compatibilitySource = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/SceneCompat.swift"),
+            encoding: .utf8
+        )
+        let gtkSource = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"),
+            encoding: .utf8
+        )
+
+        #expect(appSource.contains("public struct MenuBarExtra<Content: View, LabelContent: View>: Scene"))
+        #expect(!compatibilitySource.contains("public struct MenuBarExtra"))
+        #expect(gtkSource.contains("extension MenuBarExtra: GTKWindowRenderable"))
+        #expect(gtkSource.contains("QUILLUI_GTK_MENU_BAR_EXTRA_FALLBACK"))
+        #expect(gtkSource.contains("gtk_menu_button_new()"))
+        #expect(gtkSource.contains("gtk_swift_popover_set_child(popover, scrolled)"))
+        #expect(gtkSource.contains("MenuBarExtra presented handle="))
+    }
+
     @Test("Commands builder supports scene-level command modifiers")
     func commandsBuilderSupportsSceneLevelCommandModifiers() throws {
         let root = try packageRoot()
@@ -88,6 +113,8 @@ struct SwiftOpenUISceneBackendTests {
 
         #expect(source.contains("xdotool search --onlyvisible --pid \"$app_pid\""))
         #expect(source.contains("xdotool search --onlyvisible --name \".*\""))
+        #expect(source.contains("largest_visible_window()"))
+        #expect(source.contains("xdotool getwindowgeometry --shell \"$candidate\""))
         #expect(source.contains("QUILLUI_GENERATED_APP_SMOKE_WINDOW_WIDTH"))
         #expect(source.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=\"$WINDOW_WIDTH\""))
         #expect(source.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=\"$WINDOW_HEIGHT\""))

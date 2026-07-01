@@ -6311,6 +6311,8 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_backend_reference_window_defaults()"))
         #expect(smokeLib.contains("quillui_find_visible_window_by_name()"))
         #expect(smokeLib.contains("quillui_find_visible_window_for_pid()"))
+        #expect(smokeLib.contains("best_area=-1"))
+        #expect(smokeLib.contains("xdotool getwindowgeometry --shell \"$candidate\""))
         #expect(smokeLib.contains("quillui_find_visible_window_for_pid_except()"))
         #expect(smokeLib.contains("quillui_find_any_visible_window()"))
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
