@@ -76,7 +76,7 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 #if QUILLUI_SWIFTUI_GTK_MOUNT
     let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     public var body: some View {
         _QuillGTKRepresentableMountLeaf(representable: representable)
@@ -84,7 +84,7 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 #elseif QUILLUI_SWIFTUI_QT_MOUNT
     let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     public var body: some View {
         _QuillQtRepresentableMountLeaf(representable: representable)
@@ -92,7 +92,7 @@ public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 #else
     let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     // Graphs without a native mount keep compile-only representables.
     public var body: Never {
