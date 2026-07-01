@@ -6897,15 +6897,21 @@ if "case .quillPaintMacDefault:" not in text:
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
             gtkDisableButtonChildTargeting(childWidget)
-            if !(label is Text) {
+            if styleContext != nil || !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
                     border: none;
+                    border-radius: 0;
+                    box-shadow: none;
                     outline: none;
                     padding: 0;
                     min-height: 0;
                     min-width: 0;
+                    text-shadow: none;
                     """)
             }
 

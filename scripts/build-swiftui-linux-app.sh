@@ -280,11 +280,22 @@ run_vendor_swiftpm_sources_for_app() {
   stamp_key="$(vendor_swiftpm_app_stamp_key "$app_name" "$checkout_dir" "$VENDOR_SWIFTPM_RESOLVE")"
   stamp_file="$VENDOR_SWIFTPM_STAMP_DIR/$app_name-$stamp_key.stamp"
   if [[ -f "$stamp_file" ]]; then
-    echo "Reused vendored SwiftPM source scan: $stamp_file"
-    return
+    if "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
+      echo "Reused vendored SwiftPM source scan: $stamp_file"
+      return
+    fi
+    echo "Vendored SwiftPM source scan stamp is stale; refreshing: $stamp_file" >&2
   fi
 
   "${vendor_swiftpm_args[@]}"
+  if ! "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
+    cat >&2 <<MSG
+Vendored SwiftPM package sources are incomplete for $app_name.
+Run scripts/vendor-swiftpm-sources.sh --app $app_name --hydrate-missing or set
+QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1 when network access is deliberately allowed.
+MSG
+    return 66
+  fi
   mkdir -p "$VENDOR_SWIFTPM_STAMP_DIR"
   {
     printf 'quillui-vendored-swiftpm-app/v1\n'

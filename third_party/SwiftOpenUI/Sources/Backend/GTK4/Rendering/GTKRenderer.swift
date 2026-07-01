@@ -934,6 +934,43 @@ private func gtkTextBufferString(_ buffer: UnsafeMutablePointer<GtkTextBuffer>) 
     return result
 }
 
+private let gtkPlainMultilineTextInputCSS = """
+    background: transparent;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    """
+
+private let gtkPlainMultilineScrolledDescendants = [
+    "viewport",
+    "textview",
+    "textview text",
+    "viewport textview",
+    "viewport textview text",
+    "text"
+]
+
+private func gtkApplyPlainMultilineTextFieldChrome(
+    scrolledWindow: UnsafeMutablePointer<GtkWidget>,
+    textView: UnsafeMutablePointer<GtkWidget>
+) {
+    applyCSSToWidget(
+        scrolledWindow,
+        properties: gtkPlainMultilineTextInputCSS,
+        descendantSelectors: gtkPlainMultilineScrolledDescendants
+    )
+    applyCSSToWidget(
+        textView,
+        properties: gtkPlainMultilineTextInputCSS,
+        descendantSelectors: ["text"]
+    )
+}
+
 private func gtkCreateMultilineTextField(
     title: String,
     text: Binding<String>
@@ -942,6 +979,8 @@ private func gtkCreateMultilineTextField(
     let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
     gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
     gtk_text_view_set_accepts_tab(textViewPtr, 0)
+    let environment = getCurrentEnvironment()
+    let textFieldStyleType = environment.textFieldStyle
 
     let current = text.wrappedValue
     let buffer = gtk_text_view_get_buffer(textViewPtr)!
@@ -955,8 +994,8 @@ private func gtkCreateMultilineTextField(
         gtk_label_set_xalign(labelPtr, 0)
         gtk_widget_set_halign(placeholderLabel, GTK_ALIGN_START)
         gtk_widget_set_valign(placeholderLabel, GTK_ALIGN_START)
-        gtk_widget_set_margin_start(placeholderLabel, 6)
-        gtk_widget_set_margin_top(placeholderLabel, 8)
+        gtk_widget_set_margin_start(placeholderLabel, textFieldStyleType == .plain ? 0 : 6)
+        gtk_widget_set_margin_top(placeholderLabel, textFieldStyleType == .plain ? 0 : 8)
         gtk_widget_set_opacity(placeholderLabel, 0.45)
         gtk_widget_set_can_target(placeholderLabel, 0)
         gtk_widget_set_visible(placeholderLabel, current.isEmpty ? 1 : 0)
@@ -981,7 +1020,6 @@ private func gtkCreateMultilineTextField(
         GConnectFlags(rawValue: 0)
     )
 
-    let environment = getCurrentEnvironment()
     gtkInstallTextInputKeyController(
         on: textView,
         submitAction: environment.submitAction,
@@ -996,7 +1034,16 @@ private func gtkCreateMultilineTextField(
 
     gtkApplyEnabledState(to: textView)
     let rendered: OpaquePointer
-    if let paintedEditor = quill_gtk_text_editor_paint_hook?(
+    var useQuillPaintTextEditor = false
+    switch textFieldStyleType {
+    case .plain:
+        gtkApplyPlainMultilineTextFieldChrome(scrolledWindow: scrolled, textView: textView)
+    case .automatic, .roundedBorder:
+        useQuillPaintTextEditor = true
+    }
+
+    if useQuillPaintTextEditor,
+       let paintedEditor = quill_gtk_text_editor_paint_hook?(
         OpaquePointer(scrolled),
         OpaquePointer(textView)
     ) {
@@ -1557,11 +1604,17 @@ extension Button: GTKRenderable, GTKDescribable {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
                     border: none;
+                    border-radius: 0;
+                    box-shadow: none;
                     outline: none;
                     padding: 0;
                     min-height: 0;
                     min-width: 0;
+                    text-shadow: none;
                     """)
             }
         }

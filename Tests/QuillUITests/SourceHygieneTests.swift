@@ -3546,7 +3546,9 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("-name Package.resolved -type f -print"))
         #expect(vendorScript.contains("--package-resolved PATH"))
         #expect(vendorScript.contains("--hydrate-missing"))
+        #expect(vendorScript.contains("--check-vendored"))
         #expect(vendorScript.contains("hydrate_missing_package_checkouts()"))
+        #expect(vendorScript.contains("check_vendored_packages()"))
         #expect(vendorScript.contains("scripts/hydrate-swiftpm-checkouts-from-resolved.py"))
         #expect(vendorScript.contains("QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1"))
         #expect(vendorScript.contains("dev_only = {"))
@@ -3575,6 +3577,8 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("default_packages()"))
         #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(vendorScript.contains("already vendored $package -> third_party/$package"))
+        #expect(vendorScript.contains("missing vendored $package -> third_party/$package"))
+        #expect(vendorScript.contains("vendored SwiftPM package sources are present"))
         #expect(vendorScript.contains("QUILLUI_VENDOR_FORCE=1"))
         #expect(vendorScript.contains("git_source_identity()"))
         #expect(vendorScript.contains("git -C \"$source\" status --porcelain --untracked-files=no"))
@@ -3709,6 +3713,21 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
 
+        let missingVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(missingVendoredCheck.status == 1, Comment(rawValue: missingVendoredCheck.output))
+        #expect(
+            missingVendoredCheck.output.contains("missing vendored AsyncAlgorithms -> third_party/AsyncAlgorithms"),
+            Comment(rawValue: missingVendoredCheck.output)
+        )
+        #expect(
+            missingVendoredCheck.output.contains("missing vendored CodeEditTextView -> third_party/CodeEditTextView"),
+            Comment(rawValue: missingVendoredCheck.output)
+        )
+
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
             arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--app", "demo"]
@@ -3757,6 +3776,32 @@ struct SourceHygieneTests {
         #expect(
             devResult.output.contains("warning: no checkout found for SwiftLintPlugin"),
             Comment(rawValue: devResult.output)
+        )
+
+        for package in ["AsyncAlgorithms", "CodeEditTextView"] {
+            let packageDir = sandbox.appendingPathComponent("third_party/\(package)")
+            try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+            try """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(name: "\(package)")
+            """.write(
+                to: packageDir.appendingPathComponent("Package.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let presentVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(presentVendoredCheck.status == 0, Comment(rawValue: presentVendoredCheck.output))
+        #expect(
+            presentVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
+            Comment(rawValue: presentVendoredCheck.output)
         )
     }
 
@@ -7010,6 +7055,10 @@ struct SourceHygieneTests {
         #expect(buildSource.contains(".build/quillui-vendored-swiftpm-source-stamps"))
         #expect(buildSource.contains("quillui-vendored-swiftpm-app/v1"))
         #expect(buildSource.contains("Reused vendored SwiftPM source scan"))
+        #expect(buildSource.contains("--check-vendored >/dev/null"))
+        #expect(buildSource.contains("Vendored SwiftPM source scan stamp is stale; refreshing"))
+        #expect(buildSource.contains("Vendored SwiftPM package sources are incomplete for $app_name."))
+        #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh --app $app_name --hydrate-missing"))
         #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh\", \"scripts/quillui-vendored-source.sh"))
         #expect(buildSource.contains("for path in sorted(checkout.rglob(\"Package.resolved\"))"))
         #expect(buildSource.contains("run_vendor_swiftpm_sources_for_app \"$SOURCE_APP\" \"$SOURCE_CHECKOUT_DIR\""))
@@ -8388,6 +8437,24 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtk_widget_set_can_focus(target.widget, 1)"))
         #expect(renderer.contains("gtk_widget_set_can_target(overlay, 1)"))
         #expect(renderer.contains("gtkInstallTextInputFocusGesture(on: renderedWidget, target: textView)"))
+        #expect(renderer.contains("if styleContext != nil || !(label is Text) {\n                // Remove GTK default button border/padding so custom-styled"))
+        #expect(renderer.contains("background: transparent;\n                    background-color: transparent;\n                    background-image: none;\n                    border: none;"))
+        #expect(renderer.contains("border-radius: 0;\n                    box-shadow: none;\n                    outline: none;"))
+        #expect(renderer.contains("min-width: 0;\n                    text-shadow: none;"))
+        #expect(patcher.contains("if styleContext != nil || !(label is Text) {"))
+        #expect(patcher.contains("background: transparent;\n                    background-color: transparent;\n                    background-image: none;\n                    border: none;"))
+        #expect(patcher.contains("border-radius: 0;\n                    box-shadow: none;\n                    outline: none;"))
+        #expect(patcher.contains("min-width: 0;\n                    text-shadow: none;"))
+        #expect(renderer.contains("private let gtkPlainMultilineTextInputCSS"))
+        #expect(renderer.contains("background-image: none;"))
+        #expect(renderer.contains("private func gtkApplyPlainMultilineTextFieldChrome("))
+        #expect(renderer.contains("descendantSelectors: gtkPlainMultilineScrolledDescendants"))
+        #expect(renderer.contains("let textFieldStyleType = environment.textFieldStyle"))
+        #expect(renderer.contains("gtk_widget_set_margin_start(placeholderLabel, textFieldStyleType == .plain ? 0 : 6)"))
+        #expect(renderer.contains("var useQuillPaintTextEditor = false"))
+        #expect(renderer.contains("case .plain:\n        gtkApplyPlainMultilineTextFieldChrome(scrolledWindow: scrolled, textView: textView)"))
+        #expect(renderer.contains("case .automatic, .roundedBorder:\n        useQuillPaintTextEditor = true"))
+        #expect(renderer.contains("if useQuillPaintTextEditor,\n       let paintedEditor = quill_gtk_text_editor_paint_hook?("))
         #expect(renderer.contains("gtk_text_view_set_accepts_tab(textViewPtr, 0)"))
         #expect(renderer.contains("gtkInstallTextInputKeyController(\n        on: textView,\n        submitAction: environment.submitAction,\n        keyPressActions: environment.keyPressActions\n    )"))
         #expect(renderer.contains("gtk_widget_set_hexpand(overlay, gtk_widget_get_hexpand(renderedWidget))"))

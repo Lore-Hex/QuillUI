@@ -8,6 +8,7 @@ RESOLVE=1
 DRY_RUN=0
 SLIM=1
 HYDRATE_MISSING=0
+CHECK_VENDORED=0
 PACKAGES=()
 PACKAGE_RESOLVED_FILES=()
 APP_NAMES=()
@@ -37,6 +38,8 @@ Options:
   --no-resolve           Do not run swift package resolve before copying.
   --hydrate-missing      Clone missing Package.resolved pins at their exact
                          revisions into scratch checkouts before copying.
+  --check-vendored       Only verify that selected packages already exist under
+                         third_party/ with Package.swift files.
   --full                 Copy full checkouts instead of the default slim source copy.
   --dry-run              Print the copies that would be performed.
   --list                 Print known package names.
@@ -358,6 +361,10 @@ while [[ $# -gt 0 ]]; do
       HYDRATE_MISSING=1
       shift
       ;;
+    --check-vendored)
+      CHECK_VENDORED=1
+      shift
+      ;;
     --full)
       SLIM=0
       shift
@@ -432,6 +439,32 @@ hydrate_missing_package_checkouts() {
 
 if [[ "$HYDRATE_MISSING" == "1" && ${#PACKAGE_RESOLVED_FILES[@]} -gt 0 ]]; then
   hydrate_missing_package_checkouts
+fi
+
+check_vendored_packages() {
+  local package
+  local status=0
+
+  for package in "${PACKAGES[@]}"; do
+    if ! known_packages | grep -qx "$package"; then
+      echo "error: unknown SwiftPM package '$package'. Use --list to see known packages." >&2
+      return 64
+    fi
+    if [[ ! -f "$ROOT_DIR/third_party/$package/Package.swift" ]]; then
+      echo "missing vendored $package -> third_party/$package" >&2
+      status=1
+    fi
+  done
+
+  if [[ "$status" == "0" ]]; then
+    echo "vendored SwiftPM package sources are present"
+  fi
+  return "$status"
+}
+
+if [[ "$CHECK_VENDORED" == "1" ]]; then
+  check_vendored_packages
+  exit $?
 fi
 
 if [[ "$RESOLVE" == "1" && "$DRY_RUN" != "1" ]]; then

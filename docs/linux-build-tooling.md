@@ -78,9 +78,10 @@ lowering profiles:
   skip large `rsync --delete` passes when the source checkout has not changed.
   The public builder also writes an app-lockfile stamp under
   `.build/quillui-vendored-swiftpm-source-stamps`; if the same vendored app
-  checkout and `Package.resolved` inputs are used again, it skips the whole
-  dependency-vendoring pass before lowering. Set `QUILLUI_VENDOR_FORCE=1` to
-  refresh a vendored package tree deliberately.
+  checkout and `Package.resolved` inputs are used again, it first verifies the
+  referenced `third_party/<package>/Package.swift` files still exist and then
+  skips the whole dependency-vendoring pass before lowering. Set
+  `QUILLUI_VENDOR_FORCE=1` to refresh a vendored package tree deliberately.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
