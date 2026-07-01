@@ -867,6 +867,25 @@ quillui_install_linux_backend_smoke_packages() {
   fi
 }
 
+quillui_artifact_path_from_file() {
+  local artifact_path_file="$1"
+  local output_var="$2"
+  local artifact_path=""
+
+  [[ -s "$artifact_path_file" ]] || return 1
+  IFS= read -r artifact_path < "$artifact_path_file" || true
+  if [[ -z "$artifact_path" ]]; then
+    echo "Artifact path file is empty: $artifact_path_file" >&2
+    return 66
+  fi
+  if [[ ! -x "$artifact_path" ]]; then
+    echo "Artifact path is missing or not executable: $artifact_path_file -> $artifact_path" >&2
+    return 66
+  fi
+
+  quillui_assign_output "$output_var" "$artifact_path"
+}
+
 quillui_resolve_linux_backend_executable() {
   local product="$1"
   local output_var="$2"
@@ -881,6 +900,7 @@ quillui_resolve_linux_backend_executable() {
     local enchanted_backend_facade
     local enchanted_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/$product"
     local enchanted_work_root
+    local enchanted_artifact_path_file
 
     enchanted_app_dir="$(quillui_resolve_enchanted_source_dir "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR")"
     enchanted_backend_facade="$(quillui_generated_app_backend_facade)" || return $?
@@ -888,6 +908,7 @@ quillui_resolve_linux_backend_executable() {
       enchanted_default_work_root="$enchanted_default_work_root-$enchanted_backend_facade"
     fi
     enchanted_work_root="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$enchanted_default_work_root}}"
+    enchanted_artifact_path_file="${QUILLUI_BACKEND_APP_ARTIFACT_PATH_FILE:-$enchanted_work_root/.quillui-artifact-path}"
 
     if [[ ! -d "$enchanted_app_dir" ]]; then
       quillui_print_enchanted_source_missing "$enchanted_app_dir"
@@ -896,37 +917,45 @@ quillui_resolve_linux_backend_executable() {
 
     if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
       local cached_executable
-      cached_executable="$(
-        find "$enchanted_work_root/.build-check" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
-      )"
+      if quillui_artifact_path_from_file "$enchanted_artifact_path_file" cached_executable; then
+        quillui_assign_output "$output_var" "$cached_executable" || return $?
+        return
+      elif [[ -s "$enchanted_artifact_path_file" ]]; then
+        exit 66
+      fi
+
+      local cache_search_roots=()
+      [[ -d "$enchanted_work_root/.build-check" ]] \
+        && cache_search_roots+=("$enchanted_work_root/.build-check")
+      [[ -d "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quillui-generated-app-build-cache" ]] \
+        && cache_search_roots+=("$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quillui-generated-app-build-cache")
+      if (( ${#cache_search_roots[@]} > 0 )); then
+        cached_executable="$(
+          find "${cache_search_roots[@]}" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
+        )"
+      else
+        cached_executable=""
+      fi
       if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $product under $enchanted_work_root/.build-check" >&2
+        echo "No cached executable found for $product; expected $enchanted_artifact_path_file or a debug executable under generated app build caches" >&2
         exit 66
       fi
       quillui_assign_output "$output_var" "$cached_executable" || return $?
       return
     fi
 
+    QUILLUI_APP_ARTIFACT_PATH_FILE="$enchanted_artifact_path_file" \
     QUILLUI_ENCHANTED_BUILD_WORKDIR="$enchanted_work_root" \
       QUILLUI_ENCHANTED_PRODUCT_NAME="$product" \
       QUILLUI_ENCHANTED_BACKEND_FACADE="$enchanted_backend_facade" \
       "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-enchanted-linux.sh"
 
-    local enchanted_bin_path
-    if [[ "$enchanted_backend_facade" == "qt" ]]; then
-      enchanted_bin_path="$(QUILLUI_LINUX_BACKEND=qt "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
-        --disable-index-store \
-        --package-path "$enchanted_work_root/package" \
-        --scratch-path "$enchanted_work_root/.build-check" \
-        --show-bin-path)"
-    else
-      enchanted_bin_path="$(swift build \
-        --disable-index-store \
-        --package-path "$enchanted_work_root/package" \
-        --scratch-path "$enchanted_work_root/.build-check" \
-        --show-bin-path)"
+    local enchanted_artifact_path
+    if ! quillui_artifact_path_from_file "$enchanted_artifact_path_file" enchanted_artifact_path; then
+      echo "Generated app build did not write a usable artifact path for $product: $enchanted_artifact_path_file" >&2
+      exit 66
     fi
-    quillui_assign_output "$output_var" "$enchanted_bin_path/$product" || return $?
+    quillui_assign_output "$output_var" "$enchanted_artifact_path" || return $?
   else
     local linux_build_backend
     linux_build_backend="$(quillui_require_requested_backend_for_product "$product")" || return $?
