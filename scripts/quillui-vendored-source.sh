@@ -57,6 +57,69 @@ quillui_print_vendored_app_source_summary() {
     printf '==> vendored %s source snapshot: unmarked legacy copy\n' "$name"
 }
 
+quillui_vendored_swiftpm_manifest_fingerprint() {
+    local root_dir="$1"
+
+    python3 - "$root_dir" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+third_party = root / "third_party"
+digest = hashlib.sha256()
+digest.update(b"quillui-vendored-swiftpm-manifests/v1\0")
+
+if third_party.is_dir():
+    for path in sorted(third_party.glob("*/Package*.swift")):
+        if not path.is_file():
+            continue
+        try:
+            relative = path.resolve().relative_to(root)
+        except ValueError:
+            relative = path.resolve()
+        data = path.read_bytes()
+        digest.update(str(relative).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(len(data)).encode("utf-8"))
+        digest.update(b":")
+        digest.update(data)
+        digest.update(b"\0")
+
+print(digest.hexdigest())
+PY
+}
+
+quillui_vendored_swiftpm_app_stamp_is_valid() {
+    local root_dir="$1"
+    local stamp_file="$2"
+    local expected
+    local current
+
+    [[ -f "$stamp_file" ]] || return 1
+    expected="$(awk -F= '$1 == "manifestFingerprint" { print $2; exit }' "$stamp_file" 2>/dev/null || true)"
+    [[ -n "$expected" ]] || return 1
+    current="$(quillui_vendored_swiftpm_manifest_fingerprint "$root_dir")" || return 1
+    [[ "$current" == "$expected" ]]
+}
+
+quillui_write_vendored_swiftpm_app_stamp() {
+    local root_dir="$1"
+    local stamp_file="$2"
+    local app_name="$3"
+    local stamp_key="$4"
+    local manifest_fingerprint
+
+    manifest_fingerprint="$(quillui_vendored_swiftpm_manifest_fingerprint "$root_dir")"
+    mkdir -p "$(dirname "$stamp_file")"
+    {
+        printf 'quillui-vendored-swiftpm-app/v1\n'
+        printf 'app=%s\n' "$app_name"
+        printf 'key=%s\n' "$stamp_key"
+        printf 'manifestFingerprint=%s\n' "$manifest_fingerprint"
+    } > "$stamp_file"
+}
+
 quillui_upstream_app_source_dir() {
     local root_dir="$1"
     local name="$2"

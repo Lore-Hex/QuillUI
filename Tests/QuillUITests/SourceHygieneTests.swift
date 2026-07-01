@@ -7177,6 +7177,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/vendor-swiftui-app-source.sh"),
             encoding: .utf8
         )
+        let vendoredSourceHelper = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            encoding: .utf8
+        )
         let codeEditVendor = try String(
             contentsOf: root.appendingPathComponent("vendor/apps/codeedit/QUILLUI_VENDOR.md"),
             encoding: .utf8
@@ -7302,6 +7306,8 @@ struct SourceHygieneTests {
         #expect(buildSource.contains(".build/quillui-vendored-swiftpm-source-stamps"))
         #expect(buildSource.contains("quillui-vendored-swiftpm-app/v1"))
         #expect(buildSource.contains("Reused vendored SwiftPM source scan"))
+        #expect(buildSource.contains("quillui_vendored_swiftpm_app_stamp_is_valid \"$ROOT_DIR\" \"$stamp_file\""))
+        #expect(buildSource.contains("quillui_write_vendored_swiftpm_app_stamp \"$ROOT_DIR\" \"$stamp_file\" \"$app_name\" \"$stamp_key\""))
         #expect(buildSource.contains("--check-vendored >/dev/null"))
         #expect(buildSource.contains("Vendored SwiftPM source scan stamp is stale; refreshing"))
         #expect(buildSource.contains("Vendored SwiftPM package sources are incomplete for $app_name."))
@@ -7355,6 +7361,11 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("--artifact-path-file"))
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_manifest_fingerprint()"))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_app_stamp_is_valid()"))
+        #expect(vendoredSourceHelper.contains("quillui_write_vendored_swiftpm_app_stamp()"))
+        #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-manifests/v1"))
+        #expect(vendoredSourceHelper.contains("manifestFingerprint=%s"))
         #expect(genericProfileRuntimeSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileRuntimeSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR"))

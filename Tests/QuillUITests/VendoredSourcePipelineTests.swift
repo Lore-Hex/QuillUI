@@ -321,6 +321,79 @@ struct VendoredSourcePipelineTests {
         #expect(explicitUnknownResult.output.contains("unknown SwiftPM package 'DefinitelyNotKnown'"))
     }
 
+    @Test("Vendored SwiftPM app scan stamps track manifest fingerprints")
+    func vendoredSwiftPMAppScanStampsTrackManifestFingerprints() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let scratch = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillUIVendoredStamp-\(UUID().uuidString)")
+        let manifest = scratch.appendingPathComponent("third_party/ExampleWidgets/Package.swift")
+        let stamp = scratch.appendingPathComponent(".build/vendor-stamps/example.stamp")
+        defer { try? fileManager.removeItem(at: scratch) }
+
+        try fileManager.createDirectory(
+            at: manifest.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+            let package = Package(name: "ExampleWidgets")
+            """,
+            to: manifest
+        )
+
+        let helper = root.appendingPathComponent("scripts/quillui-vendored-source.sh")
+        let writeResult = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-c",
+                """
+                source "$1"
+                quillui_write_vendored_swiftpm_app_stamp "$2" "$3" example abc123
+                quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
+                """,
+                "bash",
+                helper.path,
+                scratch.path,
+                stamp.path
+            ]
+        )
+        #expect(writeResult.status == 0, Comment(rawValue: writeResult.output))
+        let stamped = try String(contentsOf: stamp, encoding: .utf8)
+        #expect(stamped.contains("app=example"))
+        #expect(stamped.contains("key=abc123"))
+        #expect(stamped.contains("manifestFingerprint="))
+
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+            let package = Package(name: "ExampleWidgets", targets: [.target(name: "ExampleWidgets")])
+            """,
+            to: manifest
+        )
+
+        let staleResult = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-c",
+                """
+                source "$1"
+                quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
+                """,
+                "bash",
+                helper.path,
+                scratch.path,
+                stamp.path
+            ]
+        )
+        #expect(staleResult.status != 0, Comment(rawValue: staleResult.output))
+    }
+
     private func packageRoot() throws -> URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 {

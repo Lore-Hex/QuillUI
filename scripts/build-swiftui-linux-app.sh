@@ -280,7 +280,7 @@ run_vendor_swiftpm_sources_for_app() {
   stamp_key="$(vendor_swiftpm_app_stamp_key "$app_name" "$checkout_dir" "$VENDOR_SWIFTPM_RESOLVE")"
   stamp_file="$VENDOR_SWIFTPM_STAMP_DIR/$app_name-$stamp_key.stamp"
   if [[ -f "$stamp_file" ]]; then
-    if "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
+    if quillui_vendored_swiftpm_app_stamp_is_valid "$ROOT_DIR" "$stamp_file"; then
       echo "Reused vendored SwiftPM source scan: $stamp_file"
       return
     fi
@@ -296,12 +296,7 @@ QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1 when network access is deliberately allowed
 MSG
     return 66
   fi
-  mkdir -p "$VENDOR_SWIFTPM_STAMP_DIR"
-  {
-    printf 'quillui-vendored-swiftpm-app/v1\n'
-    printf 'app=%s\n' "$app_name"
-    printf 'key=%s\n' "$stamp_key"
-  } > "$stamp_file"
+  quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key"
 }
 
 vendor_swiftpm_sources_enabled() {
