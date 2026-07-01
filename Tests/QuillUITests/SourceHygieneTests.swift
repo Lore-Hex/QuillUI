@@ -4583,6 +4583,12 @@ struct SourceHygieneTests {
         #expect(!osShim.contains("import os"))
         #expect(attributedStringDocument.contains("#if os(Linux)\n// NSAttributedString document-conversion surface"))
         #expect(attributedStringDocument.hasSuffix("#endif\n"))
+        for product in ["WebKit", "CoreImage", "LinkPresentation", "AVKit", "QuickLook", "AppIntents"] {
+            #expect(
+                manifest.occurrences(of: ".library(name: \"\(product)\", targets: [\"\(product)\"])") == 1,
+                Comment(rawValue: "Package.swift declares duplicate product \(product)")
+            )
+        }
     }
 
     @Test("Linux SwiftUI compatibility extensions have one canonical module")
