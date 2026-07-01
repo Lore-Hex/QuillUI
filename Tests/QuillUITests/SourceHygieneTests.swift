@@ -3570,6 +3570,8 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("--check-vendored"))
         #expect(vendorScript.contains("hydrate_missing_package_checkouts()"))
         #expect(vendorScript.contains("check_vendored_packages()"))
+        #expect(vendorScript.contains("audit_vendored_package_manifests()"))
+        #expect(vendorScript.contains("remote package dependency remains in"))
         #expect(vendorScript.contains("scripts/hydrate-swiftpm-checkouts-from-resolved.py"))
         #expect(vendorScript.contains("QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1"))
         #expect(vendorScript.contains("dev_only = {"))
@@ -3847,6 +3849,52 @@ struct SourceHygieneTests {
             presentVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
             Comment(rawValue: presentVendoredCheck.output)
         )
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "CodeEditTextView",
+            dependencies: [
+                .package(url: "https://github.com/example/not-vendored.git", from: "1.0.0")
+            ]
+        )
+        """.write(
+            to: sandbox.appendingPathComponent("third_party/CodeEditTextView/Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let remoteDependencyCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(remoteDependencyCheck.status == 1, Comment(rawValue: remoteDependencyCheck.output))
+        #expect(
+            remoteDependencyCheck.output.contains("remote package dependency remains in third_party/CodeEditTextView/Package.swift"),
+            Comment(rawValue: remoteDependencyCheck.output)
+        )
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        // .package(url: "https://github.com/example/commented-example.git", from: "1.0.0")
+        let package = Package(name: "CodeEditTextView")
+        """.write(
+            to: sandbox.appendingPathComponent("third_party/CodeEditTextView/Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let commentedRemoteCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(commentedRemoteCheck.status == 0, Comment(rawValue: commentedRemoteCheck.output))
     }
 
     @Test("Heavy Linux backend runners are resource guarded")

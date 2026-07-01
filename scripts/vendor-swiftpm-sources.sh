@@ -457,9 +457,47 @@ check_vendored_packages() {
   done
 
   if [[ "$status" == "0" ]]; then
+    audit_vendored_package_manifests || status=$?
+  fi
+
+  if [[ "$status" == "0" ]]; then
     echo "vendored SwiftPM package sources are present"
   fi
   return "$status"
+}
+
+audit_vendored_package_manifests() {
+  python3 - "$ROOT_DIR" "${PACKAGES[@]}" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+packages = sys.argv[2:]
+status = 0
+
+for package in packages:
+    package_dir = root / "third_party" / package
+    for manifest in sorted(package_dir.glob("Package*.swift")):
+        for line_number, line in enumerate(manifest.read_text().splitlines(), 1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("//"):
+                continue
+            has_remote_dependency = ".package(url:" in stripped or (
+                "url:" in stripped and "github.com" in stripped
+            )
+            if not has_remote_dependency:
+                continue
+            if package == "GRDB.swift" and "swift-docc-plugin" in stripped:
+                continue
+            relative = manifest.relative_to(root)
+            print(
+                f"remote package dependency remains in {relative}:{line_number}: {stripped}",
+                file=sys.stderr,
+            )
+            status = 1
+
+sys.exit(status)
+PY
 }
 
 if [[ "$CHECK_VENDORED" == "1" ]]; then
