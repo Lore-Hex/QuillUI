@@ -67,14 +67,48 @@ def update_with_tree(digest: "hashlib._Hash", path: Path, namespace: str) -> Non
             update_with_file(digest, item, path, namespace)
 
 
+def vendored_app_source_fingerprint(root_dir: Path, source_dir: Path) -> tuple[Path, Path, str] | None:
+    vendor_apps_dir = (root_dir / "vendor/apps").resolve()
+    try:
+        relative = source_dir.resolve().relative_to(vendor_apps_dir)
+    except ValueError:
+        return None
+    if not relative.parts:
+        return None
+
+    app_root = vendor_apps_dir / relative.parts[0]
+    fingerprint = app_root / ".quillui-vendor-source-fingerprint"
+    if not fingerprint.is_file():
+        return None
+
+    source_subdir = Path(*relative.parts[1:]).as_posix() if len(relative.parts) > 1 else "."
+    return app_root, fingerprint, source_subdir
+
+
+def update_with_source_identity(digest: "hashlib._Hash", root_dir: Path, source_dir: Path) -> None:
+    vendored_source = vendored_app_source_fingerprint(root_dir, source_dir)
+    if vendored_source is None:
+        update_with_tree(digest, source_dir, "source")
+        return
+
+    app_root, fingerprint, source_subdir = vendored_source
+    app_relative = app_root.relative_to((root_dir / "vendor/apps").resolve()).as_posix()
+    digest.update(b"source-vendored-app\0")
+    digest.update(app_relative.encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(source_subdir.encode("utf-8"))
+    digest.update(b"\0")
+    update_with_file(digest, fingerprint, app_root, "source-vendor-fingerprint")
+
+
 def main() -> int:
     args = parse_args()
     root_dir = args.root_dir.resolve()
     source_dir = args.source_dir.resolve()
     digest = hashlib.sha256()
-    digest.update(b"quillui-lowered-source-cache-v1\0")
+    digest.update(b"quillui-lowered-source-cache-v2\0")
 
-    update_with_tree(digest, source_dir, "source")
+    update_with_source_identity(digest, root_dir, source_dir)
     for relative in [
         "scripts/quillui-source-cache-key.py",
         "scripts/profiles/generic-swiftui.sh",

@@ -1912,6 +1912,79 @@ struct SourceHygieneTests {
         #expect(unsafeResult.output.contains("refusing to materialize vendored demo outside .upstream"))
     }
 
+    @Test("Lowered source cache key trusts vendored app source fingerprint")
+    func loweredSourceCacheKeyTrustsVendoredAppSourceFingerprint() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-source-cache-key-\(UUID().uuidString)")
+        let vendoredAppDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let vendoredSourceDir = vendoredAppDir.appendingPathComponent("App")
+        let vendoredSourceFile = vendoredSourceDir.appendingPathComponent("Demo.swift")
+        let vendoredFingerprint = vendoredAppDir.appendingPathComponent(".quillui-vendor-source-fingerprint")
+        let plainSourceDir = sandbox.appendingPathComponent("PlainApp")
+        let plainSourceFile = plainSourceDir.appendingPathComponent("Plain.swift")
+
+        try fileManager.createDirectory(at: vendoredSourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: plainSourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "one"
+        }
+        """.write(to: vendoredSourceFile, atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:1111111111111111
+        """.write(to: vendoredFingerprint, atomically: true, encoding: .utf8)
+        try """
+        public struct PlainAppSource {
+            public static let value = "one"
+        }
+        """.write(to: plainSourceFile, atomically: true, encoding: .utf8)
+
+        func cacheKey(sourceDir: URL) throws -> String {
+            let result = try runSourceHygieneProcess(
+                URL(fileURLWithPath: "/usr/bin/env"),
+                arguments: [
+                    "python3",
+                    root.appendingPathComponent("scripts/quillui-source-cache-key.py").path,
+                    "--root-dir",
+                    sandbox.path,
+                    "--source-dir",
+                    sourceDir.path,
+                ]
+            )
+            #expect(result.status == 0, Comment(rawValue: result.output))
+            return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let originalVendoredKey = try cacheKey(sourceDir: vendoredSourceDir)
+        try """
+        public struct DemoAppSource {
+            public static let value = "locally-mutated"
+        }
+        """.write(to: vendoredSourceFile, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: vendoredSourceDir) == originalVendoredKey)
+
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:2222222222222222
+        """.write(to: vendoredFingerprint, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: vendoredSourceDir) != originalVendoredKey)
+
+        let originalPlainKey = try cacheKey(sourceDir: plainSourceDir)
+        try """
+        public struct PlainAppSource {
+            public static let value = "two"
+        }
+        """.write(to: plainSourceFile, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: plainSourceDir) != originalPlainKey)
+    }
+
     @Test("Vendor app source script pins upstream checkout without git or build state")
     func vendorAppSourceScriptPinsUpstreamCheckoutWithoutGitOrBuildState() throws {
         let root = try packageRoot()
@@ -7389,6 +7462,12 @@ struct SourceHygieneTests {
         #expect(genericProfileRuntimeSource.contains(".build/quillui-lowered-source-cache"))
         #expect(genericProfileRuntimeSource.contains(".quillui-lowered-source-cache-key"))
         #expect(genericProfileRuntimeSource.contains("Reused cached generic SwiftUI lowered source"))
+        #expect(sourceCacheKey.contains("quillui-lowered-source-cache-v2"))
+        #expect(sourceCacheKey.contains("vendored_app_source_fingerprint"))
+        #expect(sourceCacheKey.contains("source-vendored-app"))
+        #expect(sourceCacheKey.contains("source-vendor-fingerprint"))
+        #expect(sourceCacheKey.contains("\"vendor/apps\""))
+        #expect(sourceCacheKey.contains(".quillui-vendor-source-fingerprint"))
         #expect(sourceCacheKey.contains("\"node_modules\""))
         #expect(genericProfileRuntimeSource.contains("mkdir -p \"$WORK_ROOT\""))
         #expect(genericProfileRuntimeSource.contains("rm -rf \"$PACKAGE_DIR\""))
