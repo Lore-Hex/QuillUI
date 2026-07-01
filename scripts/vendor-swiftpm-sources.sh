@@ -10,6 +10,7 @@ SLIM=1
 HYDRATE_MISSING=0
 CHECK_VENDORED=0
 ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS=0
+ALL_VENDORED_APPS=0
 PACKAGES=()
 PACKAGE_RESOLVED_FILES=()
 APP_NAMES=()
@@ -28,6 +29,8 @@ Options:
   --all                  Vendor every known SwiftPM package when its checkout exists.
   --app NAME             Add Package.resolved files discovered under a vendored or
                          upstream app checkout resolved by scripts/quillui-vendored-source.sh.
+  --all-vendored-apps    Add Package.resolved files discovered under every
+                         vendor/apps/* source snapshot.
   --package-resolved PATH
                          Add packages pinned by an Xcode/SwiftPM Package.resolved.
                          Repeatable. The script vendors matching existing checkouts
@@ -227,6 +230,37 @@ add_package_resolved_files_for_app() {
   fi
 }
 
+add_package_resolved_files_for_all_vendored_apps() {
+  local app_dir
+  local app_name
+  local resolved_file
+  local found=0
+
+  if [[ ! -d "$ROOT_DIR/vendor/apps" ]]; then
+    echo "warning: vendor/apps was not found; no vendored app Package.resolved files discovered" >&2
+    return 0
+  fi
+
+  shopt -s nullglob
+  for app_dir in "$ROOT_DIR/vendor/apps"/*; do
+    [[ -d "$app_dir" ]] || continue
+    app_name="$(basename "$app_dir")"
+    validate_app_name "$app_name"
+    while IFS= read -r resolved_file; do
+      [[ -n "$resolved_file" ]] || continue
+      add_package_resolved_file "$resolved_file"
+      found=1
+    done < <(find "$app_dir" \
+      \( -name .git -o -name .build -o -name DerivedData \) -prune \
+      -o -name Package.resolved -type f -print | sort)
+  done
+  shopt -u nullglob
+
+  if [[ "$found" == "0" ]]; then
+    echo "warning: no Package.resolved found under vendored app sources: $ROOT_DIR/vendor/apps" >&2
+  fi
+}
+
 read_package_resolved_names() {
   local resolved_file="$1"
 
@@ -336,6 +370,10 @@ while [[ $# -gt 0 ]]; do
       APP_NAMES+=("${1#--app=}")
       shift
       ;;
+    --all-vendored-apps)
+      ALL_VENDORED_APPS=1
+      shift
+      ;;
     --package-resolved)
       [[ $# -ge 2 ]] || fail_usage "--package-resolved requires a value."
       add_package_resolved_file "$2"
@@ -391,6 +429,10 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$ALL_VENDORED_APPS" == "1" ]]; then
+  add_package_resolved_files_for_all_vendored_apps
+fi
 
 if [[ ${#APP_NAMES[@]} -gt 0 ]]; then
   for app_name in "${APP_NAMES[@]}"; do

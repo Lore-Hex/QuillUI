@@ -3654,6 +3654,8 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
         #expect(vendorScript.contains("quillui_resolve_app_checkout_dir \"$ROOT_DIR\" \"$app_name\""))
         #expect(vendorScript.contains("-name Package.resolved -type f -print"))
+        #expect(vendorScript.contains("--all-vendored-apps"))
+        #expect(vendorScript.contains("add_package_resolved_files_for_all_vendored_apps()"))
         #expect(vendorScript.contains("--package-resolved PATH"))
         #expect(vendorScript.contains("--hydrate-missing"))
         #expect(vendorScript.contains("--check-vendored"))
@@ -3876,6 +3878,21 @@ struct SourceHygieneTests {
             Comment(rawValue: missingVendoredCheck.output)
         )
 
+        let missingAllVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--all-vendored-apps"]
+        )
+
+        #expect(missingAllVendoredCheck.status == 1, Comment(rawValue: missingAllVendoredCheck.output))
+        #expect(
+            missingAllVendoredCheck.output.contains("missing vendored AsyncAlgorithms -> third_party/AsyncAlgorithms"),
+            Comment(rawValue: missingAllVendoredCheck.output)
+        )
+        #expect(
+            missingAllVendoredCheck.output.contains("missing vendored CodeEditTextView -> third_party/CodeEditTextView"),
+            Comment(rawValue: missingAllVendoredCheck.output)
+        )
+
         let result = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
             arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--app", "demo"]
@@ -3950,6 +3967,17 @@ struct SourceHygieneTests {
         #expect(
             presentVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
             Comment(rawValue: presentVendoredCheck.output)
+        )
+
+        let presentAllVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--all-vendored-apps"]
+        )
+
+        #expect(presentAllVendoredCheck.status == 0, Comment(rawValue: presentAllVendoredCheck.output))
+        #expect(
+            presentAllVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
+            Comment(rawValue: presentAllVendoredCheck.output)
         )
 
         try """
