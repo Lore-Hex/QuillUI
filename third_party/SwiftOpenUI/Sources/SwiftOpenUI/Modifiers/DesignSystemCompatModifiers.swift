@@ -22,7 +22,16 @@ extension View {
 }
 
 extension Font {
-    public func weight(_ weight: FontWeight) -> Font { self }
+    /// Returns this font with the given weight applied (was a no-op stub;
+    /// backends now honor weight in custom-font rendering).
+    public func weight(_ weight: FontWeight) -> Font {
+        switch self {
+        case .custom(let size, _, let design):
+            return .custom(size: size, weight: weight, design: design)
+        default:
+            return .custom(size: presetPointSize, weight: weight, design: .default)
+        }
+    }
 }
 
 extension Color {

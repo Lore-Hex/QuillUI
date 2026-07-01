@@ -783,10 +783,26 @@ extension ItalicView: WebRenderable {
     }
 }
 
+extension FontDesignView: WebRenderable {
+    public func webCreateElement() -> JSValue {
+        let child = webRenderView(content)
+        let wrapper = document.createElement("span")
+        switch design {
+        case .default, .rounded:
+            break
+        case .monospaced:
+            _ = wrapper.style.setProperty("font-family", "monospace")
+        case .serif:
+            _ = wrapper.style.setProperty("font-family", "serif")
+        }
+        _ = wrapper.appendChild(child)
+        return wrapper
+    }
+}
+
 extension FontWeightView: WebRenderable {
     public func webCreateElement() -> JSValue {
         let child = webRenderView(content)
-        guard let weight else { return child }
         let wrapper = document.createElement("span")
         let w: Int
         switch weight {
@@ -1097,17 +1113,6 @@ extension ButtonStyleModifier: WebRenderable {
     public func webCreateElement() -> JSValue {
         var env = getCurrentEnvironment()
         env.buttonStyle = style
-        let prev = getCurrentEnvironment()
-        setCurrentEnvironment(env)
-        defer { setCurrentEnvironment(prev) }
-        return webRenderView(content)
-    }
-}
-
-extension CustomButtonStyleModifier: WebRenderable {
-    public func webCreateElement() -> JSValue {
-        var env = getCurrentEnvironment()
-        env.customButtonStyle = style
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
@@ -1581,7 +1586,7 @@ extension SwiftOpenUI.Button: WebRenderable {
         switch env.buttonStyle {
         case .plain:
             styleCSS = "padding: 0; cursor: \(cursorStyle); border: none; background: none; color: inherit; font: inherit; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
-        case .bordered, .accessoryBarAction, .quillPaintMacBordered:
+        case .bordered, .quillPaintMacBordered:
             styleCSS = "padding: 6px 12px; cursor: \(cursorStyle); border: 1px solid currentColor; background: none; color: inherit; font: inherit; border-radius: 4px; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
         case .borderedProminent, .quillPaintMacDefault:
             styleCSS = "padding: 8px 16px; cursor: \(cursorStyle); border: none; background: #007AFF; color: white; font: inherit; border-radius: 6px; display: flex; align-items: center; justify-content: center; opacity: \(disabled ? 0.4 : 1.0);"
@@ -2027,7 +2032,6 @@ extension FontModifiedView: WebRenderable, WebDescribable {
         case .custom(let size, let weight, _):
             let w: String
             switch weight {
-            case nil:         w = "400"
             case .ultraLight: w = "100"
             case .thin:       w = "200"
             case .light:      w = "300"
@@ -3669,10 +3673,9 @@ extension SheetModifierView: WebRenderable {
         if isPresented.wrappedValue {
             // Register this sheet as active for transition detection
             host?.currentSheetState[sheetKey] = onDismiss
-            let sheetView = sheetContent()
 
             // Check for dismissal-confirmation interception in sheet content
-            let dismissalConfig = webFindDismissalConfig(sheetView)
+            let dismissalConfig = webFindDismissalConfig(sheetContent)
             let interceptor: (() -> Void)? = dismissalConfig.map { config in
                 { config.isPresented.wrappedValue = true }
             }
@@ -3690,7 +3693,7 @@ extension SheetModifierView: WebRenderable {
                 // Set intercepted sheet dismiss so confirmation buttons can close the sheet
                 let previousInterceptedDismiss = _webInterceptedSheetDismiss
                 _webInterceptedSheetDismiss = { presentedBinding.wrappedValue = false }
-                sheetEl = webRenderView(sheetView)
+                sheetEl = webRenderView(sheetContent)
                 _webInterceptedSheetDismiss = previousInterceptedDismiss
                 setCurrentEnvironment(previousEnv)
             } else {
@@ -3698,7 +3701,7 @@ extension SheetModifierView: WebRenderable {
                 var env = previousEnv
                 env.dismiss = DismissAction { presentedBinding.wrappedValue = false }
                 setCurrentEnvironment(env)
-                sheetEl = webRenderView(sheetView)
+                sheetEl = webRenderView(sheetContent)
                 setCurrentEnvironment(previousEnv)
             }
 

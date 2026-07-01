@@ -24,6 +24,17 @@ extension BackgroundView where Background == Color {
 }
 
 /// A view with a font applied.
+/// Applies a font design (e.g. monospaced) to every text element in the
+/// subtree without changing sizes or weights. SwiftUI parity for
+/// `.fontDesign(_:)` and `.monospaced()`.
+public struct FontDesignView<Content: View>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let design: FontDesign
+
+    public var body: Never { fatalError("FontDesignView is a primitive view") }
+}
+
 public struct FontModifiedView<Content: View>: View, PrimitiveView {
     public typealias Body = Never
 
@@ -61,7 +72,6 @@ extension View {
     }
 
     /// Layer a background view behind this view.
-    @_disfavoredOverload
     public func background<V: View>(_ background: V, alignment: Alignment = .center) -> BackgroundView<Self, V> {
         BackgroundView(content: self, background: background, alignment: alignment)
     }
@@ -72,6 +82,16 @@ extension View {
     }
 
     /// Apply a font to this view.
+    /// Set the font design (typeface family) for this view's subtree.
+    public func fontDesign(_ design: FontDesign?) -> FontDesignView<Self> {
+        FontDesignView(content: self, design: design ?? .default)
+    }
+
+    /// Use the monospaced font design for this view's subtree.
+    public func monospaced(_ isActive: Bool = true) -> FontDesignView<Self> {
+        FontDesignView(content: self, design: isActive ? .monospaced : .default)
+    }
+
     public func font(_ font: Font) -> FontModifiedView<Self> {
         FontModifiedView(content: self, font: font)
     }
