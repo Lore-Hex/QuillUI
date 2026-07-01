@@ -4447,6 +4447,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift"),
             encoding: .utf8
         )
+        let swiftUINSViewRepresentable = try String(
+            contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/NSViewRepresentable.swift"),
+            encoding: .utf8
+        )
         let appKitSmoke = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillAppKitSmoke/Smoke.swift"),
             encoding: .utf8
@@ -4461,6 +4465,8 @@ struct SourceHygieneTests {
         #expect(appKit.contains("@MainActor open class NSViewController"))
         #expect(appKit.contains("public init(frame: NSRect)"))
         #expect(!appKit.contains("nonisolated public init(frame: NSRect)"))
+        #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated(unsafe) let representable: R") == 3)
+        #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated init(_ representable: R)") == 3)
         // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
         // @MainActor (its delegate methods are main-thread). `@preconcurrency`
         // downgrades the isolation check to Swift-5 mode, so a nonisolated
