@@ -231,6 +231,96 @@ struct VendoredSourcePipelineTests {
         """)
     }
 
+    @Test("SwiftPM source vendoring accepts lockfile-discovered packages")
+    func swiftPMSourceVendoringAcceptsLockfileDiscoveredPackages() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let scratch = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillUIVendorUnknownPackage-\(UUID().uuidString)")
+        let scripts = scratch.appendingPathComponent("scripts")
+        let checkout = scratch
+            .appendingPathComponent(".build")
+            .appendingPathComponent("checkouts")
+            .appendingPathComponent("CustomWidgets")
+        let checkoutSources = checkout.appendingPathComponent("Sources/CustomWidgets")
+        let resolved = scratch.appendingPathComponent("Package.resolved")
+        defer { try? fileManager.removeItem(at: scratch) }
+
+        try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: checkoutSources, withIntermediateDirectories: true)
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/vendor-swiftpm-sources.sh"),
+            to: scripts.appendingPathComponent("vendor-swiftpm-sources.sh")
+        )
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            to: scripts.appendingPathComponent("quillui-vendored-source.sh")
+        )
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "CustomWidgets",
+                products: [.library(name: "CustomWidgets", targets: ["CustomWidgets"])],
+                targets: [.target(name: "CustomWidgets")]
+            )
+            """,
+            to: checkout.appendingPathComponent("Package.swift")
+        )
+        try write(
+            "public enum CustomWidgets {}\n",
+            to: checkoutSources.appendingPathComponent("CustomWidgets.swift")
+        )
+        try write(
+            """
+            {
+              "pins": [
+                {
+                  "identity": "custom-widgets",
+                  "kind": "remoteSourceControl",
+                  "location": "https://example.com/CustomWidgets.git",
+                  "state": {
+                    "revision": "0123456789abcdef0123456789abcdef01234567",
+                    "version": "1.0.0"
+                  }
+                }
+              ],
+              "version": 2
+            }
+            """,
+            to: resolved
+        )
+
+        let lockfileResult = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                scripts.appendingPathComponent("vendor-swiftpm-sources.sh").path,
+                "--package-resolved", resolved.path,
+                "--scratch-path", scratch.appendingPathComponent(".build").path,
+                "--no-resolve",
+            ]
+        )
+        #expect(lockfileResult.status == 0, Comment(rawValue: lockfileResult.output))
+        #expect(fileManager.fileExists(atPath: scratch.appendingPathComponent("third_party/CustomWidgets/Package.swift").path))
+        #expect(lockfileResult.output.contains("vendored CustomWidgets -> third_party/CustomWidgets"))
+
+        let explicitUnknownResult = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                scripts.appendingPathComponent("vendor-swiftpm-sources.sh").path,
+                "--scratch-path", scratch.appendingPathComponent(".build").path,
+                "--no-resolve",
+                "DefinitelyNotKnown",
+            ]
+        )
+        #expect(explicitUnknownResult.status == 64, Comment(rawValue: explicitUnknownResult.output))
+        #expect(explicitUnknownResult.output.contains("unknown SwiftPM package 'DefinitelyNotKnown'"))
+    }
+
     private func packageRoot() throws -> URL {
         var url = URL(fileURLWithPath: #filePath)
         for _ in 0..<3 {

@@ -9,6 +9,7 @@ DRY_RUN=0
 SLIM=1
 HYDRATE_MISSING=0
 CHECK_VENDORED=0
+ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS=0
 PACKAGES=()
 PACKAGE_RESOLVED_FILES=()
 APP_NAMES=()
@@ -398,6 +399,7 @@ if [[ ${#APP_NAMES[@]} -gt 0 ]]; then
 fi
 
 if [[ ${#PACKAGE_RESOLVED_FILES[@]} -gt 0 ]]; then
+  ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS=1
   for resolved_file in "${PACKAGE_RESOLVED_FILES[@]}"; do
     case "$resolved_file" in
       /*) ;;
@@ -446,7 +448,7 @@ check_vendored_packages() {
   local status=0
 
   for package in "${PACKAGES[@]}"; do
-    if ! known_packages | grep -qx "$package"; then
+    if [[ "$ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS" != "1" ]] && ! known_packages | grep -qx "$package"; then
       echo "error: unknown SwiftPM package '$package'. Use --list to see known packages." >&2
       return 64
     fi
@@ -594,7 +596,7 @@ vendor_one() {
     --exclude '.DS_Store'
   )
 
-  if ! known_packages | grep -qx "$package"; then
+  if [[ "$ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS" != "1" ]] && ! known_packages | grep -qx "$package"; then
     echo "error: unknown SwiftPM package '$package'. Use --list to see known packages." >&2
     return 64
   fi
