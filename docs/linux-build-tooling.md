@@ -48,6 +48,14 @@ lowering profiles:
   source contents and QuillUI lowering inputs, so rsync/fresh-clone timestamp
   changes in vendored sources do not invalidate otherwise identical cache
   entries.
+- `--build-scratch` overrides the SwiftPM scratch directory used for the
+  generated package. When omitted, the public builder uses a content-keyed
+  scratch path under `.build/quillui-generated-app-build-cache`, hashing the
+  lowered app source key, package manifest/lockfile inputs, backend facade,
+  app entry metadata, profile, and package-generation tooling. That lets
+  vendored app builds reuse compiled SwiftPM dependency state even when an
+  agent changes `--workdir`. Pass `--no-reuse-build-scratch` to restore the
+  older `WORKDIR/.build-check` behavior for one-off isolation.
 - The generic profile also caches copied/lowered app source under
   `.build/quillui-lowered-source-cache`. The cache key hashes the app source and
   QuillUI lowering-tool inputs, so repeated vendored-source builds can skip the
