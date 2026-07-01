@@ -88,6 +88,11 @@ struct SwiftOpenUISceneBackendTests {
 
         #expect(source.contains("xdotool search --onlyvisible --pid \"$app_pid\""))
         #expect(source.contains("xdotool search --onlyvisible --name \".*\""))
+        #expect(source.contains("QUILLUI_GENERATED_APP_SMOKE_WINDOW_WIDTH"))
+        #expect(source.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=\"$WINDOW_WIDTH\""))
+        #expect(source.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=\"$WINDOW_HEIGHT\""))
+        #expect(source.contains("xdotool windowmove \"$window_id\" 0 0"))
+        #expect(source.contains("xdotool windowsize \"$window_id\" \"$WINDOW_WIDTH\" \"$WINDOW_HEIGHT\""))
         #expect(source.contains("import -window root \"$SCREENSHOT_PATH\""))
         #expect(source.contains("Generated app smoke ok: $APP_LABEL"))
         #expect(source.contains("QUILLUI_GTK_DEBUG_ACTIONS=1 enables GTK scene diagnostics"))

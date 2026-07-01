@@ -23,6 +23,9 @@ failures when GTK has presented the app.
 Environment:
   QUILLUI_GENERATED_APP_SMOKE_DISPLAY
   QUILLUI_GENERATED_APP_SMOKE_SCREEN_SIZE
+  QUILLUI_GENERATED_APP_SMOKE_WINDOW_WIDTH
+  QUILLUI_GENERATED_APP_SMOKE_WINDOW_HEIGHT
+  QUILLUI_GENERATED_APP_SMOKE_RESIZE_WINDOW=0 disables xdotool resize.
   QUILLUI_GENERATED_APP_SMOKE_WAIT_SECONDS
   QUILLUI_GENERATED_APP_SMOKE_LOG
   QUILLUI_GTK_DEBUG_ACTIONS=1 enables GTK scene diagnostics in the app log.
@@ -48,6 +51,18 @@ if [[ ! -x "$APP_EXECUTABLE" ]]; then
   echo "App executable is missing or not executable: $APP_EXECUTABLE" >&2
   exit 66
 fi
+
+if [[ "$SCREEN_SIZE" =~ ^([0-9]+)x([0-9]+)x([0-9]+)$ ]]; then
+  SCREEN_WIDTH="${BASH_REMATCH[1]}"
+  SCREEN_HEIGHT="${BASH_REMATCH[2]}"
+else
+  echo "Invalid QUILLUI_GENERATED_APP_SMOKE_SCREEN_SIZE: $SCREEN_SIZE" >&2
+  exit 64
+fi
+WINDOW_WIDTH="${QUILLUI_GENERATED_APP_SMOKE_WINDOW_WIDTH:-${QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH:-$SCREEN_WIDTH}}"
+WINDOW_HEIGHT="${QUILLUI_GENERATED_APP_SMOKE_WINDOW_HEIGHT:-${QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT:-$SCREEN_HEIGHT}}"
+RESIZE_WINDOW="${QUILLUI_GENERATED_APP_SMOKE_RESIZE_WINDOW:-1}"
+AFTER_RESIZE_SECONDS="${QUILLUI_GENERATED_APP_SMOKE_AFTER_RESIZE_SECONDS:-1}"
 
 if ! command -v Xvfb >/dev/null 2>&1; then
   echo "Xvfb is required for generated app smoke checks." >&2
@@ -87,7 +102,12 @@ if command -v openbox >/dev/null 2>&1; then
   openbox_pid=$!
 fi
 
-DISPLAY="$DISPLAY_ID" GTK_A11Y="${GTK_A11Y:-none}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
+DISPLAY="$DISPLAY_ID" \
+  GTK_A11Y="${GTK_A11Y:-none}" \
+  QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH="$WINDOW_WIDTH" \
+  QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT="$WINDOW_HEIGHT" \
+  QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL="${QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL:-1}" \
+  "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
 app_pid=$!
 
 sleep "$WAIT_SECONDS"
@@ -113,6 +133,11 @@ if command -v xdotool >/dev/null 2>&1; then
 fi
 
 if [[ -n "$window_id" ]]; then
+  DISPLAY="$DISPLAY_ID" xdotool windowmove "$window_id" 0 0 >/dev/null 2>&1 || true
+  if [[ "$RESIZE_WINDOW" != "0" ]]; then
+    DISPLAY="$DISPLAY_ID" xdotool windowsize "$window_id" "$WINDOW_WIDTH" "$WINDOW_HEIGHT" >/dev/null 2>&1 || true
+    sleep "$AFTER_RESIZE_SECONDS"
+  fi
   DISPLAY="$DISPLAY_ID" import -window "$window_id" "$SCREENSHOT_PATH"
 else
   DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
