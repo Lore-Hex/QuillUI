@@ -984,6 +984,44 @@ def patch_async_algorithms(text: str) -> str:
         raise SystemExit("AsyncAlgorithms Package.swift still contains unbuildable slim-tree targets")
     return text
 
+def patch_zipfoundation_legacy(text: str) -> str:
+    old_platform_block = '''#if os(macOS) || os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
+let dependencies: [Package.Dependency] = []
+#else
+let dependencies: [Package.Dependency] = [.package(url: "https://github.com/IBM-Swift/CZlib.git", .exact("0.1.2"))]
+#endif
+'''
+    old_compression_block = '''#if canImport(Compression)
+let dependencies: [Package.Dependency] = []
+#else
+let dependencies: [Package.Dependency] = [.package(url: "https://github.com/IBM-Swift/CZlib.git", .exact("0.1.2"))]
+#endif
+'''
+    new_target_block = '''#if canImport(Compression)
+let targets: [Target] = [
+    .target(name: "ZIPFoundation"),
+    .testTarget(name: "ZIPFoundationTests", dependencies: ["ZIPFoundation"])
+]
+#else
+let targets: [Target] = [
+    .systemLibrary(name: "CZLib", pkgConfig: "zlib"),
+    .target(name: "ZIPFoundation", dependencies: ["CZLib"]),
+    .testTarget(name: "ZIPFoundationTests", dependencies: ["ZIPFoundation"])
+]
+#endif
+'''
+    if old_platform_block in text:
+        text = text.replace(old_platform_block, new_target_block, 1)
+    elif old_compression_block in text:
+        text = text.replace(old_compression_block, new_target_block, 1)
+    elif '.systemLibrary(name: "CZLib", pkgConfig: "zlib")' not in text:
+        raise SystemExit("ZIPFoundation Package@swift-4 legacy manifest was not recognized")
+    text = text.replace("\n\tdependencies: dependencies,\n    targets: [\n        .target(name: \"ZIPFoundation\"),\n\t\t.testTarget(name: \"ZIPFoundationTests\", dependencies: [\"ZIPFoundation\"])\n    ]", "\n    targets: targets")
+    text = text.replace("\n\tdependencies: dependencies,\n    targets: [\n        .target(name: \"ZIPFoundation\"),\n\t\t.testTarget(name: \"ZIPFoundationTests\", dependencies: [\"ZIPFoundation\"])\n    ],", "\n    targets: targets,")
+    if "IBM-Swift/CZlib" in text or "dependencies: dependencies" in text:
+        raise SystemExit("ZIPFoundation legacy Package.swift still contains remote CZlib")
+    return text
+
 patch_file("third_party/OllamaKit/Package.swift", patch_ollamakit, ("third_party/Alamofire",))
 patch_file("third_party/MarkdownUI/Package.swift", patch_markdownui, ("third_party/NetworkImage", "third_party/SwiftCMark"))
 patch_file("third_party/Magnet/Package.swift", patch_magnet, ("third_party/Sauce",))
@@ -994,6 +1032,12 @@ for manifest in (
     "third_party/AsyncAlgorithms/Package@swift-5.7.swift",
 ):
     patch_file(manifest, patch_async_algorithms, ("third_party/swift-collections",))
+for manifest in (
+    "third_party/ZIPFoundation/Package@swift-4.0.swift",
+    "third_party/ZIPFoundation/Package@swift-4.1.swift",
+    "third_party/ZIPFoundation/Package@swift-4.2.swift",
+):
+    patch_file(manifest, patch_zipfoundation_legacy)
 PY
 }
 

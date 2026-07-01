@@ -3579,6 +3579,16 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/AsyncAlgorithms/Package.swift"),
             encoding: .utf8
         )
+        let zipFoundationLegacyManifests = try [
+            "Package@swift-4.0.swift",
+            "Package@swift-4.1.swift",
+            "Package@swift-4.2.swift",
+        ].map { manifestName in
+            try String(
+                contentsOf: root.appendingPathComponent("third_party/ZIPFoundation/\(manifestName)"),
+                encoding: .utf8
+            )
+        }
         let dependencyPrepScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py"),
             encoding: .utf8
@@ -3693,6 +3703,14 @@ struct SourceHygieneTests {
         #expect(!asyncAlgorithmsManifest.contains("https://github.com/apple/swift-collections.git"))
         #expect(!asyncAlgorithmsManifest.contains("AsyncAlgorithmsTests"))
         #expect(!asyncAlgorithmsManifest.contains("AsyncStreamingTests"))
+        #expect(vendorScript.contains("def patch_zipfoundation_legacy(text: str) -> str:"))
+        #expect(vendorScript.contains("patch_file(manifest, patch_zipfoundation_legacy)"))
+        for legacyManifest in zipFoundationLegacyManifests {
+            #expect(legacyManifest.contains(".systemLibrary(name: \"CZLib\", pkgConfig: \"zlib\")"))
+            #expect(legacyManifest.contains("targets: targets"))
+            #expect(!legacyManifest.contains("IBM-Swift/CZlib"))
+            #expect(!legacyManifest.contains(".package(url:"))
+        }
         #expect(vendorScript.contains("Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,"))
         #expect(vendorScript.contains("default_packages()"))
         #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))

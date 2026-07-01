@@ -1,10 +1,17 @@
 // swift-tools-version:4.0
 import PackageDescription
 
-#if os(macOS) || os(iOS) || os(tvOS) || os(visionOS) || os(watchOS)
-let dependencies: [Package.Dependency] = []
+#if canImport(Compression)
+let targets: [Target] = [
+    .target(name: "ZIPFoundation"),
+    .testTarget(name: "ZIPFoundationTests", dependencies: ["ZIPFoundation"])
+]
 #else
-let dependencies: [Package.Dependency] = [.package(url: "https://github.com/IBM-Swift/CZlib.git", .exact("0.1.2"))]
+let targets: [Target] = [
+    .systemLibrary(name: "CZLib", pkgConfig: "zlib"),
+    .target(name: "ZIPFoundation", dependencies: ["CZLib"]),
+    .testTarget(name: "ZIPFoundationTests", dependencies: ["ZIPFoundation"])
+]
 #endif
 
 let package = Package(
@@ -12,9 +19,5 @@ let package = Package(
     products: [
         .library(name: "ZIPFoundation", targets: ["ZIPFoundation"])
     ],
-	dependencies: dependencies,
-    targets: [
-        .target(name: "ZIPFoundation"),
-		.testTarget(name: "ZIPFoundationTests", dependencies: ["ZIPFoundation"])
-    ]
+    targets: targets
 )
