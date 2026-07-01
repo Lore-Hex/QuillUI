@@ -2206,7 +2206,7 @@ public struct Table<RowValue>: View {
         selection: Binding<Set<SelectionValue>>,
         @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
     ) where RowValue: Identifiable, RowValue.ID == SelectionValue {
-        var selection = selection
+        let selection = selection
         self.rows = rows
         self.columns = columns()
         self.isRowSelected = { row in
@@ -2233,7 +2233,7 @@ public struct Table<RowValue>: View {
         selection: Binding<Set<SelectionValue>>,
         @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
     ) where Data.Element == RowValue, RowValue: Identifiable, RowValue.ID == SelectionValue {
-        var selection = selection
+        let selection = selection
         self.rows = Array(rows)
         self.columns = columns()
         self.isRowSelected = { row in
@@ -2249,7 +2249,7 @@ public struct Table<RowValue>: View {
         selection: Binding<SelectionValue?>,
         @TableColumnBuilder<RowValue> columns: () -> [AnyTableColumn<RowValue>]
     ) where RowValue: Identifiable, RowValue.ID == SelectionValue {
-        var selection = selection
+        let selection = selection
         self.rows = rows
         self.columns = columns()
         self.isRowSelected = { row in

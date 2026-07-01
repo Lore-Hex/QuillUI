@@ -4674,7 +4674,7 @@ struct SourceHygieneTests {
         #expect(designCompatibility.contains("@MainActor\n    public init<Content: View>(_ column: TableColumn<RowValue, Content>)"))
         #expect(designCompatibility.contains("public init<Value>(_ title: String, value: KeyPath<RowValue, Value>) where Content == Text"))
         #expect(designCompatibility.contains("private var isRowSelected: (@MainActor (RowValue) -> Bool)?"))
-        #expect(designCompatibility.contains("var selection = selection"))
+        #expect(designCompatibility.contains("let selection = selection"))
         #expect(designCompatibility.contains("selection.wrappedValue = [row.id]"))
         #expect(designCompatibility.contains("public func render(_ row: RowValue) -> Content"))
         #expect(designCompatibility.contains("public func cell(for row: RowValue) -> AnyView"))
