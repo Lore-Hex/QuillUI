@@ -6,7 +6,7 @@ import CGTK
 import CGTKBridge
 import SwiftUI
 
-@Suite("GTK describe cycle guard")
+@Suite("GTK describe cycle guard", .serialized)
 @MainActor
 struct GTKDescribeCycleGuardTests {
     @Test("cyclic AnyView body records diagnostic chain")
