@@ -8211,7 +8211,23 @@ private let geometryTickCallback: GtkTickCallback = { widget, _, userData in
     return 1 // G_SOURCE_CONTINUE
 }
 
-extension GeometryReader: GTKRenderable {
+extension GeometryReader: GTKRenderable, GTKDescribable {
+    /// GeometryReader's content is rendered and re-rendered by its own
+    /// size-tracking context (map + tick callbacks), independent of the host
+    /// child flow, so its subtree must stay opaque to the narrow mutation
+    /// executor. Constant props make reuse-equality meaningful: the node
+    /// itself never changes, content changes are handled by the nested hosts
+    /// the context renders, and without this every host containing a
+    /// GeometryReader falls off the narrow path (the chat window was tearing
+    /// down its composer on every reachability tick).
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "GeometryReader",
+            props: .text(GTK4TextDescriptor(content: "geometry-reader"))
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(box, 1)
