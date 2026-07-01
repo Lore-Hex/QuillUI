@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
 import json
 import os
@@ -200,6 +201,7 @@ def parse_package_line(line: str) -> PackageLine:
     )
 
 
+@functools.lru_cache(maxsize=None)
 def package_name_from_manifest(package_dir: Path) -> str | None:
     manifest = package_dir / "Package.swift"
     if not manifest.is_file():
@@ -282,7 +284,13 @@ def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) 
         for child in directory.iterdir():
             if not child.is_dir():
                 continue
-            if normalized_package_component(child.name) in normalized_identities and (child / "Package.swift").is_file():
+            if not (child / "Package.swift").is_file():
+                continue
+            child_identities = {normalized_package_component(child.name)}
+            manifest_name = package_name_from_manifest(child)
+            if manifest_name:
+                child_identities.add(normalized_package_component(manifest_name))
+            if child_identities & normalized_identities:
                 return child.resolve()
     return None
 

@@ -1574,6 +1574,81 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Generated app builder resolves vendored URLs from package manifest names")
+    func generatedAppBuilderResolvesVendoredURLsFromPackageManifestNames() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-manifest-name-vendor-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/RenamedCheckout")
+        let packageSources = packageDir.appendingPathComponent("Sources/RemoteSupportKit")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "RemoteSupportKit",
+            products: [
+                .library(name: "RemoteSupportKit", targets: ["RemoteSupportKit"])
+            ],
+            targets: [
+                .target(name: "RemoteSupportKit")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum RemoteSupportKit {
+            public static let value = "vendored"
+        }
+        """.write(to: packageSources.appendingPathComponent("RemoteSupportKit.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(url: "https://example.com/remote-support-kit.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedPackagePath = packageDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"remote-support-kit\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedPackagePath)
+                || rewrittenDependencies.contains("/private\(resolvedPackagePath)")
+        )
+        #expect(!rewrittenDependencies.contains("https://example.com/remote-support-kit.git"))
+    }
+
     @Test("Generated app dependency preparation can reuse a shared prepared package cache")
     func generatedAppDependencyPreparationCanReuseSharedPreparedPackageCache() throws {
         let root = try packageRoot()
