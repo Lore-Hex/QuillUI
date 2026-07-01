@@ -919,6 +919,38 @@ private protocol QuillWrappedViewRepresentable {
 }
 
 @MainActor
+private protocol QuillConditionalViewRepresentable {
+    var quillActiveContent: any View { get }
+}
+
+extension _ConditionalView: QuillConditionalViewRepresentable {
+    fileprivate var quillActiveContent: any View {
+        switch self {
+        case .trueContent(let content):
+            return content
+        case .falseContent(let content):
+            return content
+        }
+    }
+}
+
+@MainActor
+private protocol QuillOptionalViewRepresentable {
+    var quillOptionalContent: (any View)? { get }
+}
+
+extension Optional: QuillOptionalViewRepresentable where Wrapped: View {
+    fileprivate var quillOptionalContent: (any View)? {
+        switch self {
+        case .some(let content):
+            return content
+        case .none:
+            return nil
+        }
+    }
+}
+
+@MainActor
 private protocol QuillAccessibilityLabelRepresentable: QuillWrappedViewRepresentable {
     var quillAccessibilityLabel: String { get }
 }
@@ -1165,6 +1197,15 @@ public func quillTextLabel(from view: any View) -> String {
         return contentLabel.isEmpty ? accessibility.quillAccessibilityLabel : contentLabel
     }
 
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillTextLabel(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return "" }
+        return quillTextLabel(from: content)
+    }
+
     if let wrapped = view as? any QuillWrappedViewRepresentable {
         return quillTextLabel(from: wrapped.quillWrappedContent)
     }
@@ -1201,6 +1242,15 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
 
     if let shortcut = view as? any QuillKeyboardShortcutRepresentable {
         return quillMenuElements(from: shortcut.quillShortcutContent)
+    }
+
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillMenuElements(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return [] }
+        return quillMenuElements(from: content)
     }
 
     if let wrapped = view as? any QuillWrappedViewRepresentable {
@@ -1257,6 +1307,15 @@ public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     if let disabled = view as? any QuillDisabledRepresentable {
         return quillCommandMenuItems(from: disabled.quillDisabledContent)
             .map { quillCommandMenuItem($0, disabled: disabled.quillIsDisabled) }
+    }
+
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillCommandMenuItems(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return [] }
+        return quillCommandMenuItems(from: content)
     }
 
     if let wrapped = view as? any QuillWrappedViewRepresentable {

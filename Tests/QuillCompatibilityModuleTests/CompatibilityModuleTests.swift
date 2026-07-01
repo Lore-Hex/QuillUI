@@ -4473,6 +4473,37 @@ struct CompatibilityModuleTests {
         #expect(styledCommandItems.count == 1)
         #expect(styledCommandItems.first?.label == "Sync")
 
+        @ViewBuilder
+        func shortcutIfPresent<V: View>(_ view: V, shortcut: KeyboardShortcut?) -> some View {
+            if let shortcut {
+                view.keyboardShortcut(shortcut)
+            } else {
+                view
+            }
+        }
+
+        let conditionalShortcut = shortcutIfPresent(
+            Button("Refresh") {
+                count.value = (count.value ?? 0) + 1
+            },
+            shortcut: KeyboardShortcut("r", modifiers: .command)
+        )
+        let conditionalShortcutItems = QuillUI.quillCommandMenuItems(from: conditionalShortcut)
+        #expect(conditionalShortcutItems.count == 1)
+        #expect(conditionalShortcutItems.first?.label == "Refresh")
+        #expect(conditionalShortcutItems.first?.shortcut == KeyboardShortcut("r", modifiers: .command))
+
+        let conditionalPlain = shortcutIfPresent(
+            Button("Plain") {
+                count.value = (count.value ?? 0) + 1
+            },
+            shortcut: nil
+        )
+        let conditionalPlainItems = QuillUI.quillCommandMenuItems(from: conditionalPlain)
+        #expect(conditionalPlainItems.count == 1)
+        #expect(conditionalPlainItems.first?.label == "Plain")
+        #expect(conditionalPlainItems.first?.shortcut == nil)
+
         // Unknown view returns empty.
         struct Unknown: View {
             var body: some View { Text("x") }

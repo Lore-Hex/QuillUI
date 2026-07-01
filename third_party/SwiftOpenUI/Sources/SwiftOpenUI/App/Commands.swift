@@ -389,6 +389,38 @@ private protocol CommandMenuWrappedViewRepresentable {
 	var commandMenuWrappedContent: any View { get }
 }
 
+@MainActor
+private protocol CommandMenuConditionalRepresentable {
+	var commandMenuActiveContent: any View { get }
+}
+
+extension _ConditionalView: CommandMenuConditionalRepresentable {
+	var commandMenuActiveContent: any View {
+		switch self {
+		case .trueContent(let content):
+			return content
+		case .falseContent(let content):
+			return content
+		}
+	}
+}
+
+@MainActor
+private protocol CommandMenuOptionalRepresentable {
+	var commandMenuOptionalContent: (any View)? { get }
+}
+
+extension Optional: CommandMenuOptionalRepresentable where Wrapped: View {
+	var commandMenuOptionalContent: (any View)? {
+		switch self {
+		case .some(let content):
+			return content
+		case .none:
+			return nil
+		}
+	}
+}
+
 extension LineLimitView: CommandMenuWrappedViewRepresentable {
 	var commandMenuWrappedContent: any View { content }
 }
@@ -486,6 +518,13 @@ private func commandMenuTextLabel(from view: any View) -> String {
 	if let disabled = view as? any CommandMenuDisabledRepresentable {
 		return commandMenuTextLabel(from: disabled.commandMenuDisabledContent)
 	}
+	if let conditional = view as? any CommandMenuConditionalRepresentable {
+		return commandMenuTextLabel(from: conditional.commandMenuActiveContent)
+	}
+	if let optional = view as? any CommandMenuOptionalRepresentable {
+		guard let content = optional.commandMenuOptionalContent else { return "" }
+		return commandMenuTextLabel(from: content)
+	}
 	if let multi = view as? MultiChildView {
 		for child in multi.children {
 			let label = commandMenuTextLabel(from: child)
@@ -512,6 +551,13 @@ private func commandMenuItems(from view: any View) -> [CommandMenuItem] {
 	}
 	if let wrapped = view as? any CommandMenuWrappedViewRepresentable {
 		return commandMenuItems(from: wrapped.commandMenuWrappedContent)
+	}
+	if let conditional = view as? any CommandMenuConditionalRepresentable {
+		return commandMenuItems(from: conditional.commandMenuActiveContent)
+	}
+	if let optional = view as? any CommandMenuOptionalRepresentable {
+		guard let content = optional.commandMenuOptionalContent else { return [] }
+		return commandMenuItems(from: content)
 	}
 	if let multi = view as? MultiChildView {
 		return multi.children.flatMap(commandMenuItems)
