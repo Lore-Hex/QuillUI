@@ -207,6 +207,13 @@ SwiftPM checkouts from the exact revisions pinned in `Package.resolved`; use
 `--resolve` only when the app checkout itself needs SwiftPM to create or update
 those pins.
 
+The vendoring pass also patches known transitive package manifests so their
+runtime dependencies point at sibling `third_party/` checkouts and slimmed test
+targets do not force remote test/doc packages to resolve. This keeps generated
+app builds on the checked-in source graph instead of making SwiftPM recreate
+remote working copies for packages such as Alamofire, NetworkImage, SwiftCMark,
+Sauce, or swift-collections.
+
 `--source-app` is the preferred path for shared agent work. The builder resolves
 `vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,
 so a build log that says `using vendored quillcode source` is on the fast,

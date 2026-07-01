@@ -51,54 +51,9 @@ let package = Package(
         .enableExperimentalFeature("StrictConcurrency=complete")
       ]
     ),
-    .testTarget(
-      name: "AsyncAlgorithmsTests",
-      dependencies: [
-        .target(name: "AsyncAlgorithms"),
-        .target(
-          name: "AsyncSequenceValidation",
-          condition: .when(platforms: [
-            .macOS,
-            .iOS,
-            .tvOS,
-            .watchOS,
-            .visionOS,
-            .macCatalyst,
-            .android,
-            .linux,
-            .openbsd,
-            .wasi,
-          ])
-        ),
-        .target(
-          name: "AsyncAlgorithms_XCTest",
-          condition: .when(platforms: [
-            .macOS,
-            .iOS,
-            .tvOS,
-            .watchOS,
-            .visionOS,
-            .macCatalyst,
-            .android,
-            .linux,
-            .openbsd,
-            .wasi,
-          ])
-        ),
-      ],
-      swiftSettings: availabilityMacros + [
-        .enableExperimentalFeature("StrictConcurrency=complete")
-      ]
-    ),
   ]
 )
 
-if Context.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
-  package.dependencies += [
-    .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0")
-  ]
-} else {
-  package.dependencies += [
-    .package(path: "../swift-collections")
-  ]
-}
+package.dependencies += [
+  .package(path: "../swift-collections")
+]

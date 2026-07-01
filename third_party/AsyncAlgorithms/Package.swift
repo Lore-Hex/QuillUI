@@ -36,21 +36,6 @@ let package = Package(
   name: "swift-async-algorithms",
   products: [
     .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"]),
-    .library(name: "AsyncStreaming", targets: ["AsyncStreaming"]),
-  ],
-  traits: [
-    .default(
-      enabledTraits: [
-        //        "UnstableAsyncStreaming"
-      ]
-    ),
-    .trait(
-      name: "UnstableAsyncStreaming",
-      description: """
-        Enables source unstable async streaming components in the _AsyncStreaming
-        module. Do not rely on this module in API stable packages.
-        """
-    ),
   ],
   targets: [
     .target(
@@ -61,24 +46,6 @@ let package = Package(
       ],
       swiftSettings: availabilityMacros + [
         .enableExperimentalFeature("StrictConcurrency=complete")
-      ]
-    ),
-    .target(
-      name: "AsyncStreaming",
-      dependencies: [
-        .product(name: "BasicContainers", package: "swift-collections"),
-        .product(name: "ContainersPreview", package: "swift-collections"),
-      ],
-      swiftSettings: [
-        .enableExperimentalFeature("SuppressedAssociatedTypesWithDefaults"),
-        .enableExperimentalFeature("LifetimeDependence"),
-        .enableExperimentalFeature("Lifetimes"),
-        .enableUpcomingFeature("LifetimeDependence"),
-        .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-        .enableUpcomingFeature("InferIsolatedConformances"),
-        .enableUpcomingFeature("ExistentialAny"),
-        .enableUpcomingFeature("MemberImportVisibility"),
-        .enableUpcomingFeature("InternalImportsByDefault"),
       ]
     ),
     .target(
@@ -96,79 +63,9 @@ let package = Package(
         .enableExperimentalFeature("StrictConcurrency=complete")
       ]
     ),
-    .testTarget(
-      name: "AsyncAlgorithmsTests",
-      dependencies: [
-        .target(name: "AsyncAlgorithms"),
-        .target(
-          name: "AsyncSequenceValidation",
-          condition: .when(platforms: [
-            .macOS,
-            .iOS,
-            .tvOS,
-            .watchOS,
-            .visionOS,
-            .macCatalyst,
-            .android,
-            .linux,
-            .custom("freebsd"),
-            .openbsd,
-            .wasi,
-          ])
-        ),
-        .target(
-          name: "AsyncAlgorithms_XCTest",
-          condition: .when(platforms: [
-            .macOS,
-            .iOS,
-            .tvOS,
-            .watchOS,
-            .visionOS,
-            .macCatalyst,
-            .android,
-            .linux,
-            .custom("freebsd"),
-            .openbsd,
-            .wasi,
-          ])
-        ),
-      ],
-      swiftSettings: availabilityMacros + [
-        .enableExperimentalFeature("StrictConcurrency=complete")
-      ]
-    ),
-    .testTarget(
-      name: "AsyncStreamingTests",
-      dependencies: [
-        "AsyncStreaming",
-        .product(name: "BasicContainers", package: "swift-collections"),
-        .product(name: "ContainersPreview", package: "swift-collections"),
-      ],
-      swiftSettings: [
-        .enableExperimentalFeature("SuppressedAssociatedTypesWithDefaults"),
-        .enableExperimentalFeature("LifetimeDependence"),
-        .enableExperimentalFeature("Lifetimes"),
-        .enableUpcomingFeature("LifetimeDependence"),
-        .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-        .enableUpcomingFeature("InferIsolatedConformances"),
-        .enableUpcomingFeature("ExistentialAny"),
-        .enableUpcomingFeature("MemberImportVisibility"),
-        .enableUpcomingFeature("InternalImportsByDefault"),
-      ]
-    ),
   ]
 )
 
-if Context.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
-  package.dependencies += [
-    .package(
-      url: "https://github.com/apple/swift-collections.git",
-      from: "1.5.0",
-      traits: [.trait(name: "UnstableContainersPreview", condition: .when(traits: ["UnstableAsyncStreaming"]))]
-    )
-  ]
-} else {
-  package.dependencies += [
-    .package(path: "../swift-collections")
-  ]
-}
+package.dependencies += [
+  .package(path: "../swift-collections")
+]

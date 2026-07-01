@@ -13,17 +13,13 @@ let package = Package(
             targets: ["Magnet"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/Clipy/Sauce", .upToNextMinor(from: "2.4.0")),
+        .package(path: "../Sauce"),
     ],
     targets: [
         .target(
             name: "Magnet",
             dependencies: ["Sauce"],
             path: "Lib/Magnet"),
-        .testTarget(
-            name: "MagnetTests",
-            dependencies: ["Magnet"],
-            path: "Lib/MagnetTests"),
     ],
     swiftLanguageVersions: [.v5]
 )

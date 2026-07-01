@@ -17,8 +17,7 @@ let package = Package(
     .library(name: "AsyncAlgorithms_XCTest", targets: ["AsyncAlgorithms_XCTest"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.4"),
-    .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+    .package(path: "../swift-collections"),
   ],
   targets: [
     .target(
@@ -33,10 +32,6 @@ let package = Package(
     .target(
       name: "AsyncAlgorithms_XCTest",
       dependencies: ["AsyncAlgorithms", "AsyncSequenceValidation"]
-    ),
-    .testTarget(
-      name: "AsyncAlgorithmsTests",
-      dependencies: ["AsyncAlgorithms", "AsyncSequenceValidation", "AsyncAlgorithms_XCTest"]
     ),
   ]
 )

@@ -742,9 +742,211 @@ elif new not in text:
 PY
 }
 
+patch_vendored_transitive_manifests() {
+  python3 - "$ROOT_DIR" <<'PY'
+import os
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+
+def balanced_call_end(text: str, open_paren: int) -> int:
+    depth = 0
+    in_string = False
+    escaped = False
+    index = open_paren
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        else:
+            if char == '"':
+                in_string = True
+            elif char == "(":
+                depth += 1
+            elif char == ")":
+                depth -= 1
+                if depth == 0:
+                    return index + 1
+        index += 1
+    raise SystemExit("unterminated Package.swift call while patching vendored manifest")
+
+def remove_named_call(text: str, call: str, name: str) -> str:
+    marker = f".{call}("
+    index = 0
+    while True:
+        index = text.find(marker, index)
+        if index < 0:
+            return text
+        open_paren = text.find("(", index)
+        end = balanced_call_end(text, open_paren)
+        block = text[index:end]
+        if f'name: "{name}"' not in block:
+            index = end
+            continue
+        start = text.rfind("\n", 0, index) + 1
+        while start > 0 and text[start - 1] in " \t":
+            start -= 1
+        if end < len(text) and text[end] == ",":
+            end += 1
+        if end < len(text) and text[end] == "\n":
+            end += 1
+        return text[:start] + text[end:]
+
+def replace_or_verify(text: str, old: str, new: str, required: str, label: str) -> str:
+    if old in text:
+        return text.replace(old, new, 1)
+    if required in text:
+        return text
+    raise SystemExit(f"{label} dependency block was not recognized")
+
+def patch_file(relative_path: str, callback, required_dirs: tuple[str, ...] = ()) -> None:
+    if any(not (root / item).is_dir() for item in required_dirs):
+        return
+    path = root / relative_path
+    if not path.is_file():
+        return
+    os.chmod(path, path.stat().st_mode | 0o200)
+    original = path.read_text()
+    patched = callback(original)
+    if patched != original:
+        path.write_text(patched)
+
+def patch_ollamakit(text: str) -> str:
+    text = replace_or_verify(
+        text,
+        '''    dependencies: [
+        .package(url: "https://github.com/Alamofire/Alamofire.git", .upToNextMajor(from: "5.8.1")),
+        .package(url: "https://github.com/apple/swift-docc-plugin.git", .upToNextMajor(from: "1.3.0"))
+    ],
+''',
+        '''    dependencies: [
+        .package(path: "../Alamofire")
+    ],
+''',
+        '.package(path: "../Alamofire")',
+        "OllamaKit Package.swift",
+    )
+    text = remove_named_call(text, "testTarget", "OllamaKitTests")
+    if "swift-docc-plugin" in text or "OllamaKitTests" in text:
+        raise SystemExit("OllamaKit Package.swift still contains remote docs or stale tests")
+    return text
+
+def patch_markdownui(text: str) -> str:
+    text = replace_or_verify(
+        text,
+        '''  dependencies: [
+    .package(url: "https://github.com/gonzalezreal/NetworkImage", from: "6.0.0"),
+    .package(url: "https://github.com/pointfreeco/swift-snapshot-testing", from: "1.10.0"),
+    .package(url: "https://github.com/swiftlang/swift-cmark", from: "0.4.0"),
+  ],
+''',
+        '''  dependencies: [
+    .package(path: "../NetworkImage"),
+    .package(name: "swift-cmark", path: "../SwiftCMark"),
+  ],
+''',
+        '.package(name: "swift-cmark", path: "../SwiftCMark")',
+        "MarkdownUI Package.swift",
+    )
+    text = remove_named_call(text, "testTarget", "MarkdownUITests")
+    if "swift-snapshot-testing" in text or "MarkdownUITests" in text:
+        raise SystemExit("MarkdownUI Package.swift still contains remote snapshot tests")
+    return text
+
+def patch_magnet(text: str) -> str:
+    text = replace_or_verify(
+        text,
+        '.package(url: "https://github.com/Clipy/Sauce", .upToNextMinor(from: "2.4.0"))',
+        '.package(path: "../Sauce")',
+        '.package(path: "../Sauce")',
+        "Magnet Package.swift",
+    )
+    text = remove_named_call(text, "testTarget", "MagnetTests")
+    if "MagnetTests" in text:
+        raise SystemExit("Magnet Package.swift still contains stale tests")
+    return text
+
+def patch_async_algorithms(text: str) -> str:
+    dependency_replacements = {
+        '''if Context.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
+  package.dependencies += [
+    .package(
+      url: "https://github.com/apple/swift-collections.git",
+      from: "1.5.0",
+      traits: [.trait(name: "UnstableContainersPreview", condition: .when(traits: ["UnstableAsyncStreaming"]))]
+    )
+  ]
+} else {
+  package.dependencies += [
+    .package(path: "../swift-collections")
+  ]
+}
+''': '''package.dependencies += [
+  .package(path: "../swift-collections")
+]
+''',
+        '''if Context.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
+  package.dependencies += [
+    .package(url: "https://github.com/apple/swift-collections.git", from: "1.1.0")
+  ]
+} else {
+  package.dependencies += [
+    .package(path: "../swift-collections")
+  ]
+}
+''': '''package.dependencies += [
+  .package(path: "../swift-collections")
+]
+''',
+        '''  dependencies: [
+    .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.4"),
+    .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+  ],
+''': '''  dependencies: [
+    .package(path: "../swift-collections"),
+  ],
+''',
+    }
+    for old, new in dependency_replacements.items():
+        if old in text:
+            text = text.replace(old, new, 1)
+            break
+    if '.package(path: "../swift-collections")' not in text or "swift-docc-plugin" in text:
+        raise SystemExit("AsyncAlgorithms Package.swift dependency block was not recognized")
+    text = text.replace('    .library(name: "AsyncStreaming", targets: ["AsyncStreaming"]),\n', "")
+    traits_start = text.find("  traits: [")
+    targets_start = text.find("  targets: [")
+    if 0 <= traits_start < targets_start:
+        text = text[:traits_start] + text[targets_start:]
+    text = remove_named_call(text, "target", "AsyncStreaming")
+    text = remove_named_call(text, "testTarget", "AsyncAlgorithmsTests")
+    text = remove_named_call(text, "testTarget", "AsyncStreamingTests")
+    if "AsyncStreaming" in text or "AsyncAlgorithmsTests" in text:
+        raise SystemExit("AsyncAlgorithms Package.swift still contains unbuildable slim-tree targets")
+    return text
+
+patch_file("third_party/OllamaKit/Package.swift", patch_ollamakit, ("third_party/Alamofire",))
+patch_file("third_party/MarkdownUI/Package.swift", patch_markdownui, ("third_party/NetworkImage", "third_party/SwiftCMark"))
+patch_file("third_party/Magnet/Package.swift", patch_magnet, ("third_party/Sauce",))
+for manifest in (
+    "third_party/AsyncAlgorithms/Package.swift",
+    "third_party/AsyncAlgorithms/Package@swift-5.8.swift",
+    "third_party/AsyncAlgorithms/Package@swift-5.7.swift",
+):
+    patch_file(manifest, patch_async_algorithms, ("third_party/swift-collections",))
+PY
+}
+
 for package in "${PACKAGES[@]}"; do
   vendor_one "$package"
 done
 
 patch_swift_crypto_manifest
 patch_swift_tree_sitter_manifest
+patch_vendored_transitive_manifests

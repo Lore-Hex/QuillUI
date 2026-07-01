@@ -3484,6 +3484,22 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/trusted-router-swift/Package.swift"),
             encoding: .utf8
         )
+        let ollamaKitManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/OllamaKit/Package.swift"),
+            encoding: .utf8
+        )
+        let markdownUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/MarkdownUI/Package.swift"),
+            encoding: .utf8
+        )
+        let magnetManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/Magnet/Package.swift"),
+            encoding: .utf8
+        )
+        let asyncAlgorithmsManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/AsyncAlgorithms/Package.swift"),
+            encoding: .utf8
+        )
         let dependencyPrepScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py"),
             encoding: .utf8
@@ -3507,6 +3523,11 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/LICENSE").path))
         #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/.git").path))
         #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/Package.resolved").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/Alamofire/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/NetworkImage/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftCMark/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/Sauce/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-collections/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftUIIntrospect/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/AsyncAlgorithms/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftTreeSitter/Package.swift").path))
@@ -3573,6 +3594,19 @@ struct SourceHygieneTests {
         #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
+        #expect(ollamaKitManifest.contains(".package(path: \"../Alamofire\")"))
+        #expect(!ollamaKitManifest.contains("swift-docc-plugin"))
+        #expect(!ollamaKitManifest.contains("OllamaKitTests"))
+        #expect(markdownUIManifest.contains(".package(path: \"../NetworkImage\")"))
+        #expect(markdownUIManifest.contains(".package(name: \"swift-cmark\", path: \"../SwiftCMark\")"))
+        #expect(!markdownUIManifest.contains("swift-snapshot-testing"))
+        #expect(!markdownUIManifest.contains("MarkdownUITests"))
+        #expect(magnetManifest.contains(".package(path: \"../Sauce\")"))
+        #expect(!magnetManifest.contains("MagnetTests"))
+        #expect(asyncAlgorithmsManifest.contains(".package(path: \"../swift-collections\")"))
+        #expect(!asyncAlgorithmsManifest.contains("https://github.com/apple/swift-collections.git"))
+        #expect(!asyncAlgorithmsManifest.contains("AsyncAlgorithmsTests"))
+        #expect(!asyncAlgorithmsManifest.contains("AsyncStreamingTests"))
         #expect(vendorScript.contains("Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,"))
         #expect(vendorScript.contains("default_packages()"))
         #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
@@ -3614,9 +3648,19 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("--full"))
         #expect(vendorScript.contains("patch_swift_crypto_manifest()"))
         #expect(vendorScript.contains("patch_swift_tree_sitter_manifest()"))
+        #expect(vendorScript.contains("patch_vendored_transitive_manifests()"))
+        #expect(vendorScript.contains("def remove_named_call(text: str, call: str, name: str) -> str:"))
         #expect(vendorScript.contains("chmod u+w \"$manifest\""))
         #expect(vendorScript.contains(".package(path: \"../swift-asn1\")"))
         #expect(vendorScript.contains(".package(name: \"TreeSitter\", path: \"../tree-sitter\")"))
+        #expect(vendorScript.contains(".package(path: \"../Alamofire\")"))
+        #expect(vendorScript.contains(".package(name: \"swift-cmark\", path: \"../SwiftCMark\")"))
+        #expect(vendorScript.contains(".package(path: \"../Sauce\")"))
+        #expect(vendorScript.contains(".package(path: \"../swift-collections\")"))
+        #expect(vendorScript.contains("OllamaKit Package.swift still contains remote docs or stale tests"))
+        #expect(vendorScript.contains("MarkdownUI Package.swift still contains remote snapshot tests"))
+        #expect(vendorScript.contains("Magnet Package.swift still contains stale tests"))
+        #expect(vendorScript.contains("AsyncAlgorithms Package.swift still contains unbuildable slim-tree targets"))
         #expect(vendorScript.contains("GRDB.swift"))
         #expect(vendorScript.contains("SwiftSoup"))
         #expect(vendorScript.contains("JavaScriptKit"))
