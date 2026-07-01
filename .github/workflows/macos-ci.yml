@@ -31,6 +31,9 @@ jobs:
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
 
+      - name: Audit vendored SwiftPM sources
+        run: scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored
+
       - name: Restore upstream source cache
         uses: ./.github/actions/upstream-cache
         with:

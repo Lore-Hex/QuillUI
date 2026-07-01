@@ -3542,6 +3542,14 @@ struct SourceHygieneTests {
         let vendorScript = try String(contentsOf: vendorScriptURL, encoding: .utf8)
         let hydrateScriptURL = root.appendingPathComponent("scripts/hydrate-swiftpm-checkouts-from-resolved.py")
         let hydrateScript = try String(contentsOf: hydrateScriptURL, encoding: .utf8)
+        let linuxWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
+        let macOSWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macos-ci.yml"),
+            encoding: .utf8
+        )
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
         let swiftOpenUIManifest = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
@@ -3596,6 +3604,10 @@ struct SourceHygieneTests {
 
         #expect(fileManager.isExecutableFile(atPath: vendorScriptURL.path))
         #expect(fileManager.fileExists(atPath: hydrateScriptURL.path))
+        #expect(linuxWorkflow.contains("Audit vendored SwiftPM sources"))
+        #expect(linuxWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
+        #expect(macOSWorkflow.contains("Audit vendored SwiftPM sources"))
+        #expect(macOSWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/Package.swift").path))

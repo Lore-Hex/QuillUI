@@ -105,6 +105,9 @@ jobs:
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
 
+      - name: Audit vendored SwiftPM sources
+        run: scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored
+
       - name: Validate backend product matrix
         run: scripts/quillui-backend-products.sh validate-integrity
 
