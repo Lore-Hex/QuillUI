@@ -3547,6 +3547,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
             encoding: .utf8
         )
+        let grdbManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/GRDB.swift/Package.swift"),
+            encoding: .utf8
+        )
         let swiftCryptoManifest = try String(
             contentsOf: root.appendingPathComponent("third_party/swift-crypto/Package.swift"),
             encoding: .utf8
@@ -3662,6 +3666,8 @@ struct SourceHygieneTests {
         #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: localPackage)"))
         #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: nestedVendorPackage)"))
         #expect(swiftOpenUIManifest.contains("path: \"../OpenCombine\""))
+        #expect(grdbManifest.contains("QuillUI vendors GRDB for offline Linux runtime builds"))
+        #expect(!grdbManifest.contains("swift-docc-plugin"))
         #expect(swiftCryptoManifest.contains("// QuillUI vendors swift-crypto next to swift-asn1"))
         #expect(swiftCryptoManifest.contains(".package(path: \"../swift-asn1\")"))
         #expect(swiftTreeSitterManifest.contains(".package(name: \"TreeSitter\", path: \"../tree-sitter\")"))
@@ -3680,6 +3686,9 @@ struct SourceHygieneTests {
         #expect(!markdownUIManifest.contains("MarkdownUITests"))
         #expect(magnetManifest.contains(".package(path: \"../Sauce\")"))
         #expect(!magnetManifest.contains("MagnetTests"))
+        #expect(vendorScript.contains("def patch_grdb(text: str) -> str:"))
+        #expect(vendorScript.contains("patch_file(\"third_party/GRDB.swift/Package.swift\", patch_grdb)"))
+        #expect(!vendorScript.contains("package == \"GRDB.swift\" and \"swift-docc-plugin\""))
         #expect(asyncAlgorithmsManifest.contains(".package(path: \"../swift-collections\")"))
         #expect(!asyncAlgorithmsManifest.contains("https://github.com/apple/swift-collections.git"))
         #expect(!asyncAlgorithmsManifest.contains("AsyncAlgorithmsTests"))

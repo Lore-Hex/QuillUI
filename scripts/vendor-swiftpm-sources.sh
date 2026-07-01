@@ -489,8 +489,6 @@ for package in packages:
             )
             if not has_remote_dependency:
                 continue
-            if package == "GRDB.swift" and "swift-docc-plugin" in stripped:
-                continue
             relative = manifest.relative_to(root)
             print(
                 f"remote package dependency remains in {relative}:{line_number}: {stripped}",
@@ -912,6 +910,21 @@ def patch_magnet(text: str) -> str:
         raise SystemExit("Magnet Package.swift still contains stale tests")
     return text
 
+def patch_grdb(text: str) -> str:
+    old = '''// SPI_BUILDER also enables the `make docs-localhost` command.
+if ProcessInfo.processInfo.environment["SPI_BUILDER"] == "1" {
+    dependencies.append(.package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"))
+}
+'''
+    new = '''// QuillUI vendors GRDB for offline Linux runtime builds. Do not pull the
+// documentation-only Swift-DocC plugin even when SPI_BUILDER leaks into CI.
+'''
+    if old in text:
+        text = text.replace(old, new, 1)
+    if "swift-docc-plugin" in text:
+        raise SystemExit("GRDB Package.swift still contains remote docs dependency")
+    return text
+
 def patch_async_algorithms(text: str) -> str:
     dependency_replacements = {
         '''if Context.environment["SWIFTCI_USE_LOCAL_DEPS"] == nil {
@@ -974,6 +987,7 @@ def patch_async_algorithms(text: str) -> str:
 patch_file("third_party/OllamaKit/Package.swift", patch_ollamakit, ("third_party/Alamofire",))
 patch_file("third_party/MarkdownUI/Package.swift", patch_markdownui, ("third_party/NetworkImage", "third_party/SwiftCMark"))
 patch_file("third_party/Magnet/Package.swift", patch_magnet, ("third_party/Sauce",))
+patch_file("third_party/GRDB.swift/Package.swift", patch_grdb)
 for manifest in (
     "third_party/AsyncAlgorithms/Package.swift",
     "third_party/AsyncAlgorithms/Package@swift-5.8.swift",
