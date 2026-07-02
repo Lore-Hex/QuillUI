@@ -734,7 +734,7 @@ separate from the normal test suite because it intentionally maps a temporary
 GTK window to get a real render node:
 
 ```bash
-GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests
 ```
 
 Use `scripts/linux-swift-test.sh` instead of calling `swift test` directly on

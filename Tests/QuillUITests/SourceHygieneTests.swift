@@ -3587,6 +3587,8 @@ struct SourceHygieneTests {
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
         #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
         #expect(preparationScript.contains("qt)\n    ;;"))
+        #expect(linuxSwiftTest.contains(": \"${QUILLUI_LINUX_BACKEND:=gtk}\""))
+        #expect(linuxSwiftTest.contains("export QUILLUI_LINUX_BACKEND"))
         #expect(preserveScript.contains("PACKAGE_RESOLVED=\"$PACKAGE_DIR/Package.resolved\""))
         #expect(preserveScript.contains("cp -p \"$PACKAGE_RESOLVED\" \"$TEMP_RESOLVED\""))
         #expect(preserveScript.contains("restore_package_resolved"))
