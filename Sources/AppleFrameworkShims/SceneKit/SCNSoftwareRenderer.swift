@@ -176,7 +176,7 @@ public struct SCNSoftwareRenderer {
     private func projectionContext(width: Int, height: Int) -> ProjectionContext {
         let rootTransform = Matrix4.identity
         var collector = RenderCollector()
-        collector.collect(node: scene.rootNode, parent: rootTransform)
+        collector.collect(node: scene.rootNode, parent: rootTransform, inheritedOpacity: 1)
 
         let bounds = collector.bounds ?? Bounds(min: Vector3(-1, -1, -1), max: Vector3(1, 1, 1))
         let cameraNode = pointOfView ?? collector.cameraNode
@@ -219,18 +219,19 @@ private struct RenderCollector {
     var cameraNode: SCNNode?
     var cameraWorldTransform: Matrix4?
 
-    mutating func collect(node: SCNNode, parent: Matrix4) {
-        guard !node.isHidden, node.opacity > 0 else { return }
+    mutating func collect(node: SCNNode, parent: Matrix4, inheritedOpacity: CGFloat) {
+        let opacity = inheritedOpacity * max(0, min(1, node.opacity))
+        guard !node.isHidden, opacity > 0 else { return }
         let world = parent * Matrix4.localTransform(for: node)
         if node.camera != nil, cameraNode == nil {
             cameraNode = node
             cameraWorldTransform = world
         }
         if let geometry = node.geometry {
-            collect(geometry: geometry, node: node, world: world)
+            collect(geometry: geometry, node: node, world: world, opacity: opacity)
         }
         for child in node.childNodes {
-            collect(node: child, parent: world)
+            collect(node: child, parent: world, inheritedOpacity: opacity)
         }
     }
 
@@ -243,8 +244,7 @@ private struct RenderCollector {
         }
     }
 
-    private mutating func collect(geometry: SCNGeometry, node: SCNNode, world: Matrix4) {
-        let opacity = max(0, min(1, node.opacity))
+    private mutating func collect(geometry: SCNGeometry, node: SCNNode, world: Matrix4, opacity: CGFloat) {
         let baseColor = color(for: geometry, elementIndex: 0).withAlphaMultiplier(opacity)
 
         switch geometry {

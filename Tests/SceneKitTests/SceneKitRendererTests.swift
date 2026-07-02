@@ -712,6 +712,37 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels == 0)
     }
 
+    @Test("Software renderer inherits opacity through the node hierarchy")
+    func rendererInheritsOpacityThroughNodeHierarchy() throws {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let plane = SCNPlane(width: 2, height: 2)
+        plane.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let planeNode = SCNNode(geometry: plane)
+
+        let group = SCNNode()
+        group.opacity = 0.5
+        group.addChildNode(planeNode)
+        scene.rootNode.addChildNode(group)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 90, height: 90, pointOfView: cameraNode)
+        let center = try #require(PixelStats.bgra(atX: 45, y: 45, in: image))
+        #expect(center[0] == 0)
+        #expect(center[1] == 0)
+        #expect(center[2] > 80)
+        #expect(center[2] < 160)
+        #expect(center[3] == 255)
+    }
+
     @Test("Software renderer applies material multiply channel")
     func rendererAppliesMaterialMultiplyChannel() {
         let disabledMultiply = SCNSphere(radius: 1)
@@ -1869,6 +1900,18 @@ private struct PixelStats {
             return .blue
         }
         return nil
+    }
+
+    static func bgra(atX x: Int, y: Int, in image: CGImage) -> [UInt8]? {
+        guard let pixels = image.quillBGRAPixels else { return nil }
+        let stride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : image.width * 4
+        guard x >= 0, x < image.width, y >= 0, y < image.height, stride >= image.width * 4 else {
+            return nil
+        }
+
+        let offset = y * stride + x * 4
+        guard offset + 3 < pixels.count else { return nil }
+        return Array(pixels[offset..<(offset + 4)])
     }
 }
 
