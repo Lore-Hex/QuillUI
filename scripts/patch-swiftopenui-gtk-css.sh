@@ -2011,7 +2011,7 @@ if "let buttonRootEventContext = Unmanaged.passRetained" not in text:
         raise SystemExit("SwiftOpenUI Button action box insertion point was not recognized")
     text = text.replace(action_box_line, root_context_activation, 1)
 
-if 'gtkScheduleButtonAction(box, source: "legacy")' not in text:
+if 'gtkScheduleButtonAction(box, source: "legacy"' not in text:
     button_legacy_marker = (
         "        gtk_swift_add_capture_gesture(button, gesture)\n"
         "        g_signal_connect_data(\n"
