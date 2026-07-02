@@ -129,6 +129,9 @@ fi
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
 RESOURCE_DIR="$TARGET_DIR/Resources"
+REQUESTED_PACKAGE_DIR="$PACKAGE_DIR"
+PACKAGE_PARENT_DIR="$(dirname "$REQUESTED_PACKAGE_DIR")"
+PACKAGE_STAGING_DIR="$PACKAGE_PARENT_DIR/.$(basename "$REQUESTED_PACKAGE_DIR").staging.$$"
 backend_import="QuillUI"
 backend_runner="QuillApp"
 backend_launch_statement=""
@@ -139,8 +142,14 @@ target_definitions=""
 extra_package_dependencies=""
 extra_target_dependencies=""
 generated_swift_count_dir="$TARGET_DIR"
+generated_swift_count_relative="Sources/$TARGET_NAME"
 
-rm -rf "$PACKAGE_DIR"
+rm -rf "$PACKAGE_STAGING_DIR"
+trap 'rm -rf "$PACKAGE_STAGING_DIR"' EXIT
+PACKAGE_DIR="$PACKAGE_STAGING_DIR"
+TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+RESOURCE_DIR="$TARGET_DIR/Resources"
+generated_swift_count_dir="$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
 if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
@@ -435,6 +444,7 @@ if [[ "$copy_source_files" == "1" ]]; then
       exit 65
     fi
     generated_swift_count_dir="$PACKAGE_DIR/Sources"
+    generated_swift_count_relative="Sources"
   else
     copy_swift_sources "$SOURCE_DIR" "$TARGET_DIR"
 
@@ -493,6 +503,34 @@ $target_definitions
     ]
 )
 SWIFT
+
+sync_generated_package() {
+  local staging_dir="$1"
+  local destination_dir="$2"
+  local relative_destination="${destination_dir#$ROOT_DIR/}"
+
+  if [[ -d "$destination_dir" ]] && diff -qr "$staging_dir" "$destination_dir" >/dev/null 2>&1; then
+    rm -rf "$staging_dir"
+    echo "Reused unchanged generated package: $relative_destination"
+    return 0
+  fi
+
+  mkdir -p "$destination_dir"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --checksum "$staging_dir"/ "$destination_dir"/
+    rm -rf "$staging_dir"
+  else
+    rm -rf "$destination_dir"
+    mv "$staging_dir" "$destination_dir"
+  fi
+  echo "Updated generated package: $relative_destination"
+}
+
+sync_generated_package "$PACKAGE_STAGING_DIR" "$REQUESTED_PACKAGE_DIR"
+PACKAGE_DIR="$REQUESTED_PACKAGE_DIR"
+TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+RESOURCE_DIR="$TARGET_DIR/Resources"
+generated_swift_count_dir="$PACKAGE_DIR/$generated_swift_count_relative"
 
 source_count="$(find "$SOURCE_COUNT_DIR" -name '*.swift' | wc -l | tr -d ' ')"
 generated_count="$(find "$generated_swift_count_dir" -name '*.swift' | wc -l | tr -d ' ')"
