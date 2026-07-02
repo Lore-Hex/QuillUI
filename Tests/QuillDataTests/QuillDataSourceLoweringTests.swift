@@ -403,8 +403,12 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux"))
-        #expect(!workflow.contains(".build-linux-offscreen"))
+        let offscreenStep = try #require(workflow.range(of: "GTK offscreen ImageRenderer smoke"))
+        let backendProductStep = try #require(workflow.range(of: "Build native backend app products"))
+        #expect(offscreenStep.lowerBound < backendProductStep.lowerBound)
         #expect(workflow.contains("timeout-minutes: 15"))
+        #expect(workflow.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(workflow.contains("QUILLUI_LINUX_BACKEND: \"gtk\""))
         #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
         #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests"))
     }
