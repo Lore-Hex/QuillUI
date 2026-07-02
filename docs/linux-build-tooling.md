@@ -67,9 +67,11 @@ lowering profiles:
   `vendor/apps/<name>` instead of invalidating Enchanted because QuillCode,
   CodeEdit, or another vendored fixture changed.
 - `--source-app` builds automatically scan `Package.resolved` below the selected
-  checkout and copy matching local SwiftPM checkouts into `third_party/` before
-  lowering. The scan uses `--no-resolve` by default, so normal local and CI builds
-  stay no-network while still preferring checked-in source. Pass
+  checkout and first verify that the pins are already covered by checked-in
+  `third_party/` SwiftPM sources. Only incomplete coverage falls back to copying
+  matching local SwiftPM checkouts into `third_party/` before lowering. The scan
+  uses `--no-resolve` by default, so normal local and CI builds stay no-network
+  while still preferring checked-in source. Pass
   `--no-vendor-swiftpm-sources` for debugging a raw checkout, or pass
   `--vendor-swiftpm-sources` to force the scan when an inherited environment
   disabled auto mode. Set `QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1` only when
@@ -201,10 +203,10 @@ builds can use `--source-app quillcode` plus the prepared-package and lowered
 source caches without cloning the app or creating fresh remote working copies.
 The build script stamps successful app-lockfile scans, so once the vendored
 source and `third_party/` package trees are in place, identical follow-up builds
-do not spend time walking the dependency graph just to prove it is already
-vendored. Use `--hydrate-missing` only when intentionally refreshing missing
-SwiftPM checkouts from the exact revisions pinned in `Package.resolved`; use
-`--resolve` only when the app checkout itself needs SwiftPM to create or update
+skip the dependency-vendoring pass entirely. Use `--hydrate-missing` only when
+intentionally refreshing missing SwiftPM checkouts from the exact revisions
+pinned in `Package.resolved`; use `--resolve` only when the app checkout itself
+needs SwiftPM to create or update
 those pins.
 
 The vendoring pass also patches known transitive package manifests so their

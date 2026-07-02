@@ -287,6 +287,12 @@ run_vendor_swiftpm_sources_for_app() {
     echo "Vendored SwiftPM source scan stamp is stale; refreshing: $stamp_file" >&2
   fi
 
+  if "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
+    echo "Vendored SwiftPM package sources already cover $app_name"
+    quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key"
+    return
+  fi
+
   "${vendor_swiftpm_args[@]}"
   if ! "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
     cat >&2 <<MSG

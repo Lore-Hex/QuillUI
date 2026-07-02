@@ -7419,6 +7419,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("quillui_vendored_swiftpm_app_stamp_is_valid \"$ROOT_DIR\" \"$stamp_file\""))
         #expect(buildSource.contains("quillui_write_vendored_swiftpm_app_stamp \"$ROOT_DIR\" \"$stamp_file\" \"$app_name\" \"$stamp_key\""))
         #expect(buildSource.contains("--check-vendored >/dev/null"))
+        #expect(buildSource.contains("Vendored SwiftPM package sources already cover $app_name"))
         #expect(buildSource.contains("Vendored SwiftPM source scan stamp is stale; refreshing"))
         #expect(buildSource.contains("Vendored SwiftPM package sources are incomplete for $app_name."))
         #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh --app $app_name --hydrate-missing"))
