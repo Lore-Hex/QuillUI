@@ -2,17 +2,18 @@ import Testing
 
 #if os(Linux)
 @testable import BackendGTK4
-import CGTK
-import CGTKBridge
-import SwiftUI
 
 /// Guards the button activation gate (#502): one physical click reaches the
 /// action through redundant press-side paths (gesture, legacy capture, root
 /// fallback) plus GtkButton's release-side `clicked` signal, and must fire
 /// the action exactly once even when a loaded machine stretches the
 /// press→release gap past any wall-clock dedup window.
+///
+/// The gate is exercised as a value here — no widgets. GTK widget creation
+/// is thread-affine and swift-testing MainActor jobs are not guaranteed to
+/// run on GTK's home thread, so end-to-end click behavior stays covered by
+/// the CI interaction smokes (which is where #502 was caught).
 @Suite("GTK button activation gate", .serialized)
-@MainActor
 struct GTKButtonActivationTests {
     /// `#expect` cannot expand a mutating call on a `var`, so drive the
     /// value-type gate through a reference-type shell.
@@ -82,50 +83,6 @@ struct GTKButtonActivationTests {
         // The next full click still fires exactly once.
         #expect(gate.fire(.pointerPress, at: 1.0))
         #expect(!gate.fire(.clicked, at: 1.05))
-    }
-
-    @Test("activating a rendered Button fires the action exactly once")
-    func activatingRenderedButtonFiresActionOnce() throws {
-        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
-            return
-        }
-
-        var fireCount = 0
-        let widget = widgetFromOpaque(gtkRenderView(
-            Button("Tap") { fireCount += 1 }
-        ))
-        let button = try firstGTKButton(in: widget)
-
-        // Keyboard-style activation emits `clicked` with no pointer press.
-        #expect(gtk_widget_activate(button) != 0, "GtkButton should be activatable")
-        drainGTKMainContext(maxIterations: 100)
-
-        #expect(fireCount == 1, "one activation must invoke the action exactly once")
-    }
-}
-
-private func firstGTKButton(in widget: UnsafeMutablePointer<GtkWidget>) throws -> UnsafeMutablePointer<GtkWidget> {
-    if String(cString: g_type_name(gtk_swift_get_widget_type(widget))) == "GtkButton" {
-        return widget
-    }
-
-    var child = gtk_widget_get_first_child(widget)
-    while let current = child {
-        if let found = try? firstGTKButton(in: current) {
-            return found
-        }
-        child = gtk_widget_get_next_sibling(current)
-    }
-
-    struct MissingGTKButton: Error {}
-    throw MissingGTKButton()
-}
-
-private func drainGTKMainContext(maxIterations: Int = 20) {
-    for _ in 0..<maxIterations {
-        if g_main_context_iteration(nil, 0) == 0 {
-            break
-        }
     }
 }
 #endif
