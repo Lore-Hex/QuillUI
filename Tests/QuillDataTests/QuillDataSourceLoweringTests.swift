@@ -1642,6 +1642,7 @@ struct QuillDataSourceLoweringTests {
 
         let source = directory.appendingPathComponent("App.swift")
         try """
+        import Foundation
         import SwiftUI
 
         @main
@@ -1686,6 +1687,20 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        struct PersistenceClock {
+            init(
+                now: @escaping @Sendable () -> Date = Date.init,
+                id: @escaping @Sendable () -> UUID = UUID.init,
+                plain: @escaping () -> String = String.init,
+                timestamp: TimeInterval = 0
+            ) {
+                _ = now
+                _ = id
+                _ = plain
+                _ = Date.init(timeIntervalSince1970: timestamp)
+            }
+        }
+
         #if os(macOS) || os(Linux)
         let alreadyDesktop = true
         #endif
@@ -1727,6 +1742,11 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("symbolConfiguration.applying(NSImage.SymbolConfiguration(pointSize: 15, weight: .bold))"))
         #expect(lowered.contains("point.applying(.init(translationX: 1, y: 2))"))
         #expect(!lowered.contains("point.applying(NSImage.SymbolConfiguration(translationX: 1, y: 2))"))
+        #expect(lowered.contains("now: @escaping @Sendable () -> Date = { Date() }"))
+        #expect(lowered.contains("id: @escaping @Sendable () -> UUID = { UUID() }"))
+        #expect(lowered.contains("plain: @escaping () -> String = String.init"))
+        #expect(lowered.contains("Date.init(timeIntervalSince1970: timestamp)"))
+        #expect(!lowered.contains("@Sendable () -> Date = Date.init"))
         #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
