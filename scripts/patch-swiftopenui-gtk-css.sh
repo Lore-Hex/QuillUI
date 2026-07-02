@@ -175,23 +175,7 @@ let swiftOpenUIGTKLinkerFlags: [String] = []
 if "func swiftOpenUIPkgConfigArguments(" not in text:
     text = text.replace("import Foundation\n", "import Foundation\n\n" + helpers, 1)
 
-if 'pkgConfig: "gtk4"' not in text:
-    cgtk_system_library = """    .systemLibrary(
-        name: "CGTK",
-        path: "Sources/Backend/GTK4/CGTK",
-        providers: [.apt(["libgtk-4-dev"])]
-    ),
-"""
-    cgtk_system_library_patched = """    .systemLibrary(
-        name: "CGTK",
-        path: "Sources/Backend/GTK4/CGTK",
-        pkgConfig: "gtk4",
-        providers: [.apt(["libgtk-4-dev"])]
-    ),
-"""
-    if cgtk_system_library not in text:
-        raise SystemExit("SwiftOpenUI manifest CGTK system library shape was not recognized")
-    text = text.replace(cgtk_system_library, cgtk_system_library_patched, 1)
+text = text.replace('        pkgConfig: "gtk4",\n', '')
 
 replacements = [
     (
@@ -263,8 +247,8 @@ for old, new in replacements:
     if old in text:
         text = text.replace(old, new, 1)
 
-if 'pkgConfig: "gtk4"' not in text:
-    raise SystemExit("SwiftOpenUI manifest CGTK pkgConfig patch did not apply")
+if 'pkgConfig: "gtk4"' in text:
+    raise SystemExit("SwiftOpenUI manifest CGTK pkgConfig removal did not apply")
 if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
     raise SystemExit("SwiftOpenUI manifest GTK importer flag patch did not apply")
 if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:

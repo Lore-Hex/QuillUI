@@ -2719,6 +2719,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"Sources/SignalUIRenderCore\""))
         #expect(manifest.contains("path: \"Sources/SignalUIRenderCoreSmoke\""))
         #expect(manifest.contains("\"QuillUIKit\", \"UIKit\", \"QuillFoundation\", \"QuartzCore\", \"CGtk4\""))
+        #expect(manifest.contains("\"Fonts\",\n                \"Views/BodyRanges/SpoilerRendering/SpoilerParticleShader.metal\""))
         #expect(!renderer.contains("import SignalUI"))
         #expect(!renderer.contains("as? ColorOrGradientValue"))
         #expect(renderer.contains("ReflectedSignalColorOrGradient"))
@@ -3284,6 +3285,14 @@ struct SourceHygieneTests {
     func gtkManifestFiltersPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let swiftOpenUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
+            encoding: .utf8
+        )
+        let swiftOpenUIPatcher = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh"),
+            encoding: .utf8
+        )
         let gtkModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/CGtk4/module.modulemap"),
             encoding: .utf8
@@ -3305,6 +3314,13 @@ struct SourceHygieneTests {
         #expect(manifest.contains("dependencies: quillUIDependencies,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
         #expect(manifest.contains(".unsafeFlags(gtk4SwiftImporterFlags)"))
         #expect(manifest.contains(".unsafeFlags(gtk4LinkerFlags)"))
+        #expect(swiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
+        #expect(swiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
+        #expect(swiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
+        #expect(swiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
+        #expect(!swiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
+        #expect(swiftOpenUIPatcher.contains("pkgConfig removal did not apply"))
+        #expect(!swiftOpenUIPatcher.contains("pkgConfig patch did not apply"))
         #expect(gdkPixbufModuleMap.contains("module CGdkPixbuf [system]"))
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }

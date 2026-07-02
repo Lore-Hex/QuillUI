@@ -2716,6 +2716,8 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             // annotations otherwise reject thousands of legal UIKit-style calls.
             exclude: [
                 "SignalUI.h",
+                "Fonts",
+                "Views/BodyRanges/SpoilerRendering/SpoilerParticleShader.metal",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.h",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.m",
                 "Calls/CallLinkTest.swift",
