@@ -26,7 +26,30 @@ import SwiftSyntaxBuilder
 ///     end-of-file marker. Top-level `#Preview` is deleted but the `#if`
 ///     wrapper is not collapsed.
 public struct SwiftUILowering {
-    public init() {}
+    /// Opt-in lowering passes that are *not* safe for every app and must be
+    /// enabled per profile. Off by default so apps that keep real Swift
+    /// concurrency (Signal / Telegram) are never affected.
+    public struct Options: Sendable, Equatable {
+        /// When `true`, run ``ActorIsolationLowering`` after the always-on
+        /// SwiftUI passes: `actor` -> `final class`, `nonisolated` removal, and
+        /// `await` stripping on intra-type calls. Only headless single-threaded
+        /// profiles (e.g. Enchanted / Quill Chat on the generic GTK backend)
+        /// should turn this on.
+        public var stripActorIsolation: Bool
+
+        public init(stripActorIsolation: Bool = false) {
+            self.stripActorIsolation = stripActorIsolation
+        }
+
+        /// The conservative, app-agnostic default: only the always-on passes.
+        public static let `default` = Options()
+    }
+
+    public let options: Options
+
+    public init(options: Options = .default) {
+        self.options = options
+    }
 
     /// Lowers a single Swift source string in memory.
     public func lower(_ source: String) -> String {
@@ -48,7 +71,11 @@ public struct SwiftUILowering {
         let loweredAttributedStringColors = Self.lowerAttributedStringForegroundColorAssignments(loweredProjectedCollectionChecks)
         let annotatedDecoderContinuations = Self.annotateJSONDecoderDataContinuations(loweredAttributedStringColors)
         let loweredPublisherPipelines = CombinePublisherPipelineComplexityLowering().lower(annotatedDecoderContinuations)
-        return SwiftUIBodyComplexityLowering().lower(loweredPublisherPipelines)
+        let bodyLowered = SwiftUIBodyComplexityLowering().lower(loweredPublisherPipelines)
+        if options.stripActorIsolation {
+            return ActorIsolationLowering().lower(bodyLowered)
+        }
+        return bodyLowered
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Files whose
