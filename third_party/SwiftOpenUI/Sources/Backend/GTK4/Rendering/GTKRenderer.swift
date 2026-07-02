@@ -1354,9 +1354,49 @@ private func gtkDebugLog(_ message: String) {
     }
 }
 
+/// Decides whether a button-activation signal may fire the action.
+///
+/// One physical click reaches the action box through several redundant
+/// paths: the click gesture, the legacy capture controller, and the
+/// root-event fallback all fire on pointer PRESS, while GtkButton's
+/// `clicked` signal fires on RELEASE. Wall-clock dedup alone is
+/// load-sensitive: on a busy runner the press→release gap can exceed any
+/// reasonable window, so a single click fired the action twice (#502).
+/// A pointer press therefore arms the gate and the following `clicked`
+/// consumes it — suppressed regardless of elapsed time — while keyboard
+/// activation (a `clicked` with no preceding pointer press) still fires.
+/// The wall-clock window keeps deduplicating the press-side paths, which
+/// always dispatch within one main-loop iteration of each other.
+struct GTKButtonActivationGate {
+    enum Phase {
+        case pointerPress
+        case clicked
+    }
+
+    private var lastActivationTime: TimeInterval = 0
+    private var pointerPressAwaitingClicked = false
+
+    mutating func shouldFire(_ phase: Phase, now: TimeInterval) -> Bool {
+        switch phase {
+        case .pointerPress:
+            pointerPressAwaitingClicked = true
+        case .clicked:
+            if pointerPressAwaitingClicked {
+                pointerPressAwaitingClicked = false
+                return false
+            }
+        }
+        if now - lastActivationTime < 0.08 {
+            return false
+        }
+        lastActivationTime = now
+        return true
+    }
+}
+
 private final class GTKButtonActionBox {
     let action: () -> Void
-    var lastActivationTime: TimeInterval = 0
+    var activationGate = GTKButtonActivationGate()
 
     init(_ action: @escaping () -> Void) {
         self.action = action
@@ -1472,14 +1512,17 @@ private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer
     return "\(source)@\(Int(rootX)),\(Int(rootY)) \(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget))"
 }
 
-private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
+private func gtkScheduleButtonAction(
+    _ box: GTKButtonActionBox,
+    source: String,
+    phase: GTKButtonActivationGate.Phase
+) {
     gtkFlushPendingTextBindingUpdate()
     let now = Date().timeIntervalSinceReferenceDate
-    if now - box.lastActivationTime < 0.08 {
+    guard box.activationGate.shouldFire(phase, now: now) else {
         gtkDebugLog("button duplicate \(source)")
         return
     }
-    box.lastActivationTime = now
     gtkDebugLog("button \(source)")
     let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
     g_idle_add({ userData -> gboolean in
@@ -1512,7 +1555,7 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
             guard isTopmost else { return 0 }
-            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\(Int(x)),\(Int(y))", widget: context.widget))
+            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\(Int(x)),\(Int(y))", widget: context.widget), phase: .pointerPress)
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
@@ -1725,7 +1768,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: false)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget))
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget), phase: .clicked)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -1740,7 +1783,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: true)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget))
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget), phase: .pointerPress)
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -1755,7 +1798,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let event, let userData else { return 0 }
                 guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
                 let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
-                gtkScheduleButtonAction(box, source: "legacy")
+                gtkScheduleButtonAction(box, source: "legacy", phase: .pointerPress)
                 return 0
             } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
             buttonActionBox,
