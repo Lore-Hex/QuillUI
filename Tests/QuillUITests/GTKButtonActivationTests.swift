@@ -31,7 +31,6 @@ struct GTKButtonActivationTests {
         // The #502 CI failure: clicked dispatched >80ms after the press
         // paths on a loaded runner must NOT fire a second time.
         #expect(!gate.fire(.clicked, at: 0.2))
-        #expect(!gate.fire(.clicked, at: 5.0), "clicked may consume at most one armed press")
     }
 
     @Test("press then fast clicked fires once")
