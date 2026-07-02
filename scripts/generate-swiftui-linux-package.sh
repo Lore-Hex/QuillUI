@@ -579,11 +579,24 @@ if [[ "$BACKEND_FACADE" != "qt" ]]; then
   quillui_append_pkgconfig_flags "gtk4"
 fi
 
+quillui_generated_source_requires_macro_plugin() {
+  local source_root="$1"
+
+  grep -R -E -q --include='*.swift' '(^|[^[:alnum:]_])(@(Model|Attribute|Relationship|Transient)([^[:alnum:]_]|$)|#(Predicate|QuillPredicate)([^[:alnum:]_]|$))' "$source_root"
+}
+
+quillui_runtime_only_macros="${QUILLUI_RUNTIME_ONLY_MACROS:-1}"
+validate_boolean_flag "$quillui_runtime_only_macros" "QUILLUI_RUNTIME_ONLY_MACROS"
+if [[ "$quillui_runtime_only_macros" == "1" ]] && quillui_generated_source_requires_macro_plugin "$TARGET_DIR"; then
+  echo "==> generated source still contains Swift macro syntax; disabling runtime-only macro stubs"
+  quillui_runtime_only_macros=0
+fi
+
 if [[ "$BACKEND_FACADE" == "qt" ]]; then
-  QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 else
-  QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 fi
 

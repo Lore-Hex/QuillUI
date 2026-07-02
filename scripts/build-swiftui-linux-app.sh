@@ -777,8 +777,21 @@ QUILLUI_GENERATED_BUILD_SCRATCH="$BUILD_SCRATCH" \
 QUILLUI_REQUIRE_VENDORED_SOURCES="${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}" \
 "$PROFILE_SCRIPT"
 
+quillui_generated_source_requires_macro_plugin() {
+  local source_root="$1"
+
+  grep -R -E -q --include='*.swift' '(^|[^[:alnum:]_])(@(Model|Attribute|Relationship|Transient)([^[:alnum:]_]|$)|#(Predicate|QuillPredicate)([^[:alnum:]_]|$))' "$source_root"
+}
+
+quillui_runtime_only_macros="${QUILLUI_RUNTIME_ONLY_MACROS:-1}"
+validate_boolean_flag "$quillui_runtime_only_macros" "QUILLUI_RUNTIME_ONLY_MACROS"
+if [[ "$quillui_runtime_only_macros" == "1" ]] && quillui_generated_source_requires_macro_plugin "$WORK_ROOT/package/Sources/GeneratedSwiftUILinuxApp"; then
+  echo "==> generated source still contains Swift macro syntax; disabling runtime-only macro stubs"
+  quillui_runtime_only_macros=0
+fi
+
 if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
-  BIN_DIR="$(QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  BIN_DIR="$(QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --disable-index-store \
     --package-path "$WORK_ROOT/package" \
     --scratch-path "$BUILD_SCRATCH" \
@@ -787,7 +800,7 @@ else
   "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
     --backend gtk \
     --scratch-path "$BUILD_SCRATCH"
-  BIN_DIR="$(QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  BIN_DIR="$(QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --disable-index-store \
     --package-path "$WORK_ROOT/package" \
     --scratch-path "$BUILD_SCRATCH" \

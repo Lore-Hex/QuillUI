@@ -244,9 +244,12 @@ Generated app builds also default `QUILLUI_RUNTIME_ONLY_MACROS=1` for the
 generator's SwiftPM build and the final artifact lookup. The lowering phase
 removes SwiftData/Observation/Preview macro use before compilation, so the
 runtime graph can link QuillData, SwiftUI, Observation, and FoundationModels
-without compiling the SwiftSyntax-backed macro plugin targets. Set
-`QUILLUI_RUNTIME_ONLY_MACROS=0` only when intentionally building an unlowered
-source tree that still expands those macros.
+without compiling the SwiftSyntax-backed macro plugin targets. If the generated
+source still contains SwiftData/QuillData macro spellings such as `@Attribute`,
+`@Relationship`, `#Predicate`, or `#QuillPredicate`, the generator automatically
+falls back to `QUILLUI_RUNTIME_ONLY_MACROS=0` for that build so the package stays
+correct. Set `QUILLUI_RUNTIME_ONLY_MACROS=0` when intentionally building an
+unlowered source tree that still expands those macros.
 
 The standard Linux build image and CI dependency sets include both `libc++-dev`
 and `libc++abi-dev`. Some vendored app dependencies, including editor/parser
