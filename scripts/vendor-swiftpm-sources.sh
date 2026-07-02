@@ -9,6 +9,7 @@ DRY_RUN=0
 SLIM=1
 HYDRATE_MISSING=0
 CHECK_VENDORED=0
+PRINT_PACKAGE_LIST=0
 ALLOW_UNKNOWN_PACKAGE_RESOLVED_PINS=0
 ALL_VENDORED_APPS=0
 PACKAGES=()
@@ -44,6 +45,8 @@ Options:
                          revisions into scratch checkouts before copying.
   --check-vendored       Only verify that selected packages already exist under
                          third_party/ with Package.swift files.
+  --print-package-list   Print the selected package names after Package.resolved
+                         discovery and exit without resolving or copying.
   --full                 Copy full checkouts instead of the default slim source copy.
   --dry-run              Print the copies that would be performed.
   --list                 Print known package names.
@@ -404,6 +407,10 @@ while [[ $# -gt 0 ]]; do
       CHECK_VENDORED=1
       shift
       ;;
+    --print-package-list)
+      PRINT_PACKAGE_LIST=1
+      shift
+      ;;
     --full)
       SLIM=0
       shift
@@ -458,6 +465,11 @@ if [[ ${#PACKAGES[@]} -eq 0 ]]; then
   while IFS= read -r package; do
     add_package "$package"
   done < <(default_packages)
+fi
+
+if [[ "$PRINT_PACKAGE_LIST" == "1" ]]; then
+  printf '%s\n' "${PACKAGES[@]}"
+  exit 0
 fi
 
 case "$SCRATCH_PATH" in

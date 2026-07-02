@@ -261,9 +261,20 @@ print(digest.hexdigest())
 PY
 }
 
+vendor_swiftpm_app_packages() {
+  local app_name="$1"
+
+  "$ROOT_DIR/scripts/vendor-swiftpm-sources.sh" \
+    --app "$app_name" \
+    --no-resolve \
+    --print-package-list
+}
+
 run_vendor_swiftpm_sources_for_app() {
   local app_name="$1"
   local checkout_dir="$2"
+  local app_packages=()
+  local package=""
   local stamp_key=""
   local stamp_file=""
   local vendor_swiftpm_args=("$ROOT_DIR/scripts/vendor-swiftpm-sources.sh" "--app" "$app_name")
@@ -277,6 +288,11 @@ run_vendor_swiftpm_sources_for_app() {
     return
   fi
 
+  while IFS= read -r package; do
+    [[ -n "$package" ]] || continue
+    app_packages+=("$package")
+  done < <(vendor_swiftpm_app_packages "$app_name")
+
   stamp_key="$(vendor_swiftpm_app_stamp_key "$app_name" "$checkout_dir" "$VENDOR_SWIFTPM_RESOLVE")"
   stamp_file="$VENDOR_SWIFTPM_STAMP_DIR/$app_name-$stamp_key.stamp"
   if [[ -f "$stamp_file" ]]; then
@@ -289,7 +305,7 @@ run_vendor_swiftpm_sources_for_app() {
 
   if "${vendor_swiftpm_args[@]}" --check-vendored >/dev/null; then
     echo "Vendored SwiftPM package sources already cover $app_name"
-    quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key"
+    quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key" "${app_packages[@]}"
     return
   fi
 
@@ -302,7 +318,7 @@ QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1 when network access is deliberately allowed
 MSG
     return 66
   fi
-  quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key"
+  quillui_write_vendored_swiftpm_app_stamp "$ROOT_DIR" "$stamp_file" "$app_name" "$stamp_key" "${app_packages[@]}"
 }
 
 vendor_swiftpm_sources_enabled() {

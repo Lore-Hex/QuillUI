@@ -4054,6 +4054,17 @@ struct SourceHygieneTests {
             Comment(rawValue: devResult.output)
         )
 
+        let packageListResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--print-package-list", "--app", "demo"]
+        )
+
+        #expect(packageListResult.status == 0, Comment(rawValue: packageListResult.output))
+        #expect(packageListResult.output.contains("AsyncAlgorithms"), Comment(rawValue: packageListResult.output))
+        #expect(packageListResult.output.contains("CodeEditTextView"), Comment(rawValue: packageListResult.output))
+        #expect(!packageListResult.output.contains("SwiftSnapshotTesting"), Comment(rawValue: packageListResult.output))
+        #expect(!packageListResult.output.contains("SwiftLintPlugin"), Comment(rawValue: packageListResult.output))
+
         for package in ["AsyncAlgorithms", "CodeEditTextView"] {
             let packageDir = sandbox.appendingPathComponent("third_party/\(package)")
             try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
@@ -7421,6 +7432,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("validate_vendor_swiftpm_sources_mode()"))
         #expect(buildSource.contains("vendor_swiftpm_sources_enabled()"))
         #expect(buildSource.contains("vendor_swiftpm_app_stamp_key()"))
+        #expect(buildSource.contains("vendor_swiftpm_app_packages()"))
         #expect(buildSource.contains("run_vendor_swiftpm_sources_for_app()"))
         #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_STAMP_DIR"))
         #expect(buildSource.contains(".build/quillui-vendored-swiftpm-source-stamps"))
@@ -7438,6 +7450,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("run_vendor_swiftpm_sources_for_app \"$SOURCE_APP\" \"$SOURCE_CHECKOUT_DIR\""))
         #expect(buildSource.contains("auto|AUTO|Auto)"))
         #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE"))
+        #expect(buildSource.contains("--print-package-list"))
         #expect(buildSource.contains("local vendor_swiftpm_args=(\"$ROOT_DIR/scripts/vendor-swiftpm-sources.sh\" \"--app\" \"$app_name\")"))
         #expect(buildSource.contains("vendor_swiftpm_args+=(\"--no-resolve\")"))
         #expect(buildSource.contains("--vendor-swiftpm-sources requires --source-app"))
@@ -7486,6 +7499,7 @@ struct SourceHygieneTests {
         #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_app_stamp_is_valid()"))
         #expect(vendoredSourceHelper.contains("quillui_write_vendored_swiftpm_app_stamp()"))
         #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-manifests/v1"))
+        #expect(vendoredSourceHelper.contains("swiftpmPackage=%s"))
         #expect(vendoredSourceHelper.contains("manifestFingerprint=%s"))
         #expect(genericProfileRuntimeSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileRuntimeSource.contains("scripts/lower-swiftui-source-for-linux.sh"))

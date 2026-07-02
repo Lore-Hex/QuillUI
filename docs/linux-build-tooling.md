@@ -81,8 +81,9 @@ lowering profiles:
   The public builder also writes an app-lockfile stamp under
   `.build/quillui-vendored-swiftpm-source-stamps`; if the same vendored app
   checkout and `Package.resolved` inputs are used again, and the checked-in
-  `third_party/*/Package*.swift` manifest fingerprint still matches, it skips
-  the whole dependency-vendoring pass before lowering. Set
+  manifests for that app's selected `third_party/` package pins still match, it
+  skips the whole dependency-vendoring pass before lowering. Unrelated vendored
+  package manifest churn does not invalidate another app's stamp. Set
   `QUILLUI_VENDOR_FORCE=1` to refresh a vendored package tree deliberately.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.

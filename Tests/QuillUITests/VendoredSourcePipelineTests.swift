@@ -321,18 +321,23 @@ struct VendoredSourcePipelineTests {
         #expect(explicitUnknownResult.output.contains("unknown SwiftPM package 'DefinitelyNotKnown'"))
     }
 
-    @Test("Vendored SwiftPM app scan stamps track manifest fingerprints")
-    func vendoredSwiftPMAppScanStampsTrackManifestFingerprints() throws {
+    @Test("Vendored SwiftPM app scan stamps track selected manifest fingerprints")
+    func vendoredSwiftPMAppScanStampsTrackSelectedManifestFingerprints() throws {
         let root = try packageRoot()
         let fileManager = FileManager.default
         let scratch = fileManager.temporaryDirectory
             .appendingPathComponent("QuillUIVendoredStamp-\(UUID().uuidString)")
         let manifest = scratch.appendingPathComponent("third_party/ExampleWidgets/Package.swift")
+        let unrelatedManifest = scratch.appendingPathComponent("third_party/UnrelatedWidgets/Package.swift")
         let stamp = scratch.appendingPathComponent(".build/vendor-stamps/example.stamp")
         defer { try? fileManager.removeItem(at: scratch) }
 
         try fileManager.createDirectory(
             at: manifest.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: unrelatedManifest.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         try write(
@@ -343,6 +348,14 @@ struct VendoredSourcePipelineTests {
             """,
             to: manifest
         )
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+            let package = Package(name: "UnrelatedWidgets")
+            """,
+            to: unrelatedManifest
+        )
 
         let helper = root.appendingPathComponent("scripts/quillui-vendored-source.sh")
         let writeResult = try run(
@@ -352,7 +365,7 @@ struct VendoredSourcePipelineTests {
                 "-c",
                 """
                 source "$1"
-                quillui_write_vendored_swiftpm_app_stamp "$2" "$3" example abc123
+                quillui_write_vendored_swiftpm_app_stamp "$2" "$3" example abc123 ExampleWidgets
                 quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
                 """,
                 "bash",
@@ -365,7 +378,34 @@ struct VendoredSourcePipelineTests {
         let stamped = try String(contentsOf: stamp, encoding: .utf8)
         #expect(stamped.contains("app=example"))
         #expect(stamped.contains("key=abc123"))
+        #expect(stamped.contains("swiftpmPackage=ExampleWidgets"))
         #expect(stamped.contains("manifestFingerprint="))
+
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+            let package = Package(name: "UnrelatedWidgets", targets: [.target(name: "UnrelatedWidgets")])
+            """,
+            to: unrelatedManifest
+        )
+
+        let unrelatedResult = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-c",
+                """
+                source "$1"
+                quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
+                """,
+                "bash",
+                helper.path,
+                scratch.path,
+                stamp.path
+            ]
+        )
+        #expect(unrelatedResult.status == 0, Comment(rawValue: unrelatedResult.output))
 
         try write(
             """
