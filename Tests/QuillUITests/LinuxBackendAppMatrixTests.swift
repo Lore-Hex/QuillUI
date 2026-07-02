@@ -83,7 +83,12 @@ struct LinuxBackendAppMatrixTests {
 
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedNativeRuntimeBackends = ["gtk"]
-    private static let expectedGeneratedAppProducts = ["quill-enchanted-linux"]
+    private static let expectedGeneratedAppProducts = ["quill-enchanted-linux", "quill-code-desktop-linux"]
+    private static let expectedGeneratedAppBuildSpecs = [
+        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
+        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
+        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR"
+    ]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 
@@ -377,10 +382,19 @@ struct LinuxBackendAppMatrixTests {
         #expect(generatedAppRuntimeRows.status == 0, Comment(rawValue: generatedAppRuntimeRows.output))
         #expect(Self.lines(generatedAppRuntimeRows.output) == Self.expectedGeneratedAppRuntimeRows)
 
+        let generatedAppBuildSpecs = try runScript(script, arguments: ["generated-app-build-specs"])
+        #expect(generatedAppBuildSpecs.status == 0, Comment(rawValue: generatedAppBuildSpecs.output))
+        #expect(Self.lines(generatedAppBuildSpecs.output) == Self.expectedGeneratedAppBuildSpecs)
+
+        let quillCodeBuildSpec = try runScript(script, arguments: ["generated-app-build-spec", "quill-code-desktop-linux"])
+        #expect(quillCodeBuildSpec.status == 0, Comment(rawValue: quillCodeBuildSpec.output))
+        #expect(Self.lines(quillCodeBuildSpec.output) == [Self.expectedGeneratedAppBuildSpecs[2]])
+
         let nativeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
             "quill-enchanted-linux\tqt\tqt",
+            "quill-code-desktop-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 

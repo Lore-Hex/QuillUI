@@ -133,6 +133,7 @@ quillui_backend_native_product_runtime_overrides() {
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
     quill-enchanted-linux qt qt \
+    quill-code-desktop-linux qt qt \
     quill-qt-interaction-smoke qt qt
 }
 
@@ -427,7 +428,36 @@ quillui_backend_generated_app_products() {
   # but they still need the same requested-backend parity coverage once
   # assembled into their temporary SwiftPM packages.
   printf '%s\n' \
-    quill-enchanted-linux
+    quill-enchanted-linux \
+    quill-code-desktop-linux
+}
+
+quillui_backend_generated_app_build_specs() {
+  # PRODUCT PROFILE SOURCE_APP SOURCE_SUBDIR APP_TYPE ENTRY_TARGET WORKDIR_ENV_NAMES
+  # Keep external app build metadata here so smoke/profiling tooling can build
+  # vendored app source through the generic SwiftUI Linux builder without
+  # product-specific shell blocks.
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    quill-enchanted-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
+    quill-chat-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
+    quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR
+}
+
+quillui_backend_generated_app_build_spec_for_product() {
+  local candidate="$1"
+  local row
+  local product
+
+  while IFS= read -r row; do
+    product="${row%%$'\t'*}"
+    [[ -n "$product" ]] || continue
+    if [[ "$product" == "$candidate" ]]; then
+      printf '%s\n' "$row"
+      return 0
+    fi
+  done < <(quillui_backend_generated_app_build_specs)
+
+  return 1
 }
 
 quillui_backend_generated_app_matrix() {
@@ -1050,7 +1080,7 @@ quillui_backend_for_product() {
     quill-qt-interaction-smoke)
       echo "qt"
       ;;
-    quill-gtk-interaction-smoke|quill-enchanted-linux|quill-chat-linux)
+    quill-gtk-interaction-smoke|quill-enchanted-linux|quill-chat-linux|quill-code-desktop-linux)
       echo "gtk"
       ;;
     *)
@@ -1378,6 +1408,46 @@ quillui_backend_validate_product_rosters() {
   quillui_backend_validate_disjoint_product_rosters "generated-apps" quillui_backend_generated_app_products "smoke-products" quillui_backend_smoke_products || return $?
 }
 
+quillui_backend_validate_generated_app_build_specs() {
+  local product
+  local profile
+  local source_app
+  local source_subdir
+  local app_type
+  local entry_target
+  local workdir_env_names
+  local extra
+  local field_separator=$'\037'
+  local row
+  local split_row
+  local seen_keys=$'\n'
+
+  while IFS= read -r row; do
+    split_row="${row//$'\t'/$field_separator}"
+    IFS="$field_separator" read -r product profile source_app source_subdir app_type entry_target workdir_env_names extra <<< "$split_row"
+    [[ -n "$product" || -n "$profile" || -n "$source_app" || -n "$source_subdir" || -n "$app_type" || -n "$entry_target" || -n "$workdir_env_names" || -n "${extra:-}" ]] || continue
+    if [[ -n "${extra:-}" ]]; then
+      echo "generated-app-build-specs row has too many columns: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$extra" >&2
+      return 65
+    fi
+    if [[ -z "$profile" || -z "$source_app" || -z "$app_type" ]]; then
+      echo "generated-app-build-specs contains an incomplete row: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names" >&2
+      return 65
+    fi
+    quillui_backend_build_stamp_product_name "$product" >/dev/null || return $?
+    quillui_backend_validate_unique_key "$seen_keys" "$product" "generated-app-build-specs" || return $?
+    seen_keys="${seen_keys}${product}"$'\n'
+  done < <(quillui_backend_generated_app_build_specs)
+
+  while IFS= read -r product; do
+    [[ -n "$product" ]] || continue
+    if ! quillui_backend_generated_app_build_spec_for_product "$product" >/dev/null; then
+      echo "generated-apps product lacks generated-app-build-specs row: $product" >&2
+      return 65
+    fi
+  done < <(quillui_backend_generated_app_products)
+}
+
 quillui_backend_validate_app_backend_ids() {
   local backend
   local normalized_backend
@@ -1636,6 +1706,7 @@ quillui_backend_validate_interaction_extra_mode_backend_parity() {
 
 quillui_backend_validate_integrity() {
   quillui_backend_validate_product_rosters || return $?
+  quillui_backend_validate_generated_app_build_specs || return $?
   quillui_backend_validate_app_backend_ids || return $?
   quillui_backend_validate_product_native_runtime_backends || return $?
   quillui_backend_validate_fixed_app_backend_overrides || return $?
@@ -1749,6 +1820,9 @@ Commands:
   interaction-extra-mode-runtime-matrix
                                   List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE<TAB>INTERACTION rows.
   generated-apps                  List generated external app products covered by backend parity smoke.
+  generated-app-build-specs       List generated app build metadata rows.
+  generated-app-build-spec PRODUCT
+                                  Print build metadata for one generated app product.
   generated-app-matrix            List PRODUCT<TAB>BACKEND rows for generated external apps.
   generated-app-runtime-matrix    List PRODUCT<TAB>BACKEND<TAB>RUNTIME<TAB>MODE rows for generated external apps.
   gtk-apps                        Legacy alias for backend-apps.
@@ -1854,6 +1928,19 @@ if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
       ;;
     generated-apps)
       quillui_backend_generated_app_products
+      ;;
+    generated-app-build-specs)
+      quillui_backend_generated_app_build_specs
+      ;;
+    generated-app-build-spec)
+      if [[ $# -ne 2 ]]; then
+        quillui_backend_products_usage
+        exit 64
+      fi
+      if ! quillui_backend_generated_app_build_spec_for_product "$2"; then
+        echo "No generated app build spec for $2." >&2
+        exit 1
+      fi
       ;;
     generated-app-matrix)
       quillui_backend_generated_app_matrix
