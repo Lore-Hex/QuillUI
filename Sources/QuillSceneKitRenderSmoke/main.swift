@@ -38,6 +38,33 @@ struct QuillSceneKitRenderSmoke {
             label: "triangle"
         )
 
+        let vertexColorTriangleImage = renderVertexColorTriangleScene()
+        let vertexColorTriangleStats = PixelStats(vertexColorTriangleImage)
+        try require(
+            vertexColorTriangleStats.redDominantPixels > 600,
+            "vertex-color triangle lost red pixels: \(vertexColorTriangleStats)"
+        )
+        try require(
+            vertexColorTriangleStats.greenDominantPixels > 600,
+            "vertex-color triangle lost green pixels: \(vertexColorTriangleStats)"
+        )
+        try require(
+            vertexColorTriangleStats.blueDominantPixels > 600,
+            "vertex-color triangle lost blue pixels: \(vertexColorTriangleStats)"
+        )
+        try require(
+            PixelStats.dominantColor(atX: 50, y: 140, in: vertexColorTriangleImage) == .red,
+            "vertex-color triangle did not preserve red near the left vertex: \(vertexColorTriangleStats)"
+        )
+        try require(
+            PixelStats.dominantColor(atX: 170, y: 140, in: vertexColorTriangleImage) == .green,
+            "vertex-color triangle did not preserve green near the right vertex: \(vertexColorTriangleStats)"
+        )
+        try require(
+            PixelStats.dominantColor(atX: 110, y: 35, in: vertexColorTriangleImage) == .blue,
+            "vertex-color triangle did not preserve blue near the top vertex: \(vertexColorTriangleStats)"
+        )
+
         let nestedCameraStats = PixelStats(renderNestedCameraScene())
         try require(nestedCameraStats.nonBlackPixels > 1_000, "nested-camera render stayed mostly black: \(nestedCameraStats)")
         try require(nestedCameraStats.redDominantPixels > 900, "nested-camera render did not produce red pixels: \(nestedCameraStats)")
@@ -92,6 +119,7 @@ struct QuillSceneKitRenderSmoke {
         log("SceneKit render smoke passed")
         log("sphere: \(sphereStats)")
         log("triangle: \(triangleStats)")
+        log("vertex-color triangle: \(vertexColorTriangleStats)")
         log("nested camera: \(nestedCameraStats)")
         log("side camera: \(sideCameraStats)")
         log("away camera: \(awayCameraStats)")
@@ -171,6 +199,51 @@ struct QuillSceneKitRenderSmoke {
         scene.rootNode.addChildNode(cameraNode)
 
         return scene.quillRenderImage(width: 180, height: 140)
+    }
+
+    private static func renderVertexColorTriangleScene() -> CGImage {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.3, -1.1, 0),
+            SCNVector3(1.3, -1.1, 0),
+            SCNVector3(0, 1.25, 0),
+        ]
+        let colors: [Float] = [
+            1, 0, 0, 1,
+            0, 1, 0, 1,
+            0, 0, 1, 1,
+        ]
+        let colorSource = SCNGeometrySource(
+            data: Data(bytes: colors, count: colors.count * MemoryLayout<Float>.size),
+            semantic: .color,
+            vectorCount: 3,
+            usesFloatComponents: true,
+            componentsPerVector: 4,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: 4 * MemoryLayout<Float>.size
+        )
+        let geometry = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                colorSource,
+            ],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = CGColor.white
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        return scene.quillRenderImage(width: 220, height: 180, pointOfView: cameraNode)
     }
 
     private static func renderNestedCameraScene() -> CGImage {
@@ -579,10 +652,11 @@ private struct PixelStats: CustomStringConvertible {
     var nonBlackPixels = 0
     var redDominantPixels = 0
     var greenDominantPixels = 0
+    var blueDominantPixels = 0
     var bounds = PixelBounds.empty
 
     var description: String {
-        "nonBlack=\(nonBlackPixels) red=\(redDominantPixels) green=\(greenDominantPixels) bounds=\(bounds)"
+        "nonBlack=\(nonBlackPixels) red=\(redDominantPixels) green=\(greenDominantPixels) blue=\(blueDominantPixels) bounds=\(bounds)"
     }
 
     init(_ image: CGImage) {
@@ -609,6 +683,9 @@ private struct PixelStats: CustomStringConvertible {
                 if g > r * 2, g > b * 2 {
                     greenDominantPixels += 1
                 }
+                if b > r * 2, b > g * 2 {
+                    blueDominantPixels += 1
+                }
             }
         }
     }
@@ -617,6 +694,7 @@ private struct PixelStats: CustomStringConvertible {
         switch color {
         case .red: redDominantPixels
         case .green: greenDominantPixels
+        case .blue: blueDominantPixels
         }
     }
 
@@ -637,6 +715,9 @@ private struct PixelStats: CustomStringConvertible {
         }
         if g > r * 2, g > b * 2 {
             return .green
+        }
+        if b > r * 2, b > g * 2 {
+            return .blue
         }
         return nil
     }
@@ -666,6 +747,7 @@ private struct AppleSceneKitGoldenEnvelope {
 private enum DominantPixelColor {
     case red
     case green
+    case blue
 }
 
 private struct PixelBounds: CustomStringConvertible {

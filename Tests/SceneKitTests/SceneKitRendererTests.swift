@@ -568,6 +568,59 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 1_400)
     }
 
+    @Test("Software renderer interpolates SCNGeometry vertex colors")
+    func rendererInterpolatesBufferedGeometryVertexColors() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.3, -1.1, 0),
+            SCNVector3(1.3, -1.1, 0),
+            SCNVector3(0, 1.25, 0),
+        ]
+        let colors: [Float] = [
+            1, 0, 0, 1,
+            0, 1, 0, 1,
+            0, 0, 1, 1,
+        ]
+        let colorSource = SCNGeometrySource(
+            data: Data(bytes: colors, count: colors.count * MemoryLayout<Float>.size),
+            semantic: .color,
+            vectorCount: 3,
+            usesFloatComponents: true,
+            componentsPerVector: 4,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: 4 * MemoryLayout<Float>.size
+        )
+        let geometry = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                colorSource,
+            ],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = CGColor.white
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 220, height: 180, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.redDominantPixels > 600)
+        #expect(stats.greenDominantPixels > 600)
+        #expect(stats.blueDominantPixels > 600)
+        #expect(PixelStats.dominantColor(atX: 50, y: 140, in: image) == .red)
+        #expect(PixelStats.dominantColor(atX: 170, y: 140, in: image) == .green)
+        #expect(PixelStats.dominantColor(atX: 110, y: 35, in: image) == .blue)
+    }
+
     @Test("SCNGeometrySource decoder rejects unsupported or malformed vertex layouts")
     func geometrySourceDecoderRejectsMalformedLayouts() {
         let floats: [Float] = [1, 2, 3]
@@ -1735,6 +1788,7 @@ private struct PixelStats {
     var nonBlackPixels = 0
     var redDominantPixels = 0
     var greenDominantPixels = 0
+    var blueDominantPixels = 0
     var bounds = PixelBounds.empty
 
     init(_ image: CGImage) {
@@ -1761,6 +1815,9 @@ private struct PixelStats {
                 if g > r * 2, g > b * 2 {
                     greenDominantPixels += 1
                 }
+                if b > r * 2, b > g * 2 {
+                    blueDominantPixels += 1
+                }
             }
         }
     }
@@ -1769,6 +1826,7 @@ private struct PixelStats {
         switch color {
         case .red: redDominantPixels
         case .green: greenDominantPixels
+        case .blue: blueDominantPixels
         }
     }
 
@@ -1789,6 +1847,9 @@ private struct PixelStats {
         }
         if g > r * 2, g > b * 2 {
             return .green
+        }
+        if b > r * 2, b > g * 2 {
+            return .blue
         }
         return nil
     }
@@ -1818,6 +1879,7 @@ private struct AppleSceneKitGoldenEnvelope {
 private enum DominantPixelColor {
     case red
     case green
+    case blue
 }
 
 private struct PixelBounds {
