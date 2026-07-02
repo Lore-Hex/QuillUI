@@ -454,6 +454,9 @@ var products: [Product] = [
     .executable(name: "quill-source-lower", targets: ["quill-source-lower"]),
     .executable(name: "quill-lower-foundation", targets: ["quill-lower-foundation"]),
     .executable(name: "quill-lower-swiftui", targets: ["quill-lower-swiftui"]),
+    // Opt-in actor-isolation lowering CLI; only headless single-threaded
+    // profiles (Enchanted / Quill Chat) invoke it.
+    .executable(name: "quill-lower-actor-isolation", targets: ["quill-lower-actor-isolation"]),
     .executable(name: "quill-lower-appkit", targets: ["quill-lower-appkit"]),
     .library(name: "QuillDoctor", targets: ["QuillDoctor"]),
     .executable(name: "quill-doctor", targets: ["quill-doctor"]),
@@ -1220,6 +1223,11 @@ var targets: [Target] = [
         name: "quill-lower-swiftui",
         dependencies: ["QuillSourceLowering"],
         path: "Sources/quill-lower-swiftui"
+    ),
+    .executableTarget(
+        name: "quill-lower-actor-isolation",
+        dependencies: ["QuillSourceLowering"],
+        path: "Sources/quill-lower-actor-isolation"
     ),
     .executableTarget(
         name: "quill-lower-appkit",
