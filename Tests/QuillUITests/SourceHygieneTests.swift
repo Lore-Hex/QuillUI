@@ -6560,7 +6560,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("linux_build_backend=\"$(quillui_require_requested_backend_for_product \"$product\")\""))
         #expect(smokeLib.contains("QUILLUI_LINUX_BACKEND=\"$linux_build_backend\""))
         #expect(smokeLib.contains("quillui_assign_output()"))
-        #expect(smokeLib.contains("printf -v \"$output_var\" \"%s\" \"$value\""))
+        #expect(smokeLib.contains("printf -v \"$__quillui_output_var\" \"%s\" \"$__quillui_output_value\""))
         #expect(smokeLib.contains("quillui_start_xvfb()"))
         #expect(smokeLib.contains("quillui_assign_output \"$output_var\" \"$QUILLUI_BACKEND_APP_EXECUTABLE\""))
         #expect(smokeLib.contains("${QUILLUI_BACKEND_SKIP_BUILD:-0}"))
