@@ -72,7 +72,7 @@ struct SourceHygieneTests {
         #expect(linuxCI.contains("Swift tests\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(linuxCI.contains("Build QuillUIGtk facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(linuxCI.contains("Build QuillUIQt facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
-        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          TEST_RUN_TIMEOUT: \"180\""))
+        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\"\n          QUILLUI_LINUX_BACKEND: \"gtk\"\n          TEST_RUN_TIMEOUT: \"180\""))
         #expect(linuxCI.contains("Generic SwiftUI to Qt backend smoke\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
     }
 
@@ -3587,6 +3587,8 @@ struct SourceHygieneTests {
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
         #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
         #expect(preparationScript.contains("qt)\n    ;;"))
+        #expect(linuxSwiftTest.contains(": \"${QUILLUI_LINUX_BACKEND:=gtk}\""))
+        #expect(linuxSwiftTest.contains("export QUILLUI_LINUX_BACKEND"))
         #expect(preserveScript.contains("PACKAGE_RESOLVED=\"$PACKAGE_DIR/Package.resolved\""))
         #expect(preserveScript.contains("cp -p \"$PACKAGE_RESOLVED\" \"$TEMP_RESOLVED\""))
         #expect(preserveScript.contains("restore_package_resolved"))
@@ -3644,6 +3646,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
             encoding: .utf8
         )
+        let openCombineURLSession = try String(
+            contentsOf: root.appendingPathComponent("third_party/OpenCombine/Sources/OpenCombineFoundation/URLSession.swift"),
+            encoding: .utf8
+        )
         let grdbManifest = try String(
             contentsOf: root.appendingPathComponent("third_party/GRDB.swift/Package.swift"),
             encoding: .utf8
@@ -3699,6 +3705,10 @@ struct SourceHygieneTests {
         #expect(macOSWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
+        #expect(openCombineURLSession.contains("@unchecked Sendable"))
+        #expect(openCombineURLSession.contains("let responseHandler: @Sendable (Data?, URLResponse?, Error?) -> Void"))
+        #expect(openCombineURLSession.contains("completionHandler: responseHandler"))
+        #expect(!openCombineURLSession.contains("completionHandler: handleResponse"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/LICENSE").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-syntax/Package.swift").path))
@@ -7419,6 +7429,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("quillui_vendored_swiftpm_app_stamp_is_valid \"$ROOT_DIR\" \"$stamp_file\""))
         #expect(buildSource.contains("quillui_write_vendored_swiftpm_app_stamp \"$ROOT_DIR\" \"$stamp_file\" \"$app_name\" \"$stamp_key\""))
         #expect(buildSource.contains("--check-vendored >/dev/null"))
+        #expect(buildSource.contains("Vendored SwiftPM package sources already cover $app_name"))
         #expect(buildSource.contains("Vendored SwiftPM source scan stamp is stale; refreshing"))
         #expect(buildSource.contains("Vendored SwiftPM package sources are incomplete for $app_name."))
         #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh --app $app_name --hydrate-missing"))
@@ -9228,6 +9239,26 @@ struct SourceHygieneTests {
             #expect(!source.contains("g_application_run(applicationPointer(appPtr), 0, nil)"))
         }
         #expect(!backend.contains("g_application_run("))
+    }
+
+    @Test("GTK main-actor body rendering does not return raw pointers through assumeIsolated")
+    func gtkMainActorBodyRenderingDoesNotReturnRawPointersThroughAssumeIsolated() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let navigation = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift")
+
+        #expect(renderer.contains("private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable"))
+        #expect(renderer.contains("func gtkAssumeMainActorIsolated<Value>(_ body: @MainActor () -> Value) -> Value"))
+        #expect(renderer.contains("MainActor.assumeIsolated {\n        result.value = body()\n    }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { renderable.gtkCreateWidget() }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { multi.gtkRenderChildren() }"))
+        #expect(renderer.contains("gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(navigation.contains("return gtkAssumeMainActorIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
+
+        #expect(!renderer.contains("return MainActor.assumeIsolated { renderable.gtkCreateWidget() }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { gtkRenderView(view.body) }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { multi.gtkRenderChildren() }"))
+        #expect(!navigation.contains("return MainActor.assumeIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
     }
 
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")

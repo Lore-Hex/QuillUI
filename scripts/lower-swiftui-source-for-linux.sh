@@ -58,6 +58,7 @@ if (( ${#swift_files[@]} > 0 )); then
       s/^([ \t]*)(\}[ \t]*else[ \t]+if[ \t]+let[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*([^,\n]+?)[ \t]+as\?[ \t]+NSURL[ \t]*),[ \t]*let[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*\3\.absoluteString[ \t]*\{/$1$2 {\n$1    let $5 = $3.absoluteString/gm;
       s/(operation:[ \t]*\@escaping[ \t]*)\(\)[ \t]*->[ \t]*Void/${1}\@Sendable () -> Void/g;
       s/operation:[ \t]*\{[ \t]*completion\(\.success\(([A-Za-z_][A-Za-z0-9_]*)\(\)\)\)[ \t]*\}/operation: { let result = $1(); Task { \@MainActor in completion(.success(result)) } }/g;
+      s/((?:\@escaping[ \t]+)?\@Sendable[ \t]*\(\)[ \t]*->[ \t]*([A-Za-z_][A-Za-z0-9_.]*)[ \t]*=[ \t]*)\2\.init\b(?![ \t]*\()/$1 . "{ " . $2 . "() }"/ge;
       s/^([ \t]*)(?!nonisolated\(unsafe\)[ \t]+)((?:public|internal|fileprivate|private)[ \t]+)?static[ \t]+var[ \t]+(?=[^\n]*=)/$1nonisolated(unsafe) $2static var /gm;
       s/^([ \t]*)(class[ \t]+[A-Za-z_][A-Za-z0-9_]*ViewModel[ \t]*:[^\n{]*\bObservableObject\b)/$1\@MainActor\n$1$2/gm;
       s/^([ \t]*)\@MainActor[ \t]*\n\1\@MainActor[ \t]*\n/$1\@MainActor\n/gm;

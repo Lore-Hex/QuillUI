@@ -10,6 +10,8 @@ SWIFT_TEST_ARGS=()
 # real app graph.
 : "${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}"
 export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS
+: "${QUILLUI_LINUX_BACKEND:=gtk}"
+export QUILLUI_LINUX_BACKEND
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

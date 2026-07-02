@@ -152,14 +152,16 @@ jobs:
           QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
         run: swift build --scratch-path .build-linux --target QuillUIQt
 
-      - name: Build native backend app products
-        run: scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps
-
       - name: GTK offscreen ImageRenderer smoke
         timeout-minutes: 15
         env:
+          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
+          QUILLUI_LINUX_BACKEND: "gtk"
           TEST_RUN_TIMEOUT: "180"
-        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter imageRendererOffscreenPipelineProducesRealPNG
+        run: GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests
+
+      - name: Build native backend app products
+        run: scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps
 
       # The full upstream gluonfield/enchanted source tree now
       # compiles + links + backend-renders end-to-end through the

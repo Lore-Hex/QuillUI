@@ -19,6 +19,18 @@ let gtkSwiftVerticalScrollViewMarker = "gtk-swift-vertical-scroll-view"
 /// Marker string for indeterminate SwiftUI ProgressView widgets.
 let gtkSwiftIndeterminateProgressMarker = "gtk-swift-indeterminate-progress"
 
+private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable {
+    var value: Value!
+}
+
+func gtkAssumeMainActorIsolated<Value>(_ body: @MainActor () -> Value) -> Value {
+    let result = GTKMainActorIsolatedResult<Value>()
+    MainActor.assumeIsolated {
+        result.value = body()
+    }
+    return result.value
+}
+
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
     g_object_set_data(gobject, gtkSwiftLayoutHelperMarker, UnsafeMutableRawPointer(bitPattern: 1))
@@ -621,7 +633,7 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
     // Primitive views with known GTK rendering. gtkCreateWidget is @MainActor
     // (GTKRenderable); the renderer runs on the GTK main loop == main thread.
     if let renderable = view as? GTKRenderable {
-        return MainActor.assumeIsolated { renderable.gtkCreateWidget() }
+        return gtkAssumeMainActorIsolated { renderable.gtkCreateWidget() }
     }
 
     // MultiChildView (TupleView4-12, Group, ForEach, etc.) — render children
@@ -659,13 +671,13 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
     // Stateless composite view — recurse through body. View.body is
     // @MainActor (Apple semantics); the GTK renderer runs on the GTK main
     // loop == main thread, so the hop is sound.
-    return MainActor.assumeIsolated { gtkRenderView(view.body) }
+    return gtkAssumeMainActorIsolated { gtkRenderView(view.body) }
 }
 
 /// Render children from a view.
 public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? GTKMultiChildRenderable {
-        return MainActor.assumeIsolated { multi.gtkRenderChildren() }
+        return gtkAssumeMainActorIsolated { multi.gtkRenderChildren() }
     }
     if let multi = view as? MultiChildView {
         return multi.children.map { child in
@@ -4641,10 +4653,13 @@ private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: Unsa
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment {
+            await action()
+        }
         gtkCollectTaskPayload(
             GTK4TaskPayload(
                 priority: priority,
-                action: bindTaskActionToCurrentEnvironment(action)
+                action: boundAction
             )
         )
         return GTK4DescriptorNode(
@@ -4656,6 +4671,9 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
+        let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment {
+            await action()
+        }
 
         // Stateful hosts reconcile `.task` by descriptor identity so a full
         // child teardown during rebuild does not re-run the task. Standalone
@@ -4664,7 +4682,7 @@ extension TaskView: GTKRenderable, GTKDescribable {
             gtkAttachStandaloneTaskLifecycle(
                 to: widget,
                 priority: priority,
-                action: bindTaskActionToCurrentEnvironment(action)
+                action: boundAction
             )
         }
         return opaqueFromWidget(widget)
@@ -9186,7 +9204,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     // body reads hop onto the main actor (View.body is @MainActor; host
     // rebuilds always run on the GTK main loop == main thread).
     let host = GTKViewHost(buildBody: {
-        MainActor.assumeIsolated { gtkRenderView(view.body) }
+        gtkAssumeMainActorIsolated { gtkRenderView(view.body) }
     })
     host.describeBody = {
         MainActor.assumeIsolated { gtkDescribeView(view.body) }

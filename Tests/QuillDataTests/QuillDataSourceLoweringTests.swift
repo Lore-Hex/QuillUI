@@ -403,10 +403,14 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux"))
-        #expect(!workflow.contains(".build-linux-offscreen"))
+        let offscreenStep = try #require(workflow.range(of: "GTK offscreen ImageRenderer smoke"))
+        let backendProductStep = try #require(workflow.range(of: "Build native backend app products"))
+        #expect(offscreenStep.lowerBound < backendProductStep.lowerBound)
         #expect(workflow.contains("timeout-minutes: 15"))
+        #expect(workflow.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(workflow.contains("QUILLUI_LINUX_BACKEND: \"gtk\""))
         #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
-        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter imageRendererOffscreenPipelineProducesRealPNG"))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests"))
     }
 
     @Test("Package exports generated app compatibility products")
@@ -1642,6 +1646,7 @@ struct QuillDataSourceLoweringTests {
 
         let source = directory.appendingPathComponent("App.swift")
         try """
+        import Foundation
         import SwiftUI
 
         @main
@@ -1686,6 +1691,20 @@ struct QuillDataSourceLoweringTests {
             }
         }
 
+        struct PersistenceClock {
+            init(
+                now: @escaping @Sendable () -> Date = Date.init,
+                id: @escaping @Sendable () -> UUID = UUID.init,
+                plain: @escaping () -> String = String.init,
+                timestamp: TimeInterval = 0
+            ) {
+                _ = now
+                _ = id
+                _ = plain
+                _ = Date.init(timeIntervalSince1970: timestamp)
+            }
+        }
+
         #if os(macOS) || os(Linux)
         let alreadyDesktop = true
         #endif
@@ -1727,6 +1746,11 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("symbolConfiguration.applying(NSImage.SymbolConfiguration(pointSize: 15, weight: .bold))"))
         #expect(lowered.contains("point.applying(.init(translationX: 1, y: 2))"))
         #expect(!lowered.contains("point.applying(NSImage.SymbolConfiguration(translationX: 1, y: 2))"))
+        #expect(lowered.contains("now: @escaping @Sendable () -> Date = { Date() }"))
+        #expect(lowered.contains("id: @escaping @Sendable () -> UUID = { UUID() }"))
+        #expect(lowered.contains("plain: @escaping () -> String = String.init"))
+        #expect(lowered.contains("Date.init(timeIntervalSince1970: timestamp)"))
+        #expect(!lowered.contains("@Sendable () -> Date = Date.init"))
         #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
@@ -3374,7 +3398,9 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("gtkCollectTaskPayload("))
         #expect(rendererSource.contains("GTK4TaskPayload("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
-        #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
+        #expect(rendererSource.contains("let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment"))
+        #expect(rendererSource.contains("await action()"))
+        #expect(rendererSource.contains("action: boundAction"))
         #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
