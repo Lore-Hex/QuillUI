@@ -90,7 +90,7 @@ final class GTKTestHost: @unchecked Sendable {
             return try body()
         }
         var result: Result<T, Error>?
-        try withoutActuallyEscaping(body) { escapable in
+        withoutActuallyEscaping(body) { escapable in
             let box = ResultBox<T>()
             let item = WorkItem {
                 box.value = Result(catching: escapable)
@@ -106,7 +106,7 @@ final class GTKTestHost: @unchecked Sendable {
     }
 
     func perform<T>(_ body: () -> T) -> T {
-        try! perform(body as () throws -> T)
+        try! perform({ () throws -> T in body() })
     }
 
     private final class ResultBox<T>: @unchecked Sendable {
