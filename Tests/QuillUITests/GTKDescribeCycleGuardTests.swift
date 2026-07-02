@@ -30,27 +30,36 @@ struct GTKDescribeCycleGuardTests {
 
     @Test("SwiftUI shadow foregroundStyle reaches GTK labels through wrappers")
     func swiftUIShadowForegroundStyleReachesGTKLabelsThroughWrappers() throws {
-        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+        guard GTKTestHost.shared.isGTKAvailable else {
             return
         }
 
-        let widget = widgetFromOpaque(gtkRenderView(
-            LazyVStack([0]) { _ in
-                Text("Ask QuillCode")
-                    .font(.title3.weight(.semibold))
-            }
-            .background(Color(red: 0.03, green: 0.06, blue: 0.08))
-            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
-        ))
-        let window = gtk_window_new()!
-        defer { gtk_window_destroy(windowPointer(window)) }
-        gtk_window_set_child(windowPointer(window), widget)
-        gtk_window_present(windowPointer(window))
-        drainGTKMainContext(maxIterations: 100)
-        let label = try firstGTKLabel(in: widget)
+        // GTK is thread-affine: all widget work runs on the pinned home
+        // thread (see GTKTestHost), never on the test's executor thread.
+        let (labelText, usesMarkup) = try GTKTestHost.shared.perform {
+            let widget = widgetFromOpaque(gtkRenderView(
+                LazyVStack([0]) { _ in
+                    Text("Ask QuillCode")
+                        .font(.title3.weight(.semibold))
+                }
+                .background(Color(red: 0.03, green: 0.06, blue: 0.08))
+                .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+            ))
+            let window = gtk_window_new()!
+            defer { gtk_window_destroy(windowPointer(window)) }
+            gtk_window_set_child(windowPointer(window), widget)
+            gtk_window_present(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+            let label = try firstGTKLabel(in: widget)
 
-        #expect(String(cString: gtk_label_get_text(OpaquePointer(label))) == "Ask QuillCode")
-        #expect(gtk_swift_label_get_use_markup(label) != 0)
+            return (
+                String(cString: gtk_label_get_text(OpaquePointer(label))),
+                gtk_swift_label_get_use_markup(label) != 0
+            )
+        }
+
+        #expect(labelText == "Ask QuillCode")
+        #expect(usesMarkup)
     }
 
     @Test("SwiftUI shadow textSelection toggles GTK label selectability")
