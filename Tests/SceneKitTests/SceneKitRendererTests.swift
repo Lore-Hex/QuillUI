@@ -712,6 +712,23 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels == 0)
     }
 
+    @Test("Software renderer applies material multiply channel")
+    func rendererAppliesMaterialMultiplyChannel() {
+        let disabledMultiply = SCNSphere(radius: 1)
+        disabledMultiply.firstMaterial?.multiply.contents = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+        disabledMultiply.firstMaterial?.multiply.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(disabledMultiply)).redDominantPixels > 900)
+
+        let greenMultiply = SCNSphere(radius: 1)
+        greenMultiply.firstMaterial?.multiply.contents = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(greenMultiply)).nonBlackPixels == 0)
+
+        let emissionMultiply = SCNSphere(radius: 1)
+        emissionMultiply.firstMaterial?.emission.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        emissionMultiply.firstMaterial?.multiply.contents = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(emissionMultiply)).nonBlackPixels == 0)
+    }
+
     @Test("Software renderer draws parametric planes")
     func rendersParametricPlaneGeometry() {
         let scene = SCNScene()

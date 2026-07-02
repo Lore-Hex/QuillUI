@@ -1604,11 +1604,13 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
        emission != .black {
         return emission
             .scaled(max(0, material.emission.intensity))
+            .modulatedByMaterialMultiply(material)
             .withAlphaMultiplier(material.opacityMultiplier)
     }
     let diffuse = color(from: material?.diffuse.contents) ?? .neutral
     return diffuse
         .scaled(max(0, material?.diffuse.intensity ?? 1))
+        .modulatedByMaterialMultiply(material)
         .withAlphaMultiplier(material?.opacityMultiplier ?? 1)
 }
 
@@ -1684,5 +1686,26 @@ private extension RGBA {
 
     var luminance: CGFloat {
         (0.2126 * CGFloat(r) + 0.7152 * CGFloat(g) + 0.0722 * CGFloat(b)) / 255
+    }
+
+    func modulatedByMaterialMultiply(_ material: SCNMaterial?) -> RGBA {
+        guard let material,
+              material.multiply.intensity > 0,
+              let multiply = color(from: material.multiply.contents) else {
+            return self
+        }
+
+        let intensity = max(0, min(1, material.multiply.intensity))
+        func modulate(_ component: UInt8, by multiplier: UInt8) -> UInt8 {
+            let factor = (1 - intensity) + CGFloat(multiplier) / 255 * intensity
+            return UInt8(clamping: Int(CGFloat(component) * factor))
+        }
+
+        return RGBA(
+            r: modulate(r, by: multiply.r),
+            g: modulate(g, by: multiply.g),
+            b: modulate(b, by: multiply.b),
+            a: a
+        )
     }
 }
