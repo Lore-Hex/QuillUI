@@ -1373,7 +1373,7 @@ struct GTKButtonActivationGate {
         case clicked
     }
 
-    private var lastActivationTime: TimeInterval = 0
+    private var lastActivationTime: TimeInterval = -.infinity
     private var pointerPressAwaitingClicked = false
 
     mutating func shouldFire(_ phase: Phase, now: TimeInterval) -> Bool {
