@@ -135,7 +135,8 @@ extension URLSession.OCombine.DataTaskPublisher {
         : Subscription,
           CustomStringConvertible,
           CustomReflectable,
-          CustomPlaygroundDisplayConvertible
+          CustomPlaygroundDisplayConvertible,
+          @unchecked Sendable
         where Downstream.Input == (data: Data, response: URLResponse),
               Downstream.Failure == URLError
     {
@@ -167,8 +168,11 @@ extension URLSession.OCombine.DataTaskPublisher {
                 return
             }
             if self.task == nil {
+                let responseHandler: @Sendable (Data?, URLResponse?, Error?) -> Void = { [self] data, response, error in
+                    handleResponse(data: data, response: response, error: error)
+                }
                 task = parent.session.dataTask(with: parent.request,
-                                               completionHandler: handleResponse)
+                                               completionHandler: responseHandler)
             }
             self.demand += demand
             let task = self.task

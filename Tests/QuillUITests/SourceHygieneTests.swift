@@ -3644,6 +3644,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
             encoding: .utf8
         )
+        let openCombineURLSession = try String(
+            contentsOf: root.appendingPathComponent("third_party/OpenCombine/Sources/OpenCombineFoundation/URLSession.swift"),
+            encoding: .utf8
+        )
         let grdbManifest = try String(
             contentsOf: root.appendingPathComponent("third_party/GRDB.swift/Package.swift"),
             encoding: .utf8
@@ -3699,6 +3703,10 @@ struct SourceHygieneTests {
         #expect(macOSWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
+        #expect(openCombineURLSession.contains("@unchecked Sendable"))
+        #expect(openCombineURLSession.contains("let responseHandler: @Sendable (Data?, URLResponse?, Error?) -> Void"))
+        #expect(openCombineURLSession.contains("completionHandler: responseHandler"))
+        #expect(!openCombineURLSession.contains("completionHandler: handleResponse"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/LICENSE").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-syntax/Package.swift").path))
