@@ -9231,6 +9231,26 @@ struct SourceHygieneTests {
         #expect(!backend.contains("g_application_run("))
     }
 
+    @Test("GTK main-actor body rendering does not return raw pointers through assumeIsolated")
+    func gtkMainActorBodyRenderingDoesNotReturnRawPointersThroughAssumeIsolated() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let navigation = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift")
+
+        #expect(renderer.contains("private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable"))
+        #expect(renderer.contains("func gtkAssumeMainActorIsolated<Value>(_ body: @MainActor () -> Value) -> Value"))
+        #expect(renderer.contains("MainActor.assumeIsolated {\n        result.value = body()\n    }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { renderable.gtkCreateWidget() }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { multi.gtkRenderChildren() }"))
+        #expect(renderer.contains("gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(navigation.contains("return gtkAssumeMainActorIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
+
+        #expect(!renderer.contains("return MainActor.assumeIsolated { renderable.gtkCreateWidget() }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { gtkRenderView(view.body) }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { multi.gtkRenderChildren() }"))
+        #expect(!navigation.contains("return MainActor.assumeIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
+    }
+
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
     func gtkPatcherPreservesFixedFrameAndListViewportSizingContracts() throws {
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
