@@ -78,6 +78,9 @@ public enum CommandGroupPlacement: Equatable, Hashable {
 	case help
 	/// Replaces text formatting commands.
 	case textFormatting
+
+	/// App-info commands live in the Help menu until backend app-menu support exists.
+	public static var appInfo: CommandGroupPlacement { .help }
 }
 
 // MARK: - CommandMenuItem
@@ -233,6 +236,20 @@ public struct CommandGroup: Commands {
 	) {
 		self.placement = placement
 		self.items = content()
+	}
+
+	public init(
+		before placement: CommandGroupPlacement,
+		@CommandMenuBuilder content: () -> [CommandMenuItem]
+	) {
+		self.init(replacing: placement, content: content)
+	}
+
+	public init(
+		after placement: CommandGroupPlacement,
+		@CommandMenuBuilder content: () -> [CommandMenuItem]
+	) {
+		self.init(replacing: placement, content: content)
 	}
 
 	public var body: Never { fatalError() }

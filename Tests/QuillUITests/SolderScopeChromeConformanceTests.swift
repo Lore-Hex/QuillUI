@@ -185,6 +185,18 @@ private struct ConditionalShortcutCommandProbe: Commands {
     }
 }
 
+private struct AppInfoCommandPlacementProbe: Commands {
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("About QuillCode") { }
+        }
+
+        CommandGroup(before: .appSettings) {
+            Button("QuillCode Settings") { }
+        }
+    }
+}
+
 /// Mirrors CalibrationOverlay.swift's `CalibrationCanvasNSView` (and
 /// MicroscopeView's `MicroscopeNSView`): a custom NSView that installs a
 /// cursor rect inside `resetCursorRects()`.
@@ -563,6 +575,13 @@ struct SolderScopeChromeConformanceTests {
             nil,
             nil
         ])
+    }
+
+    @Test func commandGroupSupportsAppInfoAndRelativePlacementSpelling() {
+        let groups = extractCommandGroups(from: AppInfoCommandPlacementProbe())
+
+        #expect(groups[.help]?.map(\.label) == ["About QuillCode"])
+        #expect(groups[.appSettings]?.map(\.label) == ["QuillCode Settings"])
     }
 
     @Test func keyEquivalentSpaceExists() {

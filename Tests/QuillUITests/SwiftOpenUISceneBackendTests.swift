@@ -72,6 +72,9 @@ struct SwiftOpenUISceneBackendTests {
         #expect(source.contains("extension Group: TupleCommandsProtocol where Content: Commands"))
         #expect(source.contains("public extension Scene"))
         #expect(source.contains("func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> Self"))
+        #expect(source.contains("public static var appInfo: CommandGroupPlacement { .help }"))
+        #expect(source.contains("before placement: CommandGroupPlacement"))
+        #expect(source.contains("after placement: CommandGroupPlacement"))
     }
 
     @Test("Group supports view scene and command content")
