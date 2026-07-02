@@ -56,6 +56,12 @@ lowering profiles:
   vendored app builds reuse compiled SwiftPM dependency state even when an
   agent changes `--workdir`. Pass `--no-reuse-build-scratch` to restore the
   older `WORKDIR/.build-check` behavior for one-off isolation.
+- Generated package materialization is also content-aware. The Linux package
+  generator stages the package into a temporary directory, then checksum-syncs
+  it into the stable `WORKDIR/package` path. If the generated Swift files,
+  resources, and manifest are unchanged, the final package directory is left
+  untouched so SwiftPM does not rebuild app targets just because the generator
+  ran again.
 - The generic profile also caches copied/lowered app source under
   `.build/quillui-lowered-source-cache`. The cache key hashes the app source and
   QuillUI lowering-tool inputs, so repeated vendored-source builds can skip the

@@ -45,6 +45,8 @@ struct VendoredSourcePipelineTests {
         #expect(source.contains("scripts/package-swiftui-linux-app.sh"))
         #expect(source.contains("--source-app enchanted"))
         #expect(source.contains("--source-subdir Enchanted"))
+        #expect(source.contains("Audit vendored Enchanted SwiftPM sources"))
+        #expect(source.contains("scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored"))
         #expect(!source.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
     }
 

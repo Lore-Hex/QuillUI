@@ -234,19 +234,6 @@ public func withAnimation(_ animation: Animation = .default, _ body: @MainActor 
     }
 }
 
-public extension CommandGroupPlacement {
-    static var appInfo: CommandGroupPlacement { .help }
-}
-
-public extension CommandGroup {
-    init(
-        after placement: CommandGroupPlacement,
-        @CommandMenuBuilder content: () -> [CommandMenuItem]
-    ) {
-        self.init(replacing: placement, content: content)
-    }
-}
-
 // `WindowGroup.defaultSize(width:height:)`, the `CommandMenuBuilder` /
 // `MenuBuilder` view-expression overloads, and `Menu(content:label:)` moved
 // to QuillSwiftUICompatibility (SolderScopeChrome.swift) so real source that

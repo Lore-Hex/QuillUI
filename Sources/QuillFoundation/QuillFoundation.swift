@@ -1168,59 +1168,150 @@ public class CGPath: Hashable, @unchecked Sendable {
 }
 public final class CGMutablePath: CGPath, @unchecked Sendable {
     public override init() { super.init() }
-    public func move(to point: CGPoint) { elements.append((.moveToPoint, [point])) }
-    public func addLine(to point: CGPoint) { elements.append((.addLineToPoint, [point])) }
+
+    private func appendElements(
+        _ newElements: [CGPathStorageElement],
+        transform: CGAffineTransform? = nil
+    ) {
+        elements.append(contentsOf: Self.applying(transform, to: newElements))
+    }
+
+    public func move(to point: CGPoint) {
+        move(to: point, transform: .identity)
+    }
+
+    public func move(to point: CGPoint, transform: CGAffineTransform) {
+        elements.append((.moveToPoint, [point.applying(transform)]))
+    }
+
+    public func addLine(to point: CGPoint) {
+        addLine(to: point, transform: .identity)
+    }
+
+    public func addLine(to point: CGPoint, transform: CGAffineTransform) {
+        elements.append((.addLineToPoint, [point.applying(transform)]))
+    }
+
     public func addLines(between points: [CGPoint]) {
+        addLines(between: points, transform: .identity)
+    }
+
+    public func addLines(between points: [CGPoint], transform: CGAffineTransform) {
         guard let first = points.first else { return }
-        move(to: first)
+        move(to: first, transform: transform)
         for point in points.dropFirst() {
-            addLine(to: point)
+            addLine(to: point, transform: transform)
         }
     }
+
     public func addRect(_ rect: CGRect) {
-        elements.append(contentsOf: Self.rectElements(rect))
+        appendElements(Self.rectElements(rect))
     }
+
     public func addRect(_ rect: CGRect, transform: CGAffineTransform) {
-        elements.append(contentsOf: Self.applying(transform, to: Self.rectElements(rect)))
+        appendElements(Self.rectElements(rect), transform: transform)
     }
+
     public func addRects(_ rects: [CGRect]) {
         for rect in rects {
             addRect(rect)
         }
     }
+
     public func addRects(_ rects: [CGRect], transform: CGAffineTransform) {
         for rect in rects {
             addRect(rect, transform: transform)
         }
     }
+
     public func addEllipse(in rect: CGRect) {
-        elements.append(contentsOf: Self.ellipseElements(in: rect))
+        appendElements(Self.ellipseElements(in: rect))
     }
+
     public func addEllipse(in rect: CGRect, transform: CGAffineTransform) {
-        elements.append(contentsOf: Self.applying(transform, to: Self.ellipseElements(in: rect)))
+        appendElements(Self.ellipseElements(in: rect), transform: transform)
     }
+
     public func addCurve(to end: CGPoint, control1: CGPoint, control2: CGPoint) {
-        elements.append((.addCurveToPoint, [control1, control2, end]))
+        addCurve(to: end, control1: control1, control2: control2, transform: .identity)
     }
+
+    public func addCurve(
+        to end: CGPoint,
+        control1: CGPoint,
+        control2: CGPoint,
+        transform: CGAffineTransform
+    ) {
+        elements.append((
+            .addCurveToPoint,
+            [control1.applying(transform), control2.applying(transform), end.applying(transform)]
+        ))
+    }
+
     public func addQuadCurve(to end: CGPoint, control: CGPoint) {
-        elements.append((.addQuadCurveToPoint, [control, end]))
+        addQuadCurve(to: end, control: control, transform: .identity)
     }
+
+    public func addQuadCurve(to end: CGPoint, control: CGPoint, transform: CGAffineTransform) {
+        elements.append((.addQuadCurveToPoint, [control.applying(transform), end.applying(transform)]))
+    }
+
     public func addArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, endAngle: CGFloat, clockwise: Bool) {
+        addArc(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise,
+            transform: .identity
+        )
+    }
+
+    public func addArc(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        endAngle: CGFloat,
+        clockwise: Bool,
+        transform: CGAffineTransform
+    ) {
         guard radius > 0, radius.isFinite else { return }
-        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle)
+        let start = Self.arcPoint(center: center, radius: radius, angle: startAngle).applying(transform)
         if isEmpty {
             move(to: start)
         } else if !Self.pointsAreClose(currentPoint, start) {
             addLine(to: start)
         }
-        elements.append(contentsOf: Self.arcCurveElements(
+        appendElements(Self.arcCurveElements(
             center: center,
             radius: radius,
             startAngle: startAngle,
             endAngle: endAngle,
             clockwise: clockwise
-        ))
+        ), transform: transform)
     }
+
+    public func addRelativeArc(center: CGPoint, radius: CGFloat, startAngle: CGFloat, delta: CGFloat) {
+        addRelativeArc(center: center, radius: radius, startAngle: startAngle, delta: delta, transform: .identity)
+    }
+
+    public func addRelativeArc(
+        center: CGPoint,
+        radius: CGFloat,
+        startAngle: CGFloat,
+        delta: CGFloat,
+        transform: CGAffineTransform
+    ) {
+        addArc(
+            center: center,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: startAngle + delta,
+            clockwise: delta < 0,
+            transform: transform
+        )
+    }
+
     public func addArc(tangent1End: CGPoint, tangent2End: CGPoint, radius: CGFloat) {
         guard radius > 0, radius.isFinite else { return }
         guard !isEmpty else {
@@ -1279,7 +1370,7 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
         if !Self.pointsAreClose(current, tangentStart) {
             addLine(to: tangentStart)
         }
-        elements.append(contentsOf: Self.arcCurveElements(
+        appendElements(Self.arcCurveElements(
             center: center,
             radius: radius,
             startAngle: startAngle,
@@ -1287,13 +1378,49 @@ public final class CGMutablePath: CGPath, @unchecked Sendable {
             clockwise: clockwise
         ))
     }
+
+    public func addArc(
+        tangent1End: CGPoint,
+        tangent2End: CGPoint,
+        radius: CGFloat,
+        transform: CGAffineTransform
+    ) {
+        guard radius > 0, radius.isFinite else { return }
+        guard !isEmpty else {
+            move(to: tangent1End, transform: transform)
+            return
+        }
+
+        let localPath = CGMutablePath()
+        localPath.move(to: currentPoint.applying(transform.inverted()))
+        localPath.addArc(tangent1End: tangent1End, tangent2End: tangent2End, radius: radius)
+        appendElements(Array(localPath.elements.dropFirst()), transform: transform)
+    }
+
     public func addRoundedRect(in rect: CGRect, cornerWidth: CGFloat, cornerHeight: CGFloat) {
-        elements.append(contentsOf: Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight))
+        addRoundedRect(in: rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight, transform: .identity)
     }
-    public func addPath(_ path: CGPath) { elements.append(contentsOf: path.elements) }
+
+    public func addRoundedRect(
+        in rect: CGRect,
+        cornerWidth: CGFloat,
+        cornerHeight: CGFloat,
+        transform: CGAffineTransform
+    ) {
+        appendElements(
+            Self.roundedRectElements(rect, cornerWidth: cornerWidth, cornerHeight: cornerHeight),
+            transform: transform
+        )
+    }
+
+    public func addPath(_ path: CGPath) {
+        addPath(path, transform: .identity)
+    }
+
     public func addPath(_ path: CGPath, transform: CGAffineTransform) {
-        elements.append(contentsOf: Self.applying(transform, to: path.elements))
+        appendElements(path.elements, transform: transform)
     }
+
     public func closeSubpath() { elements.append((.closeSubpath, [])) }
 }
 
