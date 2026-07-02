@@ -873,6 +873,16 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_enchanted_profile_fixture_environment_if_needed non_enchanted_profile_env quill-wireguard "\(temporaryDirectory.path)/profile"
         printf 'wireguard-profile-env=%s\\n' "$(quillui_print_env_array "${non_enchanted_profile_env[@]}")"
 
+        artifact_executable="\(temporaryDirectory.path)/artifact/app"
+        artifact_path_file="\(temporaryDirectory.path)/artifact/.quillui-artifact-path"
+        mkdir -p "$(dirname "$artifact_executable")"
+        printf '#!/usr/bin/env bash\\nexit 0\\n' > "$artifact_executable"
+        chmod +x "$artifact_executable"
+        printf '%s\\n' "$artifact_executable" > "$artifact_path_file"
+        artifact_path=""
+        quillui_artifact_path_from_file "$artifact_path_file" artifact_path
+        printf 'artifact-path=%s\\n' "$artifact_path"
+
         if quillui_export_backend_argument qt quill-wireguard-qt 2>/dev/null; then
           echo unexpected-product
           exit 1
@@ -963,6 +973,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("enchanted-profile-fixture=ok"))
         #expect(result.output.contains("legacy-chat-profile-env=HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLDATA_HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLUI_ENCHANTED_REFERENCE_MODE=1|QUILLUI_QUILL_CHAT_REFERENCE_MODE=1|QUILLUI_ENCHANTED_PROFILE_MODE=1|QUILLUI_QUILL_CHAT_PROFILE_MODE=1|"))
         #expect(result.output.contains("wireguard-profile-env=\n"))
+        #expect(result.output.contains("artifact-path=\(temporaryDirectory.path)/artifact/app"))
         #expect(result.output.contains("default-mode-signal=click"))
         #expect(result.output.contains("default-mode-chat=toolbar-menu"))
         #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))

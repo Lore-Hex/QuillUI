@@ -354,15 +354,15 @@ quillui_backend_interaction_verify_product() {
 }
 
 quillui_assign_output() {
-  local output_var="$1"
-  local value="$2"
+  local __quillui_output_var="$1"
+  local __quillui_output_value="$2"
 
-  if [[ ! "$output_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-    echo "Invalid output variable name: $output_var" >&2
+  if [[ ! "$__quillui_output_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    echo "Invalid output variable name: $__quillui_output_var" >&2
     return 64
   fi
 
-  printf -v "$output_var" "%s" "$value"
+  printf -v "$__quillui_output_var" "%s" "$__quillui_output_value"
 }
 
 quillui_append_environment_assignment() {
@@ -1025,20 +1025,20 @@ quillui_install_linux_backend_smoke_packages() {
 quillui_artifact_path_from_file() {
   local artifact_path_file="$1"
   local output_var="$2"
-  local artifact_path=""
+  local resolved_artifact_path=""
 
   [[ -s "$artifact_path_file" ]] || return 1
-  IFS= read -r artifact_path < "$artifact_path_file" || true
-  if [[ -z "$artifact_path" ]]; then
+  IFS= read -r resolved_artifact_path < "$artifact_path_file" || true
+  if [[ -z "$resolved_artifact_path" ]]; then
     echo "Artifact path file is empty: $artifact_path_file" >&2
     return 66
   fi
-  if [[ ! -x "$artifact_path" ]]; then
-    echo "Artifact path is missing or not executable: $artifact_path_file -> $artifact_path" >&2
+  if [[ ! -x "$resolved_artifact_path" ]]; then
+    echo "Artifact path is missing or not executable: $artifact_path_file -> $resolved_artifact_path" >&2
     return 66
   fi
 
-  quillui_assign_output "$output_var" "$artifact_path"
+  quillui_assign_output "$output_var" "$resolved_artifact_path"
 }
 
 quillui_resolve_linux_backend_executable() {
