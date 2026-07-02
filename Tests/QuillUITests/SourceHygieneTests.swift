@@ -9191,6 +9191,38 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("let labelText = qtTextLabel(from: labelView.wrapped)"))
     }
 
+    @Test("GTK widget tests route through GTKTestHost")
+    func gtkWidgetTestsRouteThroughGTKTestHost() throws {
+        let root = try packageRoot()
+        let testsDir = root.appendingPathComponent("Tests/QuillUITests")
+        let contents = try FileManager.default.contentsOfDirectory(atPath: testsDir.path)
+        // Files allowed to name GTK entry points without the host: the host
+        // itself, and this file (the probes below are string literals).
+        let exempt: Set<String> = ["GTKTestHost.swift", "SourceHygieneTests.swift"]
+        for file in contents.sorted() where file.hasSuffix(".swift") && !exempt.contains(file) {
+            let source = try String(
+                contentsOf: testsDir.appendingPathComponent(file),
+                encoding: .utf8
+            )
+            let touchesGTKWidgets = source.contains("gtkRenderView(")
+                || source.contains("gtk_window_new(")
+                || source.contains("g_main_context_iteration(")
+            guard touchesGTKWidgets else { continue }
+            #expect(
+                source.contains("GTKTestHost.shared"),
+                """
+                \(file) constructs GTK widgets or drains the GLib main \
+                context directly. GTK is thread-affine and swift-testing \
+                executors do not pin the OS thread (a @MainActor job can be \
+                serviced by any cooperative-pool thread under the legacy \
+                isCurrentExecutor override), so that work must run via \
+                GTKTestHost.shared.perform — see GTKTestHost.swift and \
+                PR #581's first CI run for the crash this prevents.
+                """
+            )
+        }
+    }
+
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
