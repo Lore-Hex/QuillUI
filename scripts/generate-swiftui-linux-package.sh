@@ -580,10 +580,10 @@ if [[ "$BACKEND_FACADE" != "qt" ]]; then
 fi
 
 if [[ "$BACKEND_FACADE" == "qt" ]]; then
-  QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 else
-  QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="${QUILLUI_RUNTIME_ONLY_MACROS:-1}" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 fi
 

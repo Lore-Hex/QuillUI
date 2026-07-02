@@ -240,12 +240,13 @@ packages copied too.
 The generator then rewrites URL dependencies to local paths and stores
 QuillUI-prepared package copies in the shared prepared-package cache.
 
-Generated app builds also default `QUILLUI_RUNTIME_ONLY_MACROS=1` for the final
-SwiftPM runtime build. The lowering phase removes SwiftData/Observation/Preview
-macro use before compilation, so the runtime graph can link QuillData, SwiftUI,
-Observation, and FoundationModels without compiling the SwiftSyntax-backed
-macro plugin targets. Set `QUILLUI_RUNTIME_ONLY_MACROS=0` only when intentionally
-building an unlowered source tree that still expands those macros.
+Generated app builds also default `QUILLUI_RUNTIME_ONLY_MACROS=1` for the
+generator's SwiftPM build and the final artifact lookup. The lowering phase
+removes SwiftData/Observation/Preview macro use before compilation, so the
+runtime graph can link QuillData, SwiftUI, Observation, and FoundationModels
+without compiling the SwiftSyntax-backed macro plugin targets. Set
+`QUILLUI_RUNTIME_ONLY_MACROS=0` only when intentionally building an unlowered
+source tree that still expands those macros.
 
 The standard Linux build image and CI dependency sets include both `libc++-dev`
 and `libc++abi-dev`. Some vendored app dependencies, including editor/parser
