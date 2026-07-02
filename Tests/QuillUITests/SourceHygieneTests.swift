@@ -7691,6 +7691,8 @@ struct SourceHygieneTests {
         #expect(enchantedWorkflow.contains("--source-app enchanted"))
         #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))
         #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
+        #expect(enchantedWorkflow.contains("Audit vendored Enchanted SwiftPM sources"))
+        #expect(enchantedWorkflow.contains("scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored"))
         #expect(enchantedWorkflow.contains("Restore lowered source cache"))
         #expect(enchantedWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
         #expect(enchantedWorkflow.contains("source-app: enchanted"))
