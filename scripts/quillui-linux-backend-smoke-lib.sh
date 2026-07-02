@@ -736,12 +736,12 @@ quillui_resolve_generated_app_executable() {
     "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
       "${build_args[@]}"
 
-  local artifact_path
-  if ! quillui_artifact_path_from_file "$artifact_path_file" artifact_path; then
+  local generated_artifact_path
+  if ! quillui_artifact_path_from_file "$artifact_path_file" generated_artifact_path; then
     echo "Generated app build did not write a usable artifact path for $product: $artifact_path_file" >&2
     exit 66
   fi
-  quillui_assign_output "$output_var" "$artifact_path" || return $?
+  quillui_assign_output "$output_var" "$generated_artifact_path" || return $?
 }
 
 quillui_append_enchanted_profile_fixture_environment_if_needed() {

@@ -6701,6 +6701,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains(".build/quillui-generated-app-build-cache"))
         #expect(smokeLib.contains("scripts/build-swiftui-linux-app.sh"))
         #expect(smokeLib.contains("\"${build_args[@]}\""))
+        #expect(smokeLib.contains("generated_artifact_path"))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
         #expect(backendCheckScript.contains("artifact_path_file=\"$generated_work_root/.quillui-artifact-path\""))
         #expect(backendCheckScript.contains("QUILLUI_APP_ARTIFACT_PATH_FILE=\"$artifact_path_file\""))
