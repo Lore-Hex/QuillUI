@@ -14,65 +14,75 @@ import SwiftUI
 @Suite("GTK button activation gate", .serialized)
 @MainActor
 struct GTKButtonActivationTests {
+    /// `#expect` cannot expand a mutating call on a `var`, so drive the
+    /// value-type gate through a reference-type shell.
+    final class Gate {
+        private var gate = GTKButtonActivationGate()
+
+        func fire(_ phase: GTKButtonActivationGate.Phase, at now: Double) -> Bool {
+            gate.shouldFire(phase, now: now)
+        }
+    }
+
     @Test("press then late clicked fires once")
     func pressThenLateClickedFiresOnce() {
-        var gate = GTKButtonActivationGate()
-        #expect(gate.shouldFire(.pointerPress, now: 0))
+        let gate = Gate()
+        #expect(gate.fire(.pointerPress, at: 0))
         // The #502 CI failure: clicked dispatched >80ms after the press
         // paths on a loaded runner must NOT fire a second time.
-        #expect(!gate.shouldFire(.clicked, now: 0.2))
-        #expect(!gate.shouldFire(.clicked, now: 5.0), "clicked may consume at most one armed press")
+        #expect(!gate.fire(.clicked, at: 0.2))
+        #expect(!gate.fire(.clicked, at: 5.0), "clicked may consume at most one armed press")
     }
 
     @Test("press then fast clicked fires once")
     func pressThenFastClickedFiresOnce() {
-        var gate = GTKButtonActivationGate()
-        #expect(gate.shouldFire(.pointerPress, now: 0))
-        #expect(!gate.shouldFire(.clicked, now: 0.01))
+        let gate = Gate()
+        #expect(gate.fire(.pointerPress, at: 0))
+        #expect(!gate.fire(.clicked, at: 0.01))
     }
 
     @Test("redundant press paths fire once")
     func redundantPressPathsFireOnce() {
-        var gate = GTKButtonActivationGate()
+        let gate = Gate()
         // gesture + legacy + root-fallback dispatch within one main-loop
         // iteration; the wall-clock window still dedups those.
-        #expect(gate.shouldFire(.pointerPress, now: 0))
-        #expect(!gate.shouldFire(.pointerPress, now: 0.001))
-        #expect(!gate.shouldFire(.pointerPress, now: 0.002))
-        #expect(!gate.shouldFire(.clicked, now: 0.2))
+        #expect(gate.fire(.pointerPress, at: 0))
+        #expect(!gate.fire(.pointerPress, at: 0.001))
+        #expect(!gate.fire(.pointerPress, at: 0.002))
+        #expect(!gate.fire(.clicked, at: 0.2))
     }
 
     @Test("keyboard clicked without press fires")
     func keyboardClickedWithoutPressFires() {
-        var gate = GTKButtonActivationGate()
-        #expect(gate.shouldFire(.clicked, now: 1.0))
+        let gate = Gate()
+        #expect(gate.fire(.clicked, at: 1.0))
     }
 
     @Test("rapid keyboard clicked dedups within window")
     func rapidKeyboardClickedDedupsWithinWindow() {
-        var gate = GTKButtonActivationGate()
-        #expect(gate.shouldFire(.clicked, now: 0))
-        #expect(!gate.shouldFire(.clicked, now: 0.01))
-        #expect(gate.shouldFire(.clicked, now: 0.5))
+        let gate = Gate()
+        #expect(gate.fire(.clicked, at: 0))
+        #expect(!gate.fire(.clicked, at: 0.01))
+        #expect(gate.fire(.clicked, at: 0.5))
     }
 
     @Test("two separate clicks fire twice")
     func twoSeparateClicksFireTwice() {
-        var gate = GTKButtonActivationGate()
-        #expect(gate.shouldFire(.pointerPress, now: 0))
-        #expect(!gate.shouldFire(.clicked, now: 0.05))
-        #expect(gate.shouldFire(.pointerPress, now: 0.5))
-        #expect(!gate.shouldFire(.clicked, now: 0.55))
+        let gate = Gate()
+        #expect(gate.fire(.pointerPress, at: 0))
+        #expect(!gate.fire(.clicked, at: 0.05))
+        #expect(gate.fire(.pointerPress, at: 0.5))
+        #expect(!gate.fire(.clicked, at: 0.55))
     }
 
     @Test("abandoned press does not swallow the next click")
     func abandonedPressDoesNotSwallowNextClick() {
-        var gate = GTKButtonActivationGate()
+        let gate = Gate()
         // Press, drag off the button, release elsewhere: no clicked arrives.
-        #expect(gate.shouldFire(.pointerPress, now: 0))
+        #expect(gate.fire(.pointerPress, at: 0))
         // The next full click still fires exactly once.
-        #expect(gate.shouldFire(.pointerPress, now: 1.0))
-        #expect(!gate.shouldFire(.clicked, now: 1.05))
+        #expect(gate.fire(.pointerPress, at: 1.0))
+        #expect(!gate.fire(.clicked, at: 1.05))
     }
 
     @Test("activating a rendered Button fires the action exactly once")
