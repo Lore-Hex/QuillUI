@@ -13,7 +13,8 @@ import SwiftSyntax
 ///
 /// Coverage of the three core transformations:
 ///   * `@Model` → `PersistentModel` inheritance
-///   * `@Transient var X` → `var X`
+///   * SwiftData storage attributes (`@Attribute`, `@Relationship`,
+///     `@Transient`) are removed after any relationship observer lowering.
 ///   * `#Predicate<T> { … }` → `#QuillPredicate<T> { … }`
 ///
 /// Relationship properties also get a `didSet` hook that forwards to
@@ -371,16 +372,16 @@ private final class SwiftDataRewriter: SyntaxRewriter {
             recursed = node
         }
 
-        var updated = recursed
-        if let transientAttribute = recursed.attributes.first(where: { Self.isAttribute($0, named: "Transient") }) {
-            updated.attributes = recursed.attributes.filter { !Self.isAttribute($0, named: "Transient") }
+        var updated = addRelationshipObserversIfNeeded(to: recursed)
+        if let strippedAttribute = updated.attributes.first(where: Self.isStrippedVariableAttribute) {
+            updated.attributes = updated.attributes.filter { !Self.isStrippedVariableAttribute($0) }
 
             if updated.attributes.isEmpty {
-                updated = Self.setLeadingTrivia(transientAttribute.leadingTrivia, onVariable: updated)
+                updated = Self.setLeadingTrivia(strippedAttribute.leadingTrivia, onVariable: updated)
             }
         }
 
-        return DeclSyntax(addRelationshipObserversIfNeeded(to: updated))
+        return DeclSyntax(updated)
     }
 
     override func visit(_ node: InitializerDeclSyntax) -> DeclSyntax {
@@ -454,6 +455,16 @@ private final class SwiftDataRewriter: SyntaxRewriter {
         guard case let .attribute(attribute) = element else { return false }
         let typed = attribute.attributeName.trimmedDescription
         return typed == name
+    }
+
+    private static func isStrippedVariableAttribute(_ element: AttributeListSyntax.Element) -> Bool {
+        guard case let .attribute(attribute) = element else { return false }
+        switch attribute.attributeName.trimmedDescription {
+        case "Attribute", "Relationship", "Transient":
+            return true
+        default:
+            return false
+        }
     }
 
     private static func addPersistentModel(to classDecl: inout ClassDeclSyntax) {
