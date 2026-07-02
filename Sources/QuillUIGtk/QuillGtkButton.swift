@@ -32,140 +32,23 @@ public func setupQuillButtonChrome(button: OpaquePointer, label: OpaquePointer, 
     gtk_overlay_add_overlay(OpaquePointer(overlay), labelWidget)
     gtk_button_set_child(buttonPointer, overlay)
 
-    let chromeBox = QuillGTKButtonChromeBox(
-        button: buttonWidget,
-        chrome: chrome,
-        isDefault: isDefault
-    )
-
-    installQuillButtonDrawFunc(chrome: chrome, chromeBox: chromeBox)
-    connectQuillButtonRedrawSignals(button: buttonWidget, chromeBox: chromeBox)
-}
-
-private final class QuillGTKButtonChromeBox {
-    let button: UnsafeMutablePointer<GtkWidget>
-    let chrome: UnsafeMutablePointer<GtkWidget>
     let paint = MacButtonPaint()
-    let isDefault: Bool
-
-    init(
-        button: UnsafeMutablePointer<GtkWidget>,
-        chrome: UnsafeMutablePointer<GtkWidget>,
-        isDefault: Bool
-    ) {
-        self.button = button
-        self.chrome = chrome
-        self.isDefault = isDefault
-    }
-
-    var paintState: PaintControlState {
-        let flags = gtk_widget_get_state_flags(button)
-        return PaintControlState(
-            isPressed: quillGTKStateFlagsContain(flags, GTK_STATE_FLAG_ACTIVE),
-            isFocused: quillGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUS_WITHIN)
-                || quillGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUSED),
-            isDisabled: gtk_widget_get_sensitive(button) == 0,
-            isHovered: quillGTKStateFlagsContain(flags, GTK_STATE_FLAG_PRELIGHT),
-            isDefault: isDefault
-        )
-    }
-
-    func queueDraw() {
-        gtk_widget_queue_draw(chrome)
-    }
-}
-
-private func installQuillButtonDrawFunc(
-    chrome: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKButtonChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    gtk_swift_drawing_area_set_draw_func(
-        chrome,
-        { (_: UnsafeMutablePointer<GtkWidget>?,
-           cr: OpaquePointer?,
-           width: gint,
-           height: gint,
-           userData: gpointer?) in
-            guard let cr, let userData else { return }
-
-            let chromeBox = Unmanaged<QuillGTKButtonChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-            let context = CairoPaintContext(cr: cr)
-            chromeBox.paint.paint(
-                into: context,
-                frame: PaintRect(
-                    x: 0,
-                    y: 0,
-                    width: Double(width),
-                    height: Double(height)
-                ),
-                state: chromeBox.paintState
-            )
+    let chromeBox = QuillGTKPaintedChrome(
+        chrome: chrome,
+        frameProvider: QuillGTKPaintedChrome.fullFrame,
+        stateProvider: {
+            quillGTKPaintState(of: buttonWidget) { state in
+                state.isDefault = isDefault
+            }
         },
-        retainedBox,
-        { userData in
-            guard let userData else { return }
-            Unmanaged<QuillGTKButtonChromeBox>.fromOpaque(userData).release()
+        render: { context, frame, state in
+            paint.paint(into: context, frame: frame, state: state)
         }
     )
-}
 
-private func connectQuillButtonRedrawSignals(
-    button: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKButtonChromeBox
-) {
-    connectQuillButtonStateFlagsChanged(button: button, chromeBox: chromeBox)
-    connectQuillButtonSensitiveChanged(button: button, chromeBox: chromeBox)
-}
-
-private func connectQuillButtonStateFlagsChanged(
-    button: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKButtonChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(button),
-        "state-flags-changed",
-        unsafeBitCast({ (_: gpointer?, _: GtkStateFlags, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKButtonChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, GtkStateFlags, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKButtonChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
-}
-
-private func connectQuillButtonSensitiveChanged(
-    button: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKButtonChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(button),
-        "notify::sensitive",
-        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKButtonChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKButtonChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
+    chromeBox.installDrawFunc()
+    chromeBox.connectStateFlagsChanged(on: buttonWidget)
+    chromeBox.connectNotify("notify::sensitive", on: buttonWidget)
 }
 
 private func configureQuillButtonChromeWidget(
@@ -244,41 +127,16 @@ private func applyQuillButtonCSS(to button: UnsafeMutablePointer<GtkWidget>, isD
         min-height: 0;
         min-width: 0;
         text-shadow: none;
-        color: \(quillCSSRGBA(labelColor));
+        color: \(PaintCSSColor.rgba(labelColor));
     }
     button.\(className):disabled {
-        color: \(quillCSSRGBA(disabledLabelColor));
+        color: \(PaintCSSColor.rgba(disabledLabelColor));
     }
     button.\(className) label {
         color: inherit;
     }
     """
 
-    let provider = gtk_css_provider_new()!
-    gtk_css_provider_load_from_string(provider, css)
-    if let display = gtk_widget_get_display(button) {
-        gtk_swift_add_css_provider_to_display(
-            display,
-            provider,
-            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
-        )
-    }
-    gtk_widget_add_css_class(button, className)
-    g_object_unref(gpointer(provider))
-}
-
-private func quillGTKWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
-    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
-}
-
-private func quillGTKStateFlagsContain(_ flags: GtkStateFlags, _ flag: GtkStateFlags) -> Bool {
-    (flags.rawValue & flag.rawValue) != 0
-}
-
-private func quillCSSRGBA(_ color: PaintColor) -> String {
-    let red = Int((color.red * 255).rounded())
-    let green = Int((color.green * 255).rounded())
-    let blue = Int((color.blue * 255).rounded())
-    return "rgba(\(red), \(green), \(blue), \(color.alpha))"
+    quillGTKApplyCSS(css, to: button, cssClass: className)
 }
 #endif

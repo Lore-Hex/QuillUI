@@ -43,50 +43,52 @@ public func setupQuillToggleChrome(control: OpaquePointer, isSwitch: Bool, label
         }
     }
 
-    let chromeBox = QuillGTKToggleChromeBox(
-        control: controlWidget,
-        chrome: chrome,
-        isSwitch: isSwitch
-    )
-    installQuillToggleDrawFunc(chrome: chrome, chromeBox: chromeBox)
-    connectQuillToggleRedrawSignals(control: controlWidget, isSwitch: isSwitch, chromeBox: chromeBox)
+    let chromeBox = makeQuillToggleChrome(control: controlWidget, chrome: chrome, isSwitch: isSwitch)
+    chromeBox.installDrawFunc()
+    chromeBox.connectStateFlagsChanged(on: controlWidget)
+    chromeBox.connectNotify("notify::sensitive", on: controlWidget)
+    if isSwitch {
+        chromeBox.connectNotify("notify::active", on: controlWidget)
+    } else {
+        chromeBox.connectVoidSignal("toggled", on: controlWidget)
+    }
 
     return OpaquePointer(box)
 }
 
-private final class QuillGTKToggleChromeBox {
-    let control: UnsafeMutablePointer<GtkWidget>
-    let chrome: UnsafeMutablePointer<GtkWidget>
-    let isSwitch: Bool
-
-    init(control: UnsafeMutablePointer<GtkWidget>, chrome: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) {
-        self.control = control
-        self.chrome = chrome
-        self.isSwitch = isSwitch
+/// True if the underlying native toggle (switch or check button) is on.
+private func quillToggleIsActive(_ control: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) -> Bool {
+    if isSwitch {
+        return gtk_swift_switch_get_active(control) != 0
     }
+    return gtk_check_button_get_active(quillToggleCheckButtonPointer(control)) != 0
+}
 
-    var isActive: Bool {
-        if isSwitch {
-            return gtk_swift_switch_get_active(control) != 0
+/// Build the shared painted-chrome host for a toggle. The render closure
+/// picks `MacSwitchPaint` or `MacCheckboxPaint` per the live active state,
+/// matching the original draw func exactly.
+private func makeQuillToggleChrome(
+    control: UnsafeMutablePointer<GtkWidget>,
+    chrome: UnsafeMutablePointer<GtkWidget>,
+    isSwitch: Bool
+) -> QuillGTKPaintedChrome {
+    QuillGTKPaintedChrome(
+        chrome: chrome,
+        frameProvider: QuillGTKPaintedChrome.fullFrame,
+        stateProvider: {
+            quillGTKPaintState(of: control) { state in
+                state.isSelected = quillToggleIsActive(control, isSwitch: isSwitch)
+            }
+        },
+        render: { context, frame, state in
+            let isActive = quillToggleIsActive(control, isSwitch: isSwitch)
+            if isSwitch {
+                MacSwitchPaint(isOn: isActive).paint(into: context, frame: frame, state: state)
+            } else {
+                MacCheckboxPaint(value: isActive ? .on : .off).paint(into: context, frame: frame, state: state)
+            }
         }
-        return gtk_check_button_get_active(quillToggleCheckButtonPointer(control)) != 0
-    }
-
-    var paintState: PaintControlState {
-        let flags = gtk_widget_get_state_flags(control)
-        return PaintControlState(
-            isPressed: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_ACTIVE),
-            isFocused: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUS_WITHIN)
-                || quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUSED),
-            isDisabled: gtk_widget_get_sensitive(control) == 0,
-            isHovered: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_PRELIGHT),
-            isSelected: isActive
-        )
-    }
-
-    func queueDraw() {
-        gtk_widget_queue_draw(chrome)
-    }
+    )
 }
 
 private final class QuillGTKToggleActionBox {
@@ -151,153 +153,15 @@ private func quillToggleLabel(_ text: String) -> UnsafeMutablePointer<GtkWidget>
 
     let css = """
     label.quill-paint-toggle-label {
-        color: \(quillToggleCSSRGBA(MacColors.controlText));
+        color: \(PaintCSSColor.rgba(MacColors.controlText));
         font-size: 13px;
     }
     label.quill-paint-toggle-label:disabled {
-        color: \(quillToggleCSSRGBA(MacColors.disabledControlText));
+        color: \(PaintCSSColor.rgba(MacColors.disabledControlText));
     }
     """
-    let provider = gtk_css_provider_new()!
-    gtk_css_provider_load_from_string(provider, css)
-    if let display = gtk_widget_get_display(label) {
-        gtk_swift_add_css_provider_to_display(
-            display,
-            provider,
-            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
-        )
-    }
-    gtk_widget_add_css_class(label, "quill-paint-toggle-label")
-    g_object_unref(gpointer(provider))
+    quillGTKApplyCSS(css, to: label, cssClass: "quill-paint-toggle-label")
     return label
-}
-
-private func installQuillToggleDrawFunc(
-    chrome: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKToggleChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    gtk_swift_drawing_area_set_draw_func(
-        chrome,
-        { (_: UnsafeMutablePointer<GtkWidget>?,
-           cr: OpaquePointer?,
-           width: gint,
-           height: gint,
-           userData: gpointer?) in
-            guard let cr, let userData else { return }
-
-            let chromeBox = Unmanaged<QuillGTKToggleChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-            let context = CairoPaintContext(cr: cr)
-            let frame = PaintRect(x: 0, y: 0, width: Double(width), height: Double(height))
-            if chromeBox.isSwitch {
-                MacSwitchPaint(isOn: chromeBox.isActive).paint(
-                    into: context,
-                    frame: frame,
-                    state: chromeBox.paintState
-                )
-            } else {
-                MacCheckboxPaint(value: chromeBox.isActive ? .on : .off).paint(
-                    into: context,
-                    frame: frame,
-                    state: chromeBox.paintState
-                )
-            }
-        },
-        retainedBox,
-        { userData in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>.fromOpaque(userData).release()
-        }
-    )
-}
-
-private func connectQuillToggleRedrawSignals(
-    control: UnsafeMutablePointer<GtkWidget>,
-    isSwitch: Bool,
-    chromeBox: QuillGTKToggleChromeBox
-) {
-    connectQuillToggleStateFlagsChanged(control: control, chromeBox: chromeBox)
-    connectQuillToggleNotifySignal(control: control, signal: "notify::sensitive", chromeBox: chromeBox)
-    if isSwitch {
-        connectQuillToggleNotifySignal(control: control, signal: "notify::active", chromeBox: chromeBox)
-    } else {
-        connectQuillToggleToggledSignal(control: control, chromeBox: chromeBox)
-    }
-}
-
-private func connectQuillToggleStateFlagsChanged(
-    control: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKToggleChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(control),
-        "state-flags-changed",
-        unsafeBitCast({ (_: gpointer?, _: GtkStateFlags, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, GtkStateFlags, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
-}
-
-private func connectQuillToggleNotifySignal(
-    control: UnsafeMutablePointer<GtkWidget>,
-    signal: String,
-    chromeBox: QuillGTKToggleChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(control),
-        signal,
-        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
-}
-
-private func connectQuillToggleToggledSignal(
-    control: UnsafeMutablePointer<GtkWidget>,
-    chromeBox: QuillGTKToggleChromeBox
-) {
-    let retainedBox = Unmanaged.passRetained(chromeBox).toOpaque()
-    g_signal_connect_data(
-        gpointer(control),
-        "toggled",
-        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>
-                .fromOpaque(userData)
-                .takeUnretainedValue()
-                .queueDraw()
-        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
-        retainedBox,
-        { userData, _ in
-            guard let userData else { return }
-            Unmanaged<QuillGTKToggleChromeBox>.fromOpaque(userData).release()
-        },
-        GConnectFlags(rawValue: 0)
-    )
 }
 
 private func installQuillToggleLabelGesture(
