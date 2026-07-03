@@ -610,6 +610,25 @@ final class QtKeyPressActionBox {
     }
 }
 
+final class QtMoveCommandActionBox {
+    let environment: EnvironmentValues
+    let action: (MoveCommandDirection) -> Void
+
+    init(environment: EnvironmentValues, action: @escaping (MoveCommandDirection) -> Void) {
+        self.environment = environment
+        self.action = action
+    }
+
+    func handle(keyCode: Int32) -> Bool {
+        guard let direction = qtMoveCommandDirection(for: keyCode) else { return false }
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        action(direction)
+        return true
+    }
+}
+
 final class QtShortcutDispatchBox {
     let windowID: Int
 
@@ -635,6 +654,21 @@ final class QtIntClosureBox {
 func qtKeyEquivalent(for keyCode: Int32) -> KeyEquivalent? {
     guard let scalar = UnicodeScalar(UInt32(bitPattern: keyCode)) else { return nil }
     return KeyEquivalent(Character(scalar))
+}
+
+func qtMoveCommandDirection(for keyCode: Int32) -> MoveCommandDirection? {
+    switch qtKeyEquivalent(for: keyCode) {
+    case .upArrow:
+        return .up
+    case .downArrow:
+        return .down
+    case .leftArrow:
+        return .left
+    case .rightArrow:
+        return .right
+    default:
+        return nil
+    }
 }
 
 func qtInstallKeyPressActions(
@@ -663,6 +697,29 @@ func qtInstallKeyPressActions(
     let destroy: quill_qt_bridge_click_callback = { userData in
         guard let userData else { return }
         Unmanaged<QtKeyPressActionBox>.fromOpaque(userData).release()
+    }
+    quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)
+}
+
+func qtInstallMoveCommandAction(
+    on widget: OpaquePointer,
+    environment: EnvironmentValues,
+    action: @escaping (MoveCommandDirection) -> Void
+) {
+    let box = Unmanaged.passRetained(QtMoveCommandActionBox(
+        environment: environment,
+        action: action
+    )).toOpaque()
+    let callback: quill_qt_bridge_key_callback = { key, userData in
+        guard let userData else { return 0 }
+        return Unmanaged<QtMoveCommandActionBox>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+            .handle(keyCode: key) ? 1 : 0
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtMoveCommandActionBox>.fromOpaque(userData).release()
     }
     quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)
 }
@@ -1248,6 +1305,15 @@ extension OnKeyPressView: QtRenderable {
         setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previous) }
         return qtRenderView(content)
+    }
+}
+
+extension MoveCommandView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let environment = getCurrentEnvironment()
+        let widget = qtRenderView(content)
+        qtInstallMoveCommandAction(on: widget, environment: environment, action: action)
+        return widget
     }
 }
 

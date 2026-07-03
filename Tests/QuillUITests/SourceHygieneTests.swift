@@ -3563,6 +3563,10 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("qtInstallKeyPressActions("))
         #expect(qtRenderer.contains("quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)"))
         #expect(qtRenderer.contains("QtKeyPressActionBox"))
+        #expect(qtRenderer.contains("extension MoveCommandView: QtRenderable"))
+        #expect(qtRenderer.contains("QtMoveCommandActionBox"))
+        #expect(qtRenderer.contains("qtMoveCommandDirection(for keyCode: Int32)"))
+        #expect(qtRenderer.contains("qtInstallMoveCommandAction(on: widget, environment: environment, action: action)"))
         #expect(qtRenderer.contains("extension KeyboardShortcutView: QtRenderable"))
         #expect(qtRenderer.contains("environment.keyboardShortcut = shortcut"))
         #expect(qtRenderer.contains("QtShortcutDispatchBox"))
@@ -9117,6 +9121,32 @@ struct SourceHygieneTests {
         #expect(renderer.contains("env.keyPressActions.append(KeyPressAction(key: key, handler: action))"))
         #expect(renderer.contains("keyPressActions: environment.keyPressActions"))
         #expect(renderer.contains("keyPressActions: getCurrentEnvironment().keyPressActions"))
+    }
+
+    @Test("SwiftUI onMoveCommand is real GTK and Qt arrow-key behavior")
+    func swiftUIOnMoveCommandRendersThroughLinuxBackends() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesktopInteractionCompat.swift")
+        let gtkMoveCommand = try packageSource("Sources/QuillUI/GTKMoveCommandModifiers.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let quillCodeCommandPalette = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeCommandPaletteDialog.swift"
+        )
+
+        #expect(quillCodeCommandPalette.contains(".onMoveCommand { direction in"))
+        #expect(compatibility.contains("public struct MoveCommandView<Content: View>: View"))
+        #expect(compatibility.contains("func onMoveCommand("))
+        #expect(gtkMoveCommand.contains("extension MoveCommandView: GTKRenderable"))
+        #expect(gtkMoveCommand.contains("gtk_swift_key_capture_controller()"))
+        #expect(gtkMoveCommand.contains("quillGTKMoveCommandDirection(for keyval: guint)"))
+        #expect(gtkMoveCommand.contains("case 0xff52:"))
+        #expect(gtkMoveCommand.contains("case 0xff54:"))
+        #expect(gtkMoveCommand.contains("action(direction)"))
+        #expect(qtRenderer.contains("extension MoveCommandView: QtRenderable"))
+        #expect(qtRenderer.contains("qtInstallMoveCommandAction(on: widget, environment: environment, action: action)"))
+        #expect(qtRenderer.contains("qtMoveCommandDirection(for keyCode: Int32)"))
+        #expect(qtRenderer.contains("case .upArrow:"))
+        #expect(qtRenderer.contains("case .downArrow:"))
+        #expect(qtRenderer.contains("action(direction)"))
     }
 
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
