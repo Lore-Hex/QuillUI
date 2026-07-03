@@ -3160,6 +3160,34 @@ private func gtkRenderFilledShapeBackground(
     return opaqueFromWidget(wrapper)
 }
 
+extension FontDesignView: GTKRenderable, GTKDescribable {
+    /// Describe with the design encoded in props so a design flip diffs the
+    /// descriptor (full rebuild) while steady-state rebuilds stay narrow.
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "FontDesignView",
+            props: .text(GTK4TextDescriptor(content: String(describing: design))),
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = widgetFromOpaque(gtkRenderView(content))
+        if let family = gtkFontFamilyCSS(design) {
+            applyCSSToWidget(
+                widget,
+                properties: "font-family: \(family);",
+                descendantSelectors: gtkFontDescendantSelectors
+            )
+        }
+        if let designMarker = gtkFontDesignMarker(design) {
+            gtk_widget_add_css_class(widget, designMarker)
+        }
+        return opaqueFromWidget(widget)
+    }
+}
+
 extension FontModifiedView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         GTK4DescriptorNode(
