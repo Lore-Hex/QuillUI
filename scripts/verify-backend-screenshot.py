@@ -284,6 +284,10 @@ def wireguard_error_text_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def quill_code_light_text_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) >= 520 and max(rgb) - min(rgb) <= 95
+
+
 def wireguard_gtk_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -3952,6 +3956,67 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
     )
 
 
+def validate_quill_code_desktop_linux(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1_000 <= app_width <= 1_240, f"QuillCode window width is unexpected: {app_width}px")
+    require(680 <= app_height <= 840, f"QuillCode window height is unexpected: {app_height}px")
+
+    sidebar_width = 280
+    main_left = min(right, left + sidebar_width)
+    main_center_x = main_left + ((right - main_left) // 2)
+    empty_state_top = top + int(app_height * 0.74)
+    empty_state_bottom = top + int(app_height * 0.91)
+    center_text_pixels = pixel_count(
+        image,
+        max(main_left, main_center_x - 330),
+        empty_state_top,
+        min(right + 1, main_center_x + 330),
+        min(bottom + 1, empty_state_bottom),
+        quill_code_light_text_pixel,
+    )
+    far_right_text_pixels = pixel_count(
+        image,
+        max(main_left, right - 280),
+        empty_state_top,
+        right + 1,
+        min(bottom + 1, empty_state_bottom),
+        quill_code_light_text_pixel,
+    )
+    composer_text_pixels = pixel_count(
+        image,
+        main_left + 20,
+        max(top, bottom - 70),
+        right - 20,
+        bottom + 1,
+        quill_code_light_text_pixel,
+    )
+
+    require(
+        center_text_pixels >= 900,
+        "QuillCode empty-state text was not detected in the centered main-pane band: "
+        f"pixels={center_text_pixels}",
+    )
+    require(
+        far_right_text_pixels <= max(650, center_text_pixels // 2),
+        "QuillCode empty-state text appears clipped or right-drifted: "
+        f"center_pixels={center_text_pixels}, far_right_pixels={far_right_text_pixels}",
+    )
+    require(
+        composer_text_pixels >= 250,
+        f"QuillCode composer placeholder was not detected: pixels={composer_text_pixels}",
+    )
+
+    return (
+        "QuillCode desktop Linux: "
+        f"app={app_width}x{app_height}, "
+        f"center_text_pixels={center_text_pixels}, "
+        f"far_right_text_pixels={far_right_text_pixels}, "
+        f"composer_text_pixels={composer_text_pixels}"
+    )
+
+
 def validate_quill_wireguard_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
@@ -4911,6 +4976,8 @@ def main() -> int:
         print(validate_quill_generic_gtk_list_selection(image, product))
     elif product in GENERIC_QT_LIST_SELECTION_PRODUCTS:
         print(validate_quill_generic_qt_list_selection(image, product))
+    elif product == "quill-code-desktop-linux":
+        print(validate_quill_code_desktop_linux(image))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":

@@ -81,6 +81,65 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(gtk_widget_get_overflow(wrapper), GTK_OVERFLOW_HIDDEN)
     }
 
+    func testFiniteMaxWidthEmptyStateStaysCenteredInFlexibleMainPane() throws {
+        try requireGTK()
+
+        let title = "Ask QuillCode to inspect, edit, and build your code."
+        let subtitle = "Use Auto for normal coding work, Review for manual code review, and Edit when you want a focused patch."
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                Color.gray
+                    .frame(width: 280)
+                Divider()
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    VStack(spacing: 8) {
+                        Text(title)
+                        Text(subtitle)
+                    }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 540)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 20)
+                    Divider()
+                    TextField("Message QuillCode", text: .constant(""))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                }
+            }
+        ))
+        gtkConfigureRootContentToFillWindow(wrapper)
+        allocate(widget: wrapper, size: ViewSize(width: 1_180, height: 760))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        guard let titleLabel = labels.first(where: { label in
+            let text = gtk_label_get_text(OpaquePointer(label)).map { String(cString: $0) }
+            return text == title
+        }) else {
+            XCTFail("Expected to find empty-state title label.")
+            return
+        }
+
+        let titleOrigin = translatedChildOrigin(child: titleLabel, in: wrapper)
+        let titleSize = allocatedSize(of: titleLabel)
+        let titleCenterX = titleOrigin.x + (titleSize.width / 2)
+        let mainPaneCenterX = 280 + ((1_180 - 280) / 2)
+
+        XCTAssertEqual(
+            titleCenterX,
+            Double(mainPaneCenterX),
+            accuracy: 120,
+            "A finite maxWidth frame nested inside maxWidth infinity should center in the flexible pane, not drift to the right edge."
+        )
+        XCTAssertLessThan(
+            titleOrigin.x + titleSize.width,
+            1_150,
+            "Empty-state title should remain fully visible inside the allocated window."
+        )
+    }
+
     func testVStackSharedLayoutAppliesTrailingAlignmentAndSpacing() throws {
         try requireGTK()
 

@@ -99,6 +99,16 @@ struct SourceHygieneTests {
         #expect(renderer.contains("? minHeight.map(gtkPixelSize) ?? -1"))
     }
 
+    @Test("GTK FrameView does not treat finite max size as infinite parent expansion")
+    func gtkFrameViewDoesNotTreatFiniteMaxSizeAsInfiniteParentExpansion() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("(maxWidth == .infinity)"))
+        #expect(renderer.contains("(maxHeight == .infinity)"))
+        #expect(!renderer.contains("(maxWidth != nil)\n                || (maxWidth == nil && childExpH)"))
+        #expect(!renderer.contains("(maxHeight != nil)\n                || (maxHeight == nil && childExpV)"))
+    }
+
     @Test("Vendored LogStream C header is portable for Linux module builds")
     func vendoredLogStreamCHeaderIsPortableForLinuxModuleBuilds() throws {
         let header = try packageSource("third_party/LogStream/Sources/Headers/include/Header.h")
@@ -7298,6 +7308,12 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("product in GENERIC_GTK_LIST_SELECTION_PRODUCTS"))
         #expect(screenshotVerifier.contains("product in GENERIC_QT_LIST_SELECTION_PRODUCTS"))
         #expect(screenshotVerifier.contains("product in CHAT_GTK_LIST_SELECTION_PRODUCTS"))
+        #expect(screenshotVerifier.contains("validate_quill_code_desktop_linux"))
+        #expect(screenshotVerifier.contains("product == \"quill-code-desktop-linux\""))
+        #expect(screenshotVerifier.contains("QuillCode empty-state text was not detected in the centered main-pane band"))
+        #expect(screenshotVerifier.contains("QuillCode empty-state text appears clipped or right-drifted"))
+        #expect(screenshotVerifier.contains("center_text_pixels >= 900"))
+        #expect(screenshotVerifier.contains("far_right_text_pixels <= max(650, center_text_pixels // 2)"))
         #expect(!screenshotVerifier.contains("fixture row"))
         #expect(screenshotVerifier.contains("Quill WireGuard Qt native"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_qt_native"))

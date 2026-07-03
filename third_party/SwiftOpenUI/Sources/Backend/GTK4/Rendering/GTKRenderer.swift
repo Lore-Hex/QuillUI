@@ -2629,12 +2629,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
         let widthFree  = width == nil && minWidth == nil && (maxWidth == nil || maxWidth == .infinity)
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil)
+                (maxWidth == .infinity)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil)
+                (maxHeight == .infinity)
                 || (maxHeight == nil && childExpV)
             )
 
@@ -2789,12 +2789,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil)
+                (maxWidth == .infinity)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil)
+                (maxHeight == .infinity)
                 || (maxHeight == nil && childExpV)
             )
 
