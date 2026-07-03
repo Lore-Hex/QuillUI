@@ -68,7 +68,15 @@ quillui_backend_fixed_app_backend_overrides() {
   # native host stack at manifest time. Canonical app products now compile
   # through the selected QUILLUI_LINUX_BACKEND graph, so this table should stay
   # empty unless a future product truly cannot support both manifest backends.
-  :
+  #
+  # quill-code-desktop-linux is pinned to gtk-only for now: the Qt backend cannot
+  # yet host its full lowered SwiftUI (the generic BackendQt renderer implements
+  # only a fraction of the view/modifier types QuillCode uses). Emitting a
+  # quill-code qt row would build an app that cannot render. This pin keeps the
+  # generated-app matrix gtk-only for QuillCode until the QuillCode-on-Qt renderer
+  # effort lands, at which point this row is removed.
+  printf '%s\t%s\n' \
+    quill-code-desktop-linux gtk
 }
 
 quillui_backend_fixed_backend_for_app_product() {
@@ -133,7 +141,6 @@ quillui_backend_native_product_runtime_overrides() {
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
     quill-enchanted-linux qt qt \
-    quill-code-desktop-linux qt qt \
     quill-qt-interaction-smoke qt qt
 }
 
@@ -1499,7 +1506,14 @@ quillui_backend_validate_fixed_app_backend_overrides() {
       echo "fixed-app-backends contains an empty backend for product: $product" >&2
       return 65
     fi
-    quillui_backend_validate_app_product_reference "$product" "fixed-app-backends" || return $?
+    # Accept both manifest app products and generated app products: a generated
+    # app (e.g. quill-code-desktop-linux) may legitimately be pinned to a single
+    # backend while the other backend's renderer is not yet able to host it.
+    if ! quillui_backend_product_list_contains "$product" quillui_backend_app_products \
+        && ! quillui_backend_product_list_contains "$product" quillui_backend_generated_app_products; then
+      echo "fixed-app-backends references unknown app product: $product" >&2
+      return 65
+    fi
     normalized_backend="$(quillui_require_linux_build_backend_identifier "$backend")" || return $?
     if [[ "$backend" != "$normalized_backend" ]]; then
       echo "fixed-app-backends must use canonical backend identifiers; $product has $backend, expected $normalized_backend." >&2
@@ -1613,13 +1627,27 @@ quillui_backend_validate_backend_parity() {
   local matrix_command="$2"
   local column_count="$3"
   local expected_backends
+  local fixed_backends
   local parity_errors
 
   expected_backends="$(quillui_backend_app_backend_ids_for_awk)"
+  # Products pinned to a single backend (quillui_backend_fixed_app_backend_overrides)
+  # only need to cover that one backend, not the full parity set.
+  fixed_backends="$(quillui_backend_fixed_app_backend_overrides | awk -F '\t' 'NF>=2 { printf "%s=%s ", $1, $2 }')"
   parity_errors="$(
-    "$matrix_command" | awk -F '\t' -v matrix_name="$matrix_name" -v expected_backends="$expected_backends" -v column_count="$column_count" '
+    "$matrix_command" | awk -F '\t' -v matrix_name="$matrix_name" -v expected_backends="$expected_backends" -v fixed_backends="$fixed_backends" -v column_count="$column_count" '
       BEGIN {
         expectedCount = split(expected_backends, expectedBackendList, " ")
+        fixedCount = split(fixed_backends, fixedPairs, " ")
+        for (fi = 1; fi <= fixedCount; fi++) {
+          if (fixedPairs[fi] == "") {
+            continue
+          }
+          eq = index(fixedPairs[fi], "=")
+          if (eq > 0) {
+            fixedBackend[substr(fixedPairs[fi], 1, eq - 1)] = substr(fixedPairs[fi], eq + 1)
+          }
+        }
         if (column_count != 2 && column_count != 3) {
           printf "%s backend parity validator does not support %s columns\n", matrix_name, column_count
           failures = 1
@@ -1664,6 +1692,7 @@ quillui_backend_validate_backend_parity() {
           next
         }
         groupLabels[groupKey] = groupLabel
+        groupProduct[groupKey] = $1
         backendSeen[groupKey SUBSEP $2] = 1
       }
       END {
@@ -1675,6 +1704,9 @@ quillui_backend_validate_backend_parity() {
           for (i = 1; i <= expectedCount; i++) {
             expectedBackend = expectedBackendList[i]
             if (expectedBackend == "") {
+              continue
+            }
+            if (groupProduct[groupKey] in fixedBackend && fixedBackend[groupProduct[groupKey]] != expectedBackend) {
               continue
             }
             if (!((groupKey SUBSEP expectedBackend) in backendSeen)) {

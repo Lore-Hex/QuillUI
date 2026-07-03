@@ -98,9 +98,15 @@ struct LinuxBackendAppMatrixTests {
         }
     }
 
+    private static func generatedAppBackends(for product: String) -> [String] {
+        // quill-code-desktop-linux is pinned to gtk-only until the Qt backend can
+        // host its full lowered SwiftUI (see quillui_backend_fixed_app_backend_overrides).
+        product == "quill-code-desktop-linux" ? ["gtk"] : expectedBackends
+    }
+
     private static var expectedGeneratedAppMatrixRows: [String] {
         expectedGeneratedAppProducts.flatMap { product in
-            expectedBackends.map { backend in "\(product)\t\(backend)" }
+            generatedAppBackends(for: product).map { backend in "\(product)\t\(backend)" }
         }
     }
 
@@ -122,7 +128,7 @@ struct LinuxBackendAppMatrixTests {
 
     private static var expectedGeneratedAppRuntimeRows: [String] {
         expectedGeneratedAppProducts.flatMap { product in
-            expectedBackends.map { backend in
+            generatedAppBackends(for: product).map { backend in
                 if backend == "qt" {
                     return "\(product)\tqt\tqt\tnative"
                 }
@@ -357,7 +363,7 @@ struct LinuxBackendAppMatrixTests {
 
         let fixedBackends = try runScript(script, arguments: ["fixed-app-backends"])
         #expect(fixedBackends.status == 0, Comment(rawValue: fixedBackends.output))
-        #expect(fixedBackends.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #expect(Self.lines(fixedBackends.output) == ["quill-code-desktop-linux\tgtk"])
 
         let nativeRuntimes = try runScript(script, arguments: ["native-runtime-backends"])
         #expect(nativeRuntimes.status == 0, Comment(rawValue: nativeRuntimes.output))
@@ -394,7 +400,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
             "quill-enchanted-linux\tqt\tqt",
-            "quill-code-desktop-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 
