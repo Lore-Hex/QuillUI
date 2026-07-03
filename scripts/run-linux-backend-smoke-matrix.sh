@@ -37,7 +37,15 @@ MSG
 
 DRY_RUN=0
 SKIP_REPEATED_PRODUCTS=0
-SMOKE_ROW_TIMEOUT="${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-10m}"
+# The per-row budget below wraps the product's COLD `swift build` as well as the
+# smoke launch (CHECK_SCRIPT builds, then runs). The largest generated apps
+# (QuillCodeApp ~1580 modules, GeneratedSwiftUILinuxApp ~1800) cold-build right at
+# ~10 minutes and were being SIGTERM'd at ~99% compiled (exit 124) on loaded CI
+# runners, intermittently reddening main. Give the cold build ample headroom: this
+# only affects the failure/hang path (a genuinely hung smoke is still bounded, and a
+# crash exits fast with a signal code, never 124), so raising it costs nothing on
+# passing runs while removing the flake.
+SMOKE_ROW_TIMEOUT="${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-20m}"
 SMOKE_ROW_KILL_AFTER="${QUILLUI_BACKEND_SMOKE_ROW_KILL_AFTER:-15s}"
 SMOKE_TIMEOUT_COMMAND=()
 

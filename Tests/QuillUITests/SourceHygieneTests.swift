@@ -6966,7 +6966,7 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE=$mode"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
-        #expect(smokeMatrixRunner.contains("SMOKE_ROW_TIMEOUT=\"${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-10m}\""))
+        #expect(smokeMatrixRunner.contains("SMOKE_ROW_TIMEOUT=\"${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-20m}\""))
         #expect(smokeMatrixRunner.contains("SMOKE_ROW_KILL_AFTER=\"${QUILLUI_BACKEND_SMOKE_ROW_KILL_AFTER:-15s}\""))
         #expect(smokeMatrixRunner.contains("SMOKE_TIMEOUT_COMMAND=(\"$timeout_command\" \"--kill-after=$SMOKE_ROW_KILL_AFTER\" \"$SMOKE_ROW_TIMEOUT\")"))
         #expect(smokeMatrixRunner.contains("smoke_command=(env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\")"))
