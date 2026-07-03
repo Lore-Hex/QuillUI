@@ -85,9 +85,9 @@ struct LinuxBackendAppMatrixTests {
     private static let expectedNativeRuntimeBackends = ["gtk"]
     private static let expectedGeneratedAppProducts = ["quill-enchanted-linux", "quill-code-desktop-linux"]
     private static let expectedGeneratedAppBuildSpecs = [
-        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
-        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
-        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR"
+        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR\tQuillGenericQtAppCatalog.enchantedUpstreamSlice",
+        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR\tQuillGenericQtAppCatalog.enchantedUpstreamSlice",
+        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR\tQuillGenericQtAppCatalog.quillCode"
     ]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"

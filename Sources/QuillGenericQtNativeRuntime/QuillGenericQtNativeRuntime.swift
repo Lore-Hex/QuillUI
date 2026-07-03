@@ -1029,6 +1029,7 @@ public struct QuillGenericQtAppSnapshot: Codable, Sendable {
 private enum QuillGenericQtSelectionEnvironment {
     static let chat = "QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"
     static let codeEdit = "QUILLUI_CODEEDIT_SELECTED_FILE_INDEX_ON_START"
+    static let quillCode = "QUILLUI_QUILLCODE_SELECTED_THREAD_INDEX_ON_START"
     static let iceCubes = "QUILLUI_ICECUBES_SELECTED_TIMELINE_INDEX_ON_START"
     static let iina = "QUILLUI_IINA_SELECTED_PLAYLIST_INDEX_ON_START"
     static let netNewsWire = "QUILLUI_NETNEWSWIRE_SELECTED_FEED_INDEX_ON_START"
@@ -1456,6 +1457,112 @@ public enum QuillGenericQtAppCatalog {
         messages: [
             .init(sender: "diagnostic", body: "No warnings are expected for this target.")
         ]
+    )
+
+    public static let quillCode = QuillGenericQtAppSnapshot(
+        windowTitle: "QuillCode",
+        minimumWidth: 1040,
+        minimumHeight: 660,
+        defaultWidth: 1240,
+        defaultHeight: 780,
+        sidebarWidth: 340,
+        detailWidth: 860,
+        sidebarTitle: "QuillCode",
+        sidebarSubtitle: "Agent workspace",
+        primaryActionTitle: "New task",
+        secondaryActionTitle: "Models",
+        listTitle: "Threads",
+        status: "Workspace ready",
+        selectedIndexEnvironmentKeys: QuillGenericQtSelectionEnvironment.appSpecific(
+            QuillGenericQtSelectionEnvironment.quillCode,
+            QuillGenericQtSelectionEnvironment.chat
+        ),
+        detailTitle: "Coding session",
+        detailSubtitle: "Desktop agent workspace with transcript, tool cards, review, and project context.",
+        messagesTitle: "Transcript",
+        items: [
+            .init(
+                title: "Make main green",
+                subtitle: "CI and merge queue follow-up",
+                badge: "active",
+                detailSubtitle: "Current task focused on fixing a Linux backend regression before merging.",
+                sections: [
+                    .init(title: "Plan", body: "Inspect failing checks, patch the shared build path, and keep the vendored app source unchanged."),
+                    .init(title: "Evidence", body: "Tool cards and build logs stay attached to the selected thread so the next action is clear.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Make sure main is green."),
+                    .init(sender: "assistant", body: "I am fixing the generated app backend path and rerunning focused tests.")
+                ]
+            ),
+            .init(
+                title: "QuillUI parity",
+                subtitle: "GTK and Qt renderer work",
+                badge: "qa",
+                detailSubtitle: "Compatibility work for SwiftUI-shaped Linux builds.",
+                sections: [
+                    .init(title: "Renderer", body: "GTK and Qt share compatibility metadata while keeping native host behavior explicit."),
+                    .init(title: "Goal", body: "A vendored SwiftUI app should compile through reusable QuillUI tooling without app-local edits.")
+                ],
+                messages: [
+                    .init(sender: "user", body: "Keep improving QuillUI."),
+                    .init(sender: "assistant", body: "The next pass moves app-specific build details into generic metadata.")
+                ]
+            ),
+            .init(
+                title: "Review generated app",
+                subtitle: "Artifacts, screenshots, and tool output",
+                detailSubtitle: "Review pane showing generated app artifacts and source changes.",
+                sections: [
+                    .init(title: "Review", body: "File rows, hunk summaries, and artifact cards are visible next to the transcript."),
+                    .init(title: "Actions", body: "Approve, skip, retry, and copy affordances remain close to the related tool result.")
+                ],
+                messages: [
+                    .init(sender: "assistant", body: "Generated app screenshot and build artifact are ready for review."),
+                    .init(sender: "user", body: "Compare it to the macOS reference.")
+                ]
+            )
+        ],
+        sections: [
+            .init(title: "Workspace context", body: "QuillCode keeps project, branch, model, and approval mode visible while the transcript remains primary."),
+            .init(title: "Tooling surface", body: "Tool calls, review cards, browser captures, and terminal output are modeled as reusable app state instead of app-specific launcher code.")
+        ],
+        messages: [
+            .init(sender: "assistant", body: "QuillCode is running through the generated Qt native entry.")
+        ],
+        presentation: .chat,
+        emptyStateTitle: "QuillCode",
+        emptyStateSubtitle: "Start a coding task or choose an existing thread.",
+        prompts: [
+            .init(title: "Fix failing CI", systemImage: "checkmark.circle"),
+            .init(title: "Review the current diff", systemImage: "doc.text.magnifyingglass"),
+            .init(title: "Summarize a project", systemImage: "folder")
+        ],
+        bottomNavigation: [
+            .init(title: "Projects", systemImage: "folder"),
+            .init(title: "Automations", systemImage: "clock"),
+            .init(title: "Settings", systemImage: "gearshape")
+        ],
+        composerPlaceholder: "Message QuillCode",
+        noticeTitle: "Runtime issue detected.",
+        noticeBody: "Check settings, model credentials, or the latest tool output before retrying.",
+        noticeActionTitle: "Settings",
+        chatBehavior: .init(
+            selectedModelName: "gpt-5-codex",
+            modelMenuNames: [
+                "gpt-5-codex",
+                "gpt-5",
+                "local-coder"
+            ],
+            fallbackAssistantReply: "I will inspect the workspace, make the smallest reusable fix, and run focused validation.",
+            promptResponses: [
+                .init(
+                    contains: "ci",
+                    assistantBody: "I will inspect the failing check, patch the shared path, and rerun the focused tests."
+                )
+            ]
+        ),
+        style: .desktop
     )
 
     public static let signal = QuillGenericQtAppSnapshot(

@@ -433,14 +433,14 @@ quillui_backend_generated_app_products() {
 }
 
 quillui_backend_generated_app_build_specs() {
-  # PRODUCT PROFILE SOURCE_APP SOURCE_SUBDIR APP_TYPE ENTRY_TARGET WORKDIR_ENV_NAMES
+  # PRODUCT PROFILE SOURCE_APP SOURCE_SUBDIR APP_TYPE ENTRY_TARGET WORKDIR_ENV_NAMES QT_NATIVE_CATALOG_ENTRY
   # Keep external app build metadata here so smoke/profiling tooling can build
   # vendored app source through the generic SwiftUI Linux builder without
   # product-specific shell blocks.
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    quill-enchanted-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
-    quill-chat-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
-    quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    quill-enchanted-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR QuillGenericQtAppCatalog.enchantedUpstreamSlice \
+    quill-chat-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR QuillGenericQtAppCatalog.enchantedUpstreamSlice \
+    quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR QuillGenericQtAppCatalog.quillCode
 }
 
 quillui_backend_generated_app_build_spec_for_product() {
@@ -1416,6 +1416,7 @@ quillui_backend_validate_generated_app_build_specs() {
   local app_type
   local entry_target
   local workdir_env_names
+  local qt_native_catalog_entry
   local extra
   local field_separator=$'\037'
   local row
@@ -1424,14 +1425,14 @@ quillui_backend_validate_generated_app_build_specs() {
 
   while IFS= read -r row; do
     split_row="${row//$'\t'/$field_separator}"
-    IFS="$field_separator" read -r product profile source_app source_subdir app_type entry_target workdir_env_names extra <<< "$split_row"
-    [[ -n "$product" || -n "$profile" || -n "$source_app" || -n "$source_subdir" || -n "$app_type" || -n "$entry_target" || -n "$workdir_env_names" || -n "${extra:-}" ]] || continue
+    IFS="$field_separator" read -r product profile source_app source_subdir app_type entry_target workdir_env_names qt_native_catalog_entry extra <<< "$split_row"
+    [[ -n "$product" || -n "$profile" || -n "$source_app" || -n "$source_subdir" || -n "$app_type" || -n "$entry_target" || -n "$workdir_env_names" || -n "$qt_native_catalog_entry" || -n "${extra:-}" ]] || continue
     if [[ -n "${extra:-}" ]]; then
-      echo "generated-app-build-specs row has too many columns: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$extra" >&2
+      echo "generated-app-build-specs row has too many columns: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$qt_native_catalog_entry	$extra" >&2
       return 65
     fi
-    if [[ -z "$profile" || -z "$source_app" || -z "$app_type" ]]; then
-      echo "generated-app-build-specs contains an incomplete row: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names" >&2
+    if [[ -z "$profile" || -z "$source_app" || -z "$app_type" || -z "$qt_native_catalog_entry" ]]; then
+      echo "generated-app-build-specs contains an incomplete row: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$qt_native_catalog_entry" >&2
       return 65
     fi
     quillui_backend_build_stamp_product_name "$product" >/dev/null || return $?
