@@ -30,6 +30,7 @@
 #include <QMenu>
 #include <QObject>
 #include <QPixmap>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRect>
@@ -1038,6 +1039,16 @@ void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget) {
         window->raise();
     }
     focusable->setFocus(Qt::OtherFocusReason);
+}
+
+void quill_qt_widget_request_focus_recursive_later(QuillQtWidgetHandle widget) {
+    QPointer<QWidget> target(asWidget(widget));
+    QTimer::singleShot(0, [target]() {
+        if (target.isNull()) {
+            return;
+        }
+        quill_qt_widget_request_focus_recursive(reinterpret_cast<QuillQtWidgetHandle>(target.data()));
+    });
 }
 
 void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget) {

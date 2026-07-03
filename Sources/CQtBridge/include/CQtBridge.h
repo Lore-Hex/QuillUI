@@ -259,6 +259,11 @@ void quill_qt_widget_connect_destroyed(
 // Request keyboard focus for the first natively focusable QWidget in a subtree.
 void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget);
 
+// Request keyboard focus on the next Qt event-loop turn. This is used when a
+// SwiftUI FocusState is already active while a rebuilt subtree is still being
+// attached to its parent container.
+void quill_qt_widget_request_focus_recursive_later(QuillQtWidgetHandle widget);
+
 // Clear keyboard focus if it is currently held by a QWidget in this subtree.
 void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget);
 

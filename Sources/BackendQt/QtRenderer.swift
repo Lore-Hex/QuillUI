@@ -1052,6 +1052,9 @@ extension FocusedView: QtRenderable {
         }
 
         quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        if state.wrappedValue {
+            quill_qt_widget_request_focus_recursive_later(qtHandle(widget))
+        }
         return widget
     }
 }
@@ -1099,6 +1102,9 @@ extension FocusedEqualsView: QtRenderable {
         }
 
         quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        if state.wrappedValue == matchValue {
+            quill_qt_widget_request_focus_recursive_later(qtHandle(widget))
+        }
         return widget
     }
 }
