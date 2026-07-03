@@ -11,7 +11,6 @@ packageDependencies.append(.package(name: "QuillUI", path: "../.."))
 trustedRouterDependencies += [
     .product(name: "AuthenticationServices", package: "QuillUI"),
     .product(name: "CryptoKit", package: "QuillUI"),
-    .product(name: "QuillShims", package: "QuillUI"),
     .product(name: "Security", package: "QuillUI"),
 ]
 trustedRouterSwiftSettings += [

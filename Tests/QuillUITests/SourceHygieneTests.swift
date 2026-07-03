@@ -3798,7 +3798,7 @@ struct SourceHygieneTests {
         #expect(trustedRouterManifest.contains(".package(name: \"QuillUI\", path: \"../..\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"AuthenticationServices\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
-        #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(!trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
         #expect(ollamaKitManifest.contains(".package(path: \"../Alamofire\")"))
         #expect(!ollamaKitManifest.contains("swift-docc-plugin"))

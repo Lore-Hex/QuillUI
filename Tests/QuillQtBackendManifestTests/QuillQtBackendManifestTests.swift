@@ -95,6 +95,12 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("return [\n            // Runs inside the stripped Qt graph itself."))
         #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
+        #expect(manifest.contains(".library(name: \"AuthenticationServices\", targets: [\"AuthenticationServices\"])"))
+        #expect(manifest.contains(".library(name: \"CryptoKit\", targets: [\"CryptoKit\"])"))
+        #expect(manifest.contains(".library(name: \"Security\", targets: [\"Security\"])"))
+        #expect(manifest.contains("name: \"AuthenticationServices\", dependencies: [\"QuillFoundation\"], path: \"Sources/AppleFrameworkShims/AuthenticationServices\""))
+        #expect(manifest.contains("name: \"CryptoKit\", dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], path: \"Sources/CryptoKitShim\""))
+        #expect(manifest.contains("name: \"Security\", dependencies: [\"QuillKit\"], path: \"Sources/Security\""))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("allPackageDependencies = quillDataPackageDependencies"))
         // `var` (not `let`): SwiftProtobuf/swift-crypto are appended only when the
