@@ -6981,7 +6981,7 @@ struct SourceHygieneTests {
         #expect(interactionModeRunner.contains("DEFAULT_APP_LOG_TEMPLATE='.qa/{product}-interaction-{mode}.log'"))
         #expect(interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-$DEFAULT_APP_LOG_TEMPLATE}\""))
         #expect(!interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-.qa/{product}-interaction-{mode}.log}\""))
-        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
+        #expect(workflow.contains("Generated app backend visual smokes\n        env:\n          QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT: 30m\n        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_SOLDERSCOPE: \"1\""))
