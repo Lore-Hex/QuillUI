@@ -537,7 +537,7 @@ public extension View {
     @_disfavoredOverload
     @ViewBuilder
     func quillGTKSizeRequest(width: Int = -1, height: Int = -1) -> some View {
-        #if os(Linux)
+        #if os(Linux) && QUILLUI_GTK_BACKEND
         if QuillBackendRuntimeContext.selectedBackend == .gtk {
             QuillGTKSizeRequestView(content: self, width: width, height: height)
         } else {
@@ -549,7 +549,7 @@ public extension View {
     }
 }
 
-#if os(Linux)
+#if os(Linux) && QUILLUI_GTK_BACKEND
 import CGTK
 import BackendGTK4
 

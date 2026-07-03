@@ -10,12 +10,14 @@ import SwiftOpenUI
 #endif
 
 #if os(Linux)
-import BackendGTK4
-import CGTK
 import QuillKit
 // `WindowGroup.defaultSize(width:height:)` is canonical in
 // QuillSwiftUICompatibility (used by `QuillAppWindow.scene` below).
 import QuillSwiftUICompatibility
+#if QUILLUI_GTK_BACKEND
+import BackendGTK4
+import CGTK
+#endif
 #endif
 
 /// Shared scene builder for QuillUI executable targets.
@@ -129,6 +131,7 @@ public extension QuillBackend {
 }
 
 #if os(Linux)
+#if QUILLUI_GTK_BACKEND
 private enum QuillGTKClipboardRuntimeBridge {
     static let backend = QuillClipboard.NativeStringBackend(
         name: "GTK4",
@@ -148,6 +151,7 @@ private enum QuillGTKClipboardRuntimeBridge {
         QuillClipboard.shared.installNativeStringBackend(backend)
     }
 }
+#endif
 
 struct QuillLinuxRuntimeHostDescriptor: Equatable, Sendable {
     let host: QuillLinuxRuntimeHost
@@ -159,7 +163,13 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     case gtk4
     case qt6
 
-    static let linkedHosts: [QuillLinuxRuntimeHost] = [.gtk4]
+    static let linkedHosts: [QuillLinuxRuntimeHost] = {
+        #if QUILLUI_GTK_BACKEND
+        return [.gtk4]
+        #else
+        return []
+        #endif
+    }()
 
     static var knownHosts: [QuillLinuxRuntimeHost] {
         allCases
@@ -247,8 +257,12 @@ enum QuillLinuxRuntimeHost: CaseIterable, Sendable {
     func run<A: App>(_ appType: A.Type) {
         switch self {
         case .gtk4:
+            #if QUILLUI_GTK_BACKEND
             QuillGTKClipboardRuntimeBridge.install()
             GTK4Backend().run(appType)
+            #else
+            preconditionFailure("GTK4 Linux runtime host is declared but not linked.")
+            #endif
         case .qt6:
             preconditionFailure("Native Qt6 Linux runtime host is declared but not linked.")
         }
