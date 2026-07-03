@@ -536,7 +536,6 @@ products += [
     .library(name: "CoreWLAN", targets: ["CoreWLAN"]),
     .library(name: "AppKit", targets: ["AppKit"]),
     .library(name: "QuillAppKitGTK", targets: ["QuillAppKitGTK"]),
-    .library(name: "QuillAppKitQt", targets: ["QuillAppKitQt"]),
     .library(name: "os", targets: ["os"]),
     .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"]),
     .library(name: "Carbon", targets: ["Carbon"]),
@@ -3733,6 +3732,7 @@ if quillUILinuxBuildBackend == .qt {
         // apps remain the flag-off (reset) build's concern. SwiftOpenUI also
         // stays in allPackageDependencies (no reset), so it is NOT re-added here.
         products += [
+            .library(name: "QuillAppKitQt", targets: ["QuillAppKitQt"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
@@ -3750,6 +3750,7 @@ if quillUILinuxBuildBackend == .qt {
             .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
             .library(name: "CryptoKit", targets: ["CryptoKit"]),
             .library(name: "Security", targets: ["Security"]),
+            .library(name: "QuillAppKitQt", targets: ["QuillAppKitQt"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
