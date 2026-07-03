@@ -712,7 +712,6 @@ struct SourceHygieneTests {
                     dependencies: [
                         .product(name: "AuthenticationServices", package: "QuillUI"),
                         .product(name: "CryptoKit", package: "QuillUI"),
-                        .product(name: "QuillShims", package: "QuillUI"),
                         .product(name: "Security", package: "QuillUI"),
                     ]
                 )
@@ -763,6 +762,96 @@ struct SourceHygieneTests {
         #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
         #expect(!rewrittenDependencies.contains("prepared-packages/LinuxReadySDK"))
         #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
+    }
+
+    @Test("Generated app builder patches variable-backed target dependency lists")
+    func generatedAppBuilderPatchesVariableBackedTargetDependencyLists() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-variable-target-deps-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/VariableTargetSDK")
+        let packageSources = packageDir.appendingPathComponent("Sources/VariableTargetSDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        var targetDependencies: [Target.Dependency] = []
+
+        let package = Package(
+            name: "VariableTargetSDK",
+            products: [.library(name: "VariableTargetSDK", targets: ["VariableTargetSDK"])],
+            targets: [
+                .target(
+                    name: "VariableTargetSDK",
+                    dependencies: targetDependencies
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct VariableTargetView: View {
+            public var body: some View { Text("variable") }
+        }
+        """.write(to: packageSources.appendingPathComponent("VariableTargetView.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "VariableTargetSDK", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/VariableTargetSDK/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(preparedManifest.contains("dependencies: targetDependencies + ["))
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(preparedManifest.components(separatedBy: "dependencies: targetDependencies").count == 2)
+        #expect(!preparedManifest.contains("dependencies: [\n                    .product(name: \"QuillShims\", package: \"QuillUI\"),\n                ],\n                    dependencies: targetDependencies"))
     }
 
     @Test("Generated app builder does not prepare the QuillUI root dependency")
@@ -3177,6 +3266,9 @@ struct SourceHygieneTests {
         #expect(preparedPackageDependencyScript.contains("reused prepared local SwiftPM dependency"))
         #expect(preparedPackageDependencyScript.contains("VENDORED_PACKAGE_ALIASES"))
         #expect(preparedPackageDependencyScript.contains("package_declares_quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("QUILL_SHIMS_IMPORT_PRODUCTS"))
+        #expect(preparedPackageDependencyScript.contains("quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("TARGET_DEPENDENCIES_VARIABLE_RE"))
         #expect(preparedPackageDependencyScript.contains("is_quillui_root_dependency"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_tool_input"))
