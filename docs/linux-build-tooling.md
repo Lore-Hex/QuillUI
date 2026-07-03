@@ -222,6 +222,12 @@ targets do not force remote test/doc packages to resolve. This keeps generated
 app builds on the checked-in source graph instead of making SwiftPM recreate
 remote working copies for packages such as Alamofire, NetworkImage, SwiftCMark,
 Sauce, or swift-collections.
+Each vendored SwiftPM package also carries a `.quillui-vendor-source-fingerprint`
+when the source can be identified. Clean git checkouts record the commit; cached
+or otherwise materialized source trees record a deterministic `tree:` hash after
+the same slim-copy exclusions are applied. If the original checkout is gone but
+`third_party/<package>` is already present, a normal non-`--check-vendored`
+vendoring run stamps the existing source snapshot instead of cloning.
 
 `--source-app` is the preferred path for shared agent work. The builder resolves
 `vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,

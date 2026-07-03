@@ -2393,6 +2393,14 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(
             atPath: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift").path
         ))
+        let vendoredPackageFingerprint = try String(
+            contentsOf: vendoredPackageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            encoding: .utf8
+        )
+        #expect(vendoredPackageFingerprint.contains("quillui-swiftpm-vendor/v1"))
+        #expect(vendoredPackageFingerprint.contains("package=trusted-router-swift"))
+        #expect(vendoredPackageFingerprint.contains("source=tree:"))
+        #expect(vendoredPackageFingerprint.contains("slim=1"))
 
         let dryRun = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
@@ -2408,6 +2416,91 @@ struct SourceHygieneTests {
         #expect(dryRun.output.contains("would vendor dry-demo source"), Comment(rawValue: dryRun.output))
         #expect(dryRun.output.contains("would vendor trusted-router-swift -> third_party/trusted-router-swift"), Comment(rawValue: dryRun.output))
         #expect(!fileManager.fileExists(atPath: sandbox.appendingPathComponent("vendor/apps/dry-demo").path))
+    }
+
+    @Test("SwiftPM vendoring can stamp existing source snapshots without a checkout")
+    func swiftPMVendoringCanStampExistingSourceSnapshotsWithoutCheckout() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-swiftpm-existing-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let resolvedDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let vendoredPackageDir = sandbox.appendingPathComponent("third_party/trusted-router-swift")
+        let vendorScript = scriptsDir.appendingPathComponent("vendor-swiftpm-sources.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resolvedDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter"),
+            withIntermediateDirectories: true
+        )
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        for script in [
+            "vendor-swiftpm-sources.sh",
+            "quillui-vendored-source.sh",
+            "hydrate-swiftpm-checkouts-from-resolved.py",
+        ] {
+            let destination = scriptsDir.appendingPathComponent(script)
+            try fileManager.copyItem(
+                at: root.appendingPathComponent("scripts/\(script)"),
+                to: destination
+            )
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
+        }
+
+        try """
+        {
+          "pins" : [
+            {
+              "identity" : "trusted-router-swift",
+              "kind" : "remoteSourceControl",
+              "location" : "https://github.com/jperla/trusted-router-swift.git",
+              "state" : {
+                "revision" : "410cb034ce5a20b62f209d03d46a256cafe7b54f",
+                "version" : "0.4.1"
+              }
+            }
+          ],
+          "version" : 3
+        }
+        """.write(to: resolvedDir.appendingPathComponent("Package.resolved"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "TrustedRouter",
+            products: [.library(name: "TrustedRouter", targets: ["TrustedRouter"])],
+            targets: [.target(name: "TrustedRouter")]
+        )
+        """.write(to: vendoredPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "public struct TrustedRouterClient {}\n".write(
+            to: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--app", "demo"]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(
+            result.output.contains("stamped vendored trusted-router-swift source fingerprint"),
+            Comment(rawValue: result.output)
+        )
+        #expect(result.output.contains("already vendored trusted-router-swift"), Comment(rawValue: result.output))
+
+        let fingerprint = try String(
+            contentsOf: vendoredPackageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            encoding: .utf8
+        )
+        #expect(fingerprint.contains("quillui-swiftpm-vendor/v1"))
+        #expect(fingerprint.contains("package=trusted-router-swift"))
+        #expect(fingerprint.contains("source=tree:"))
     }
 
     @Test("Linux lowering folds AppKit extension overrides into owning class")
@@ -3933,10 +4026,13 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("QUILLUI_VENDOR_FORCE=1"))
         #expect(vendorScript.contains("git_source_identity()"))
         #expect(vendorScript.contains("git -C \"$source\" status --porcelain --untracked-files=no"))
+        #expect(vendorScript.contains("content_source_identity()"))
+        #expect(vendorScript.contains("quillui-swiftpm-source-tree/v1"))
         #expect(vendorScript.contains("vendored_source_metadata()"))
         #expect(vendorScript.contains("quillui-swiftpm-vendor/v1"))
         #expect(vendorScript.contains(".quillui-vendor-source-fingerprint"))
         #expect(vendorScript.contains("[[ \"$(cat \"$metadata_file\")\" == \"$metadata\" ]]"))
+        #expect(vendorScript.contains("stamped vendored $package source fingerprint"))
         #expect(vendorScript.contains("rsync -a --delete --delete-excluded"))
         #expect(vendorScript.contains("chmod -R u+w \"$destination\""))
         #expect(vendorScript.contains("--exclude '.git'"))
