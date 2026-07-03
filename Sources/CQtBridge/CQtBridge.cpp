@@ -1317,6 +1317,71 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     return reinterpret_cast<QuillQtWidgetHandle>(button);
 }
 
+void quill_qt_button_set_child(
+    QuillQtWidgetHandle button_handle,
+    QuillQtWidgetHandle child
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    QWidget *childWidget = asWidget(child);
+    if (button == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QHBoxLayout *layout = qobject_cast<QHBoxLayout *>(button->layout());
+    if (layout == nullptr) {
+        layout = new QHBoxLayout(button);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        button->setLayout(layout);
+    } else {
+        while (QLayoutItem *item = layout->takeAt(0)) {
+            if (QWidget *oldChild = item->widget()) {
+                oldChild->hide();
+                oldChild->setParent(nullptr);
+                oldChild->deleteLater();
+            }
+            delete item;
+        }
+    }
+
+    childWidget->setParent(button);
+    layout->addWidget(childWidget);
+    const QSize childSize = resolvedWidgetSize(childWidget);
+    button->setMinimumSize(childSize);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    childWidget->show();
+}
+
+void quill_qt_button_connect_pressed_changed(
+    QuillQtWidgetHandle button_handle,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    if (button == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(button, &QPushButton::pressed, button, [callback, user_data]() {
+            callback(1, user_data);
+        });
+        QObject::connect(button, &QPushButton::released, button, [callback, user_data]() {
+            callback(0, user_data);
+        });
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(button, &QObject::destroyed, button, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
 QuillQtWidgetHandle quill_qt_make_check_box(void) {
     QCheckBox *checkBox = new QCheckBox();
     return reinterpret_cast<QuillQtWidgetHandle>(checkBox);

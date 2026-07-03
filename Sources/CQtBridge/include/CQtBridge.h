@@ -360,6 +360,23 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     quill_qt_bridge_click_callback destroy
 );
 
+// Replace a QPushButton's visible contents with an arbitrary rendered SwiftUI
+// widget. Used for custom SwiftUI ButtonStyle bodies, where the label is not
+// just native button text.
+void quill_qt_button_set_child(
+    QuillQtWidgetHandle button,
+    QuillQtWidgetHandle child
+);
+
+// Connect QPushButton press/release to SwiftUI ButtonStyle.Configuration.isPressed.
+// `pressed` is 1 on press and 0 on release.
+void quill_qt_button_connect_pressed_changed(
+    QuillQtWidgetHandle button,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
 // Create a QCheckBox. Swift configures text, checked state, and signal wiring
 // separately so initial setChecked() does not fire the Swift binding callback.
 QuillQtWidgetHandle quill_qt_make_check_box(void);

@@ -9216,6 +9216,46 @@ struct SourceHygieneTests {
         #expect(cqtBridge.contains("&QButtonGroup::idClicked"))
     }
 
+    @Test("SwiftUI custom control styles drive Qt rendered controls")
+    func swiftUICustomControlStylesRenderThroughQt() throws {
+        let controlStyles = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+        )
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+        let enchantedButtonStyle = try packageSource(
+            "vendor/apps/enchanted/Enchanted/Extensions/Button+Extension.swift"
+        )
+        let quillCodeDesign = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeDesignSystem.swift"
+        )
+        let quillCodeTerminal = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeTerminalPaneView.swift"
+        )
+
+        #expect(enchantedButtonStyle.contains("struct GrowingButton: ButtonStyle"))
+        #expect(quillCodeDesign.contains("struct QuillCodePressableButtonStyle: ButtonStyle"))
+        #expect(quillCodeTerminal.contains(".textFieldStyle(.roundedBorder)"))
+        #expect(controlStyles.contains("public struct CustomButtonStyleModifier<Content: View>: View, PrimitiveView"))
+        #expect(controlStyles.contains("public var customButtonStyle: AnyButtonStyle?"))
+        #expect(qtRenderer.contains("private final class QtCustomButtonStyleContext"))
+        #expect(qtRenderer.contains("renderEnvironment.customButtonStyle = nil"))
+        #expect(qtRenderer.contains("renderEnvironment.buttonStyle = .plain"))
+        #expect(qtRenderer.contains("style.makeBody(configuration: .init(label: label, isPressed: isPressed))"))
+        #expect(qtRenderer.contains("extension CustomButtonStyleModifier: QtRenderable"))
+        #expect(qtRenderer.contains("environment.customButtonStyle = style"))
+        #expect(qtRenderer.contains("quill_qt_button_set_child(qtHandle(button), qtHandle(child))"))
+        #expect(qtRenderer.contains("quill_qt_button_connect_pressed_changed("))
+        #expect(qtRenderer.contains("extension TextFieldStyleModifier: QtRenderable"))
+        #expect(qtRenderer.contains("qtApplyTextFieldStyle(to: lineEdit, style: environment.textFieldStyle)"))
+        #expect(cqtHeader.contains("quill_qt_button_set_child"))
+        #expect(cqtHeader.contains("quill_qt_button_connect_pressed_changed"))
+        #expect(cqtBridge.contains("&QPushButton::pressed"))
+        #expect(cqtBridge.contains("&QPushButton::released"))
+        #expect(cqtBridge.contains("layout->addWidget(childWidget)"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(

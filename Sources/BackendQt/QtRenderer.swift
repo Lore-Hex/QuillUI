@@ -574,6 +574,49 @@ final class QtBoolClosureBox {
     init(_ closure: @escaping (Bool) -> Void) { self.closure = closure }
 }
 
+private final class QtCustomButtonStyleContext {
+    let button: OpaquePointer
+    let label: AnyView
+    let style: AnyButtonStyle
+    let environment: EnvironmentValues
+    var isPressed = false
+
+    init(
+        button: OpaquePointer,
+        label: AnyView,
+        style: AnyButtonStyle,
+        environment: EnvironmentValues
+    ) {
+        self.button = button
+        self.label = label
+        self.style = style
+        self.environment = environment
+    }
+
+    @MainActor
+    func makeChild(isPressed: Bool) -> OpaquePointer {
+        var renderEnvironment = environment
+        renderEnvironment.customButtonStyle = nil
+        renderEnvironment.buttonStyle = .plain
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(renderEnvironment)
+        defer { setCurrentEnvironment(previous) }
+
+        let styledBody = style.makeBody(configuration: .init(label: label, isPressed: isPressed))
+        let child = qtRenderView(styledBody)
+        quill_qt_widget_set_allows_hit_testing_recursive(qtHandle(child), 0)
+        return child
+    }
+
+    @MainActor
+    func setPressed(_ pressed: Bool) {
+        guard pressed != isPressed else { return }
+        isPressed = pressed
+        let child = makeChild(isPressed: pressed)
+        quill_qt_button_set_child(qtHandle(button), qtHandle(child))
+    }
+}
+
 final class QtFocusClosureBox {
     let focusChanged: (Bool) -> Void
     let destroyed: () -> Void
@@ -1150,7 +1193,6 @@ extension AccessibilityElementView: QtRenderable {
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let environment = getCurrentEnvironment()
-        let title = qtTextLabel(from: label)
         let bound = qtBindActionToCurrentEnvironment(action)
         let box = Unmanaged.passRetained(QtClosureBox(bound)).toOpaque()
 
@@ -1163,6 +1205,55 @@ extension Button: QtRenderable {
             Unmanaged<QtClosureBox>.fromOpaque(userData).release()
         }
 
+        if let customButtonStyle = environment.customButtonStyle {
+            let button = qtOpaque(quill_qt_bridge_button_create("", click, box, destroy))
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(button), qtPlainButtonChromeStylesheet)
+
+            let context = QtCustomButtonStyleContext(
+                button: button,
+                label: AnyView(label),
+                style: customButtonStyle,
+                environment: environment
+            )
+            nonisolated(unsafe) var child: OpaquePointer?
+            MainActor.assumeIsolated {
+                child = context.makeChild(isPressed: false)
+            }
+            quill_qt_button_set_child(qtHandle(button), qtHandle(child!))
+
+            let contextBox = Unmanaged.passRetained(context).toOpaque()
+            let pressedChanged: quill_qt_bridge_toggle_callback = { pressed, userData in
+                guard let userData else { return }
+                let context = Unmanaged<QtCustomButtonStyleContext>
+                    .fromOpaque(userData)
+                    .takeUnretainedValue()
+                MainActor.assumeIsolated {
+                    context.setPressed(pressed != 0)
+                }
+            }
+            let contextDestroy: quill_qt_bridge_click_callback = { userData in
+                guard let userData else { return }
+                Unmanaged<QtCustomButtonStyleContext>.fromOpaque(userData).release()
+            }
+            quill_qt_button_connect_pressed_changed(
+                qtHandle(button),
+                pressedChanged,
+                contextBox,
+                contextDestroy
+            )
+
+            if let shortcut = environment.keyboardShortcut {
+                qtRegisterKeyboardShortcut(
+                    shortcut,
+                    on: button,
+                    action: action,
+                    environment: environment
+                )
+            }
+            return button
+        }
+
+        let title = qtTextLabel(from: label)
         let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
         qtApplyButtonChrome(
             to: button,
@@ -1180,6 +1271,21 @@ extension Button: QtRenderable {
         return button
     }
 }
+
+private let qtPlainButtonChromeStylesheet = """
+    QPushButton {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+        min-height: 0px;
+        min-width: 0px;
+    }
+    QPushButton:pressed {
+        background: transparent;
+        border: none;
+    }
+    """
 
 private func qtApplyButtonChrome(
     to button: OpaquePointer,
@@ -1252,6 +1358,67 @@ private func qtButtonControlSizeRule(_ size: ControlSize) -> String? {
         return "QPushButton { padding: 8px 14px; min-height: 34px; font-size: 15px; }"
     case .extraLarge:
         return "QPushButton { padding: 10px 16px; min-height: 40px; font-size: 16px; }"
+    }
+}
+
+extension ButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.buttonStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension CustomButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.customButtonStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension TextFieldStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.textFieldStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension ToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.toggleStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension CustomToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.customToggleStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension ControlGroupStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content)
     }
 }
 
@@ -1399,8 +1566,43 @@ extension TextField: QtRenderable {
             actions: environment.keyPressActions,
             environment: environment
         )
+        qtApplyTextFieldStyle(to: lineEdit, style: environment.textFieldStyle)
 
         return lineEdit
+    }
+}
+
+private func qtApplyTextFieldStyle(to lineEdit: OpaquePointer, style: TextFieldStyleType) {
+    switch style {
+    case .automatic:
+        return
+    case .plain:
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(lineEdit), """
+            QLineEdit {
+                background: transparent;
+                border: none;
+                padding: 0px;
+                min-height: 0px;
+            }
+            """)
+    case .roundedBorder:
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(lineEdit), """
+            QLineEdit {
+                background: rgba(255, 255, 255, 0.86);
+                border: 1px solid rgba(0, 0, 0, 0.22);
+                border-radius: 8px;
+                padding: 5px 9px;
+                min-height: 24px;
+                selection-background-color: rgba(53, 132, 228, 0.28);
+            }
+            QLineEdit:focus {
+                border-color: rgba(53, 132, 228, 0.72);
+            }
+            QLineEdit:disabled {
+                color: rgba(0, 0, 0, 0.42);
+                background: rgba(255, 255, 255, 0.44);
+            }
+            """)
     }
 }
 
