@@ -9153,6 +9153,35 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("action(direction)"))
     }
 
+    @Test("SwiftUI controlSize drives GTK and Qt native button chrome")
+    func swiftUIControlSizeRendersThroughLinuxButtons() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let environment = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let quillCodeExtensions = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeExtensionsPaneView.swift"
+        )
+
+        #expect(quillCodeExtensions.contains(".controlSize(.small)"))
+        #expect(compatibility.contains("func controlSize(_ size: ControlSize) -> EnvironmentModifierView<Self, ControlSize>"))
+        #expect(compatibility.contains("environment(\\.controlSize, size)"))
+        #expect(!compatibility.contains("private struct ControlSizeKey"))
+        #expect(environment.contains("public enum ControlSize: Hashable, Sendable"))
+        #expect(environment.contains("public var controlSize: ControlSize"))
+        #expect(gtkRenderer.contains("gtkApplyButtonControlSize("))
+        #expect(gtkRenderer.contains("environment.controlSize"))
+        #expect(gtkRenderer.contains("case .small:"))
+        #expect(gtkRenderer.contains("padding: 3px 8px; min-height: 22px; font-size: 12px;"))
+        #expect(qtRenderer.contains("qtApplyButtonChrome("))
+        #expect(qtRenderer.contains("environment.controlSize"))
+        #expect(qtRenderer.contains("qtButtonControlSizeRule(_ size: ControlSize)"))
+        #expect(qtRenderer.contains("if appliesControlSize, let sizeRule = qtButtonControlSizeRule(controlSize)"))
+        #expect(qtRenderer.contains("extension EnvironmentModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("extension TransformEnvironmentModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("case .borderedProminent, .quillPaintMacDefault:"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(

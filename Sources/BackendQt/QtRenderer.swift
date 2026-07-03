@@ -1164,6 +1164,11 @@ extension Button: QtRenderable {
         }
 
         let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        qtApplyButtonChrome(
+            to: button,
+            style: environment.buttonStyle,
+            controlSize: environment.controlSize
+        )
         if let shortcut = environment.keyboardShortcut {
             qtRegisterKeyboardShortcut(
                 shortcut,
@@ -1173,6 +1178,102 @@ extension Button: QtRenderable {
             )
         }
         return button
+    }
+}
+
+private func qtApplyButtonChrome(
+    to button: OpaquePointer,
+    style: ButtonStyleType,
+    controlSize: ControlSize
+) {
+    var rules: [String] = []
+    let appliesControlSize: Bool
+    switch style {
+    case .plain:
+        appliesControlSize = false
+        rules.append("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+            """)
+    case .bordered, .accessoryBarAction, .quillPaintMacBordered:
+        appliesControlSize = true
+        rules.append("""
+            QPushButton {
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid rgba(0, 0, 0, 0.18);
+                border-radius: 6px;
+            }
+            QPushButton:disabled {
+                color: rgba(0, 0, 0, 0.38);
+                background: rgba(255, 255, 255, 0.38);
+            }
+            """)
+    case .borderedProminent, .quillPaintMacDefault:
+        appliesControlSize = true
+        rules.append("""
+            QPushButton {
+                background: #3584e4;
+                border: none;
+                border-radius: 6px;
+                color: white;
+            }
+            QPushButton:disabled {
+                background: rgba(53, 132, 228, 0.38);
+                color: rgba(255, 255, 255, 0.7);
+            }
+            """)
+    case .automatic:
+        appliesControlSize = true
+    case .quillPaintMacListRow(_, _):
+        appliesControlSize = false
+        break
+    }
+
+    if appliesControlSize, let sizeRule = qtButtonControlSizeRule(controlSize) {
+        rules.append(sizeRule)
+    }
+
+    guard !rules.isEmpty else { return }
+    quill_qt_bridge_widget_set_stylesheet(qtHandle(button), rules.joined(separator: "\n"))
+}
+
+private func qtButtonControlSizeRule(_ size: ControlSize) -> String? {
+    switch size {
+    case .mini:
+        return "QPushButton { padding: 1px 6px; min-height: 18px; font-size: 11px; }"
+    case .small:
+        return "QPushButton { padding: 3px 8px; min-height: 22px; font-size: 12px; }"
+    case .regular:
+        return nil
+    case .large:
+        return "QPushButton { padding: 8px 14px; min-height: 34px; font-size: 15px; }"
+    case .extraLarge:
+        return "QPushButton { padding: 10px 16px; min-height: 40px; font-size: 16px; }"
+    }
+}
+
+extension EnvironmentModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment[keyPath: keyPath] = value
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension TransformEnvironmentModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        transform(&environment[keyPath: keyPath])
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
     }
 }
 

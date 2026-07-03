@@ -1029,18 +1029,6 @@ private struct SymbolVariantsKey: EnvironmentKey {
     static let defaultValue = SymbolVariants.none
 }
 
-public enum ControlSize: Hashable, Sendable {
-    case mini
-    case small
-    case regular
-    case large
-    case extraLarge
-}
-
-private struct ControlSizeKey: EnvironmentKey {
-    static let defaultValue = ControlSize.regular
-}
-
 public enum UserInterfaceSizeClass: Hashable, Sendable {
     case compact
     case regular
@@ -1085,11 +1073,6 @@ public extension EnvironmentValues {
     var symbolVariants: SymbolVariants {
         get { self[SymbolVariantsKey.self] }
         set { self[SymbolVariantsKey.self] = newValue }
-    }
-
-    var controlSize: ControlSize {
-        get { self[ControlSizeKey.self] }
-        set { self[ControlSizeKey.self] = newValue }
     }
 
     var horizontalSizeClass: UserInterfaceSizeClass? {
@@ -2884,9 +2867,8 @@ public extension View {
         return textFieldStyle(.plain)
     }
 
-    func controlSize(_ size: ControlSize) -> Self {
-        _ = size
-        return self
+    func controlSize(_ size: ControlSize) -> EnvironmentModifierView<Self, ControlSize> {
+        environment(\.controlSize, size)
     }
 
     func symbolVariant(_ variant: SymbolVariants) -> Self {
