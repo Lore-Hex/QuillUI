@@ -174,6 +174,11 @@ jobs:
         run: scripts/generated-enchanted-full-source-check.sh
 
       - name: Generated Enchanted backend visual smokes
+        env:
+          # QuillCode's generated package is substantially larger than Enchanted;
+          # the default 10m row budget can expire during compile before the visual
+          # smoke launches. Keep the longer budget scoped to generated app rows.
+          QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT: "25m"
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'
 
       - name: Backend launch target visual smokes
