@@ -712,7 +712,6 @@ struct SourceHygieneTests {
                     dependencies: [
                         .product(name: "AuthenticationServices", package: "QuillUI"),
                         .product(name: "CryptoKit", package: "QuillUI"),
-                        .product(name: "QuillShims", package: "QuillUI"),
                         .product(name: "Security", package: "QuillUI"),
                     ]
                 )
@@ -763,6 +762,96 @@ struct SourceHygieneTests {
         #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
         #expect(!rewrittenDependencies.contains("prepared-packages/LinuxReadySDK"))
         #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
+    }
+
+    @Test("Generated app builder patches variable-backed target dependency lists")
+    func generatedAppBuilderPatchesVariableBackedTargetDependencyLists() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-variable-target-deps-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/VariableTargetSDK")
+        let packageSources = packageDir.appendingPathComponent("Sources/VariableTargetSDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        var targetDependencies: [Target.Dependency] = []
+
+        let package = Package(
+            name: "VariableTargetSDK",
+            products: [.library(name: "VariableTargetSDK", targets: ["VariableTargetSDK"])],
+            targets: [
+                .target(
+                    name: "VariableTargetSDK",
+                    dependencies: targetDependencies
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct VariableTargetView: View {
+            public var body: some View { Text("variable") }
+        }
+        """.write(to: packageSources.appendingPathComponent("VariableTargetView.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "VariableTargetSDK", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/VariableTargetSDK/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(preparedManifest.contains("dependencies: targetDependencies + ["))
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(preparedManifest.components(separatedBy: "dependencies: targetDependencies").count == 2)
+        #expect(!preparedManifest.contains("dependencies: [\n                    .product(name: \"QuillShims\", package: \"QuillUI\"),\n                ],\n                    dependencies: targetDependencies"))
     }
 
     @Test("Generated app builder does not prepare the QuillUI root dependency")
@@ -3177,6 +3266,9 @@ struct SourceHygieneTests {
         #expect(preparedPackageDependencyScript.contains("reused prepared local SwiftPM dependency"))
         #expect(preparedPackageDependencyScript.contains("VENDORED_PACKAGE_ALIASES"))
         #expect(preparedPackageDependencyScript.contains("package_declares_quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("QUILL_SHIMS_IMPORT_PRODUCTS"))
+        #expect(preparedPackageDependencyScript.contains("quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("TARGET_DEPENDENCIES_VARIABLE_RE"))
         #expect(preparedPackageDependencyScript.contains("is_quillui_root_dependency"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_tool_input"))
@@ -3798,7 +3890,7 @@ struct SourceHygieneTests {
         #expect(trustedRouterManifest.contains(".package(name: \"QuillUI\", path: \"../..\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"AuthenticationServices\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
-        #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(!trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
         #expect(ollamaKitManifest.contains(".package(path: \"../Alamofire\")"))
         #expect(!ollamaKitManifest.contains("swift-docc-plugin"))
@@ -5799,6 +5891,7 @@ struct SourceHygieneTests {
         #expect(enchantedShared.contains("public static let cardQuietColor = \"#F1F1F5\""))
         #expect(genericQtRuntime.contains("static func appSpecific(_ environmentKeys: String...) -> [String]"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.codeEdit"))
+        #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.quillCode"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.iceCubes"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.iina"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.netNewsWire"))
@@ -5812,6 +5905,10 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("executableName: QuillQtNativeRuntimeSupport.executableName(fallback: \"quill-generic-qt\")"))
         #expect(genericQtRuntime.contains("Use **flexbox**: set `display` to `flex`"))
         #expect(genericQtRuntime.contains("justify-content: center;"))
+        #expect(genericQtRuntime.contains("public static let quillCode = QuillGenericQtAppSnapshot("))
+        #expect(genericQtRuntime.contains("windowTitle: \"QuillCode\""))
+        #expect(genericQtRuntime.contains("composerPlaceholder: \"Message QuillCode\""))
+        #expect(genericQtRuntime.contains("QUILLUI_QUILLCODE_SELECTED_THREAD_INDEX_ON_START"))
         #expect(!genericQtRuntime.contains("executableName: String"))
         #expect(!genericQtRuntime.contains("executableName: executableName"))
         #expect(!genericQtRuntime.contains("ProcessInfo.processInfo.environment["))
@@ -6694,9 +6791,12 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_generated_app_work_root()"))
         #expect(smokeLib.contains("default_work_root=\"$default_work_root-$backend_facade\""))
         #expect(smokeLib.contains("quillui_backend_generated_app_build_spec_for_product \"$product\""))
+        #expect(smokeLib.contains("qt_native_catalog_entry"))
         #expect(smokeLib.contains("quillui_artifact_path_from_file()"))
         #expect(smokeLib.contains("artifact_path_file=\"${QUILLUI_BACKEND_APP_ARTIFACT_PATH_FILE:-$work_root/.quillui-artifact-path}\""))
         #expect(smokeLib.contains("QUILLUI_APP_ARTIFACT_PATH_FILE=\"$artifact_path_file\""))
+        #expect(smokeLib.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$qt_native_catalog_entry\""))
+        #expect(smokeLib.contains("--qt-native-catalog-entry \"$qt_native_catalog_entry\""))
         #expect(smokeLib.contains("Generated app build did not write a usable artifact path for $product: $artifact_path_file"))
         #expect(smokeLib.contains(".build/quillui-generated-app-build-cache"))
         #expect(smokeLib.contains("scripts/build-swiftui-linux-app.sh"))
@@ -6736,6 +6836,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_require_backend_product_build_stamp()"))
         #expect(!backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
+        #expect(backendProducts.contains("QT_NATIVE_CATALOG_ENTRY"))
+        #expect(backendProducts.contains("QuillGenericQtAppCatalog.quillCode"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
         #expect(backendProducts.contains("product_rows=\"$(quillui_backend_generated_app_products)\""))
         #expect(backendProducts.contains("quillui_backend_smoke_products()"))
@@ -6981,7 +7083,7 @@ struct SourceHygieneTests {
         #expect(interactionModeRunner.contains("DEFAULT_APP_LOG_TEMPLATE='.qa/{product}-interaction-{mode}.log'"))
         #expect(interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-$DEFAULT_APP_LOG_TEMPLATE}\""))
         #expect(!interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-.qa/{product}-interaction-{mode}.log}\""))
-        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
+        #expect(workflow.contains("Generated app backend visual smokes\n        env:\n          QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT: 30m\n        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_SOLDERSCOPE: \"1\""))
@@ -7409,6 +7511,9 @@ struct SourceHygieneTests {
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")"))
         #expect(source.contains(".product(name: \"QuillGenericQtNativeRuntime\", package: \"QuillUI\")"))
         #expect(buildSource.contains("--backend-facade"))
+        #expect(buildSource.contains("--qt-native-catalog-entry"))
+        #expect(buildSource.contains("QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY"))
+        #expect(buildSource.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY:-${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}}\""))
         #expect(buildSource.contains("--source-app"))
         #expect(buildSource.contains("--source-subdir"))
         #expect(buildSource.contains("QUILLUI_APP_SOURCE_APP"))
@@ -7432,12 +7537,14 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_APP_BUILD_SCRATCH_CACHE_DIR"))
         #expect(buildSource.contains("QUILLUI_APP_REUSE_BUILD_SCRATCH=1"))
         #expect(buildSource.contains("generated_app_build_scratch_key()"))
+        #expect(buildSource.contains("\"qt_native_catalog_entry\": sys.argv[13]"))
         #expect(buildSource.contains("default_generated_build_scratch()"))
         #expect(buildSource.contains(".build/quillui-generated-app-build-cache"))
         #expect(buildSource.contains("quillui-generated-app-build-scratch/v1"))
         #expect(buildSource.contains("scripts/generate-swiftui-linux-package.sh"))
         #expect(buildSource.contains("Package.resolved"))
         #expect(buildSource.contains("QUILLUI_GENERATED_BUILD_SCRATCH=\"$BUILD_SCRATCH\""))
+        #expect(buildSource.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$QT_NATIVE_CATALOG_ENTRY\""))
         #expect(buildSource.contains("--scratch-path \"$BUILD_SCRATCH\""))
         #expect(buildSource.contains("==> generated app SwiftPM scratch:"))
         #expect(buildSource.contains("--vendor-swiftpm-sources"))
@@ -7475,6 +7582,7 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=gtk"))
         #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
         #expect(buildSource.contains("NORMALIZED_BACKEND_FACADE"))
+        #expect(buildSource.contains("--backend-facade qt requires --qt-native-catalog-entry"))
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
@@ -7540,6 +7648,8 @@ struct SourceHygieneTests {
         #expect(genericProfileRuntimeSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-lowered-source-cache.sh\""))
         #expect(genericProfileRuntimeSource.contains("PREPARED_PACKAGE_CACHE_DIR=\"${QUILLUI_PROFILE_PREPARED_PACKAGE_CACHE_DIR:-${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-$ROOT_DIR/.build/quillui-prepared-packages-cache}}\""))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR=\"$PREPARED_PACKAGE_CACHE_DIR\""))
+        #expect(genericProfileRuntimeSource.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}\""))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$QT_NATIVE_CATALOG_ENTRY\""))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_REQUIRE_VENDORED_SOURCES=\"${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}\""))
         #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_derive_swiftpm_layout"))
         #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_discover_local_import_dependencies"))

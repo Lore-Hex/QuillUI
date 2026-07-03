@@ -3610,6 +3610,9 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(name: "CoreServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreServices"),
+        .target(name: "AuthenticationServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/AuthenticationServices"),
+        .target(name: "CryptoKit", dependencies: [.product(name: "Crypto", package: "swift-crypto")], path: "Sources/CryptoKitShim"),
+        .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
@@ -3717,6 +3720,9 @@ if quillUILinuxBuildBackend == .qt {
         products = quillCanonicalLinuxAppProducts + [
             .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
             .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
+            .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
+            .library(name: "CryptoKit", targets: ["CryptoKit"]),
+            .library(name: "Security", targets: ["Security"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
@@ -3849,7 +3855,6 @@ if quillUILinuxBuildBackend == .qt {
             .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
             .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
             .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
-            .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
             .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement")
         ]
         targets += wireGuardConformanceTargets

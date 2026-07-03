@@ -16,6 +16,7 @@ ENTRY_TARGET="${QUILLUI_APP_ENTRY_TARGET:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
+QT_NATIVE_CATALOG_ENTRY="${QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY:-${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}}"
 TARGET_LAYOUT_FILE="${QUILLUI_APP_TARGET_LAYOUT_FILE:-}"
 EXTRA_PACKAGE_DEPENDENCIES_FILE="${QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}"
 EXTRA_TARGET_DEPENDENCIES_FILE="${QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE:-}"
@@ -55,6 +56,9 @@ Options:
   --workdir PATH        Generated build work directory.
   --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
                         for the generated entry. Allowed: swiftui, gtk, qt.
+  --qt-native-catalog-entry TYPE
+                        Swift expression naming the reusable
+                        QuillGenericQtAppCatalog entry used by --backend-facade qt.
   --target-layout-file PATH
                         TSV target layout for multi-target SwiftPM app trees.
   --extra-package-dependencies-file PATH
@@ -96,6 +100,7 @@ Environment aliases:
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
   QUILLUI_APP_BACKEND_FACADE
+  QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY
   QUILLUI_APP_TARGET_LAYOUT_FILE
   QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE
   QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE
@@ -344,10 +349,11 @@ generated_app_build_scratch_key() {
   local target_layout_file="$9"
   local extra_package_dependencies_file="${10}"
   local extra_target_dependencies_file="${11}"
+  local qt_native_catalog_entry="${12}"
 
   python3 - "$ROOT_DIR" "$lowered_source_key" "$profile" "$source_dir" "$package_root" \
     "$app_type" "$entry_target" "$product_name" "$backend_facade" "$target_layout_file" \
-    "$extra_package_dependencies_file" "$extra_target_dependencies_file" <<'PY'
+    "$extra_package_dependencies_file" "$extra_target_dependencies_file" "$qt_native_catalog_entry" <<'PY'
 import hashlib
 import sys
 from pathlib import Path
@@ -362,9 +368,9 @@ values = {
     "entry_target": sys.argv[7],
     "product_name": sys.argv[8],
     "backend_facade": sys.argv[9],
+    "qt_native_catalog_entry": sys.argv[13] if len(sys.argv) > 13 else "",
 }
-extra_files = [value for value in sys.argv[10:12] if value]
-extra_files.extend([sys.argv[12]] if len(sys.argv) > 12 and sys.argv[12] else [])
+extra_files = [value for value in sys.argv[10:13] if value]
 excluded_dirs = {".build", ".git", ".quillui-build", ".swiftpm", "DerivedData", "node_modules", "xcuserdata"}
 excluded_files = {".DS_Store"}
 
@@ -463,7 +469,7 @@ default_generated_build_scratch() {
   build_scratch_key="$(generated_app_build_scratch_key \
     "$lowered_source_key" "$PROFILE" "$SOURCE_DIR" "$PACKAGE_ROOT" "$APP_TYPE" "$ENTRY_TARGET" \
     "$PRODUCT_NAME" "$NORMALIZED_BACKEND_FACADE" "$TARGET_LAYOUT_FILE" \
-    "$EXTRA_PACKAGE_DEPENDENCIES_FILE" "$EXTRA_TARGET_DEPENDENCIES_FILE")"
+    "$EXTRA_PACKAGE_DEPENDENCIES_FILE" "$EXTRA_TARGET_DEPENDENCIES_FILE" "$QT_NATIVE_CATALOG_ENTRY")"
   safe_product="$(printf '%s' "$PRODUCT_NAME" | tr -c 'A-Za-z0-9_.-' '-')"
   printf '%s/%s-%s-%s\n' "$BUILD_SCRATCH_CACHE_DIR" "$safe_product" "$NORMALIZED_BACKEND_FACADE" "${build_scratch_key:0:24}"
 }
@@ -528,6 +534,14 @@ while [[ $# -gt 0 ]]; do
     --backend-facade)
       BACKEND_FACADE="${2:-}"
       shift 2
+      ;;
+    --qt-native-catalog-entry)
+      QT_NATIVE_CATALOG_ENTRY="${2:-}"
+      shift 2
+      ;;
+    --qt-native-catalog-entry=*)
+      QT_NATIVE_CATALOG_ENTRY="${1#--qt-native-catalog-entry=}"
+      shift
       ;;
     --target-layout-file)
       TARGET_LAYOUT_FILE="${2:-}"
@@ -629,6 +643,9 @@ if [[ -z "$APP_TYPE" ]]; then
 fi
 
 validate_swift_type "$APP_TYPE" "--app-type"
+if [[ -n "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+  validate_swift_type "$QT_NATIVE_CATALOG_ENTRY" "--qt-native-catalog-entry"
+fi
 
 if [[ -n "$SOURCE_APP" ]]; then
   validate_source_app_name "$SOURCE_APP"
@@ -721,6 +738,10 @@ if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "${BACKEN
   echo "--backend-facade must be swiftui, gtk, or qt, got: ${BACKEND_FACADE:-<empty>}" >&2
   exit 64
 fi
+if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" && -z "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+  echo "--backend-facade qt requires --qt-native-catalog-entry, QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY, or QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
+  exit 64
+fi
 
 if [[ -n "$BUILD_SCRATCH" ]]; then
   BUILD_SCRATCH="$(absolute_path_from_root "$BUILD_SCRATCH")"
@@ -774,6 +795,7 @@ QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE="$EXTRA_PACKAGE_DEPENDENCIES_F
 QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE="$EXTRA_TARGET_DEPENDENCIES_FILE" \
 QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR="$PREPARED_PACKAGE_CACHE_DIR" \
 QUILLUI_GENERATED_BUILD_SCRATCH="$BUILD_SCRATCH" \
+QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY="$QT_NATIVE_CATALOG_ENTRY" \
 QUILLUI_REQUIRE_VENDORED_SOURCES="${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}" \
 "$PROFILE_SCRIPT"
 

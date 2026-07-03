@@ -698,6 +698,7 @@ quillui_resolve_generated_app_executable() {
   local app_type
   local entry_target
   local workdir_env_names
+  local qt_native_catalog_entry
   local backend_facade
   local work_root
   local artifact_path_file
@@ -706,7 +707,7 @@ quillui_resolve_generated_app_executable() {
 
   spec="$(quillui_backend_generated_app_build_spec_for_product "$product")" || return 1
   split_spec="${spec//$'\t'/$field_separator}"
-  IFS="$field_separator" read -r spec_product profile source_app source_subdir app_type entry_target workdir_env_names <<< "$split_spec"
+  IFS="$field_separator" read -r spec_product profile source_app source_subdir app_type entry_target workdir_env_names qt_native_catalog_entry <<< "$split_spec"
 
   backend_facade="$(quillui_generated_app_backend_facade)" || return $?
   quillui_generated_app_work_root "$product" "$backend_facade" "$workdir_env_names" work_root || return $?
@@ -731,8 +732,12 @@ quillui_resolve_generated_app_executable() {
   if [[ -n "$entry_target" ]]; then
     build_args+=(--entry-target "$entry_target")
   fi
+  if [[ -n "$qt_native_catalog_entry" ]]; then
+    build_args+=(--qt-native-catalog-entry "$qt_native_catalog_entry")
+  fi
 
   QUILLUI_APP_ARTIFACT_PATH_FILE="$artifact_path_file" \
+    QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY="$qt_native_catalog_entry" \
     "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
       "${build_args[@]}"
 
