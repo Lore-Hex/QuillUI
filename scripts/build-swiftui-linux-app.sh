@@ -722,6 +722,15 @@ if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "${BACKEN
   exit 64
 fi
 
+# The generic-swiftui Qt facade requires an explicit native catalog entry
+# (scripts/swiftpm-profile-lowered-source-cache.sh errors without it). Resolve
+# the product-specific snapshot here so every generated-app Qt build/smoke is
+# wired without a per-product shell block; an explicit env override still wins.
+if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" && -z "${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}" ]]; then
+  QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY="$(quillui_backend_generated_app_qt_catalog_entry_for_product "$PRODUCT_NAME")"
+  export QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY
+fi
+
 if [[ -n "$BUILD_SCRATCH" ]]; then
   BUILD_SCRATCH="$(absolute_path_from_root "$BUILD_SCRATCH")"
 else
