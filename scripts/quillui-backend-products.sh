@@ -443,6 +443,25 @@ quillui_backend_generated_app_build_specs() {
     quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR
 }
 
+# Resolves the QuillGenericQtAppCatalog snapshot a generated app uses behind the
+# native Qt facade. The generic-swiftui + qt path requires an explicit catalog
+# entry (scripts/swiftpm-profile-lowered-source-cache.sh guards on it), and the
+# correct snapshot is product-specific — the native Qt apps pick the same ones
+# (e.g. Sources/QuillCodeEditQt/main.swift runs QuillGenericQtAppCatalog.codeEdit).
+# The default preserves historical behavior (generate-swiftui-linux-package.sh
+# defaulted to enchantedUpstreamSlice).
+quillui_backend_generated_app_qt_catalog_entry_for_product() {
+  local product="$1"
+  case "$product" in
+    quill-code-desktop-linux)
+      printf '%s\n' "QuillGenericQtAppCatalog.codeEdit"
+      ;;
+    *)
+      printf '%s\n' "QuillGenericQtAppCatalog.enchantedUpstreamSlice"
+      ;;
+  esac
+}
+
 quillui_backend_generated_app_build_spec_for_product() {
   local candidate="$1"
   local row

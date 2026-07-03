@@ -6282,6 +6282,11 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("INTERACTION_MODE=\"$(quillui_backend_default_interaction_mode_for_product \"$PRODUCT\")\""))
         #expect(backendProducts.contains("quillui_backend_default_interaction_mode_for_product()"))
         #expect(backendProducts.contains("default-interaction-mode)"))
+        // generic-swiftui + qt requires an explicit native catalog entry; the
+        // resolver keeps quill-code-desktop-linux (and future generic-swiftui qt
+        // products) wired so the smoke matrix does not exit 64 (main-red guard).
+        #expect(backendProducts.contains("quillui_backend_generated_app_qt_catalog_entry_for_product()"))
+        #expect(backendProducts.contains("QuillGenericQtAppCatalog.codeEdit"))
         #expect(backendProducts.contains("quillui_backend_visual_verify_product_for_product()"))
         #expect(backendProducts.contains("visual-verify-product)"))
         #expect(backendProducts.contains("quillui_is_quill_chat_mac_reference_product()"))
@@ -6966,7 +6971,7 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE=$mode"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
-        #expect(smokeMatrixRunner.contains("SMOKE_ROW_TIMEOUT=\"${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-10m}\""))
+        #expect(smokeMatrixRunner.contains("SMOKE_ROW_TIMEOUT=\"${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-20m}\""))
         #expect(smokeMatrixRunner.contains("SMOKE_ROW_KILL_AFTER=\"${QUILLUI_BACKEND_SMOKE_ROW_KILL_AFTER:-15s}\""))
         #expect(smokeMatrixRunner.contains("SMOKE_TIMEOUT_COMMAND=(\"$timeout_command\" \"--kill-after=$SMOKE_ROW_KILL_AFTER\" \"$SMOKE_ROW_TIMEOUT\")"))
         #expect(smokeMatrixRunner.contains("smoke_command=(env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\")"))
