@@ -16,6 +16,8 @@ ENTRY_TARGET="${QUILLUI_APP_ENTRY_TARGET:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-}"
+QT_RUNTIME_MODE="${QUILLUI_APP_QT_RUNTIME_MODE:-${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}}"
+QT_NATIVE_CATALOG_ENTRY="${QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY:-${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}}"
 TARGET_LAYOUT_FILE="${QUILLUI_APP_TARGET_LAYOUT_FILE:-}"
 EXTRA_PACKAGE_DEPENDENCIES_FILE="${QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}"
 EXTRA_TARGET_DEPENDENCIES_FILE="${QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE:-}"
@@ -55,6 +57,14 @@ Options:
   --workdir PATH        Generated build work directory.
   --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
                         for the generated entry. Allowed: swiftui, gtk, qt.
+  --qt-runtime-mode MODE
+                        Qt facade launch mode. Allowed: auto, generic, native.
+                        auto uses native when --qt-native-catalog-entry is set;
+                        otherwise it compiles copied app sources through
+                        QuillUIQt.
+  --qt-native-catalog-entry TYPE
+                        Swift expression naming the reusable
+                        QuillGenericQtAppCatalog entry used by --backend-facade qt.
   --target-layout-file PATH
                         TSV target layout for multi-target SwiftPM app trees.
   --extra-package-dependencies-file PATH
@@ -96,6 +106,9 @@ Environment aliases:
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
   QUILLUI_APP_BACKEND_FACADE
+  QUILLUI_APP_QT_RUNTIME_MODE=auto     Qt facade launch mode: auto, generic,
+                        or native.
+  QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY
   QUILLUI_APP_TARGET_LAYOUT_FILE
   QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE
   QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE
@@ -193,6 +206,36 @@ validate_vendor_swiftpm_sources_mode() {
       exit 64
       ;;
   esac
+}
+
+normalize_qt_runtime_mode() {
+  local value="${1:-auto}"
+
+  case "$value" in
+    auto|generic|native)
+      printf '%s\n' "$value"
+      ;;
+    *)
+      echo "--qt-runtime-mode must be auto, generic, or native, got: $value" >&2
+      exit 64
+      ;;
+  esac
+}
+
+effective_qt_runtime_mode() {
+  local mode="$1"
+  local catalog_entry="$2"
+
+  if [[ "$mode" == "auto" ]]; then
+    if [[ -n "$catalog_entry" ]]; then
+      printf '%s\n' native
+    else
+      printf '%s\n' generic
+    fi
+    return
+  fi
+
+  printf '%s\n' "$mode"
 }
 
 truthy_flag() {
@@ -341,13 +384,15 @@ generated_app_build_scratch_key() {
   local entry_target="$6"
   local product_name="$7"
   local backend_facade="$8"
-  local target_layout_file="$9"
-  local extra_package_dependencies_file="${10}"
-  local extra_target_dependencies_file="${11}"
+  local qt_runtime_mode="$9"
+  local target_layout_file="${10}"
+  local extra_package_dependencies_file="${11}"
+  local extra_target_dependencies_file="${12}"
+  local qt_native_catalog_entry="${13}"
 
   python3 - "$ROOT_DIR" "$lowered_source_key" "$profile" "$source_dir" "$package_root" \
-    "$app_type" "$entry_target" "$product_name" "$backend_facade" "$target_layout_file" \
-    "$extra_package_dependencies_file" "$extra_target_dependencies_file" <<'PY'
+    "$app_type" "$entry_target" "$product_name" "$backend_facade" "$qt_runtime_mode" "$target_layout_file" \
+    "$extra_package_dependencies_file" "$extra_target_dependencies_file" "$qt_native_catalog_entry" <<'PY'
 import hashlib
 import sys
 from pathlib import Path
@@ -362,14 +407,15 @@ values = {
     "entry_target": sys.argv[7],
     "product_name": sys.argv[8],
     "backend_facade": sys.argv[9],
+    "qt_runtime_mode": sys.argv[10],
+    "qt_native_catalog_entry": sys.argv[14] if len(sys.argv) > 14 else "",
 }
-extra_files = [value for value in sys.argv[10:12] if value]
-extra_files.extend([sys.argv[12]] if len(sys.argv) > 12 and sys.argv[12] else [])
+extra_files = [value for value in sys.argv[11:14] if value]
 excluded_dirs = {".build", ".git", ".quillui-build", ".swiftpm", "DerivedData", "node_modules", "xcuserdata"}
 excluded_files = {".DS_Store"}
 
 digest = hashlib.sha256()
-digest.update(b"quillui-generated-app-build-scratch/v1\0")
+digest.update(b"quillui-generated-app-build-scratch/v2\0")
 
 for key, value in sorted(values.items()):
     digest.update(key.encode("utf-8"))
@@ -414,6 +460,7 @@ def update_tree(path: Path, namespace: str) -> None:
             update_file(item, namespace, path)
 
 for relative in [
+    "Package.swift",
     "scripts/build-swiftui-linux-app.sh",
     "scripts/generate-swiftui-linux-package.sh",
     f"scripts/profiles/{values['profile']}.sh",
@@ -462,8 +509,8 @@ default_generated_build_scratch() {
   lowered_source_key="$(python3 "$ROOT_DIR/scripts/quillui-source-cache-key.py" --root-dir "$ROOT_DIR" --source-dir "$SOURCE_DIR")"
   build_scratch_key="$(generated_app_build_scratch_key \
     "$lowered_source_key" "$PROFILE" "$SOURCE_DIR" "$PACKAGE_ROOT" "$APP_TYPE" "$ENTRY_TARGET" \
-    "$PRODUCT_NAME" "$NORMALIZED_BACKEND_FACADE" "$TARGET_LAYOUT_FILE" \
-    "$EXTRA_PACKAGE_DEPENDENCIES_FILE" "$EXTRA_TARGET_DEPENDENCIES_FILE")"
+    "$PRODUCT_NAME" "$NORMALIZED_BACKEND_FACADE" "$EFFECTIVE_QT_RUNTIME_MODE" "$TARGET_LAYOUT_FILE" \
+    "$EXTRA_PACKAGE_DEPENDENCIES_FILE" "$EXTRA_TARGET_DEPENDENCIES_FILE" "$QT_NATIVE_CATALOG_ENTRY")"
   safe_product="$(printf '%s' "$PRODUCT_NAME" | tr -c 'A-Za-z0-9_.-' '-')"
   printf '%s/%s-%s-%s\n' "$BUILD_SCRATCH_CACHE_DIR" "$safe_product" "$NORMALIZED_BACKEND_FACADE" "${build_scratch_key:0:24}"
 }
@@ -528,6 +575,22 @@ while [[ $# -gt 0 ]]; do
     --backend-facade)
       BACKEND_FACADE="${2:-}"
       shift 2
+      ;;
+    --qt-runtime-mode)
+      QT_RUNTIME_MODE="${2:-}"
+      shift 2
+      ;;
+    --qt-runtime-mode=*)
+      QT_RUNTIME_MODE="${1#--qt-runtime-mode=}"
+      shift
+      ;;
+    --qt-native-catalog-entry)
+      QT_NATIVE_CATALOG_ENTRY="${2:-}"
+      shift 2
+      ;;
+    --qt-native-catalog-entry=*)
+      QT_NATIVE_CATALOG_ENTRY="${1#--qt-native-catalog-entry=}"
+      shift
       ;;
     --target-layout-file)
       TARGET_LAYOUT_FILE="${2:-}"
@@ -629,6 +692,9 @@ if [[ -z "$APP_TYPE" ]]; then
 fi
 
 validate_swift_type "$APP_TYPE" "--app-type"
+if [[ -n "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+  validate_swift_type "$QT_NATIVE_CATALOG_ENTRY" "--qt-native-catalog-entry"
+fi
 
 if [[ -n "$SOURCE_APP" ]]; then
   validate_source_app_name "$SOURCE_APP"
@@ -637,6 +703,7 @@ fi
 validate_vendor_swiftpm_sources_mode "$VENDOR_SWIFTPM_SOURCES" "QUILLUI_APP_VENDOR_SWIFTPM_SOURCES"
 validate_boolean_flag "$VENDOR_SWIFTPM_RESOLVE" "QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE"
 validate_boolean_flag "$REUSE_BUILD_SCRATCH" "QUILLUI_APP_REUSE_BUILD_SCRATCH"
+QT_RUNTIME_MODE="$(normalize_qt_runtime_mode "$QT_RUNTIME_MODE")"
 
 if truthy_flag "$VENDOR_SWIFTPM_SOURCES" && [[ -z "$SOURCE_APP" ]]; then
   echo "--vendor-swiftpm-sources requires --source-app so Package.resolved discovery has an app checkout root" >&2
@@ -721,6 +788,14 @@ if ! NORMALIZED_BACKEND_FACADE="$(quillui_normalize_backend_identifier "${BACKEN
   echo "--backend-facade must be swiftui, gtk, or qt, got: ${BACKEND_FACADE:-<empty>}" >&2
   exit 64
 fi
+EFFECTIVE_QT_RUNTIME_MODE="generic"
+if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
+  EFFECTIVE_QT_RUNTIME_MODE="$(effective_qt_runtime_mode "$QT_RUNTIME_MODE" "$QT_NATIVE_CATALOG_ENTRY")"
+  if [[ "$EFFECTIVE_QT_RUNTIME_MODE" == "native" && -z "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+    echo "--qt-runtime-mode native requires --qt-native-catalog-entry, QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY, or QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
+    exit 64
+  fi
+fi
 
 if [[ -n "$BUILD_SCRATCH" ]]; then
   BUILD_SCRATCH="$(absolute_path_from_root "$BUILD_SCRATCH")"
@@ -769,11 +844,13 @@ QUILLUI_PROFILE_ENTRY_TYPE="$APP_TYPE" \
 QUILLUI_PROFILE_ENTRY_TARGET="$ENTRY_TARGET" \
 QUILLUI_PROFILE_MAIN_TYPE=GeneratedSwiftUILinuxMain \
 QUILLUI_GENERATED_BACKEND_FACADE="$NORMALIZED_BACKEND_FACADE" \
+QUILLUI_GENERATED_QT_RUNTIME_MODE="$EFFECTIVE_QT_RUNTIME_MODE" \
 QUILLUI_GENERATED_TARGET_LAYOUT_FILE="$TARGET_LAYOUT_FILE" \
 QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE="$EXTRA_PACKAGE_DEPENDENCIES_FILE" \
 QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE="$EXTRA_TARGET_DEPENDENCIES_FILE" \
 QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR="$PREPARED_PACKAGE_CACHE_DIR" \
 QUILLUI_GENERATED_BUILD_SCRATCH="$BUILD_SCRATCH" \
+QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY="$QT_NATIVE_CATALOG_ENTRY" \
 QUILLUI_REQUIRE_VENDORED_SOURCES="${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}" \
 "$PROFILE_SCRIPT"
 

@@ -259,6 +259,11 @@ void quill_qt_widget_connect_destroyed(
 // Request keyboard focus for the first natively focusable QWidget in a subtree.
 void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget);
 
+// Request keyboard focus on the next Qt event-loop turn. This is used when a
+// SwiftUI FocusState is already active while a rebuilt subtree is still being
+// attached to its parent container.
+void quill_qt_widget_request_focus_recursive_later(QuillQtWidgetHandle widget);
+
 // Clear keyboard focus if it is currently held by a QWidget in this subtree.
 void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget);
 
@@ -355,6 +360,23 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     quill_qt_bridge_click_callback destroy
 );
 
+// Replace a QPushButton's visible contents with an arbitrary rendered SwiftUI
+// widget. Used for custom SwiftUI ButtonStyle bodies, where the label is not
+// just native button text.
+void quill_qt_button_set_child(
+    QuillQtWidgetHandle button,
+    QuillQtWidgetHandle child
+);
+
+// Connect QPushButton press/release to SwiftUI ButtonStyle.Configuration.isPressed.
+// `pressed` is 1 on press and 0 on release.
+void quill_qt_button_connect_pressed_changed(
+    QuillQtWidgetHandle button,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
 // Create a QCheckBox. Swift configures text, checked state, and signal wiring
 // separately so initial setChecked() does not fire the Swift binding callback.
 QuillQtWidgetHandle quill_qt_make_check_box(void);
@@ -435,6 +457,26 @@ void quill_qt_combo_box_set_current_index(
 // `user_data` when the combo box is destroyed.
 void quill_qt_combo_box_connect_current_index_changed(
     QuillQtWidgetHandle combo_box,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
+// Create a segmented picker backed by exclusive checkable buttons.
+QuillQtWidgetHandle quill_qt_make_segmented_picker(void);
+
+// Add one UTF-8 segment to the segmented picker.
+void quill_qt_segmented_picker_add_item(
+    QuillQtWidgetHandle segmented_picker,
+    const char *text,
+    int index,
+    int selected
+);
+
+// Connect selected segment changes to Swift. `destroy` releases `user_data`
+// when the segmented picker is destroyed.
+void quill_qt_segmented_picker_connect_selected(
+    QuillQtWidgetHandle segmented_picker,
     quill_qt_bridge_index_callback callback,
     void *user_data,
     quill_qt_bridge_click_callback destroy

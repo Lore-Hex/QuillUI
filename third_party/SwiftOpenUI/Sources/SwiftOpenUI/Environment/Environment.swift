@@ -360,6 +360,26 @@ public func getEnvironmentObject<T: AnyObject>(_ type: T.Type) -> T? {
 
 // MARK: - Built-in keys
 
+/// SwiftUI-compatible control sizing for native controls.
+public enum ControlSize: Hashable, Sendable {
+    case mini
+    case small
+    case regular
+    case large
+    case extraLarge
+}
+
+private struct ControlSizeKey: EnvironmentKey {
+    static let defaultValue = ControlSize.regular
+}
+
+extension EnvironmentValues {
+    public var controlSize: ControlSize {
+        get { self[ControlSizeKey.self] }
+        set { self[ControlSizeKey.self] = newValue }
+    }
+}
+
 /// SwiftUI-compatible color scheme enum.
 public enum ColorScheme: String, Equatable {
     case light

@@ -291,7 +291,7 @@ public enum QuillBackendRuntimeContext {
         launchPlan?.selected
     }
 
-    static func install(_ launchPlan: QuillBackendLaunchPlan?) {
+    public static func install(_ launchPlan: QuillBackendLaunchPlan?) {
         storage.install(launchPlan)
     }
 }

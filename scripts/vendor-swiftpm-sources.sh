@@ -157,6 +157,73 @@ git_source_identity() {
   printf 'git:%s' "$commit"
 }
 
+content_source_identity() {
+  local source="$1"
+  shift || true
+
+  python3 - "$source" "$@" <<'PY'
+import fnmatch
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+raw_args = sys.argv[2:]
+patterns = {
+    ".DS_Store",
+    ".build",
+    ".build-*",
+    ".git",
+    ".quillui-vendor-source-fingerprint",
+    ".swiftpm",
+    "DerivedData",
+    "Package.resolved",
+    "xcuserdata",
+}
+
+index = 0
+while index < len(raw_args):
+    if raw_args[index] == "--exclude" and index + 1 < len(raw_args):
+        patterns.add(raw_args[index + 1].rstrip("/"))
+        index += 2
+    else:
+        index += 1
+
+
+def ignored(path: Path) -> bool:
+    relative = path.relative_to(root)
+    rel = relative.as_posix()
+    name = path.name
+    for pattern in patterns:
+        if fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(rel, pattern):
+            return True
+        if any(fnmatch.fnmatch(part, pattern) for part in relative.parts):
+            return True
+    return False
+
+
+digest = hashlib.sha256()
+digest.update(b"quillui-swiftpm-source-tree/v1\0")
+
+for path in sorted(root.rglob("*")):
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        continue
+    if ignored(path) or not path.is_file():
+        continue
+    data = path.read_bytes()
+    digest.update(str(relative).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(str(len(data)).encode("utf-8"))
+    digest.update(b":")
+    digest.update(data)
+    digest.update(b"\0")
+
+print("tree:" + digest.hexdigest())
+PY
+}
+
 vendored_source_metadata() {
   local package="$1"
   local source="$2"
@@ -164,7 +231,7 @@ vendored_source_metadata() {
   shift 3
 
   local source_identity
-  source_identity="$(git_source_identity "$source")" || return 1
+  source_identity="$(git_source_identity "$source" || content_source_identity "$source" "$@")" || return 1
 
   printf 'quillui-swiftpm-vendor/v1\n'
   printf 'package=%s\n' "$package"
@@ -683,6 +750,12 @@ vendor_one() {
 
   if [[ ! -d "$source" ]]; then
     if [[ -f "$destination/Package.swift" ]]; then
+      if [[ ! -f "$metadata_file" && "$DRY_RUN" != "1" ]]; then
+        if metadata="$(vendored_source_metadata "$package" "$destination" "$SLIM" "${rsync_excludes[@]}")"; then
+          printf '%s\n' "$metadata" > "$metadata_file"
+          echo "stamped vendored $package source fingerprint -> third_party/$package"
+        fi
+      fi
       echo "already vendored $package -> third_party/$package"
       return 0
     fi

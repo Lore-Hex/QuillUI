@@ -574,6 +574,49 @@ final class QtBoolClosureBox {
     init(_ closure: @escaping (Bool) -> Void) { self.closure = closure }
 }
 
+private final class QtCustomButtonStyleContext {
+    let button: OpaquePointer
+    let label: AnyView
+    let style: AnyButtonStyle
+    let environment: EnvironmentValues
+    var isPressed = false
+
+    init(
+        button: OpaquePointer,
+        label: AnyView,
+        style: AnyButtonStyle,
+        environment: EnvironmentValues
+    ) {
+        self.button = button
+        self.label = label
+        self.style = style
+        self.environment = environment
+    }
+
+    @MainActor
+    func makeChild(isPressed: Bool) -> OpaquePointer {
+        var renderEnvironment = environment
+        renderEnvironment.customButtonStyle = nil
+        renderEnvironment.buttonStyle = .plain
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(renderEnvironment)
+        defer { setCurrentEnvironment(previous) }
+
+        let styledBody = style.makeBody(configuration: .init(label: label, isPressed: isPressed))
+        let child = qtRenderView(styledBody)
+        quill_qt_widget_set_allows_hit_testing_recursive(qtHandle(child), 0)
+        return child
+    }
+
+    @MainActor
+    func setPressed(_ pressed: Bool) {
+        guard pressed != isPressed else { return }
+        isPressed = pressed
+        let child = makeChild(isPressed: pressed)
+        quill_qt_button_set_child(qtHandle(button), qtHandle(child))
+    }
+}
+
 final class QtFocusClosureBox {
     let focusChanged: (Bool) -> Void
     let destroyed: () -> Void
@@ -610,6 +653,25 @@ final class QtKeyPressActionBox {
     }
 }
 
+final class QtMoveCommandActionBox {
+    let environment: EnvironmentValues
+    let action: (MoveCommandDirection) -> Void
+
+    init(environment: EnvironmentValues, action: @escaping (MoveCommandDirection) -> Void) {
+        self.environment = environment
+        self.action = action
+    }
+
+    func handle(keyCode: Int32) -> Bool {
+        guard let direction = qtMoveCommandDirection(for: keyCode) else { return false }
+        let previous = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        action(direction)
+        return true
+    }
+}
+
 final class QtShortcutDispatchBox {
     let windowID: Int
 
@@ -635,6 +697,21 @@ final class QtIntClosureBox {
 func qtKeyEquivalent(for keyCode: Int32) -> KeyEquivalent? {
     guard let scalar = UnicodeScalar(UInt32(bitPattern: keyCode)) else { return nil }
     return KeyEquivalent(Character(scalar))
+}
+
+func qtMoveCommandDirection(for keyCode: Int32) -> MoveCommandDirection? {
+    switch qtKeyEquivalent(for: keyCode) {
+    case .upArrow:
+        return .up
+    case .downArrow:
+        return .down
+    case .leftArrow:
+        return .left
+    case .rightArrow:
+        return .right
+    default:
+        return nil
+    }
 }
 
 func qtInstallKeyPressActions(
@@ -663,6 +740,29 @@ func qtInstallKeyPressActions(
     let destroy: quill_qt_bridge_click_callback = { userData in
         guard let userData else { return }
         Unmanaged<QtKeyPressActionBox>.fromOpaque(userData).release()
+    }
+    quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)
+}
+
+func qtInstallMoveCommandAction(
+    on widget: OpaquePointer,
+    environment: EnvironmentValues,
+    action: @escaping (MoveCommandDirection) -> Void
+) {
+    let box = Unmanaged.passRetained(QtMoveCommandActionBox(
+        environment: environment,
+        action: action
+    )).toOpaque()
+    let callback: quill_qt_bridge_key_callback = { key, userData in
+        guard let userData else { return 0 }
+        return Unmanaged<QtMoveCommandActionBox>
+            .fromOpaque(userData)
+            .takeUnretainedValue()
+            .handle(keyCode: key) ? 1 : 0
+    }
+    let destroy: quill_qt_bridge_click_callback = { userData in
+        guard let userData else { return }
+        Unmanaged<QtMoveCommandActionBox>.fromOpaque(userData).release()
     }
     quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)
 }
@@ -943,8 +1043,15 @@ extension HelpView: QtRenderable {
 
 extension DisabledView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        let previousEnvironment = getCurrentEnvironment()
+        var environment = previousEnvironment
+        let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled
+        environment.isEnabled = effectiveIsEnabled
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+
         let widget = qtRenderView(content)
-        if isDisabled {
+        if !effectiveIsEnabled {
             quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)
         }
         return widget
@@ -995,6 +1102,9 @@ extension FocusedView: QtRenderable {
         }
 
         quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        if state.wrappedValue {
+            quill_qt_widget_request_focus_recursive_later(qtHandle(widget))
+        }
         return widget
     }
 }
@@ -1042,6 +1152,9 @@ extension FocusedEqualsView: QtRenderable {
         }
 
         quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)
+        if state.wrappedValue == matchValue {
+            quill_qt_widget_request_focus_recursive_later(qtHandle(widget))
+        }
         return widget
     }
 }
@@ -1087,7 +1200,6 @@ extension AccessibilityElementView: QtRenderable {
 extension Button: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let environment = getCurrentEnvironment()
-        let title = qtTextLabel(from: label)
         let bound = qtBindActionToCurrentEnvironment(action)
         let box = Unmanaged.passRetained(QtClosureBox(bound)).toOpaque()
 
@@ -1100,7 +1212,61 @@ extension Button: QtRenderable {
             Unmanaged<QtClosureBox>.fromOpaque(userData).release()
         }
 
+        if let customButtonStyle = environment.customButtonStyle {
+            let button = qtOpaque(quill_qt_bridge_button_create("", click, box, destroy))
+            quill_qt_bridge_widget_set_stylesheet(qtHandle(button), qtPlainButtonChromeStylesheet)
+
+            let context = QtCustomButtonStyleContext(
+                button: button,
+                label: AnyView(label),
+                style: customButtonStyle,
+                environment: environment
+            )
+            nonisolated(unsafe) var child: OpaquePointer?
+            MainActor.assumeIsolated {
+                child = context.makeChild(isPressed: false)
+            }
+            quill_qt_button_set_child(qtHandle(button), qtHandle(child!))
+
+            let contextBox = Unmanaged.passRetained(context).toOpaque()
+            let pressedChanged: quill_qt_bridge_toggle_callback = { pressed, userData in
+                guard let userData else { return }
+                let context = Unmanaged<QtCustomButtonStyleContext>
+                    .fromOpaque(userData)
+                    .takeUnretainedValue()
+                MainActor.assumeIsolated {
+                    context.setPressed(pressed != 0)
+                }
+            }
+            let contextDestroy: quill_qt_bridge_click_callback = { userData in
+                guard let userData else { return }
+                Unmanaged<QtCustomButtonStyleContext>.fromOpaque(userData).release()
+            }
+            quill_qt_button_connect_pressed_changed(
+                qtHandle(button),
+                pressedChanged,
+                contextBox,
+                contextDestroy
+            )
+
+            if let shortcut = environment.keyboardShortcut {
+                qtRegisterKeyboardShortcut(
+                    shortcut,
+                    on: button,
+                    action: action,
+                    environment: environment
+                )
+            }
+            return button
+        }
+
+        let title = qtTextLabel(from: label)
         let button = qtOpaque(quill_qt_bridge_button_create(title, click, box, destroy))
+        qtApplyButtonChrome(
+            to: button,
+            style: environment.buttonStyle,
+            controlSize: environment.controlSize
+        )
         if let shortcut = environment.keyboardShortcut {
             qtRegisterKeyboardShortcut(
                 shortcut,
@@ -1110,6 +1276,178 @@ extension Button: QtRenderable {
             )
         }
         return button
+    }
+}
+
+private let qtPlainButtonChromeStylesheet = """
+    QPushButton {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+        min-height: 0px;
+        min-width: 0px;
+    }
+    QPushButton:pressed {
+        background: transparent;
+        border: none;
+    }
+    """
+
+private func qtApplyButtonChrome(
+    to button: OpaquePointer,
+    style: ButtonStyleType,
+    controlSize: ControlSize
+) {
+    var rules: [String] = []
+    let appliesControlSize: Bool
+    switch style {
+    case .plain:
+        appliesControlSize = false
+        rules.append("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                padding: 0px;
+            }
+            """)
+    case .bordered, .accessoryBarAction, .quillPaintMacBordered:
+        appliesControlSize = true
+        rules.append("""
+            QPushButton {
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid rgba(0, 0, 0, 0.18);
+                border-radius: 6px;
+            }
+            QPushButton:disabled {
+                color: rgba(0, 0, 0, 0.38);
+                background: rgba(255, 255, 255, 0.38);
+            }
+            """)
+    case .borderedProminent, .quillPaintMacDefault:
+        appliesControlSize = true
+        rules.append("""
+            QPushButton {
+                background: #3584e4;
+                border: none;
+                border-radius: 6px;
+                color: white;
+            }
+            QPushButton:disabled {
+                background: rgba(53, 132, 228, 0.38);
+                color: rgba(255, 255, 255, 0.7);
+            }
+            """)
+    case .automatic:
+        appliesControlSize = true
+    case .quillPaintMacListRow(_, _):
+        appliesControlSize = false
+        break
+    }
+
+    if appliesControlSize, let sizeRule = qtButtonControlSizeRule(controlSize) {
+        rules.append(sizeRule)
+    }
+
+    guard !rules.isEmpty else { return }
+    quill_qt_bridge_widget_set_stylesheet(qtHandle(button), rules.joined(separator: "\n"))
+}
+
+private func qtButtonControlSizeRule(_ size: ControlSize) -> String? {
+    switch size {
+    case .mini:
+        return "QPushButton { padding: 1px 6px; min-height: 18px; font-size: 11px; }"
+    case .small:
+        return "QPushButton { padding: 3px 8px; min-height: 22px; font-size: 12px; }"
+    case .regular:
+        return nil
+    case .large:
+        return "QPushButton { padding: 8px 14px; min-height: 34px; font-size: 15px; }"
+    case .extraLarge:
+        return "QPushButton { padding: 10px 16px; min-height: 40px; font-size: 16px; }"
+    }
+}
+
+extension ButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.buttonStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension CustomButtonStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.customButtonStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension TextFieldStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.textFieldStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension ToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.toggleStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension CustomToggleStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.customToggleStyle = style
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension ControlGroupStyleModifier: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(content)
+    }
+}
+
+extension EnvironmentModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment[keyPath: keyPath] = value
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
+    }
+}
+
+extension TransformEnvironmentModifierView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        transform(&environment[keyPath: keyPath])
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+        return qtRenderView(content)
     }
 }
 
@@ -1235,8 +1573,43 @@ extension TextField: QtRenderable {
             actions: environment.keyPressActions,
             environment: environment
         )
+        qtApplyTextFieldStyle(to: lineEdit, style: environment.textFieldStyle)
 
         return lineEdit
+    }
+}
+
+private func qtApplyTextFieldStyle(to lineEdit: OpaquePointer, style: TextFieldStyleType) {
+    switch style {
+    case .automatic:
+        return
+    case .plain:
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(lineEdit), """
+            QLineEdit {
+                background: transparent;
+                border: none;
+                padding: 0px;
+                min-height: 0px;
+            }
+            """)
+    case .roundedBorder:
+        quill_qt_bridge_widget_set_stylesheet(qtHandle(lineEdit), """
+            QLineEdit {
+                background: rgba(255, 255, 255, 0.86);
+                border: 1px solid rgba(0, 0, 0, 0.22);
+                border-radius: 8px;
+                padding: 5px 9px;
+                min-height: 24px;
+                selection-background-color: rgba(53, 132, 228, 0.28);
+            }
+            QLineEdit:focus {
+                border-color: rgba(53, 132, 228, 0.72);
+            }
+            QLineEdit:disabled {
+                color: rgba(0, 0, 0, 0.42);
+                background: rgba(255, 255, 255, 0.44);
+            }
+            """)
     }
 }
 
@@ -1248,6 +1621,15 @@ extension OnKeyPressView: QtRenderable {
         setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previous) }
         return qtRenderView(content)
+    }
+}
+
+extension MoveCommandView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        let environment = getCurrentEnvironment()
+        let widget = qtRenderView(content)
+        qtInstallMoveCommandAction(on: widget, environment: environment, action: action)
+        return widget
     }
 }
 
@@ -1294,6 +1676,19 @@ extension Toggle: QtRenderable {
 
 extension Picker: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        switch effectiveStyle {
+        case .segmented, .palette:
+            return qtCreateSegmentedPicker()
+        default:
+            return qtCreateComboBoxPicker()
+        }
+    }
+
+    private var effectiveStyle: PickerStyle {
+        style == .automatic ? getCurrentEnvironment().pickerStyle : style
+    }
+
+    private func qtCreateComboBoxPicker() -> OpaquePointer {
         let comboBox = qtOpaque(quill_qt_make_combo_box())
         for option in options {
             quill_qt_combo_box_add_item(qtHandle(comboBox), option)
@@ -1334,6 +1729,52 @@ extension Picker: QtRenderable {
             destroy
         )
         return comboBox
+    }
+
+    private func qtCreateSegmentedPicker() -> OpaquePointer {
+        let segmentedPicker = qtOpaque(quill_qt_make_segmented_picker())
+        let selectedIndex = options.indices.contains(selected)
+            ? selected
+            : (options.isEmpty ? -1 : 0)
+        for (index, option) in options.enumerated() {
+            quill_qt_segmented_picker_add_item(
+                qtHandle(segmentedPicker),
+                option,
+                Int32(index),
+                index == selectedIndex ? 1 : 0
+            )
+        }
+
+        guard let onChanged else {
+            return segmentedPicker
+        }
+
+        let box = Unmanaged.passRetained(QtIntClosureBox { newIndex in
+            guard options.indices.contains(newIndex), newIndex != selectedIndex else {
+                return
+            }
+            onChanged(newIndex)
+        }).toOpaque()
+
+        let selectedChanged: quill_qt_bridge_index_callback = { index, userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(Int(index))
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_segmented_picker_connect_selected(
+            qtHandle(segmentedPicker),
+            selectedChanged,
+            box,
+            destroy
+        )
+        return segmentedPicker
     }
 }
 #endif

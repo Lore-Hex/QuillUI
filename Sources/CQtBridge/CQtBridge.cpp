@@ -20,6 +20,8 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGridLayout>
+#include <QButtonGroup>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -30,6 +32,7 @@
 #include <QMenu>
 #include <QObject>
 #include <QPixmap>
+#include <QPointer>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRect>
@@ -1040,6 +1043,16 @@ void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget) {
     focusable->setFocus(Qt::OtherFocusReason);
 }
 
+void quill_qt_widget_request_focus_recursive_later(QuillQtWidgetHandle widget) {
+    QPointer<QWidget> target(asWidget(widget));
+    QTimer::singleShot(0, [target]() {
+        if (target.isNull()) {
+            return;
+        }
+        quill_qt_widget_request_focus_recursive(reinterpret_cast<QuillQtWidgetHandle>(target.data()));
+    });
+}
+
 void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget) {
     QWidget *target = asWidget(widget);
     QWidget *focused = QApplication::focusWidget();
@@ -1304,6 +1317,71 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     return reinterpret_cast<QuillQtWidgetHandle>(button);
 }
 
+void quill_qt_button_set_child(
+    QuillQtWidgetHandle button_handle,
+    QuillQtWidgetHandle child
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    QWidget *childWidget = asWidget(child);
+    if (button == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QHBoxLayout *layout = qobject_cast<QHBoxLayout *>(button->layout());
+    if (layout == nullptr) {
+        layout = new QHBoxLayout(button);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        button->setLayout(layout);
+    } else {
+        while (QLayoutItem *item = layout->takeAt(0)) {
+            if (QWidget *oldChild = item->widget()) {
+                oldChild->hide();
+                oldChild->setParent(nullptr);
+                oldChild->deleteLater();
+            }
+            delete item;
+        }
+    }
+
+    childWidget->setParent(button);
+    layout->addWidget(childWidget);
+    const QSize childSize = resolvedWidgetSize(childWidget);
+    button->setMinimumSize(childSize);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    childWidget->show();
+}
+
+void quill_qt_button_connect_pressed_changed(
+    QuillQtWidgetHandle button_handle,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    if (button == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(button, &QPushButton::pressed, button, [callback, user_data]() {
+            callback(1, user_data);
+        });
+        QObject::connect(button, &QPushButton::released, button, [callback, user_data]() {
+            callback(0, user_data);
+        });
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(button, &QObject::destroyed, button, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
 QuillQtWidgetHandle quill_qt_make_check_box(void) {
     QCheckBox *checkBox = new QCheckBox();
     return reinterpret_cast<QuillQtWidgetHandle>(checkBox);
@@ -1508,6 +1586,100 @@ void quill_qt_combo_box_connect_current_index_changed(
 
     if (destroy != nullptr) {
         QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+static QButtonGroup *segmentedPickerGroup(QWidget *container) {
+    if (container == nullptr) {
+        return nullptr;
+    }
+    return container->findChild<QButtonGroup *>("quill-segmented-picker-group");
+}
+
+QuillQtWidgetHandle quill_qt_make_segmented_picker(void) {
+    QWidget *container = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QButtonGroup *group = new QButtonGroup(container);
+    group->setObjectName("quill-segmented-picker-group");
+    group->setExclusive(true);
+
+    container->setStyleSheet(
+        "QPushButton {"
+        "  background: rgba(255, 255, 255, 0.68);"
+        "  border: 1px solid rgba(0, 0, 0, 0.20);"
+        "  border-radius: 6px;"
+        "  padding: 3px 10px;"
+        "  min-height: 24px;"
+        "}"
+        "QPushButton + QPushButton { margin-left: -1px; }"
+        "QPushButton:checked {"
+        "  background: rgba(53, 132, 228, 0.18);"
+        "  border-color: rgba(53, 132, 228, 0.52);"
+        "  color: #1c71d8;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: rgba(0, 0, 0, 0.38);"
+        "  background: rgba(255, 255, 255, 0.38);"
+        "}"
+    );
+
+    return reinterpret_cast<QuillQtWidgetHandle>(container);
+}
+
+void quill_qt_segmented_picker_add_item(
+    QuillQtWidgetHandle segmented_picker,
+    const char *text,
+    int index,
+    int selected
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QHBoxLayout *layout = container != nullptr ? qobject_cast<QHBoxLayout *>(container->layout()) : nullptr;
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (layout == nullptr || group == nullptr) {
+        return;
+    }
+
+    QPushButton *button = new QPushButton(utf8(text), container);
+    button->setCheckable(true);
+    button->setChecked(selected != 0);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    group->addButton(button, index);
+    layout->addWidget(button);
+}
+
+void quill_qt_segmented_picker_connect_selected(
+    QuillQtWidgetHandle segmented_picker,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (container == nullptr || group == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            group,
+            &QButtonGroup::idClicked,
+            container,
+            [callback, user_data](int index) {
+                callback(index, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(container, &QObject::destroyed, container, [destroy, user_data]() {
             destroy(user_data);
         });
     }

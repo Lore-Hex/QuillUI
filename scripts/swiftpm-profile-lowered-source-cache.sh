@@ -27,6 +27,7 @@ quillui_profile_validate_generic_swiftui_inputs() {
   local entry_type="$3"
   local backend_facade="$4"
   local root_dir="$5"
+  local qt_runtime_mode="${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}"
 
   if [[ -z "$source_dir" || -z "$work_root" || -z "$entry_type" ]]; then
     echo "generic-swiftui requires QUILLUI_PROFILE_SOURCE_DIR, QUILLUI_PROFILE_WORKDIR, and QUILLUI_PROFILE_ENTRY_TYPE" >&2
@@ -40,8 +41,10 @@ quillui_profile_validate_generic_swiftui_inputs() {
     echo "Refusing unsafe generic-swiftui work directory: ${work_root:-<empty>}" >&2
     return 73
   fi
-  if [[ "$backend_facade" == "qt" && -z "${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}" ]]; then
-    echo "generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
+  if [[ "$backend_facade" == "qt" \
+      && "$qt_runtime_mode" == "native" \
+      && -z "${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}" ]]; then
+    echo "generic-swiftui qt native facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
     return 64
   fi
 }

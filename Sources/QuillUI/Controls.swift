@@ -3185,7 +3185,7 @@ public struct QuillToolbarIconButton: View {
     }
 
     public var body: some View {
-        #if os(Linux)
+        #if os(Linux) && QUILLUI_GTK_BACKEND
         QuillGTKToolbarIconButton(
             systemImage: systemImage,
             showsChevron: showsChevron,
@@ -3253,7 +3253,7 @@ public struct QuillToolbarMenuButton: View {
     }
 
     public var body: some View {
-        #if os(Linux)
+        #if os(Linux) && QUILLUI_GTK_BACKEND
         QuillGTKToolbarMenuButton(
             systemImage: systemImage,
             showsChevron: showsChevron,

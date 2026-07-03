@@ -1747,6 +1747,13 @@ extension Button: GTKRenderable, GTKDescribable {
                 break // default GTK button styling
             }
         }
+        if !handledByQuillPaint, styleContext == nil {
+            gtkApplyButtonControlSize(
+                button,
+                size: environment.controlSize,
+                style: buttonStyleType
+            )
+        }
 
         gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)
         gtk_widget_set_vexpand(button, buttonWantsVExpand ? 1 : 0)
@@ -1874,6 +1881,28 @@ extension Button: GTKRenderable, GTKDescribable {
         gtkApplyEnabledState(to: button)
         return opaqueFromWidget(button)
     }
+}
+
+private func gtkApplyButtonControlSize(
+    _ button: UnsafeMutablePointer<GtkWidget>,
+    size: ControlSize,
+    style: ButtonStyleType
+) {
+    guard style != .plain else { return }
+    let css: String
+    switch size {
+    case .mini:
+        css = "padding: 1px 6px; min-height: 18px; font-size: 11px;"
+    case .small:
+        css = "padding: 3px 8px; min-height: 22px; font-size: 12px;"
+    case .regular:
+        return
+    case .large:
+        css = "padding: 8px 14px; min-height: 34px; font-size: 15px;"
+    case .extraLarge:
+        css = "padding: 10px 16px; min-height: 40px; font-size: 16px;"
+    }
+    applyCSSToWidget(button, properties: css)
 }
 
 // MARK: - keyboardShortcut GTK extension
@@ -7957,7 +7986,7 @@ private class SegmentClosureBox {
 extension Picker: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
-        switch style {
+        switch effectiveStyle {
         case .segmented, .palette:
             widget = gtkCreateSegmentedWidget()
         default:
@@ -7965,6 +7994,10 @@ extension Picker: GTKRenderable {
         }
         gtkApplyEnabledState(to: widgetFromOpaque(widget))
         return widget
+    }
+
+    private var effectiveStyle: PickerStyle {
+        style == .automatic ? getCurrentEnvironment().pickerStyle : style
     }
 
     /// True iff the caller wrapped us in `.labelsHidden()`. The

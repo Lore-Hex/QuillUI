@@ -34,8 +34,12 @@ lowering profiles:
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
 - `--backend-facade` optionally compiles the generated entry through
-  `QuillUIGtk` or the native `QuillGenericQtNativeRuntime` host instead of
-  the backend-neutral `QuillUI` launcher.
+  `QuillUIGtk` or `QuillUIQt` instead of the backend-neutral `QuillUI`
+  launcher. Qt can also use the native catalog host for fast smoke fixtures.
+- `--qt-runtime-mode` selects the Qt facade launch path: `generic` compiles
+  copied app sources through `QuillUIQt`, `native` launches a catalog entry
+  through `QuillGenericQtNativeRuntime`, and `auto` chooses native only when a
+  catalog entry is supplied.
 - `--target-layout-file` passes a TSV target layout to the generated package
   helper for multi-target SwiftPM app trees.
 - `--extra-package-dependencies-file` passes SwiftPM `.package(...)` lines
@@ -222,6 +226,12 @@ targets do not force remote test/doc packages to resolve. This keeps generated
 app builds on the checked-in source graph instead of making SwiftPM recreate
 remote working copies for packages such as Alamofire, NetworkImage, SwiftCMark,
 Sauce, or swift-collections.
+Each vendored SwiftPM package also carries a `.quillui-vendor-source-fingerprint`
+when the source can be identified. Clean git checkouts record the commit; cached
+or otherwise materialized source trees record a deterministic `tree:` hash after
+the same slim-copy exclusions are applied. If the original checkout is gone but
+`third_party/<package>` is already present, a normal non-`--check-vendored`
+vendoring run stamps the existing source snapshot instead of cloning.
 
 `--source-app` is the preferred path for shared agent work. The builder resolves
 `vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,
@@ -319,6 +329,7 @@ The package helper takes this stable environment contract:
 - `QUILLUI_GENERATED_BACKEND_FACADE`
 - `QUILLUI_GENERATED_APP_ENTRY_TYPE`
 - `QUILLUI_GENERATED_APP_MAIN_TYPE`
+- `QUILLUI_GENERATED_QT_RUNTIME_MODE`
 - `QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY`
 - `QUILLUI_GENERATED_REPORT_LABEL`
 
@@ -328,17 +339,24 @@ as a compatibility alias for older profile callers, and
 profiles. New profiles should use the backend-neutral entry flag.
 Use `QUILLUI_GENERATED_BACKEND_FACADE=gtk` or `qt` only when the generated
 package should import and link a backend-specific entry product directly. The
-GTK value uses `QuillUIGtk`; the Qt value links `QuillGenericQtNativeRuntime`
-and launches the catalog entry from `QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY`
-(`QuillGenericQtAppCatalog.quillChat` by default). Ordinary backend
-smoke/profile parity should continue to request the runtime backend with
-`QUILLUI_BACKEND`.
+GTK value uses `QuillUIGtk`. The Qt value defaults to real-source mode: with no
+native catalog entry it imports `QuillUIQt`, installs `QuillAppKitQt`, copies
+the lowered source tree, and compiles the app's Swift targets through the Qt
+backend facade.
 
-In `qt` facade mode the helper intentionally writes only the generated native
-launcher into the temporary package. The lowered source tree is still counted
-for reporting, but SwiftPM resolves the Qt-only QuillUI manifest and links only
-`QuillGenericQtNativeRuntime`; backend-neutral and GTK facade modes continue to
-copy and compile the lowered source tree with the compatibility products.
+Qt native-catalog mode remains available for fast smoke fixtures. Set
+`QUILLUI_GENERATED_QT_RUNTIME_MODE=native` plus
+`QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=QuillGenericQtAppCatalog.<case>`, or
+pass `--qt-native-catalog-entry` to the outer builder and leave
+`--qt-runtime-mode auto`. In that mode the helper writes only the generated
+native launcher into the temporary package; the lowered source tree is counted
+for reporting, but SwiftPM links `QuillGenericQtNativeRuntime` instead of
+compiling app source.
+
+Ordinary backend smoke/profile parity should continue to request the runtime
+backend with `QUILLUI_BACKEND`. App-source parity checks should use
+`--backend-facade qt --qt-runtime-mode generic` or omit the runtime flag and
+omit `--qt-native-catalog-entry`.
 
 Reusable fallback behavior should live in library targets, not in profiles.
 The `generic-swiftui` profile contains no app/source-shape rewrites. The current

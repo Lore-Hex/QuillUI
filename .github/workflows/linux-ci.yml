@@ -124,7 +124,11 @@ jobs:
         uses: ./.github/actions/lowered-source-cache
         with:
           cache-name: default
-          source-app: enchanted
+
+      - name: Restore prepared package cache
+        uses: ./.github/actions/prepared-package-cache
+        with:
+          cache-name: default
 
       - name: Fetch upstream sources
         env:
@@ -173,7 +177,9 @@ jobs:
       - name: Generated upstream Enchanted compile
         run: scripts/generated-enchanted-full-source-check.sh
 
-      - name: Generated Enchanted backend visual smokes
+      - name: Generated app backend visual smokes
+        env:
+          QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT: 30m
         run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'
 
       - name: Backend launch target visual smokes

@@ -95,6 +95,12 @@ struct QuillQtBackendManifestTests {
         #expect(manifest.contains("return [\n            // Runs inside the stripped Qt graph itself."))
         #expect(manifest.contains("name: \"QuillQtBackendManifestTests\""))
         #expect(manifest.contains("products = quillCanonicalLinuxAppProducts + ["))
+        #expect(manifest.contains(".library(name: \"AuthenticationServices\", targets: [\"AuthenticationServices\"])"))
+        #expect(manifest.contains(".library(name: \"CryptoKit\", targets: [\"CryptoKit\"])"))
+        #expect(manifest.contains(".library(name: \"Security\", targets: [\"Security\"])"))
+        #expect(manifest.contains("name: \"AuthenticationServices\", dependencies: [\"QuillFoundation\"], path: \"Sources/AppleFrameworkShims/AuthenticationServices\""))
+        #expect(manifest.contains("name: \"CryptoKit\", dependencies: [.product(name: \"Crypto\", package: \"swift-crypto\")], path: \"Sources/CryptoKitShim\""))
+        #expect(manifest.contains("name: \"Security\", dependencies: [\"QuillKit\"], path: \"Sources/Security\""))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
         #expect(manifest.contains("allPackageDependencies = quillDataPackageDependencies"))
         // `var` (not `let`): SwiftProtobuf/swift-crypto are appended only when the
@@ -234,6 +240,28 @@ struct QuillQtBackendManifestTests {
             #expect(snapshot.noticeTitle == "Quill is unreachable.")
             #expect(!snapshot.noticeBody.isEmpty)
             #expect(snapshot.noticeActionTitle == EnchantedCopy.settingsTitle)
+        }
+    }
+
+    @Test("Generated QuillCode Qt catalog uses the agent workspace presentation")
+    func generatedQuillCodeQtCatalogUsesAgentWorkspacePresentation() throws {
+        let snapshot = QuillGenericQtAppCatalog.quillCode
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let encodedSnapshot = try encoder.encode(snapshot)
+        let decodedSnapshot = try JSONDecoder().decode(QuillGenericQtAppSnapshot.self, from: encodedSnapshot)
+
+        for snapshot in [snapshot, decodedSnapshot] {
+            #expect(snapshot.presentation == .chat)
+            #expect(snapshot.windowTitle == "QuillCode")
+            #expect(snapshot.sidebarTitle == "QuillCode")
+            #expect(snapshot.emptyStateTitle == "QuillCode")
+            #expect(snapshot.composerPlaceholder == "Message QuillCode")
+            #expect(snapshot.selectedIndexEnvironmentKeys.contains("QUILLUI_QUILLCODE_SELECTED_THREAD_INDEX_ON_START"))
+            #expect(snapshot.selectedIndexEnvironmentKeys.contains("QUILLUI_CHAT_SELECTED_THREAD_INDEX_ON_START"))
+            #expect(snapshot.items.count >= 3)
+            #expect(snapshot.sections.map(\.title).contains("Workspace context"))
+            #expect(snapshot.messages.contains { $0.body.contains("generated Qt native entry") })
         }
     }
 

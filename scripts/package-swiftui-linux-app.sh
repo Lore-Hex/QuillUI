@@ -12,6 +12,8 @@ APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
 BACKEND_FACADE="${QUILLUI_APP_BACKEND_FACADE:-gtk}"
+QT_RUNTIME_MODE="${QUILLUI_APP_QT_RUNTIME_MODE:-${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}}"
+QT_NATIVE_CATALOG_ENTRY="${QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY:-${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}}"
 ARTIFACT_DIR="${QUILLUI_APP_RELEASE_DIR:-}"
 TARBALL_PATH="${QUILLUI_APP_RELEASE_TARBALL:-}"
 APP_DISPLAY_NAME="${QUILLUI_APP_DISPLAY_NAME:-}"
@@ -43,6 +45,10 @@ Options:
   --backend-facade NAME Select QuillUI, QuillUIGtk, or the native Qt runtime
                         for the generated entry. Allowed: swiftui, gtk, qt.
                         Defaults to gtk for release artifacts.
+  --qt-runtime-mode MODE
+                        Qt facade launch mode. Allowed: auto, generic, native.
+  --qt-native-catalog-entry TYPE
+                        QuillGenericQtAppCatalog entry used by native Qt mode.
   --artifact-dir PATH   Directory to write the runnable artifact.
   --tarball PATH        Also create a .tar.gz archive at PATH.
   --display-name NAME   Human-readable app name for metadata.
@@ -64,6 +70,8 @@ Environment aliases:
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
   QUILLUI_APP_BACKEND_FACADE
+  QUILLUI_APP_QT_RUNTIME_MODE
+  QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY
   QUILLUI_APP_RELEASE_DIR
   QUILLUI_APP_RELEASE_TARBALL
   QUILLUI_APP_DISPLAY_NAME
@@ -210,6 +218,14 @@ while [[ $# -gt 0 ]]; do
       BACKEND_FACADE="${2:-}"
       shift 2
       ;;
+    --qt-runtime-mode)
+      QT_RUNTIME_MODE="${2:-}"
+      shift 2
+      ;;
+    --qt-native-catalog-entry)
+      QT_NATIVE_CATALOG_ENTRY="${2:-}"
+      shift 2
+      ;;
     --artifact-dir)
       ARTIFACT_DIR="${2:-}"
       shift 2
@@ -336,6 +352,7 @@ require_safe_output_dir "$ARTIFACT_DIR" "--artifact-dir"
 
 ARTIFACT_PATH_FILE="$WORK_ROOT/.quillui-artifact-path"
 BUILD_SOURCE_ARGS=()
+BUILD_QT_ARGS=()
 if [[ -n "$SOURCE_APP" ]]; then
   BUILD_SOURCE_ARGS=(--source-app "$SOURCE_APP")
   if [[ -n "$SOURCE_SUBDIR" ]]; then
@@ -343,6 +360,12 @@ if [[ -n "$SOURCE_APP" ]]; then
   fi
 else
   BUILD_SOURCE_ARGS=(--source-dir "$SOURCE_DIR")
+fi
+if [[ -n "$QT_RUNTIME_MODE" ]]; then
+  BUILD_QT_ARGS+=(--qt-runtime-mode "$QT_RUNTIME_MODE")
+fi
+if [[ -n "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+  BUILD_QT_ARGS+=(--qt-native-catalog-entry "$QT_NATIVE_CATALOG_ENTRY")
 fi
 
 "$ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
@@ -352,6 +375,7 @@ fi
   --product-name "$PRODUCT_NAME" \
   --workdir "$WORK_ROOT" \
   --backend-facade "$NORMALIZED_BACKEND_FACADE" \
+  "${BUILD_QT_ARGS[@]}" \
   --artifact-path-file "$ARTIFACT_PATH_FILE"
 
 ARTIFACT_PATH="$(cat "$ARTIFACT_PATH_FILE")"
