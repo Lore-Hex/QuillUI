@@ -2813,11 +2813,6 @@ public extension View {
         }
     }
 
-    func pickerStyle(_ style: PickerStyle) -> Self {
-        _ = style
-        return self
-    }
-
     func scrollDismissesKeyboard(_ mode: ScrollDismissesKeyboardMode) -> Self {
         _ = mode
         return self

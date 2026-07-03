@@ -445,6 +445,26 @@ void quill_qt_combo_box_connect_current_index_changed(
     quill_qt_bridge_click_callback destroy
 );
 
+// Create a segmented picker backed by exclusive checkable buttons.
+QuillQtWidgetHandle quill_qt_make_segmented_picker(void);
+
+// Add one UTF-8 segment to the segmented picker.
+void quill_qt_segmented_picker_add_item(
+    QuillQtWidgetHandle segmented_picker,
+    const char *text,
+    int index,
+    int selected
+);
+
+// Connect selected segment changes to Swift. `destroy` releases `user_data`
+// when the segmented picker is destroyed.
+void quill_qt_segmented_picker_connect_selected(
+    QuillQtWidgetHandle segmented_picker,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
 // Create a QToolButton with an owned QMenu and popup mode configured so
 // clicking the button opens the menu.
 QuillQtWidgetHandle quill_qt_make_menu_button(void);

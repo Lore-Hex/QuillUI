@@ -7986,7 +7986,7 @@ private class SegmentClosureBox {
 extension Picker: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
-        switch style {
+        switch effectiveStyle {
         case .segmented, .palette:
             widget = gtkCreateSegmentedWidget()
         default:
@@ -7994,6 +7994,10 @@ extension Picker: GTKRenderable {
         }
         gtkApplyEnabledState(to: widgetFromOpaque(widget))
         return widget
+    }
+
+    private var effectiveStyle: PickerStyle {
+        style == .automatic ? getCurrentEnvironment().pickerStyle : style
     }
 
     /// True iff the caller wrapped us in `.labelsHidden()`. The

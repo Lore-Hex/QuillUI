@@ -7,6 +7,17 @@ public enum PickerStyle {
     case inline
 }
 
+private struct PickerStyleKey: EnvironmentKey {
+    static let defaultValue = PickerStyle.automatic
+}
+
+public extension EnvironmentValues {
+    var pickerStyle: PickerStyle {
+        get { self[PickerStyleKey.self] }
+        set { self[PickerStyleKey.self] = newValue }
+    }
+}
+
 /// A dropdown picker or segmented toggle control.
 public struct Picker: View {
     public typealias Body = Never
@@ -126,6 +137,12 @@ public struct Picker: View {
     }
 
     public var body: Never { fatalError("Picker is a primitive view") }
+}
+
+public extension View {
+    func pickerStyle(_ style: PickerStyle) -> EnvironmentModifierView<Self, PickerStyle> {
+        environment(\.pickerStyle, style)
+    }
 }
 
 // MARK: - Tag extraction walker

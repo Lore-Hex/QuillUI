@@ -20,6 +20,8 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGridLayout>
+#include <QButtonGroup>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -1519,6 +1521,100 @@ void quill_qt_combo_box_connect_current_index_changed(
 
     if (destroy != nullptr) {
         QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+static QButtonGroup *segmentedPickerGroup(QWidget *container) {
+    if (container == nullptr) {
+        return nullptr;
+    }
+    return container->findChild<QButtonGroup *>("quill-segmented-picker-group");
+}
+
+QuillQtWidgetHandle quill_qt_make_segmented_picker(void) {
+    QWidget *container = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QButtonGroup *group = new QButtonGroup(container);
+    group->setObjectName("quill-segmented-picker-group");
+    group->setExclusive(true);
+
+    container->setStyleSheet(
+        "QPushButton {"
+        "  background: rgba(255, 255, 255, 0.68);"
+        "  border: 1px solid rgba(0, 0, 0, 0.20);"
+        "  border-radius: 6px;"
+        "  padding: 3px 10px;"
+        "  min-height: 24px;"
+        "}"
+        "QPushButton + QPushButton { margin-left: -1px; }"
+        "QPushButton:checked {"
+        "  background: rgba(53, 132, 228, 0.18);"
+        "  border-color: rgba(53, 132, 228, 0.52);"
+        "  color: #1c71d8;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: rgba(0, 0, 0, 0.38);"
+        "  background: rgba(255, 255, 255, 0.38);"
+        "}"
+    );
+
+    return reinterpret_cast<QuillQtWidgetHandle>(container);
+}
+
+void quill_qt_segmented_picker_add_item(
+    QuillQtWidgetHandle segmented_picker,
+    const char *text,
+    int index,
+    int selected
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QHBoxLayout *layout = container != nullptr ? qobject_cast<QHBoxLayout *>(container->layout()) : nullptr;
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (layout == nullptr || group == nullptr) {
+        return;
+    }
+
+    QPushButton *button = new QPushButton(utf8(text), container);
+    button->setCheckable(true);
+    button->setChecked(selected != 0);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    group->addButton(button, index);
+    layout->addWidget(button);
+}
+
+void quill_qt_segmented_picker_connect_selected(
+    QuillQtWidgetHandle segmented_picker,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (container == nullptr || group == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            group,
+            &QButtonGroup::idClicked,
+            container,
+            [callback, user_data](int index) {
+                callback(index, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(container, &QObject::destroyed, container, [destroy, user_data]() {
             destroy(user_data);
         });
     }

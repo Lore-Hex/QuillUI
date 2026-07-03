@@ -9182,6 +9182,40 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("case .borderedProminent, .quillPaintMacDefault:"))
     }
 
+    @Test("SwiftUI pickerStyle drives segmented GTK and Qt picker rendering")
+    func swiftUIPickerStyleRendersSegmentedPickersThroughLinuxBackends() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let picker = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Picker.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+        let quillCodeSettings = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeSettingsView.swift"
+        )
+
+        #expect(quillCodeSettings.contains(".pickerStyle(.segmented)"))
+        #expect(picker.contains("private struct PickerStyleKey: EnvironmentKey"))
+        #expect(picker.contains("var pickerStyle: PickerStyle"))
+        #expect(picker.contains("func pickerStyle(_ style: PickerStyle) -> EnvironmentModifierView<Self, PickerStyle>"))
+        #expect(picker.contains("environment(\\.pickerStyle, style)"))
+        #expect(!compatibility.contains("func pickerStyle(_ style: PickerStyle) -> Self"))
+        #expect(gtkRenderer.contains("switch effectiveStyle"))
+        #expect(gtkRenderer.contains("style == .automatic ? getCurrentEnvironment().pickerStyle : style"))
+        #expect(gtkRenderer.contains("gtkCreateSegmentedWidget()"))
+        #expect(qtRenderer.contains("switch effectiveStyle"))
+        #expect(qtRenderer.contains("style == .automatic ? getCurrentEnvironment().pickerStyle : style"))
+        #expect(qtRenderer.contains("qtCreateSegmentedPicker()"))
+        #expect(qtRenderer.contains("quill_qt_make_segmented_picker()"))
+        #expect(qtRenderer.contains("quill_qt_segmented_picker_add_item("))
+        #expect(qtRenderer.contains("quill_qt_segmented_picker_connect_selected("))
+        #expect(cqtHeader.contains("quill_qt_make_segmented_picker"))
+        #expect(cqtHeader.contains("quill_qt_segmented_picker_add_item"))
+        #expect(cqtHeader.contains("quill_qt_segmented_picker_connect_selected"))
+        #expect(cqtBridge.contains("QButtonGroup *group = new QButtonGroup(container)"))
+        #expect(cqtBridge.contains("&QButtonGroup::idClicked"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(

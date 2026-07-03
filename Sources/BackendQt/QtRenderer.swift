@@ -1467,6 +1467,19 @@ extension Toggle: QtRenderable {
 
 extension Picker: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        switch effectiveStyle {
+        case .segmented, .palette:
+            return qtCreateSegmentedPicker()
+        default:
+            return qtCreateComboBoxPicker()
+        }
+    }
+
+    private var effectiveStyle: PickerStyle {
+        style == .automatic ? getCurrentEnvironment().pickerStyle : style
+    }
+
+    private func qtCreateComboBoxPicker() -> OpaquePointer {
         let comboBox = qtOpaque(quill_qt_make_combo_box())
         for option in options {
             quill_qt_combo_box_add_item(qtHandle(comboBox), option)
@@ -1507,6 +1520,52 @@ extension Picker: QtRenderable {
             destroy
         )
         return comboBox
+    }
+
+    private func qtCreateSegmentedPicker() -> OpaquePointer {
+        let segmentedPicker = qtOpaque(quill_qt_make_segmented_picker())
+        let selectedIndex = options.indices.contains(selected)
+            ? selected
+            : (options.isEmpty ? -1 : 0)
+        for (index, option) in options.enumerated() {
+            quill_qt_segmented_picker_add_item(
+                qtHandle(segmentedPicker),
+                option,
+                Int32(index),
+                index == selectedIndex ? 1 : 0
+            )
+        }
+
+        guard let onChanged else {
+            return segmentedPicker
+        }
+
+        let box = Unmanaged.passRetained(QtIntClosureBox { newIndex in
+            guard options.indices.contains(newIndex), newIndex != selectedIndex else {
+                return
+            }
+            onChanged(newIndex)
+        }).toOpaque()
+
+        let selectedChanged: quill_qt_bridge_index_callback = { index, userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure(Int(index))
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtIntClosureBox>.fromOpaque(userData).release()
+        }
+
+        quill_qt_segmented_picker_connect_selected(
+            qtHandle(segmentedPicker),
+            selectedChanged,
+            box,
+            destroy
+        )
+        return segmentedPicker
     }
 }
 #endif
