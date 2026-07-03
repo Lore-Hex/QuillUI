@@ -115,6 +115,7 @@ jobs:
           scripts/package-swiftui-linux-app.sh \
             --profile enchanted-full-source \
             --source-app enchanted \
+            --require-vendored-source \
             --source-subdir Enchanted \
             --app-type EnchantedApp \
             --product-name quill-chat-linux \

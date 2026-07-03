@@ -8,6 +8,7 @@ PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
 SOURCE_APP="${QUILLUI_APP_SOURCE_APP:-}"
 SOURCE_SUBDIR="${QUILLUI_APP_SOURCE_SUBDIR:-}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
+REQUIRE_VENDORED_SOURCE="${QUILLUI_APP_REQUIRE_VENDORED_SOURCE:-0}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
 WORK_ROOT="${QUILLUI_APP_BUILD_WORKDIR:-}"
@@ -37,6 +38,9 @@ Options:
   --source-app NAME     Resolve source from vendor/apps/NAME first, then
                         .upstream/NAME. Use with --source-subdir for app
                         trees whose Swift sources live below the checkout root.
+  --require-vendored-source
+                        Fail when --source-app would resolve through .upstream
+                        instead of the checked-in vendor/apps/NAME snapshot.
   --source-subdir PATH  Relative source path inside --source-app checkout.
   --source-dir PATH     Directory containing the app's Swift sources.
   --app-type TYPE       Swift App type to launch through the generated entry.
@@ -66,6 +70,7 @@ Environment aliases:
   QUILLUI_APP_SOURCE_APP
   QUILLUI_APP_SOURCE_SUBDIR
   QUILLUI_APP_SOURCE_DIR
+  QUILLUI_APP_REQUIRE_VENDORED_SOURCE
   QUILLUI_APP_ENTRY_TYPE
   QUILLUI_APP_PRODUCT_NAME
   QUILLUI_APP_BUILD_WORKDIR
@@ -198,6 +203,14 @@ while [[ $# -gt 0 ]]; do
       SOURCE_SUBDIR="${2:-}"
       shift 2
       ;;
+    --require-vendored-source)
+      REQUIRE_VENDORED_SOURCE=1
+      shift
+      ;;
+    --allow-upstream-source)
+      REQUIRE_VENDORED_SOURCE=0
+      shift
+      ;;
     --source-dir)
       SOURCE_DIR="${2:-}"
       shift 2
@@ -328,6 +341,7 @@ if [[ -z "$APP_ID" ]]; then
 fi
 validate_app_id "$APP_ID"
 validate_boolean_flag "$BUNDLE_SWIFT_RUNTIME" "QUILLUI_APP_BUNDLE_SWIFT_RUNTIME"
+validate_boolean_flag "$REQUIRE_VENDORED_SOURCE" "QUILLUI_APP_REQUIRE_VENDORED_SOURCE"
 
 if [[ -z "$DESKTOP_EXEC" ]]; then
   DESKTOP_EXEC="$PRODUCT_NAME"
@@ -357,6 +371,9 @@ if [[ -n "$SOURCE_APP" ]]; then
   BUILD_SOURCE_ARGS=(--source-app "$SOURCE_APP")
   if [[ -n "$SOURCE_SUBDIR" ]]; then
     BUILD_SOURCE_ARGS+=(--source-subdir "$SOURCE_SUBDIR")
+  fi
+  if [[ "$REQUIRE_VENDORED_SOURCE" == "1" ]]; then
+    BUILD_SOURCE_ARGS+=(--require-vendored-source)
   fi
 else
   BUILD_SOURCE_ARGS=(--source-dir "$SOURCE_DIR")

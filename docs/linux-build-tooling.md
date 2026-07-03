@@ -21,6 +21,9 @@ lowering profiles:
 - `--source-app` points at a vendored or upstream app checkout by name. The
   builder resolves `vendor/apps/<name>` first and `.upstream/<name>` second, so
   repeated local/CI runs can avoid clone/fetch work once source is vendored.
+  Pass `--require-vendored-source` (or set
+  `QUILLUI_APP_REQUIRE_VENDORED_SOURCE=1`) for CI and long-running agent loops
+  that should fail fast instead of falling back to a slower `.upstream` tree.
 - `--source-subdir` selects the Swift source directory inside that checkout,
   such as `CodeEdit` for the vendored CodeEdit Xcode project.
 - `--package-root` optionally points at the app's SwiftPM package root. When

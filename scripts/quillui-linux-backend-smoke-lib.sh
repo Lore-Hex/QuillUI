@@ -721,6 +721,7 @@ quillui_resolve_generated_app_executable() {
   local build_args=(
     --profile "$profile"
     --source-app "$source_app"
+    --require-vendored-source
     --app-type "$app_type"
     --product-name "$product"
     --backend-facade "$backend_facade"

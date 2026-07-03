@@ -10,6 +10,7 @@ PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
 SOURCE_APP="${QUILLUI_APP_SOURCE_APP:-}"
 SOURCE_SUBDIR="${QUILLUI_APP_SOURCE_SUBDIR:-}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
+REQUIRE_VENDORED_SOURCE="${QUILLUI_APP_REQUIRE_VENDORED_SOURCE:-0}"
 PACKAGE_ROOT="${QUILLUI_APP_PACKAGE_ROOT:-}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 ENTRY_TARGET="${QUILLUI_APP_ENTRY_TARGET:-}"
@@ -46,6 +47,9 @@ Options:
   --source-app NAME     Resolve source from vendor/apps/NAME first, then
                         .upstream/NAME. Use with --source-subdir for app
                         trees whose Swift sources live below the checkout root.
+  --require-vendored-source
+                        Fail when --source-app would resolve through .upstream
+                        instead of the checked-in vendor/apps/NAME snapshot.
   --source-subdir PATH  Relative source path inside --source-app checkout.
   --source-dir PATH     Directory containing the app's Swift sources.
   --package-root PATH   Optional SwiftPM package root used to auto-derive
@@ -100,6 +104,7 @@ Environment aliases:
   QUILLUI_APP_SOURCE_APP
   QUILLUI_APP_SOURCE_SUBDIR
   QUILLUI_APP_SOURCE_DIR
+  QUILLUI_APP_REQUIRE_VENDORED_SOURCE=0
   QUILLUI_APP_PACKAGE_ROOT
   QUILLUI_APP_ENTRY_TYPE
   QUILLUI_APP_ENTRY_TARGET
@@ -548,6 +553,14 @@ while [[ $# -gt 0 ]]; do
       SOURCE_SUBDIR="${2:-}"
       shift 2
       ;;
+    --require-vendored-source)
+      REQUIRE_VENDORED_SOURCE=1
+      shift
+      ;;
+    --allow-upstream-source)
+      REQUIRE_VENDORED_SOURCE=0
+      shift
+      ;;
     --source-dir)
       SOURCE_DIR="${2:-}"
       shift 2
@@ -703,6 +716,7 @@ fi
 validate_vendor_swiftpm_sources_mode "$VENDOR_SWIFTPM_SOURCES" "QUILLUI_APP_VENDOR_SWIFTPM_SOURCES"
 validate_boolean_flag "$VENDOR_SWIFTPM_RESOLVE" "QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE"
 validate_boolean_flag "$REUSE_BUILD_SCRATCH" "QUILLUI_APP_REUSE_BUILD_SCRATCH"
+validate_boolean_flag "$REQUIRE_VENDORED_SOURCE" "QUILLUI_APP_REQUIRE_VENDORED_SOURCE"
 QT_RUNTIME_MODE="$(normalize_qt_runtime_mode "$QT_RUNTIME_MODE")"
 
 if truthy_flag "$VENDOR_SWIFTPM_SOURCES" && [[ -z "$SOURCE_APP" ]]; then
@@ -711,7 +725,21 @@ if truthy_flag "$VENDOR_SWIFTPM_SOURCES" && [[ -z "$SOURCE_APP" ]]; then
 fi
 
 if [[ -z "$SOURCE_DIR" && -n "$SOURCE_APP" ]]; then
-  if ! SOURCE_CHECKOUT_DIR="$(quillui_resolve_app_checkout_dir "$ROOT_DIR" "$SOURCE_APP")"; then
+  if truthy_flag "$REQUIRE_VENDORED_SOURCE"; then
+    if ! SOURCE_CHECKOUT_DIR="$(quillui_vendored_app_source_dir "$ROOT_DIR" "$SOURCE_APP")"; then
+      cat >&2 <<MSG
+Vendored app source is required for:
+  $SOURCE_APP
+
+Expected:
+  $ROOT_DIR/vendor/apps/$SOURCE_APP
+
+Run scripts/vendor-swiftui-app-source.sh $SOURCE_APP <checkout> before building,
+or pass --allow-upstream-source for a deliberately slower .upstream build.
+MSG
+      exit 66
+    fi
+  elif ! SOURCE_CHECKOUT_DIR="$(quillui_resolve_app_checkout_dir "$ROOT_DIR" "$SOURCE_APP")"; then
     cat >&2 <<MSG
 Vendored app source was not found for:
   $SOURCE_APP
