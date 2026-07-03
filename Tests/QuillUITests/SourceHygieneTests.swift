@@ -5289,6 +5289,10 @@ struct SourceHygieneTests {
         let workflows = try workflowPaths
             .map { try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
             .joined(separator: "\n")
+        let linuxWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
         let shellSyntaxCheck = try String(
             contentsOf: root.appendingPathComponent("scripts/check-shell-syntax.sh"),
             encoding: .utf8
@@ -5301,6 +5305,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent(".github/actions/lowered-source-cache/action.yml"),
             encoding: .utf8
         )
+        let preparedPackageCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/prepared-package-cache/action.yml"),
+            encoding: .utf8
+        )
         let upstreamFetch = try String(
             contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
             encoding: .utf8
@@ -5310,6 +5318,10 @@ struct SourceHygieneTests {
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
         #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
         #expect(workflows.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(workflows.contains("uses: ./.github/actions/prepared-package-cache"))
+        #expect(linuxWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(linuxWorkflow.contains("uses: ./.github/actions/prepared-package-cache"))
+        #expect(!linuxWorkflow.contains("source-app: enchanted"))
         #expect(workflows.contains("QUILLUI_TRUST_UPSTREAM_CACHE: \"1\""))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
@@ -5317,6 +5329,9 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("uses: actions/cache@v6"))
         #expect(upstreamCacheAction.contains("path: .upstream"))
         #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
+        #expect(upstreamCacheAction.contains("scripts/quillui-vendored-source.sh"))
+        #expect(upstreamCacheAction.contains("vendor/apps"))
+        #expect(upstreamCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
         #expect(upstreamCacheAction.contains("restore-keys:"))
         #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
         #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
@@ -5330,6 +5345,21 @@ struct SourceHygieneTests {
         #expect(loweredSourceCacheAction.contains("Sources/QuillSourceLowering"))
         #expect(loweredSourceCacheAction.contains("vendor/apps"))
         #expect(loweredSourceCacheAction.contains("restore-keys:"))
+        #expect(preparedPackageCacheAction.contains("uses: actions/cache@v6"))
+        #expect(preparedPackageCacheAction.contains(".build/quillui-prepared-packages-cache"))
+        #expect(preparedPackageCacheAction.contains(".build/quillui-vendored-swiftpm-source-stamps"))
+        #expect(preparedPackageCacheAction.contains("source-app:"))
+        #expect(preparedPackageCacheAction.contains("source_paths=(vendor/apps)"))
+        #expect(preparedPackageCacheAction.contains("source_paths=(\"vendor/apps/$source_app\")"))
+        #expect(preparedPackageCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
+        #expect(preparedPackageCacheAction.contains("quillui-${{ runner.os }}-prepared-packages-${{ inputs.cache-name }}-"))
+        #expect(preparedPackageCacheAction.contains("scripts/vendor-swiftpm-sources.sh"))
+        #expect(preparedPackageCacheAction.contains("scripts/quillui-vendored-source.sh"))
+        #expect(preparedPackageCacheAction.contains("scripts/prepare-swiftui-linux-package-dependencies.py"))
+        #expect(preparedPackageCacheAction.contains("scripts/discover-local-swiftpm-import-dependencies.py"))
+        #expect(preparedPackageCacheAction.contains("third_party"))
+        #expect(preparedPackageCacheAction.contains("vendor/apps"))
+        #expect(preparedPackageCacheAction.contains("restore-keys:"))
         #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
         #expect(upstreamFetch.contains("using cached $name"))
         #expect(upstreamFetch.contains("reset_repo_to_commit"))

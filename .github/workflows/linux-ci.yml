@@ -124,7 +124,11 @@ jobs:
         uses: ./.github/actions/lowered-source-cache
         with:
           cache-name: default
-          source-app: enchanted
+
+      - name: Restore prepared package cache
+        uses: ./.github/actions/prepared-package-cache
+        with:
+          cache-name: default
 
       - name: Fetch upstream sources
         env:
