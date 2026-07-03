@@ -1043,8 +1043,15 @@ extension HelpView: QtRenderable {
 
 extension DisabledView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        let previousEnvironment = getCurrentEnvironment()
+        var environment = previousEnvironment
+        let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled
+        environment.isEnabled = effectiveIsEnabled
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+
         let widget = qtRenderView(content)
-        if isDisabled {
+        if !effectiveIsEnabled {
             quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)
         }
         return widget

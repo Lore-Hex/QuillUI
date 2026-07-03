@@ -3619,6 +3619,11 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("extension HelpView: QtRenderable"))
         #expect(qtRenderer.contains("quill_qt_widget_set_tooltip_recursive(qtHandle(widget), text)"))
         #expect(qtRenderer.contains("extension DisabledView: QtRenderable"))
+        #expect(qtRenderer.contains("let previousEnvironment = getCurrentEnvironment()"))
+        #expect(qtRenderer.contains("let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled"))
+        #expect(qtRenderer.contains("environment.isEnabled = effectiveIsEnabled"))
+        #expect(qtRenderer.contains("defer { setCurrentEnvironment(previousEnvironment) }"))
+        #expect(qtRenderer.contains("if !effectiveIsEnabled {"))
         #expect(qtRenderer.contains("quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)"))
         #expect(qtRenderer.contains("extension FocusedView: QtRenderable"))
         #expect(qtRenderer.contains("extension FocusedEqualsView: QtRenderable"))
@@ -9329,10 +9334,14 @@ struct SourceHygieneTests {
         let quillCodeTerminal = try packageSource(
             "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeTerminalPaneView.swift"
         )
+        let quillCodeComposer = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeComposerView.swift"
+        )
 
         #expect(enchantedButtonStyle.contains("struct GrowingButton: ButtonStyle"))
         #expect(quillCodeDesign.contains("struct QuillCodePressableButtonStyle: ButtonStyle"))
         #expect(quillCodeTerminal.contains(".textFieldStyle(.roundedBorder)"))
+        #expect(quillCodeComposer.contains(".disabled("))
         #expect(controlStyles.contains("public struct CustomButtonStyleModifier<Content: View>: View, PrimitiveView"))
         #expect(controlStyles.contains("public var customButtonStyle: AnyButtonStyle?"))
         #expect(qtRenderer.contains("private final class QtCustomButtonStyleContext"))
@@ -9343,6 +9352,7 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("environment.customButtonStyle = style"))
         #expect(qtRenderer.contains("quill_qt_button_set_child(qtHandle(button), qtHandle(child))"))
         #expect(qtRenderer.contains("quill_qt_button_connect_pressed_changed("))
+        #expect(qtRenderer.contains("let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled"))
         #expect(qtRenderer.contains("extension TextFieldStyleModifier: QtRenderable"))
         #expect(qtRenderer.contains("qtApplyTextFieldStyle(to: lineEdit, style: environment.textFieldStyle)"))
         #expect(cqtHeader.contains("quill_qt_button_set_child"))
