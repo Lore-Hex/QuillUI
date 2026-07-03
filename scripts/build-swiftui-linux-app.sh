@@ -731,6 +731,21 @@ if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" && -z "${QUILLUI_GENERATED_QT_NATIVE_
   export QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY
 fi
 
+# A generated generic-swiftui app on the Qt facade IS the generic SwiftUI -> Qt
+# dual-backend path, so it must resolve against the qt-GENERIC QuillUI graph.
+# The plain-qt "reset" graph does NOT vend the shim products a generated app's
+# vendored dependencies pull in (verified via `swift package dump-package`:
+# under QUILLUI_QT_GENERIC=1 QuillUI vends AuthenticationServices/CryptoKit/
+# Security/QuillShims; under plain qt it vends none of them). trusted-router-swift
+# requires those, so the plain-qt build fails resolution. Export the flag NOW —
+# before the package is generated, its dependencies prepared, and swift build
+# resolves the graph — because that resolution (not just the final build) needs
+# the qt-generic manifest. Scope to the generic-swiftui profile so the canonical
+# native apps (enchanted-full-source) keep the plain-qt reset; explicit override wins.
+if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" && "$PROFILE" == "generic-swiftui" && -z "${QUILLUI_QT_GENERIC:-}" ]]; then
+  export QUILLUI_QT_GENERIC=1
+fi
+
 if [[ -n "$BUILD_SCRATCH" ]]; then
   BUILD_SCRATCH="$(absolute_path_from_root "$BUILD_SCRATCH")"
 else
@@ -800,6 +815,8 @@ if [[ "$quillui_runtime_only_macros" == "1" ]] && quillui_generated_source_requi
 fi
 
 if [[ "$NORMALIZED_BACKEND_FACADE" == "qt" ]]; then
+  # QUILLUI_QT_GENERIC (for generic-swiftui apps) is exported above so it reaches
+  # generation + dependency preparation + this build uniformly.
   BIN_DIR="$(QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     --disable-index-store \
     --package-path "$WORK_ROOT/package" \
