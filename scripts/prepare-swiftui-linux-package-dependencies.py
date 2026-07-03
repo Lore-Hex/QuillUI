@@ -279,7 +279,12 @@ def unique_strings(values: list[str]) -> list[str]:
     return result
 
 
-def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) -> Path | None:
+def local_candidate_for_url(
+    root_dir: Path,
+    url: str,
+    package_name: str | None,
+    search_roots: tuple[str, ...] = ("third_party", ".upstream", "vendor/apps"),
+) -> Path | None:
     identity = package_identity_from_url(url)
     identity_key = identity.lower()
     identities = [identity, identity_key]
@@ -290,7 +295,7 @@ def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) 
     identities = unique_strings(identities)
 
     candidates: list[Path] = []
-    for base in ("third_party", ".upstream", "vendor/apps"):
+    for base in search_roots:
         for item in identities:
             candidates.append(root_dir / base / item)
 
@@ -299,7 +304,7 @@ def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) 
             return candidate.resolve()
 
     normalized_identities = {normalized_package_component(item) for item in identities}
-    for base in ("third_party", ".upstream", "vendor/apps"):
+    for base in search_roots:
         directory = root_dir / base
         if not directory.is_dir():
             continue
@@ -1152,10 +1157,11 @@ def prepare_package(
     return prepared_dir
 
 
-def resolved_package_dir(root_dir: Path, parsed: PackageLine) -> Path | None:
+def resolved_package_dir(root_dir: Path, parsed: PackageLine, require_vendored_sources: bool = False) -> Path | None:
     package_dir = parsed.path.resolve() if parsed.path else None
     if package_dir is None and parsed.url:
-        package_dir = local_candidate_for_url(root_dir, parsed.url, parsed.package_name)
+        search_roots = ("third_party",) if require_vendored_sources else ("third_party", ".upstream", "vendor/apps")
+        package_dir = local_candidate_for_url(root_dir, parsed.url, parsed.package_name, search_roots)
     if package_dir is None or not (package_dir / "Package.swift").is_file():
         return None
     return package_dir.resolve()
@@ -1167,9 +1173,10 @@ def rewritten_line(
     line: str,
     skip_source_lowering: bool,
     materialized: dict[Path, Path],
+    require_vendored_sources: bool = False,
 ) -> str:
     parsed = parse_package_line(line)
-    package_dir = resolved_package_dir(root_dir, parsed)
+    package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
     if package_dir is None or not (package_dir / "Package.swift").is_file():
         return parsed.original
 
@@ -1206,7 +1213,7 @@ def main() -> int:
         parsed = parse_package_line(stripped)
         if is_quill_provided_package(parsed):
             continue
-        package_dir = resolved_package_dir(root_dir, parsed)
+        package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
         if package_dir is None:
             if require_vendored_sources and parsed.url:
                 unresolved_remote_dependencies.append(parsed.original)
@@ -1229,7 +1236,7 @@ def main() -> int:
             parsed = parse_package_line(stripped)
             if is_quill_provided_package(parsed):
                 continue
-            package_dir = resolved_package_dir(root_dir, parsed)
+            package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
             if package_dir is None or package_dir in materialized:
                 continue
             prepare_package(
@@ -1251,7 +1258,14 @@ def main() -> int:
     for stripped in stripped_lines:
         if is_quill_provided_package(parse_package_line(stripped)):
             continue
-        rewritten = rewritten_line(root_dir, work_root, stripped, args.skip_source_lowering, materialized)
+        rewritten = rewritten_line(
+            root_dir,
+            work_root,
+            stripped,
+            args.skip_source_lowering,
+            materialized,
+            require_vendored_sources,
+        )
         if require_vendored_sources and PACKAGE_URL_RE.search(rewritten):
             unresolved_remote_dependencies.append(rewritten)
         if rewritten in seen_output_lines:

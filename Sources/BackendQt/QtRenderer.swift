@@ -1941,12 +1941,21 @@ extension PopoverView: QtRenderable {
         }
         let popover = qtRenderPresentedView(popoverContent, dismiss: dismissAction)
         let panel = qtRenderPresentationPanel(child: popover, kind: .popover)
-        return qtRenderPresentationOverlay(
-            base: base,
-            presented: panel,
-            horizontal: .center,
-            vertical: .top
-        )
+
+        let box = Unmanaged.passRetained(QtClosureBox(dismissAction)).toOpaque()
+        let closed: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+                .closure()
+        }
+        let destroy: quill_qt_bridge_click_callback = { userData in
+            guard let userData else { return }
+            Unmanaged<QtClosureBox>.fromOpaque(userData).release()
+        }
+        quill_qt_popover_show_for_anchor(qtHandle(base), qtHandle(panel), 6, closed, box, destroy)
+        return base
     }
 }
 #endif

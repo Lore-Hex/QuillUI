@@ -764,6 +764,93 @@ struct SourceHygieneTests {
         #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
     }
 
+    @Test("Generated app builder requires URL dependencies under third party when vendoring is required")
+    func generatedAppBuilderRequiresURLDependenciesUnderThirdPartyWhenVendoringIsRequired() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-url-vendor-boundary-\(UUID().uuidString)")
+        let upstreamDir = sandbox.appendingPathComponent(".upstream/LinuxReadySDK")
+        let thirdPartyDir = sandbox.appendingPathComponent("third_party/LinuxReadySDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: upstreamDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        let manifest = """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LinuxReadySDK",
+            products: [.library(name: "LinuxReadySDK", targets: ["LinuxReadySDK"])],
+            targets: [.target(name: "LinuxReadySDK")]
+        )
+        """
+        try manifest.write(to: upstreamDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "LinuxReadySDK", url: "https://example.com/LinuxReadySDK.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let upstreamOnlyResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(upstreamOnlyResult.status == 66, Comment(rawValue: upstreamOnlyResult.output))
+        #expect(
+            upstreamOnlyResult.output.contains("SwiftPM URL dependencies remain after vendored-source preparation"),
+            Comment(rawValue: upstreamOnlyResult.output)
+        )
+        #expect(
+            upstreamOnlyResult.output.contains("https://example.com/LinuxReadySDK.git"),
+            Comment(rawValue: upstreamOnlyResult.output)
+        )
+
+        try fileManager.createDirectory(at: thirdPartyDir, withIntermediateDirectories: true)
+        try manifest.write(to: thirdPartyDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+
+        let vendoredResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(vendoredResult.status == 0, Comment(rawValue: vendoredResult.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedThirdPartyPath = thirdPartyDir.resolvingSymlinksInPath().path
+        let resolvedUpstreamPath = upstreamDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"LinuxReadySDK\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedThirdPartyPath)
+                || rewrittenDependencies.contains("/private\(resolvedThirdPartyPath)")
+        )
+        #expect(!rewrittenDependencies.contains(resolvedUpstreamPath))
+        #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
+    }
+
     @Test("Generated app builder patches variable-backed target dependency lists")
     func generatedAppBuilderPatchesVariableBackedTargetDependencyLists() throws {
         let root = try packageRoot()
@@ -3652,6 +3739,8 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("extension SheetModifierView: QtRenderable"))
         #expect(qtRenderer.contains("extension ItemSheetModifierView: QtRenderable"))
         #expect(qtRenderer.contains("extension PopoverView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_popover_show_for_anchor(qtHandle(base), qtHandle(panel), 6, closed, box, destroy)"))
+        #expect(qtRenderer.contains("return base"))
         #expect(qtRenderer.contains("private func qtRenderPresentedView<V: View>"))
         #expect(qtRenderer.contains("environment.dismiss = DismissAction(handler: dismiss)"))
         #expect(qtRenderer.contains("environment.isPresentedInSheet = true"))
@@ -3701,11 +3790,15 @@ struct SourceHygieneTests {
         #expect(cqtHeader.contains("quill_qt_widget_set_allows_hit_testing_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_enabled_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_tooltip_recursive"))
+        #expect(cqtHeader.contains("quill_qt_popover_show_for_anchor"))
+        #expect(cqtHeader.contains("The popup does not participate in the anchor's layout"))
         #expect(cqtHeader.contains("quill_qt_widget_set_accessible_name_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_accessible_description_recursive"))
         #expect(cqtHeader.contains("quill_qt_line_edit_connect_return_pressed"))
         #expect(cqtBridge.contains("class QuillQtHoverFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtFocusFilter final : public QObject"))
+        #expect(cqtBridge.contains("class QuillQtPopoverState final"))
+        #expect(cqtBridge.contains("class QuillQtPopoverFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtKeyPressFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtShortcutFilter final : public QObject"))
         #expect(cqtBridge.contains("target->installEventFilter(new QuillQtHoverFilter(state, target))"))
@@ -3733,6 +3826,9 @@ struct SourceHygieneTests {
         #expect(cqtBridge.contains("target->setEnabled(enabled != 0)"))
         #expect(cqtBridge.contains("target->setToolTip(tooltip)"))
         #expect(cqtBridge.contains("target->setAccessibleDescription(tooltip)"))
+        #expect(cqtBridge.contains("popoverWidget->setParent(anchorWidget, Qt::Popup | Qt::FramelessWindowHint)"))
+        #expect(cqtBridge.contains("anchorWidget->mapToGlobal(QPoint(0, anchorWidget->height() + gap))"))
+        #expect(cqtBridge.contains("state_->notifyClosed()"))
         #expect(cqtBridge.contains("target->setAccessibleName(name)"))
         #expect(cqtBridge.contains("target->setAccessibleDescription(description)"))
         #expect(cqtHeader.contains("quill_qt_widget_set_text_selectable_recursive"))
@@ -9400,6 +9496,27 @@ struct SourceHygieneTests {
         #expect(cqtBridge.contains("&QPushButton::pressed"))
         #expect(cqtBridge.contains("&QPushButton::released"))
         #expect(cqtBridge.contains("layout->addWidget(childWidget)"))
+    }
+
+    @Test("QuillCode model picker popover renders as native Qt popup outside layout")
+    func quillCodeModelPickerPopoverRendersAsNativeQtPopupOutsideLayout() throws {
+        let modelPicker = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeModelPickerView.swift"
+        )
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+
+        #expect(modelPicker.contains(".popover(isPresented: $isPresented, arrowEdge: .bottom)"))
+        #expect(modelPicker.contains(".focused($isSearchFocused)"))
+        #expect(modelPicker.contains(".onSubmit(selectHighlightedModel)"))
+        #expect(qtRenderer.contains("extension PopoverView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_popover_show_for_anchor(qtHandle(base), qtHandle(panel), 6, closed, box, destroy)"))
+        #expect(qtRenderer.contains("return base"))
+        #expect(cqtHeader.contains("The popup does not participate in the anchor's layout"))
+        #expect(cqtBridge.contains("Qt::Popup | Qt::FramelessWindowHint"))
+        #expect(cqtBridge.contains("QTimer::singleShot(0, [anchorWidget, popoverWidget, gap, state]()"))
+        #expect(cqtBridge.contains("popoverWidget->activateWindow()"))
     }
 
     @Test("Enchanted SF Symbols map to bundled Material glyphs")

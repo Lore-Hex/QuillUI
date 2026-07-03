@@ -33,9 +33,11 @@
 #include <QObject>
 #include <QPixmap>
 #include <QPointer>
+#include <QPoint>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRect>
+#include <QScreen>
 #include <QSize>
 #include <QScrollArea>
 #include <QString>
@@ -292,6 +294,75 @@ protected:
 
 private:
     std::shared_ptr<QuillQtFocusState> state_;
+};
+
+class QuillQtPopoverState final {
+public:
+    QuillQtPopoverState(
+        quill_qt_bridge_click_callback closed,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : closed_(closed),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtPopoverState() {
+        release();
+    }
+
+    void notifyClosed() {
+        if (closed_ != nullptr && userData_ != nullptr) {
+            closed_(userData_);
+        }
+        release();
+    }
+
+private:
+    void release() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+        userData_ = nullptr;
+        closed_ = nullptr;
+        destroy_ = nullptr;
+    }
+
+    quill_qt_bridge_click_callback closed_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+};
+
+class QuillQtPopoverFilter final : public QObject {
+public:
+    QuillQtPopoverFilter(
+        std::shared_ptr<QuillQtPopoverState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          state_(std::move(state))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::Hide:
+        case QEvent::Close:
+        case QEvent::DeferredDelete:
+        case QEvent::Destroy:
+            state_->notifyClosed();
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::shared_ptr<QuillQtPopoverState> state_;
 };
 
 class QuillQtKeyPressState final {
@@ -880,6 +951,65 @@ void quill_qt_bridge_widget_set_fixed_size(
     if (QWidget *target = asWidget(widget)) {
         target->setFixedSize(QSize(width, height));
     }
+}
+
+void quill_qt_popover_show_for_anchor(
+    QuillQtWidgetHandle anchor,
+    QuillQtWidgetHandle popover,
+    int vertical_gap,
+    quill_qt_bridge_click_callback closed,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QPointer<QWidget> anchorWidget(asWidget(anchor));
+    QPointer<QWidget> popoverWidget(asWidget(popover));
+    const int gap = std::max(0, vertical_gap);
+    auto state = std::make_shared<QuillQtPopoverState>(closed, user_data, destroy);
+
+    if (anchorWidget.isNull() || popoverWidget.isNull()) {
+        if (!popoverWidget.isNull()) {
+            popoverWidget->deleteLater();
+        }
+        return;
+    }
+
+    popoverWidget->setParent(anchorWidget, Qt::Popup | Qt::FramelessWindowHint);
+    popoverWidget->setAttribute(Qt::WA_DeleteOnClose, true);
+    popoverWidget->installEventFilter(new QuillQtPopoverFilter(state, popoverWidget));
+
+    QTimer::singleShot(0, [anchorWidget, popoverWidget, gap, state]() {
+        (void)state;
+        if (anchorWidget.isNull() || popoverWidget.isNull()) {
+            if (!popoverWidget.isNull()) {
+                popoverWidget->deleteLater();
+            }
+            return;
+        }
+
+        const QSize natural = resolvedWidgetSize(popoverWidget);
+        popoverWidget->resize(natural);
+
+        const QPoint anchorTopLeft = anchorWidget->mapToGlobal(QPoint(0, 0));
+        QPoint origin = anchorWidget->mapToGlobal(QPoint(0, anchorWidget->height() + gap));
+        QScreen *screen = anchorWidget->screen();
+        if (screen == nullptr) {
+            screen = QApplication::primaryScreen();
+        }
+        if (screen != nullptr) {
+            const QRect available = screen->availableGeometry();
+            if (origin.x() + natural.width() > available.right()) {
+                origin.setX(std::max(available.left(), available.right() - natural.width()));
+            }
+            if (origin.y() + natural.height() > available.bottom()) {
+                origin.setY(std::max(available.top(), anchorTopLeft.y() - natural.height() - gap));
+            }
+        }
+
+        popoverWidget->move(origin);
+        popoverWidget->show();
+        popoverWidget->raise();
+        popoverWidget->activateWindow();
+    });
 }
 
 // --- Leaf widgets ----------------------------------------------------------

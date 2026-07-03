@@ -195,6 +195,19 @@ void quill_qt_bridge_widget_set_fixed_size(
     int height
 );
 
+// Present `popover` as a native Qt::Popup below `anchor` on the next event-loop
+// turn. The popup does not participate in the anchor's layout, matching SwiftUI
+// popover behavior for toolbar/model-picker controls. `closed` fires once when
+// Qt hides or destroys the popup; `destroy` releases the retained Swift box.
+void quill_qt_popover_show_for_anchor(
+    QuillQtWidgetHandle anchor,
+    QuillQtWidgetHandle popover,
+    int vertical_gap,
+    quill_qt_bridge_click_callback closed,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+);
+
 // --- Leaf widgets ----------------------------------------------------------
 
 // Create a QLabel with the given UTF-8 text. Word-wrap is left off so the

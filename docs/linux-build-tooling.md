@@ -95,6 +95,12 @@ lowering profiles:
   skips the whole dependency-vendoring pass before lowering. Unrelated vendored
   package manifest churn does not invalidate another app's stamp. Set
   `QUILLUI_VENDOR_FORCE=1` to refresh a vendored package tree deliberately.
+- Generated app package preparation treats `third_party/` as the vendored
+  SwiftPM dependency boundary when `QUILLUI_REQUIRE_VENDORED_SOURCES=1` is in
+  effect, which is the default for public builds. `.upstream/` remains a refresh
+  workspace for maintainers, but URL dependencies must be copied into
+  `third_party/` before a normal app build will accept them. That avoids slow
+  SwiftPM working-copy setup and keeps CI/offline builds deterministic.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
 
