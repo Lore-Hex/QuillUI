@@ -21,12 +21,173 @@ public enum QuillCompatibilityError: Error, LocalizedError, Equatable {
 }
 
 private func quillContentType(for url: URL) -> UTType? {
-    UTType(filenameExtension: url.pathExtension)
+    var isDirectory = ObjCBool(false)
+    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+       isDirectory.boolValue {
+        return .folder
+    }
+    return UTType(filenameExtension: url.pathExtension)
 }
 
 private extension UTType {
     func quillAccepts(url: URL) -> Bool {
         quillContentType(for: url)?.conforms(to: self) == true
+    }
+}
+
+public enum QuillFileImporter {
+    private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
+    private static let testSelection = TestSelection()
+
+    public static func setTestSelection(_ url: URL?) {
+        testSelection.set(url)
+    }
+
+    public static func selectURL(allowedContentTypes: [UTType]) -> Result<URL, Error> {
+        switch selectURLs(allowedContentTypes: allowedContentTypes, allowsMultipleSelection: false) {
+        case .success(let urls):
+            if let url = urls.first {
+                return .success(url)
+            }
+            return .failure(QuillCompatibilityError.fileSelectionUnavailable)
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+
+    public static func selectURLs(
+        allowedContentTypes: [UTType],
+        allowsMultipleSelection: Bool
+    ) -> Result<[URL], Error> {
+        if let testSelectionURL = testSelection.url {
+            return validate([testSelectionURL], allowedContentTypes: allowedContentTypes)
+        }
+
+        if let environmentValue = ProcessInfo.processInfo.environment[environmentKey],
+           !environmentValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return validate(
+                urls(from: environmentValue, allowsMultipleSelection: allowsMultipleSelection),
+                allowedContentTypes: allowedContentTypes
+            )
+        }
+
+        for command in fileSelectionCommands(
+            allowedContentTypes: allowedContentTypes,
+            allowsMultipleSelection: allowsMultipleSelection
+        ) {
+            let urls = run(command: command, allowsMultipleSelection: allowsMultipleSelection)
+            guard !urls.isEmpty else { continue }
+            return validate(urls, allowedContentTypes: allowedContentTypes)
+        }
+
+        return .failure(QuillCompatibilityError.fileSelectionUnavailable)
+    }
+
+    private final class TestSelection: @unchecked Sendable {
+        private let lock = NSLock()
+        private var selectedURL: URL?
+
+        var url: URL? {
+            lock.withLock { selectedURL }
+        }
+
+        func set(_ url: URL?) {
+            lock.withLock {
+                selectedURL = url
+            }
+        }
+    }
+
+    private static func fileSelectionCommands(
+        allowedContentTypes: [UTType],
+        allowsMultipleSelection: Bool
+    ) -> [[String]] {
+        if requiresDirectorySelection(allowedContentTypes: allowedContentTypes) {
+            return [
+                ["zenity", "--file-selection", "--directory"],
+                ["kdialog", "--getexistingdirectory"],
+                ["yad", "--file-selection", "--directory"]
+            ]
+        }
+
+        if allowsMultipleSelection {
+            return [
+                ["zenity", "--file-selection", "--multiple", "--separator=\n"],
+                ["yad", "--file-selection", "--multiple", "--separator=\n"],
+                ["kdialog", "--getopenfilename"]
+            ]
+        }
+
+        return [
+            ["zenity", "--file-selection"],
+            ["kdialog", "--getopenfilename"],
+            ["yad", "--file-selection"]
+        ]
+    }
+
+    private static func requiresDirectorySelection(allowedContentTypes: [UTType]) -> Bool {
+        !allowedContentTypes.isEmpty
+            && allowedContentTypes.allSatisfy { $0.conforms(to: .directory) || $0 == .folder }
+    }
+
+    private static func validate(_ urls: [URL], allowedContentTypes: [UTType]) -> Result<[URL], Error> {
+        for url in urls {
+            guard allowedContentTypes.isEmpty || allowedContentTypes.contains(where: { $0.quillAccepts(url: url) }) else {
+                return .failure(QuillCompatibilityError.unsupportedFileSelection(url, allowedContentTypes))
+            }
+        }
+        return .success(urls)
+    }
+
+    private static func urls(from output: String, allowsMultipleSelection: Bool) -> [URL] {
+        if allowsMultipleSelection {
+            return output
+                .split(whereSeparator: \.isNewline)
+                .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .map { URL(fileURLWithPath: $0) }
+        }
+
+        let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        return path.isEmpty ? [] : [URL(fileURLWithPath: path)]
+    }
+
+    private static func run(command: [String], allowsMultipleSelection: Bool) -> [URL] {
+        guard let executable = command.first,
+              let executableURL = executableURL(named: executable) else {
+            return []
+        }
+
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = executableURL
+        process.arguments = Array(command.dropFirst())
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return []
+        }
+
+        guard process.terminationStatus == 0 else { return [] }
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return urls(from: output, allowsMultipleSelection: allowsMultipleSelection)
+    }
+
+    private static func executableURL(named name: String) -> URL? {
+        let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin")
+            .split(separator: ":")
+            .map(String.init)
+        for path in paths {
+            let candidate = URL(fileURLWithPath: path).appendingPathComponent(name)
+            if FileManager.default.isExecutableFile(atPath: candidate.path) {
+                return candidate
+            }
+        }
+        return nil
     }
 }
 

@@ -5131,6 +5131,48 @@ struct SourceHygieneTests {
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
     }
 
+    @Test("SwiftUI shadow fileImporter uses the CoreTransferable importer")
+    func swiftUIShadowFileImporterUsesCoreTransferableImporter() throws {
+        let coreTransferable = try packageSource("Sources/CoreTransferable/CoreTransferable.swift")
+        let swiftUIPlatformSurface = try packageSource("Sources/SwiftUIShim/PlatformSurface.swift")
+        let quillUpstreamCompatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
+        let quillCodeApp = try packageSource("vendor/apps/quillcode/Sources/quill-code-desktop/QuillCodeDesktopApp.swift")
+
+        #expect(coreTransferable.contains("public enum QuillFileImporter"))
+        #expect(coreTransferable.contains("public static func selectURL(allowedContentTypes: [UTType]) -> Result<URL, Error>"))
+        #expect(coreTransferable.contains("public static func selectURLs("))
+        #expect(coreTransferable.contains("return .folder"))
+        #expect(coreTransferable.contains("requiresDirectorySelection(allowedContentTypes: allowedContentTypes)"))
+        #expect(coreTransferable.contains("[\"zenity\", \"--file-selection\", \"--directory\"]"))
+        #expect(coreTransferable.contains("[\"kdialog\", \"--getexistingdirectory\"]"))
+        #expect(coreTransferable.contains("validate([testSelectionURL], allowedContentTypes: allowedContentTypes)"))
+        #expect(!quillUpstreamCompatibility.contains("public enum QuillFileImporter"))
+
+        #expect(swiftUIPlatformSurface.contains("""
+        func fileImporter(
+                isPresented: Binding<Bool>,
+                allowedContentTypes: [UTType],
+                allowsMultipleSelection: Bool = false,
+                onCompletion: @escaping (Result<[URL], Error>) -> Void
+            ) -> OnChangeView<Self, Bool>
+        """))
+        #expect(swiftUIPlatformSurface.contains("""
+        QuillFileImporter.selectURLs(
+                        allowedContentTypes: allowedContentTypes,
+                        allowsMultipleSelection: allowsMultipleSelection
+                    )
+        """))
+        #expect(quillUpstreamCompatibility.contains("QuillFileImporter.selectURL(allowedContentTypes: allowedContentTypes)"))
+
+        #expect(quillCodeApp.contains("""
+        .fileImporter(
+                    isPresented: $controller.isProjectImporterPresented,
+                    allowedContentTypes: [.folder],
+                    allowsMultipleSelection: false
+                ) { result in
+        """))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()

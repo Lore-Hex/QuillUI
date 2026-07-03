@@ -41,7 +41,12 @@ private func recordQuillUIFallbackView<Content: View>(
 
 public extension UTType {
     static func type(for url: URL) -> UTType? {
-        UTType(filenameExtension: url.pathExtension)
+        var isDirectory = ObjCBool(false)
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
+           isDirectory.boolValue {
+            return .folder
+        }
+        return UTType(filenameExtension: url.pathExtension)
     }
 
     fileprivate func accepts(url: URL) -> Bool {
@@ -49,104 +54,6 @@ public extension UTType {
     }
 }
 #endif
-
-public enum QuillFileImporter {
-    private static let environmentKey = "QUILLUI_FILE_IMPORTER_SELECTION"
-    private static let testSelection = TestSelection()
-
-    public static func setTestSelection(_ url: URL?) {
-        testSelection.set(url)
-    }
-
-    public static func selectURL(allowedContentTypes: [UTType]) -> Result<URL, Error> {
-        if let testSelectionURL = testSelection.url {
-            return validate(testSelectionURL, allowedContentTypes: allowedContentTypes)
-        }
-
-        if let environmentValue = ProcessInfo.processInfo.environment[environmentKey],
-           !environmentValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return validate(URL(fileURLWithPath: environmentValue), allowedContentTypes: allowedContentTypes)
-        }
-
-        for command in fileSelectionCommands {
-            if let url = run(command: command) {
-                return validate(url, allowedContentTypes: allowedContentTypes)
-            }
-        }
-
-        return .failure(QuillCompatibilityError.fileSelectionUnavailable)
-    }
-
-    private final class TestSelection: @unchecked Sendable {
-        private let lock = NSLock()
-        private var selectedURL: URL?
-
-        var url: URL? {
-            lock.withLock { selectedURL }
-        }
-
-        func set(_ url: URL?) {
-            lock.withLock {
-                selectedURL = url
-            }
-        }
-    }
-
-    private static var fileSelectionCommands: [[String]] {
-        [
-            ["zenity", "--file-selection"],
-            ["kdialog", "--getopenfilename"],
-            ["yad", "--file-selection"]
-        ]
-    }
-
-    private static func validate(_ url: URL, allowedContentTypes: [UTType]) -> Result<URL, Error> {
-        guard allowedContentTypes.isEmpty || allowedContentTypes.contains(where: { $0.accepts(url: url) }) else {
-            return .failure(QuillCompatibilityError.unsupportedFileSelection(url, allowedContentTypes))
-        }
-        return .success(url)
-    }
-
-    private static func run(command: [String]) -> URL? {
-        guard let executable = command.first,
-              let executableURL = executableURL(named: executable) else {
-            return nil
-        }
-
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = executableURL
-        process.arguments = Array(command.dropFirst())
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return nil
-        }
-
-        guard process.terminationStatus == 0 else { return nil }
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !output.isEmpty else { return nil }
-        return URL(fileURLWithPath: output)
-    }
-
-    private static func executableURL(named name: String) -> URL? {
-        let paths = (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/local/bin:/usr/bin:/bin")
-            .split(separator: ":")
-            .map(String.init)
-        for path in paths {
-            let candidate = URL(fileURLWithPath: path).appendingPathComponent(name)
-            if FileManager.default.isExecutableFile(atPath: candidate.path) {
-                return candidate
-            }
-        }
-        return nil
-    }
-}
 
 // `Material` moved to QuillSwiftUICompatibility so real source that only
 // `import SwiftUI`s sees it; QuillUI re-exports that module. (Namespace
