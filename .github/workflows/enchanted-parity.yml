@@ -98,8 +98,8 @@ jobs:
       - name: Confirm vendored Enchanted source
         run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md
 
-      - name: Audit vendored Enchanted SwiftPM sources
-        run: scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored
+      - name: Audit vendored Enchanted app source
+        run: scripts/check-vendored-swiftui-app-source.sh enchanted
 
       - name: Run strict Enchanted GTK mac-reference verifier
         run: |

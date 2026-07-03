@@ -229,6 +229,18 @@ pinned in `Package.resolved`; use `--resolve` only when the app checkout itself
 needs SwiftPM to create or update
 those pins.
 
+Use the no-network audit before CI or a long agent loop:
+
+```bash
+scripts/check-vendored-swiftui-app-source.sh --all-vendored-apps
+```
+
+That verifies every `vendor/apps/<name>` snapshot has provenance metadata and
+that each app's `Package.resolved` pins are covered by checked-in `third_party/`
+SwiftPM sources. A passing audit means the generic builder can use
+`--source-app <name> --require-vendored-source` without cloning upstream app
+trees or creating fresh remote SwiftPM working copies.
+
 The vendoring pass also patches known transitive package manifests so their
 runtime dependencies point at sibling `third_party/` checkouts and slimmed test
 targets do not force remote test/doc packages to resolve. This keeps generated
