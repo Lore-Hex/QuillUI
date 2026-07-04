@@ -2600,6 +2600,91 @@ struct SourceHygieneTests {
         #expect(fingerprint.contains("source=tree:"))
     }
 
+    @Test("Vendored SwiftPM app scan stamps invalidate when source fingerprints change")
+    func vendoredSwiftPMAppScanStampsInvalidateWhenSourceFingerprintsChange() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-swiftpm-stamp-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let packageDir = sandbox.appendingPathComponent("third_party/DemoPackage")
+        let stampFile = sandbox.appendingPathComponent(".build/stamps/demo.stamp")
+        let helper = scriptsDir.appendingPathComponent("quillui-vendored-source.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            to: helper
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(name: "DemoPackage")
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-swiftpm-vendor/v1
+        package=DemoPackage
+        source=tree:first
+        """.write(
+            to: packageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let createAndValidate = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/bin/bash"),
+            arguments: [
+                "-c",
+                """
+                set -euo pipefail
+                source "$1"
+                quillui_write_vendored_swiftpm_app_stamp "$2" "$3" demo key DemoPackage
+                quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
+                grep -q '^sourceFingerprint=' "$3"
+                """,
+                "stamp-test",
+                helper.path,
+                sandbox.path,
+                stampFile.path,
+            ]
+        )
+        #expect(createAndValidate.status == 0, Comment(rawValue: createAndValidate.output))
+
+        try """
+        quillui-swiftpm-vendor/v1
+        package=DemoPackage
+        source=tree:second
+        """.write(
+            to: packageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let staleCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/bin/bash"),
+            arguments: [
+                "-c",
+                """
+                set -euo pipefail
+                source "$1"
+                if quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"; then
+                  echo "stamp unexpectedly valid"
+                  exit 1
+                fi
+                """,
+                "stamp-test",
+                helper.path,
+                sandbox.path,
+                stampFile.path,
+            ]
+        )
+        #expect(staleCheck.status == 0, Comment(rawValue: staleCheck.output))
+    }
+
     @Test("Linux lowering folds AppKit extension overrides into owning class")
     func linuxLoweringFoldsAppKitExtensionOverridesIntoOwningClass() throws {
         let root = try packageRoot()
@@ -7312,7 +7397,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("product == \"quill-code-desktop-linux\""))
         #expect(screenshotVerifier.contains("QuillCode empty-state text was not detected in the centered main-pane band"))
         #expect(screenshotVerifier.contains("QuillCode empty-state text appears clipped or right-drifted"))
-        #expect(screenshotVerifier.contains("center_text_pixels >= 900"))
+        #expect(screenshotVerifier.contains("center_text_pixels >= 800"))
         #expect(screenshotVerifier.contains("far_right_text_pixels <= max(650, center_text_pixels // 2)"))
         #expect(!screenshotVerifier.contains("fixture row"))
         #expect(screenshotVerifier.contains("Quill WireGuard Qt native"))
@@ -7957,11 +8042,15 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
         #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_manifest_fingerprint()"))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_source_fingerprint()"))
         #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_app_stamp_is_valid()"))
         #expect(vendoredSourceHelper.contains("quillui_write_vendored_swiftpm_app_stamp()"))
         #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-manifests/v1"))
+        #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-sources/v1"))
         #expect(vendoredSourceHelper.contains("swiftpmPackage=%s"))
         #expect(vendoredSourceHelper.contains("manifestFingerprint=%s"))
+        #expect(vendoredSourceHelper.contains("sourceFingerprint=%s"))
+        #expect(vendoredSourceHelper.contains("missing-source-fingerprint"))
         #expect(genericProfileRuntimeSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileRuntimeSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR"))

@@ -253,6 +253,10 @@ or otherwise materialized source trees record a deterministic `tree:` hash after
 the same slim-copy exclusions are applied. If the original checkout is gone but
 `third_party/<package>` is already present, a normal non-`--check-vendored`
 vendoring run stamps the existing source snapshot instead of cloning.
+Generated app builds cache successful app lockfile scans with both manifest and
+source fingerprints, so a repeated build can skip the vendored-dependency audit
+until either `Package.resolved`, `Package.swift`, or the vendored source metadata
+changes.
 
 `--source-app` is the preferred path for shared agent work. The builder resolves
 `vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,

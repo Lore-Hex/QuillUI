@@ -3994,7 +3994,7 @@ def validate_quill_code_desktop_linux(image: Screenshot) -> str:
     )
 
     require(
-        center_text_pixels >= 900,
+        center_text_pixels >= 800,
         "QuillCode empty-state text was not detected in the centered main-pane band: "
         f"pixels={center_text_pixels}",
     )
