@@ -741,6 +741,22 @@ quillui_backend_enchanted_linux_interaction_verify_product() {
   printf 'quill-enchanted-linux-%s\n' "$selected_backend"
 }
 
+quillui_backend_quill_code_desktop_interaction_verify_product() {
+  local selected_backend
+  local interaction_mode="$2"
+
+  selected_backend="$(quillui_require_backend_identifier "$1")" || return $?
+
+  case "$interaction_mode" in
+    click|toolbar-menu)
+      printf 'quill-code-desktop-linux-toolbar-menu\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 quillui_backend_app_interaction_verify_product_for_product() {
   local product="$1"
   local selected_backend="$2"
@@ -752,6 +768,9 @@ quillui_backend_app_interaction_verify_product_for_product() {
       ;;
     quill-chat-linux)
       quillui_backend_quill_chat_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
+    quill-code-desktop-linux)
+      quillui_backend_quill_code_desktop_interaction_verify_product "$selected_backend" "$interaction_mode"
       ;;
     quill-wireguard)
       quillui_backend_wireguard_interaction_verify_product "$selected_backend" "$interaction_mode"
@@ -871,6 +890,9 @@ quillui_backend_default_interaction_mode_for_product() {
 
   case "$product" in
     quill-chat-linux)
+      echo "toolbar-menu"
+      ;;
+    quill-code-desktop-linux)
       echo "toolbar-menu"
       ;;
     quill-wireguard)
