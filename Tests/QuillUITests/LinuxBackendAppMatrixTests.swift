@@ -175,6 +175,13 @@ struct LinuxBackendAppMatrixTests {
         return product
     }
 
+    private static func expectedGeneratedInteractionVerifierProduct(product: String, backend: String) -> String {
+        if product == "quill-code-desktop-linux" {
+            return "quill-code-desktop-linux-toolbar-menu"
+        }
+        return Self.expectedVisualVerifierProduct(product: product, backend: backend)
+    }
+
     private static func expectedVisualRow(product: String, backend: String) -> String {
         let verifyProduct = Self.expectedVisualVerifierProduct(product: product, backend: backend)
         return "visual\t\(product)\t\(backend)\t\(backend)\tnative\t.qa/\(product)-\(backend).png\t0\t\(verifyProduct)"
@@ -518,7 +525,7 @@ struct LinuxBackendAppMatrixTests {
             let backend = fields[1]
             let runtimeBackend = fields[2]
             let runtimeMode = fields[3]
-            let verifyProduct = Self.expectedVisualVerifierProduct(product: product, backend: backend)
+            let verifyProduct = Self.expectedGeneratedInteractionVerifierProduct(product: product, backend: backend)
             return "interaction\t\(product)\t\(backend)\t\(runtimeBackend)\t\(runtimeMode)\t.qa/\(product)-\(backend).png\t0\t\(verifyProduct)"
         })
 
