@@ -395,7 +395,11 @@ private func toolbarBoxPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> Uns
 }
 
 private func appendToolbarWidget(_ child: OpaquePointer, to box: UnsafeMutablePointer<GtkWidget>) {
-    gtk_box_append(toolbarBoxPointer(box), widgetFromOpaque(child))
+    gtk_box_append(toolbarBoxPointer(box), toolbarWidgetPointer(child))
+}
+
+private func toolbarWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
+    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
 }
 
 private func connectToolbarButton(
