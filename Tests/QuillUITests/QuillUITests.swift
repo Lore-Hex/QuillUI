@@ -711,6 +711,10 @@ struct QuillUITests {
         let overAllocatedWidth = 2_130.0
         let referenceWidth = 2_048.0
 
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: overAllocatedWidth, referenceWindowWidth: referenceWidth) == referenceWidth)
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: 1_200, referenceWindowWidth: referenceWidth) == 1_200)
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: overAllocatedWidth, referenceWindowWidth: nil) == overAllocatedWidth)
+
         let unclampedSidebarWidth = quillDesktopSplitResolvedSidebarWidth(
             baseSidebarWidth: 320,
             totalWidth: overAllocatedWidth,

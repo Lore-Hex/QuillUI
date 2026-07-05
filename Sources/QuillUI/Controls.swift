@@ -2299,7 +2299,8 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
 
     public var body: some View {
         GeometryReader { geometry in
-            let resolvedSidebarWidth = resolvedSidebarWidth(totalWidth: Double(geometry.size.width))
+            let resolvedLayoutWidth = resolvedLayoutWidth(totalWidth: Double(geometry.size.width))
+            let resolvedSidebarWidth = resolvedSidebarWidth(totalWidth: Double(resolvedLayoutWidth))
             HStack(spacing: 0) {
                 sidebar
                     .frame(width: resolvedSidebarWidth, alignment: .leading)
@@ -2337,8 +2338,20 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                         .background(QuillDesktopChromeStyle.detailBackground)
                 }
             }
+            .frame(width: resolvedLayoutWidth, alignment: .leading)
             .background(QuillDesktopChromeStyle.detailBackground)
         }
+    }
+
+    private func resolvedLayoutWidth(totalWidth: Double) -> CGFloat {
+        #if os(Linux)
+        return CGFloat(quillDesktopSplitResolvedLayoutWidth(
+            totalWidth: totalWidth,
+            referenceWindowWidth: quillBackendReferenceWindowWidth
+        ))
+        #else
+        return CGFloat(totalWidth)
+        #endif
     }
 
     private func resolvedSidebarWidth(totalWidth: Double) -> CGFloat {
@@ -2367,18 +2380,27 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #endif
 }
 
+internal func quillDesktopSplitResolvedLayoutWidth(
+    totalWidth: Double,
+    referenceWindowWidth: Double?
+) -> Double {
+    guard totalWidth > 0 else { return totalWidth }
+    if let referenceWindowWidth, referenceWindowWidth > 0 {
+        return min(totalWidth, referenceWindowWidth)
+    }
+    return totalWidth
+}
+
 internal func quillDesktopSplitResolvedSidebarWidth(
     baseSidebarWidth: Double,
     totalWidth: Double,
     referenceWindowWidth: Double?
 ) -> Double {
     guard totalWidth > 0 else { return baseSidebarWidth }
-    let effectiveTotalWidth: Double
-    if let referenceWindowWidth, referenceWindowWidth > 0 {
-        effectiveTotalWidth = min(totalWidth, referenceWindowWidth)
-    } else {
-        effectiveTotalWidth = totalWidth
-    }
+    let effectiveTotalWidth = quillDesktopSplitResolvedLayoutWidth(
+        totalWidth: totalWidth,
+        referenceWindowWidth: referenceWindowWidth
+    )
     return max(baseSidebarWidth, min(620.0, effectiveTotalWidth * 0.285))
 }
 
