@@ -2288,6 +2288,37 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testSharedHStackMeasuresRequestedPrimitiveWidths() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 14) {
+                RequestedSizeGTKPrimitive(width: 30, height: 30)
+                RequestedSizeGTKPrimitive(width: 42, height: 30)
+                RequestedSizeGTKPrimitive(width: 30, height: 30)
+            }
+        ))
+
+        let measured = measuredSize(of: wrapper)
+        XCTAssertGreaterThanOrEqual(
+            measured.width,
+            130,
+            "HStack measurement must include explicit GTK size requests from primitive toolbar-like children."
+        )
+
+        allocate(widget: wrapper, size: ViewSize(width: 130, height: 30))
+        let first = try unwrapFirstChild(of: wrapper)
+        let second = try unwrapNextSibling(of: first)
+        let third = try unwrapNextSibling(of: second)
+        let thirdOrigin = translatedChildOrigin(child: third, in: wrapper)
+        let thirdSize = allocatedSize(of: third)
+        XCTAssertLessThanOrEqual(
+            thirdOrigin.x + thirdSize.width,
+            130,
+            "The trailing requested-size primitive must remain inside the HStack allocation."
+        )
+    }
+
     func testMiddleTruncationFrameRendersScrolledWindowWithSingleLabel() throws {
         try requireGTK()
 
@@ -2905,6 +2936,23 @@ private func unwrapNextSibling(
         throw XCTSkip()
     }
     return sibling
+}
+
+private struct RequestedSizeGTKPrimitive: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+
+    var width: Int
+    var height: Int
+
+    var body: Never { fatalError("RequestedSizeGTKPrimitive is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_button_new()!
+        gtk_widget_set_size_request(button, gint(width), gint(height))
+        gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
+        return OpaquePointer(button)
+    }
 }
 
 private func measuredSize(of widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {

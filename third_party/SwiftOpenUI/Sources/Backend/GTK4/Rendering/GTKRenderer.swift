@@ -3074,10 +3074,13 @@ private func gtkMeasureWidgetNaturalSize(_ widget: UnsafeMutablePointer<GtkWidge
     var widthNat: Int32 = 0
     var heightMin: Int32 = 0
     var heightNat: Int32 = 0
+    var requestedWidth: Int32 = -1
+    var requestedHeight: Int32 = -1
     gtk_swift_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &widthMin, &widthNat)
     gtk_swift_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &heightMin, &heightNat)
-    let width = max(widthMin, widthNat)
-    let height = max(heightMin, heightNat)
+    gtk_widget_get_size_request(widget, &requestedWidth, &requestedHeight)
+    let width = max(max(widthMin, widthNat), max(requestedWidth, 0))
+    let height = max(max(heightMin, heightNat), max(requestedHeight, 0))
     return ViewSize(width: Double(width), height: Double(height))
 }
 
