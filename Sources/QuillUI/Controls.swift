@@ -2343,8 +2343,11 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
 
     private func resolvedSidebarWidth(totalWidth: Double) -> CGFloat {
         #if os(Linux)
-        guard totalWidth > 0 else { return sidebarWidth }
-        return CGFloat(max(Double(sidebarWidth), min(620.0, totalWidth * 0.285)))
+        return CGFloat(quillDesktopSplitResolvedSidebarWidth(
+            baseSidebarWidth: Double(sidebarWidth),
+            totalWidth: totalWidth,
+            referenceWindowWidth: quillBackendReferenceWindowWidth
+        ))
         #else
         return sidebarWidth
         #endif
@@ -2362,6 +2365,21 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #else
     private var resolvedToolbarHeight: CGFloat { toolbarHeight }
     #endif
+}
+
+internal func quillDesktopSplitResolvedSidebarWidth(
+    baseSidebarWidth: Double,
+    totalWidth: Double,
+    referenceWindowWidth: Double?
+) -> Double {
+    guard totalWidth > 0 else { return baseSidebarWidth }
+    let effectiveTotalWidth: Double
+    if let referenceWindowWidth, referenceWindowWidth > 0 {
+        effectiveTotalWidth = min(totalWidth, referenceWindowWidth)
+    } else {
+        effectiveTotalWidth = totalWidth
+    }
+    return max(baseSidebarWidth, min(620.0, effectiveTotalWidth * 0.285))
 }
 
 public struct QuillMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
