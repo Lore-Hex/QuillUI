@@ -2288,7 +2288,7 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
-    func testSharedHStackMeasuresRequestedPrimitiveWidths() throws {
+    func testHStackHonorsRequestedPrimitiveWidths() throws {
         try requireGTK()
 
         let wrapper = widgetFromOpaque(gtkRenderView(
@@ -2303,7 +2303,7 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(
             measured.width,
             130,
-            "HStack measurement must include explicit GTK size requests from primitive toolbar-like children."
+            "HStack layout must include explicit GTK size requests from primitive toolbar-like children."
         )
 
         allocate(widget: wrapper, size: ViewSize(width: 130, height: 30))

@@ -46,6 +46,13 @@ private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
 }
 
+private func gtkHasExplicitSizeRequest(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    var requestedWidth: Int32 = -1
+    var requestedHeight: Int32 = -1
+    gtk_widget_get_size_request(widget, &requestedWidth, &requestedHeight)
+    return requestedWidth > 0 || requestedHeight > 0
+}
+
 private func gtkMarkSwiftUIScrollView(_ widget: UnsafeMutablePointer<GtkWidget>, hasVerticalAxis: Bool) {
     gtkSetLayoutMarker(widget, key: gtkSwiftScrollViewMarker)
     if hasVerticalAxis {
@@ -62,11 +69,11 @@ private func gtkPropagateSingleChildLayoutMarkers(
     to wrapper: UnsafeMutablePointer<GtkWidget>
 ) {
     guard children.count == 1, let child = children.first else { return }
-    if gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker) {
-        gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)
-    }
-    if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
-        gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
+        if gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker) {
+            gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)
+        }
+        if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
+            gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
     }
 }
 
@@ -2193,6 +2200,9 @@ private func gtkCanUseSharedVStackLayout(_ children: [UnsafeMutablePointer<GtkWi
     for widget in children {
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            return false
+        }
+        if gtkHasExplicitSizeRequest(widget) {
             return false
         }
         if gtk_widget_get_hexpand(widget) != 0 || gtk_widget_get_vexpand(widget) != 0 {
