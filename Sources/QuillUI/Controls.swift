@@ -3169,6 +3169,7 @@ public struct QuillDesktopChatToolbar: View {
             optionsActions: optionsActions,
             onNewConversation: onNewConversation
         )
+        .frame(width: 132, height: 32, alignment: .trailing)
         #else
         QuillToolbarActionRow {
             QuillToolbarMenuButton(

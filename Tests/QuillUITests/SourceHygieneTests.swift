@@ -9097,6 +9097,7 @@ struct SourceHygieneTests {
         let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
 
         #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKDesktopChatToolbar("))
+        #expect(controls.contains(".frame(width: 132, height: 32, alignment: .trailing)"))
         #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKToolbarIconButton("))
         #expect(toolbar.contains("struct QuillGTKDesktopChatToolbar: View, PrimitiveView, GTKRenderable"))
         #expect(toolbar.contains("gtk_widget_set_size_request(box, 132, 32)"))
@@ -9121,7 +9122,7 @@ struct SourceHygieneTests {
         #expect(!toolbar.contains("boxPointer(box)"))
         #expect(toolbar.contains("materialName: \"more_horiz\""))
         #expect(toolbar.contains("materialName: \"expand_more\""))
-        #expect(toolbar.contains("materialName: \"edit_square\""))
+        #expect(toolbar.contains("materialName: \"edit\""))
         #expect(toolbar.contains("materialName: \"library_books\""))
         #expect(toolbar.contains("materialName: \"auto_awesome\""))
         #expect(toolbar.contains("materialName: \"filter_list\""))

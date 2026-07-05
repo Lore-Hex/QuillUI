@@ -350,7 +350,7 @@ private func toolbarGlyphs(
         }
         return glyphs
     case "square.and.pencil":
-        return [QuillGTKToolbarGlyph(materialName: "edit_square", pointSize: 26, width: 27)]
+        return [QuillGTKToolbarGlyph(materialName: "edit", pointSize: 26, width: 27)]
     default:
         return [QuillGTKToolbarGlyph(
             materialName: QuillSystemSymbol.compatibleName(systemImage),
