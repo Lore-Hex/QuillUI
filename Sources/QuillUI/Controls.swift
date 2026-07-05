@@ -3163,6 +3163,13 @@ public struct QuillDesktopChatToolbar: View {
     }
 
     public var body: some View {
+        #if os(Linux) && QUILLUI_GTK_BACKEND
+        QuillGTKDesktopChatToolbar(
+            modelActions: modelActions,
+            optionsActions: optionsActions,
+            onNewConversation: onNewConversation
+        )
+        #else
         QuillToolbarActionRow {
             QuillToolbarMenuButton(
                 systemImage: "chevron.down",
@@ -3180,6 +3187,7 @@ public struct QuillDesktopChatToolbar: View {
 
             QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversation)
         }
+        #endif
     }
 }
 

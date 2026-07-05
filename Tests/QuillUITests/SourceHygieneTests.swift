@@ -9096,7 +9096,13 @@ struct SourceHygieneTests {
         let toolbar = try packageSource("Sources/QuillUI/GTKToolbarMenuButton.swift")
         let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
 
+        #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKDesktopChatToolbar("))
         #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKToolbarIconButton("))
+        #expect(toolbar.contains("struct QuillGTKDesktopChatToolbar: View, PrimitiveView, GTKRenderable"))
+        #expect(toolbar.contains("gtk_widget_set_size_request(box, 132, 32)"))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarMenuButton(\n            systemImage: \"chevron.down\""))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarMenuButton(\n            systemImage: \"ellipsis\""))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarIconButton(\n            systemImage: \"square.and.pencil\""))
         #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
