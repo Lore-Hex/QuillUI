@@ -2253,6 +2253,41 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testHorizontalPaddingConstrainsExpandingRowsBeforeTrailingEdge() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack {
+                Text("Leading")
+                Spacer()
+                Text("Trailing")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
+        ))
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 2_048, height: 80))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        guard let trailingLabel = labels.first(where: { label in
+            let text = gtk_label_get_text(OpaquePointer(label)).map { String(cString: $0) }
+            return text == "Trailing"
+        }) else {
+            XCTFail("Expected to find trailing label.")
+            return
+        }
+
+        let trailingOrigin = translatedChildOrigin(child: trailingLabel, in: wrapper)
+        let trailingSize = allocatedSize(of: trailingLabel)
+        XCTAssertLessThanOrEqual(
+            trailingOrigin.x + trailingSize.width,
+            2_020,
+            "Horizontal padding around an expanding row must preserve the trailing inset instead of clipping at the parent edge."
+        )
+    }
+
     func testMiddleTruncationFrameRendersScrolledWindowWithSingleLabel() throws {
         try requireGTK()
 

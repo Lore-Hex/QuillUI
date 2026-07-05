@@ -2573,6 +2573,34 @@ extension PaddedView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let child = widgetFromOpaque(gtkRenderView(content))
+        let childExpH = gtk_widget_get_hexpand(child) != 0
+        let childExpV = gtk_widget_get_vexpand(child) != 0
+        let paddedChild: UnsafeMutablePointer<GtkWidget>
+
+        if childExpH && (leading > 0 || trailing > 0) {
+            let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+            if leading > 0 {
+                gtk_box_append(boxPointer(row), gtkPaddingSpacer(width: leading))
+            }
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+            gtk_box_append(boxPointer(row), child)
+            if trailing > 0 {
+                gtk_box_append(boxPointer(row), gtkPaddingSpacer(width: trailing))
+            }
+            gtk_widget_set_hexpand(row, 1)
+            gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+            if childExpV {
+                gtk_widget_set_vexpand(row, 1)
+                gtk_widget_set_valign(row, GTK_ALIGN_FILL)
+            }
+            paddedChild = row
+        } else {
+            gtk_widget_set_margin_start(child, gint(leading))
+            gtk_widget_set_margin_end(child, gint(trailing))
+            paddedChild = child
+        }
+
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         // Use GTK widget margins (not CSS padding) for the spacing. CSS
         // padding-X in GTK4 interacts poorly with hexpand-distributed
@@ -2581,25 +2609,32 @@ extension PaddedView: GTKRenderable, GTKDescribable {
         // natural-size distribution, producing an unfilled gap in HStacks
         // like the LayoutStress dashboard cards. Margins on the inner
         // child are respected by measurement and don't hit that path.
-        gtk_widget_set_margin_top(child, gint(top))
-        gtk_widget_set_margin_bottom(child, gint(bottom))
-        gtk_widget_set_margin_start(child, gint(leading))
-        gtk_widget_set_margin_end(child, gint(trailing))
+        gtk_widget_set_margin_top(paddedChild, gint(top))
+        gtk_widget_set_margin_bottom(paddedChild, gint(bottom))
         // PaddedView must let expanding content fill its margin wrapper.
         // This is what carries a fixed frame's proposed width into a
         // padded VStack/HStack instead of clipping Spacer-based rows at
         // their natural size.
-        if gtk_widget_get_hexpand(child) != 0 {
+        if childExpH {
             gtk_widget_set_hexpand(wrapper, 1)
-            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_halign(paddedChild, GTK_ALIGN_FILL)
         }
-        if gtk_widget_get_vexpand(child) != 0 {
+        if childExpV {
             gtk_widget_set_vexpand(wrapper, 1)
-            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(paddedChild, GTK_ALIGN_FILL)
         }
         gtkMarkHostedNodeKind(wrapper, kind: .padding)
-        gtk_box_append(boxPointer(wrapper), child)
+        gtk_box_append(boxPointer(wrapper), paddedChild)
         return opaqueFromWidget(wrapper)
+    }
+
+    private func gtkPaddingSpacer(width: Double) -> UnsafeMutablePointer<GtkWidget> {
+        let spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+        gtkMarkLayoutHelper(spacer)
+        gtk_widget_set_size_request(spacer, gtkPixelSize(width), -1)
+        gtk_widget_set_hexpand(spacer, 0)
+        gtk_widget_set_halign(spacer, GTK_ALIGN_START)
+        return spacer
     }
 }
 
