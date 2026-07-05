@@ -2628,10 +2628,10 @@ extension PaddedView: GTKRenderable, GTKDescribable {
         return opaqueFromWidget(wrapper)
     }
 
-    private func gtkPaddingSpacer(width: Double) -> UnsafeMutablePointer<GtkWidget> {
+    private func gtkPaddingSpacer(width: Int) -> UnsafeMutablePointer<GtkWidget> {
         let spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
         gtkMarkLayoutHelper(spacer)
-        gtk_widget_set_size_request(spacer, gtkPixelSize(width), -1)
+        gtk_widget_set_size_request(spacer, gtkPixelSize(Double(width)), -1)
         gtk_widget_set_hexpand(spacer, 0)
         gtk_widget_set_halign(spacer, GTK_ALIGN_START)
         return spacer
