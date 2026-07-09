@@ -123,8 +123,11 @@ struct LinuxBackendAppMatrixTests {
     private static var expectedGeneratedAppRuntimeRows: [String] {
         expectedGeneratedAppProducts.flatMap { product in
             expectedBackends.map { backend in
-                if backend == "qt" {
+                if product == "quill-enchanted-linux", backend == "qt" {
                     return "\(product)\tqt\tqt\tnative"
+                }
+                if backend == "qt" {
+                    return "\(product)\tqt\tgtk\tplatformFallback"
                 }
                 return "\(product)\tgtk\tgtk\tnative"
             }
@@ -394,7 +397,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
             "quill-enchanted-linux\tqt\tqt",
-            "quill-code-desktop-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 
