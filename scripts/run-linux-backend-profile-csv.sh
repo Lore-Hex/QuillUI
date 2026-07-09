@@ -151,8 +151,8 @@ quillui_profile_build_cache_key() {
   local requested_backend="$2"
   local runtime_backend="${3:-}"
 
-  if [[ -n "$requested_backend" ]] && quillui_is_backend_generated_app_product "$product"; then
-    printf '%s:%s\n' "$product" "$requested_backend"
+  if quillui_is_backend_generated_app_product "$product"; then
+    printf '%s:%s\n' "$product" "$runtime_backend"
   elif [[ -n "$runtime_backend" ]]; then
     printf '%s:%s\n' "$product" "$runtime_backend"
   else
@@ -230,8 +230,8 @@ quillui_profile_build_cache_key() {
     if [[ -n "$backend" ]]; then
       profiler_environment+=("QUILLUI_BACKEND=$backend")
     fi
-    if [[ -n "$requested_backend" ]] && quillui_is_backend_generated_app_product "$product"; then
-      profiler_environment+=("QUILLUI_APP_BACKEND_FACADE=$requested_backend")
+    if quillui_is_backend_generated_app_product "$product"; then
+      profiler_environment+=("QUILLUI_APP_BACKEND_FACADE=$runtime_backend")
     fi
     if quillui_profile_product_was_built "$build_cache_key"; then
       profiler_environment+=("QUILLUI_BACKEND_SKIP_BUILD=1")

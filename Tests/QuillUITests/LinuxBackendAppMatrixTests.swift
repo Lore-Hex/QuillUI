@@ -1114,6 +1114,19 @@ struct LinuxBackendAppMatrixTests {
         if [[ "$backend" != "${QUILLUI_BACKEND:-}" ]]; then
           exit 44
         fi
+        expected_facade=""
+        case "$product:$backend" in
+          quill-enchanted-linux:qt)
+            expected_facade="qt"
+            ;;
+          quill-enchanted-linux:gtk|quill-code-desktop-linux:gtk|quill-code-desktop-linux:qt)
+            expected_facade="gtk"
+            ;;
+        esac
+        if [[ "${QUILLUI_APP_BACKEND_FACADE:-}" != "$expected_facade" ]]; then
+          printf 'unexpected facade for %s/%s: %s expected %s\\n' "$product" "$backend" "${QUILLUI_APP_BACKEND_FACADE:-}" "$expected_facade" >&2
+          exit 45
+        fi
         echo "$product,1,2,3,4.0,5.0,ok"
 
         """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
