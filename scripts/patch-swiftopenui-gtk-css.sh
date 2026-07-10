@@ -7061,6 +7061,7 @@ if "for originalWidget in children {\n        var widget = originalWidget" not i
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
             gtk_widget_set_hexpand(widget, 0)
             gtk_widget_set_vexpand(widget, 1)
+            hasVerticalFillIntent = true
         }
         if gtk_widget_get_hexpand(widget) != 0 {
             needsHExpand = true
@@ -7100,6 +7101,28 @@ if "for originalWidget in children {\n        var widget = originalWidget" not i
     if old_vstack_loop not in text:
         raise SystemExit("SwiftOpenUI VStack compressible-child loop shape was not recognized")
     text = text.replace(old_vstack_loop, new_vstack_loop, 1)
+
+vstack_start = text.find("private func gtkRenderFallbackVStack(")
+vstack_end = text.find("\nprivate func gtkRenderFallbackHStack", vstack_start)
+if vstack_start == -1 or vstack_end == -1:
+    raise SystemExit("SwiftOpenUI VStack fallback section was not recognized")
+vstack_section = text[vstack_start:vstack_end]
+vstack_spacer_vertical_fill = '''        if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            gtk_widget_set_hexpand(widget, 0)
+            gtk_widget_set_vexpand(widget, 1)
+            hasVerticalFillIntent = true
+        }
+'''
+if vstack_spacer_vertical_fill not in vstack_section:
+    old_vstack_spacer = '''        if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            gtk_widget_set_hexpand(widget, 0)
+            gtk_widget_set_vexpand(widget, 1)
+        }
+'''
+    if old_vstack_spacer not in vstack_section:
+        raise SystemExit("SwiftOpenUI VStack spacer fill-intent shape was not recognized")
+    vstack_section = vstack_section.replace(old_vstack_spacer, vstack_spacer_vertical_fill, 1)
+    text = text[:vstack_start] + vstack_section + text[vstack_end:]
 
 if "if hasVerticalFillIntent { gtkMarkVerticalFillIntent(box) }\n    return opaqueFromWidget(box)\n}\n\nprivate func gtkRenderFallbackHStack" not in text:
     text = text.replace(
@@ -9371,6 +9394,27 @@ def add_codepoint(source: str, material_name: str, codepoint: str, anchors: list
 for material_name, codepoint, anchors in required_codepoints:
     text = add_codepoint(text, material_name, codepoint, anchors)
 
+
+def deduplicate_codepoint_entries(source: str) -> str:
+    entry_pattern = re.compile(
+        r'(?m)^\s*"(?P<key>(?:\\.|[^"\\])+)":\s+0x[0-9A-Fa-f]+,\n'
+    )
+    seen: set[str] = set()
+    duplicate_spans: list[tuple[int, int]] = []
+
+    for match in entry_pattern.finditer(source):
+        key = match.group("key")
+        if key in seen:
+            duplicate_spans.append(match.span())
+        else:
+            seen.add(key)
+
+    for start, end in reversed(duplicate_spans):
+        source = source[:start] + source[end:]
+    return source
+
+
+text = deduplicate_codepoint_entries(text)
 path.write_text(text)
 PY
 

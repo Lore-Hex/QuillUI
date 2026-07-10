@@ -9551,6 +9551,35 @@ struct SourceHygieneTests {
         )
     }
 
+    @Test("Material Symbols codepoint table has unique keys")
+    func materialSymbolsCodepointTableHasUniqueKeys() throws {
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        let codepointRegex = try NSRegularExpression(pattern: #""([^"]+)"\s*:\s+0x[0-9A-Fa-f]+,"#)
+        let codepointMatches = codepointRegex.matches(
+            in: codepoints,
+            range: NSRange(codepoints.startIndex..., in: codepoints)
+        )
+        var counts: [String: Int] = [:]
+        for match in codepointMatches {
+            guard let range = Range(match.range(at: 1), in: codepoints) else { continue }
+            counts[String(codepoints[range]), default: 0] += 1
+        }
+
+        let duplicates = counts
+            .filter { $0.value > 1 }
+            .map(\.key)
+            .sorted()
+        #expect(
+            duplicates.isEmpty,
+            Comment(rawValue: "Duplicate Material codepoint keys:\n" + duplicates.joined(separator: "\n"))
+        )
+        #expect(patcher.contains("deduplicate_codepoint_entries"))
+    }
+
     @Test("GTK labels use SF Symbol compatibility map")
     func gtkLabelsUseSFSymbolCompatibilityMap() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
@@ -9732,11 +9761,14 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtk_widget_set_vexpand(widget, 0)"))
         #expect(renderer.contains("gtkHasVerticalFillIntent(overlayWidget)"))
         #expect(renderer.contains("gtkMarkVerticalFillIntent(box)"))
+        #expect(renderer.contains("gtk_widget_set_vexpand(widget, 1)\n            hasVerticalFillIntent = true"))
         #expect(renderer.contains("gtkMarkVerticalFillIntent(area)"))
         #expect(patcher.contains("gtkSwiftVerticalFillIntentMarker"))
         #expect(patcher.contains("let overlayWantsVerticalFill ="))
         #expect(patcher.contains("gtkHasVerticalFillIntent(overlayWidget)"))
         #expect(patcher.contains("gtkMarkVerticalFillIntent(box)"))
+        #expect(patcher.contains("vstack_spacer_vertical_fill"))
+        #expect(patcher.contains("hasVerticalFillIntent = true"))
         #expect(renderTests.contains("testZStackTopOverlayDoesNotFillHeightFromUnmarkedVExpand"))
         #expect(renderTests.contains("testZStackTopOverlayFillsHeightForExplicitFlexibleFrame"))
         #expect(renderTests.contains("GTKAccidentalVExpandOverlayProbe"))

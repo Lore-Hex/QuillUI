@@ -3226,6 +3226,7 @@ private func gtkRenderFallbackVStack(
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
             gtk_widget_set_hexpand(widget, 0)
             gtk_widget_set_vexpand(widget, 1)
+            hasVerticalFillIntent = true
         }
         if gtk_widget_get_hexpand(widget) != 0 {
             needsHExpand = true
