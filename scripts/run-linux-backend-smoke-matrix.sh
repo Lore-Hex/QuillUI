@@ -198,7 +198,7 @@ quillui_smoke_build_cache_key() {
   local runtime_backend="${3:-}"
 
   if quillui_is_backend_generated_app_product "$product"; then
-    printf '%s:%s\n' "$product" "$requested_backend"
+    printf '%s:%s\n' "$product" "$runtime_backend"
   elif [[ -n "$runtime_backend" ]]; then
     printf '%s:%s\n' "$product" "$runtime_backend"
   else
@@ -269,6 +269,7 @@ quillui_run_smoke_row() {
   local output_path
   local skip_build=0
   local build_cache_key
+  local generated_app_backend_facade
   local verify_product=""
   local smoke_environment=()
   local smoke_command=()
@@ -281,7 +282,8 @@ quillui_run_smoke_row() {
     skip_build=1
   fi
   if quillui_is_backend_generated_app_product "$product"; then
-    smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$requested_backend")
+    generated_app_backend_facade="$runtime_backend"
+    smoke_environment+=("QUILLUI_APP_BACKEND_FACADE=$generated_app_backend_facade")
   fi
   if [[ -n "$mode" ]]; then
     smoke_environment+=("QUILLUI_BACKEND_INTERACTION_MODE=$mode")

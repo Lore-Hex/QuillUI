@@ -211,12 +211,52 @@ quill_chat_completion_delete_uses_seed_fixture() {
   [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-delete" ]]
 }
 
+quill_chat_completion_database_path() {
+  printf '%s\n' "$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+}
+
+quill_chat_completion_seed_records_deleted() {
+  local database_path="$1"
+
+  python3 - "$database_path" <<'PY'
+import json
+import sqlite3
+import sys
+
+database_path = sys.argv[1]
+target_names = {"Linux Saved Completion", "Linux Edited Completion"}
+connection = sqlite3.connect(database_path)
+matches = []
+completion_table_seen = False
+for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
+    if not table.endswith("_CompletionInstructionSD"):
+        continue
+    completion_table_seen = True
+    for row in connection.execute(f'SELECT payload FROM "{table}"'):
+        payload = row[0]
+        if isinstance(payload, bytes):
+            payload = payload.decode("utf-8")
+        item = json.loads(payload)
+        name = item.get("name")
+        if name in target_names:
+            matches.append((table, name))
+connection.close()
+if not completion_table_seen:
+    print("No CompletionInstructionSD table was found")
+    raise SystemExit(1)
+if matches:
+    print(matches)
+    raise SystemExit(1)
+PY
+}
+
 seed_quill_chat_saved_completion_fixture_if_needed() {
   if ! quill_chat_completion_save_uses_seed_fixture && ! quill_chat_completion_delete_uses_seed_fixture; then
     return 0
   fi
 
-  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  local database_path
+  database_path="$(quill_chat_completion_database_path)"
   mkdir -p "$(dirname "$database_path")"
   python3 - "$database_path" "$INTERACTION_MODE" <<'PY'
 from __future__ import annotations
@@ -982,6 +1022,25 @@ quill_chat_mac_reference_new_completion_click_target() {
     "$probe_path"
 }
 
+quill_chat_mac_reference_first_completion_delete_click_target() {
+  local probe_path="$1"
+  local target
+  local target_x
+  local target_y
+
+  target="$(python3 "$ROOT_DIR/scripts/quillui-image-click-target.py" \
+    quill-chat-first-completion-delete \
+    "$probe_path")"
+  [[ "$target" =~ ^[0-9]+[[:space:]][0-9]+$ ]] || return 1
+  read -r target_x target_y <<< "$target"
+
+  if [[ "$capture_window" == "root" ]]; then
+    printf '%s %s\n' "$target_x" "$target_y"
+  else
+    printf '%s %s\n' "$((window_x + target_x))" "$((window_y + target_y))"
+  fi
+}
+
 open_quill_chat_new_completion_sheet() {
   local new_x
   local new_y
@@ -1145,6 +1204,10 @@ edit_quill_chat_existing_completion() {
 delete_quill_chat_completion() {
   local delete_x
   local delete_y
+  local database_path
+  local delete_attempt
+  local delete_attempts="${QUILLUI_BACKEND_COMPLETION_DELETE_ATTEMPTS:-3}"
+  local target
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     quill_chat_completions_panel_probe_path=""
@@ -1153,19 +1216,47 @@ delete_quill_chat_completion() {
     open_quill_chat_completions_panel
   fi
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    if [[ "$SELECTED_BACKEND" == "qt" ]]; then
+    if [[ -z "${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-}" \
+      && -z "${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-}" \
+      && -n "$quill_chat_completions_panel_probe_path" ]] \
+        && target="$(quill_chat_mac_reference_first_completion_delete_click_target \
+          "$quill_chat_completions_panel_probe_path" 2>/dev/null)" \
+        && [[ "$target" =~ ^[0-9]+[[:space:]][0-9]+$ ]]; then
+      read -r delete_x delete_y <<< "$target"
+    elif [[ "$SELECTED_BACKEND" == "qt" ]]; then
       delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1618))}"
+      delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}"
     else
       delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + 1510))}"
+      delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}"
     fi
-    delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 545))}"
   else
     delete_x="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-$((window_x + window_width - 125))}"
     delete_y="${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-$((window_y + 320))}"
   fi
 
-  click_at "$delete_x" "$delete_y"
-  sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+  database_path="$(quill_chat_completion_database_path)"
+  for ((delete_attempt = 1; delete_attempt <= delete_attempts; delete_attempt += 1)); do
+    click_at "$delete_x" "$delete_y"
+    sleep "${QUILLUI_BACKEND_COMPLETION_DELETE_SLEEP:-2}"
+    if quill_chat_completion_seed_records_deleted "$database_path" >/tmp/quill-chat-completion-delete-attempt.txt 2>&1; then
+      break
+    fi
+    if (( delete_attempt < delete_attempts )); then
+      echo "Completion delete attempt $delete_attempt did not remove the seeded row; retrying target ($delete_x,$delete_y)" >&2
+      quill_chat_completions_panel_probe_path=""
+      ensure_quill_chat_completions_panel_open
+      if quillui_is_quill_chat_mac_reference_product "$PRODUCT" \
+        && [[ -z "${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_X:-}" \
+          && -z "${QUILLUI_BACKEND_COMPLETION_DELETE_CLICK_Y:-}" \
+          && -n "$quill_chat_completions_panel_probe_path" ]] \
+        && target="$(quill_chat_mac_reference_first_completion_delete_click_target \
+          "$quill_chat_completions_panel_probe_path" 2>/dev/null)" \
+        && [[ "$target" =~ ^[0-9]+[[:space:]][0-9]+$ ]]; then
+        read -r delete_x delete_y <<< "$target"
+      fi
+    fi
+  done
   quill_chat_completions_panel_probe_path=""
   ensure_quill_chat_completions_panel_open
   settle_quill_chat_completion_capture_if_verified
@@ -2112,45 +2203,11 @@ verify_quill_chat_delete_confirmed_if_needed() {
   return 65
 }
 
-quill_chat_completion_seed_records_deleted() {
-  local database_path="$1"
-
-  python3 - "$database_path" <<'PY'
-import json
-import sqlite3
-import sys
-
-database_path = sys.argv[1]
-target_names = {"Linux Saved Completion", "Linux Edited Completion"}
-connection = sqlite3.connect(database_path)
-matches = []
-completion_table_seen = False
-for (table,) in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'"):
-    if not table.endswith("_CompletionInstructionSD"):
-        continue
-    completion_table_seen = True
-    for row in connection.execute(f'SELECT payload FROM "{table}"'):
-        payload = row[0]
-        if isinstance(payload, bytes):
-            payload = payload.decode("utf-8")
-        item = json.loads(payload)
-        name = item.get("name")
-        if name in target_names:
-            matches.append((table, name))
-connection.close()
-if not completion_table_seen:
-    print("No CompletionInstructionSD table was found")
-    raise SystemExit(1)
-if matches:
-    print(matches)
-    raise SystemExit(1)
-PY
-}
-
 verify_quill_chat_completion_deleted_if_needed() {
   [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "completions-delete" ]] || return 0
 
-  local database_path="$OUTPUT_DIR/$PRODUCT-reference-home/.quilldata/default.sqlite"
+  local database_path
+  database_path="$(quill_chat_completion_database_path)"
   if [[ ! -f "$database_path" ]]; then
     echo "QuillData database for completion deletion was not found: $database_path" >&2
     return 65

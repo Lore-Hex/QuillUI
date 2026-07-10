@@ -133,7 +133,6 @@ quillui_backend_native_product_runtime_overrides() {
   # exist only behind a product-specific SwiftPM graph today.
   printf '%s\t%s\t%s\n' \
     quill-enchanted-linux qt qt \
-    quill-code-desktop-linux qt qt \
     quill-qt-interaction-smoke qt qt
 }
 

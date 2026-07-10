@@ -123,8 +123,11 @@ struct LinuxBackendAppMatrixTests {
     private static var expectedGeneratedAppRuntimeRows: [String] {
         expectedGeneratedAppProducts.flatMap { product in
             expectedBackends.map { backend in
-                if backend == "qt" {
+                if product == "quill-enchanted-linux", backend == "qt" {
                     return "\(product)\tqt\tqt\tnative"
+                }
+                if backend == "qt" {
+                    return "\(product)\tqt\tgtk\tplatformFallback"
                 }
                 return "\(product)\tgtk\tgtk\tnative"
             }
@@ -394,7 +397,6 @@ struct LinuxBackendAppMatrixTests {
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
             "quill-enchanted-linux\tqt\tqt",
-            "quill-code-desktop-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 
@@ -1111,6 +1113,19 @@ struct LinuxBackendAppMatrixTests {
         fi
         if [[ "$backend" != "${QUILLUI_BACKEND:-}" ]]; then
           exit 44
+        fi
+        expected_facade=""
+        case "$product:$backend" in
+          quill-enchanted-linux:qt)
+            expected_facade="qt"
+            ;;
+          quill-enchanted-linux:gtk|quill-code-desktop-linux:gtk|quill-code-desktop-linux:qt)
+            expected_facade="gtk"
+            ;;
+        esac
+        if [[ "${QUILLUI_APP_BACKEND_FACADE:-}" != "$expected_facade" ]]; then
+          printf 'unexpected facade for %s/%s: %s expected %s\\n' "$product" "$backend" "${QUILLUI_APP_BACKEND_FACADE:-}" "$expected_facade" >&2
+          exit 45
         fi
         echo "$product,1,2,3,4.0,5.0,ok"
 
