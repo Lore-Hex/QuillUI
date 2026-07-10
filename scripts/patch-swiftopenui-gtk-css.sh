@@ -9466,6 +9466,25 @@ if "private func gtkMaterialNameForSystemImage" not in text:
         raise SystemExit("SwiftOpenUI Label GTK extension marker was not recognized")
     text = text.replace(label_marker, label_marker + label_system_image_helper, 1)
 
+if "private func gtkMaterialSymbolName(forSystemName sfName: String)" not in text:
+    label_marker = "// MARK: - Label GTK extension\n\n"
+    label_system_symbol_helper = '''private func gtkMaterialSymbolName(forSystemName sfName: String) -> String {
+    guard let materialName = SFSymbolCompatibility.materialName(for: sfName) else {
+        #if DEBUG
+        FileHandle.standardError.write(Data(
+            "[SwiftOpenUI] Image(systemName: \\"\\(sfName)\\") has no Material mapping; rendering placeholder\\n".utf8
+        ))
+        #endif
+        return SFSymbolCompatibility.missingSymbolPlaceholderName
+    }
+    return materialName
+}
+
+'''
+    if label_marker not in text:
+        raise SystemExit("SwiftOpenUI Label GTK extension marker was not recognized")
+    text = text.replace(label_marker, label_marker + label_system_symbol_helper, 1)
+
 label_index = text.find("extension Label: GTKRenderable")
 if label_index == -1:
     raise SystemExit("SwiftOpenUI Label GTKRenderable extension was not recognized")
@@ -9474,7 +9493,7 @@ if label_end == -1:
     raise SystemExit("SwiftOpenUI Label GTK extension end marker was not recognized")
 label_section = text[label_index:label_end]
 if (
-    "gtkMaterialNameForSystemImage(iconName)" not in label_section
+    "gtkMaterialSymbolName(forSystemName: iconName)" not in label_section
     or "gtk_image_new_from_icon_name(iconName)" in label_section
 ):
     label_renderer = '''extension Label: GTKRenderable {
@@ -9484,7 +9503,7 @@ if (
         if let iconView {
             gtk_box_append(boxPointer(box), widgetFromOpaque(gtkRenderView(iconView)))
         } else if let iconName = systemImage {
-            let materialName = gtkMaterialNameForSystemImage(iconName)
+            let materialName = gtkMaterialSymbolName(forSystemName: iconName)
             gtk_box_append(boxPointer(box), gtkRenderMaterialSymbolLabel(materialName, scale: .small))
         } else if let path = imagePath {
             let img = gtk_image_new_from_file(path)!
@@ -9522,7 +9541,7 @@ old_image_lookup = '''            let materialName = SFSymbolCompatibility.mater
 if old_image_lookup in image_section:
     image_section = image_section.replace(
         old_image_lookup,
-        "            let materialName = gtkMaterialNameForSystemImage(sfName)\n",
+        "            let materialName = gtkMaterialSymbolName(forSystemName: sfName)\n",
         1,
     )
     text = text[:image_index] + image_section + text[image_end:]
@@ -9556,6 +9575,14 @@ if "private func gtkMaterialSymbolGlyphPointSize(for scale: ImageScale) -> Int" 
         return scale.pointSize
     case .medium, .large:
         return max(1, Int((Double(scale.pointSize) * 0.8).rounded()))
+    }
+}
+
+'''
+
+    if material_family_marker not in text:
+        raise SystemExit("SwiftOpenUI Material Symbols family marker was not recognized")
+    text = text.replace(material_family_marker, material_glyph_size_helper + material_family_marker, 1)
 
 if "private func gtkFontCSS(_ font: Font)" not in text:
     font_helper_marker = '''private func gtkCSSRGBA(_ color: Color) -> String {
@@ -9679,10 +9706,13 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
 }
 
 '''
-
-    if material_family_marker not in text:
-        raise SystemExit("SwiftOpenUI Material Symbols family marker was not recognized")
-    text = text.replace(material_family_marker, material_glyph_size_helper + material_family_marker, 1)
+    if font_helper_marker in text:
+        text = text.replace(font_helper_marker, font_helper_addition + font_helper_marker, 1)
+    else:
+        protocol_marker = "// MARK: - GTK rendering protocol\n"
+        if protocol_marker not in text:
+            raise SystemExit("SwiftOpenUI font CSS helper insertion marker was not recognized")
+        text = text.replace(protocol_marker, font_helper_addition + protocol_marker, 1)
 
 if "private func gtkTabViewShouldShowSwitcher" not in text:
     tab_index = text.find("extension TabView: GTKRenderable")
@@ -9712,133 +9742,6 @@ if "if gtkTabViewShouldShowSwitcher(tabs)" not in text:
     if old_tab_switcher not in text:
         raise SystemExit("SwiftOpenUI TabView GTK switcher shape was not recognized")
     text = text.replace(old_tab_switcher, new_tab_switcher, 1)
-
-    font_helper = '''private func gtkCSSRGBA(_ color: Color) -> String {
-    let red = Int((color.red * 255).rounded())
-    let green = Int((color.green * 255).rounded())
-    let blue = Int((color.blue * 255).rounded())
-    return "rgba(\\(red), \\(green), \\(blue), \\(color.alpha))"
-}
-
-let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
-let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
-let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
-
-private let gtkFontDescendantSelectors = [
-    "entry",
-    "entry text",
-    "passwordentry",
-    "passwordentry text",
-    "textview",
-    "textview text"
-]
-
-private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
-    var declarations: [String] = []
-    var designMarker: String?
-
-    func appendWeight(_ weight: FontWeight) {
-        declarations.append("font-weight: \\(gtkFontWeightCSS(weight));")
-    }
-
-    func appendDesign(_ design: FontDesign) {
-        guard let family = gtkFontFamilyCSS(design) else { return }
-        declarations.append("font-family: \\(family);")
-        designMarker = gtkFontDesignMarker(design)
-    }
-
-    switch font {
-    case .largeTitle:
-        declarations.append("font-size: 28px;")
-    case .title:
-        declarations.append("font-size: 24px;")
-    case .title2:
-        declarations.append("font-size: 20px;")
-        declarations.append("font-weight: bold;")
-    case .title3:
-        declarations.append("font-size: 18px;")
-    case .headline:
-        declarations.append("font-weight: bold;")
-    case .subheadline:
-        declarations.append("font-size: 12px;")
-        declarations.append("font-weight: bold;")
-    case .body:
-        declarations.append("font-size: 14px;")
-    case .callout:
-        declarations.append("font-size: 12px;")
-    case .footnote:
-        declarations.append("font-size: 10px;")
-    case .caption:
-        declarations.append("font-size: 12px;")
-    case .caption2:
-        declarations.append("font-size: 10px;")
-        declarations.append("font-weight: bold;")
-    case .custom(let size, let weight, let design):
-        declarations.append("font-size: \\(gtkFontSizeCSS(size))px;")
-        appendWeight(weight)
-        appendDesign(design)
-    }
-
-    return (declarations.joined(separator: " "), designMarker)
-}
-
-private func gtkFontSizeCSS(_ size: Double) -> String {
-    let rounded = size.rounded()
-    if abs(size - rounded) < 0.001 {
-        return "\\(Int(rounded))"
-    }
-    return String(format: "%.2f", size)
-}
-
-private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
-    switch weight {
-    case .ultraLight: return 100
-    case .thin: return 200
-    case .light: return 300
-    case .regular: return 400
-    case .medium: return 500
-    case .semibold: return 600
-    case .bold: return 700
-    case .heavy: return 800
-    case .black: return 900
-    }
-}
-
-private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
-    switch design {
-    case .default:
-        return nil
-    case .monospaced:
-        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
-    case .rounded:
-        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
-    case .serif:
-        return #"Georgia, "Times New Roman", serif"#
-    }
-}
-
-private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
-    switch design {
-    case .default:
-        return nil
-    case .monospaced:
-        return gtkSwiftFontMonospacedMarker
-    case .rounded:
-        return gtkSwiftFontRoundedMarker
-    case .serif:
-        return gtkSwiftFontSerifMarker
-    }
-}
-
-// MARK: - GTK rendering protocol
-'''
-    if font_helper_marker in text:
-        text = text.replace(font_helper_marker, font_helper, 1)
-    else:
-        protocol_marker = "// MARK: - GTK rendering protocol\n"
-        if protocol_marker not in text:
-            raise SystemExit("SwiftOpenUI font CSS helper insertion marker was not recognized")
-        text = text.replace(protocol_marker, font_helper_addition + protocol_marker, 1)
 
 font_modified_index = text.find("extension FontModifiedView: GTKRenderable")
 font_modified_end = text.find("\nextension ", font_modified_index + 1) if font_modified_index != -1 else -1
