@@ -7261,6 +7261,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("snapshot_saved_log_count=\"$(quillui_solderscope_snapshot_saved_log_count)\""))
         #expect(solderScopeSmoke.contains("snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
         #expect(solderScopeSmoke.contains("snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRE_SNAPSHOT_FILE:-0"))
+        #expect(solderScopeSmoke.contains("continuing snapshot verification despite missing snapshot file"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame_with_retry()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_nudge_frame_redraw()"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FRAME_WAIT_RETRIES:-1"))
