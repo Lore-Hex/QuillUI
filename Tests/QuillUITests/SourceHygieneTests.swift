@@ -9406,7 +9406,7 @@ struct SourceHygieneTests {
             #expect(source.contains("String(reflecting: Swift.type(of: view)).contains(\"_ConditionalView\")"))
             #expect(source.contains("if let transparent = view as? any TransparentMultiChildView"))
             #expect(source.contains("return transparent.children.flatMap { gtkLayoutChildViews(from: $0, depth: depth + 1) }"))
-            #expect(source.contains("if V.self is any PrimitiveView.Type"))
+            #expect(source.contains("if Swift.type(of: view) is any PrimitiveView.Type"))
             #expect(source.contains("unsupported primitive view rendered as EmptyView"))
             #expect(source.contains("return opaqueFromWidget(gtkCreateEmptyViewWidget())"))
             #expect(source.contains("for child in multi.children.flatMap({ gtkLayoutChildViews(from: $0) })"))

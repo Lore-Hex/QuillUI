@@ -6816,7 +6816,7 @@ elif "private func gtkLayoutChildViews(from view: any View" not in text:
     helper_body = layout_marker_helper.split("private func gtkLayoutChildViews", 1)[1]
     text = text.replace(marker, "private func gtkLayoutChildViews" + helper_body + marker, 1)
 
-primitive_render_fallback = '''    if V.self is any PrimitiveView.Type {
+primitive_render_fallback = '''    if Swift.type(of: view) is any PrimitiveView.Type {
         gtkDebugLog("unsupported primitive view rendered as EmptyView: \\(String(reflecting: V.self))")
         return opaqueFromWidget(gtkCreateEmptyViewWidget())
     }

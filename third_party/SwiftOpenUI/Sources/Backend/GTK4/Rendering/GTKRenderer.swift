@@ -1039,7 +1039,7 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return opaqueFromWidget(box)
     }
 
-    if V.self is any PrimitiveView.Type {
+    if Swift.type(of: view) is any PrimitiveView.Type {
         gtkDebugLog("unsupported primitive view rendered as EmptyView: \(String(reflecting: V.self))")
         return opaqueFromWidget(gtkCreateEmptyViewWidget())
     }
