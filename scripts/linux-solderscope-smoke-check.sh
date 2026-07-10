@@ -409,6 +409,53 @@ quillui_solderscope_wait_for_visible_frame() {
   return 1
 }
 
+quillui_solderscope_nudge_frame_redraw() {
+  local window_id="$1"
+  local window_width="$2"
+  local window_height="$3"
+  local label="${4:-frame}"
+  local nudge_width="$window_width"
+  local nudge_height="$window_height"
+
+  if (( window_width > 32 )); then
+    nudge_width=$((window_width - 2))
+  fi
+  if (( window_height > 32 )); then
+    nudge_height=$((window_height - 2))
+  fi
+
+  echo "SolderScope interaction smoke: redraw nudge for $label" >&2
+  quillui_solderscope_focus_window "$window_id"
+  DISPLAY="$DISPLAY_ID" xdotool windowsize --sync "$window_id" "$nudge_width" "$nudge_height" 2>/dev/null || true
+  sleep "${QUILLUI_SOLDERSCOPE_FRAME_NUDGE_SETTLE_SECONDS:-0.2}"
+  DISPLAY="$DISPLAY_ID" xdotool windowsize --sync "$window_id" "$window_width" "$window_height" 2>/dev/null || true
+  sleep "${QUILLUI_SOLDERSCOPE_FRAME_NUDGE_SETTLE_SECONDS:-0.2}"
+  quillui_solderscope_send_key "$window_id" 0
+}
+
+quillui_solderscope_wait_for_visible_frame_with_retry() {
+  local label="$1"
+  local settled_screenshot_path="$2"
+  local window_id="$3"
+  local window_width="$4"
+  local window_height="$5"
+
+  if quillui_solderscope_wait_for_visible_frame "$label" "$settled_screenshot_path"; then
+    return 0
+  fi
+
+  local frame_retries="${QUILLUI_SOLDERSCOPE_FRAME_WAIT_RETRIES:-1}"
+  local attempt
+  for ((attempt = 1; attempt <= frame_retries; attempt += 1)); do
+    quillui_solderscope_nudge_frame_redraw "$window_id" "$window_width" "$window_height" "$label"
+    if quillui_solderscope_wait_for_visible_frame "$label after redraw nudge $attempt" "$settled_screenshot_path"; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 quillui_solderscope_verify_freeze_attempt() {
   local attempt_screenshot="$1"
 
@@ -709,7 +756,8 @@ quillui_drive_solderscope_interaction() {
   drag_end_x=$((click_x + 80))
   drag_end_y=$((click_y + 55))
   echo "SolderScope interaction smoke: window=$window_id geometry=${window_x},${window_y} ${window_width}x${window_height}" >&2
-  quillui_solderscope_wait_for_visible_frame
+  quillui_solderscope_wait_for_visible_frame_with_retry \
+    "before interaction" "" "$window_id" "$window_width" "$window_height"
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y"
   for _ in 1 2 3 4 5 6 7 8; do
     DISPLAY="$DISPLAY_ID" xdotool click 4
@@ -762,7 +810,8 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
-    quillui_solderscope_wait_for_visible_frame "after snapshot" "$settled_snapshot_screenshot"
+    quillui_solderscope_wait_for_visible_frame_with_retry \
+      "after snapshot" "$settled_snapshot_screenshot" "$window_id" "$window_width" "$window_height"
   fi
   if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-toolbar}"
@@ -905,7 +954,8 @@ quillui_drive_solderscope_interaction() {
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   if [[ "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then
-    quillui_solderscope_wait_for_visible_frame "before freeze"
+    quillui_solderscope_wait_for_visible_frame_with_retry \
+      "before freeze" "" "$window_id" "$window_width" "$window_height"
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"

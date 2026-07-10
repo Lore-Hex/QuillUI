@@ -514,7 +514,7 @@ private final class _DrawingHostBox {
 
     func queueDraw() {
         guard let live = area else { return }
-        gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
+        quillGtkQueueDrawWidget(live)
     }
 
     @MainActor
@@ -742,6 +742,14 @@ private final class _DrawingHostBox {
         case .appKitDefined, .systemDefined, .applicationDefined, .periodic:
             break
         }
+    }
+}
+
+private final class _QueuedDrawWidget {
+    let widget: OpaquePointer
+
+    init(widget: OpaquePointer) {
+        self.widget = widget
     }
 }
 
@@ -1200,7 +1208,22 @@ public func quillGtkReleaseWidget(_ widget: OpaquePointer) {
 /// updated. This gives NSViewRepresentable the same practical behavior apps
 /// rely on from AppKit's display scheduling.
 public func quillGtkQueueDrawWidget(_ widget: OpaquePointer) {
-    gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(widget))
+    if Thread.isMainThread {
+        gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(widget))
+        return
+    }
+
+    g_object_ref(gpointer(widget))
+    let queued = Unmanaged.passRetained(_QueuedDrawWidget(widget: widget)).toOpaque()
+    g_idle_add_full(Int32(G_PRIORITY_DEFAULT), { userData in
+        guard let userData else { return 0 }
+        let queued = Unmanaged<_QueuedDrawWidget>
+            .fromOpaque(userData)
+            .takeRetainedValue()
+        gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(queued.widget))
+        g_object_unref(gpointer(queued.widget))
+        return 0
+    }, queued, nil)
 }
 
 /// Detach a cached widget from its previous parent (if any) so the renderer
