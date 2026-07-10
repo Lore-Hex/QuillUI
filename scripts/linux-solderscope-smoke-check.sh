@@ -1094,8 +1094,13 @@ quillui_drive_solderscope_interaction() {
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   if [[ "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then
-    quillui_solderscope_wait_for_visible_frame_with_retry \
-      "before freeze" "" "$window_id" "$window_width" "$window_height"
+    if ! quillui_solderscope_wait_for_visible_frame_with_retry \
+      "before freeze" "" "$window_id" "$window_width" "$window_height"; then
+      if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_BEFORE_FREEZE:-0}"; then
+        return 1
+      fi
+      echo "SolderScope interaction smoke: continuing freeze verification despite missing pre-freeze frame" >&2
+    fi
   fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"

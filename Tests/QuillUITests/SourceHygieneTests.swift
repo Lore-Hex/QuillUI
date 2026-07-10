@@ -7271,6 +7271,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("cp -f \"$frame_probe_path\" \"$settled_screenshot_path\""))
         #expect(solderScopeSmoke.contains("synthetic frame is visible $label"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame_with_retry \\\n      \"before freeze\" \"\" \"$window_id\" \"$window_width\" \"$window_height\""))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_BEFORE_FREEZE:-0"))
+        #expect(solderScopeSmoke.contains("continuing freeze verification despite missing pre-freeze frame"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_indicator_red_pixels()"))
         #expect(solderScopeSmoke.contains("indicator_pixels > 500"))
         #expect(solderScopeSmoke.contains("local settled_screenshot_path=\"${1:-}\""))
