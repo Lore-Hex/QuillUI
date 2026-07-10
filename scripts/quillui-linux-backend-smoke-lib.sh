@@ -450,6 +450,17 @@ quillui_start_xvfb() {
   local output_var="$4"
 
   quillui_assign_output "$output_var" "" || return $?
+  local display_number="${display_id#:}"
+  display_number="${display_number%%.*}"
+  local lock_path="/tmp/.X${display_number}-lock"
+  local socket_path="/tmp/.X11-unix/X${display_number}"
+  if [[ -f "$lock_path" ]]; then
+    local lock_pid=""
+    lock_pid="$(tr -d '[:space:]' < "$lock_path" 2>/dev/null || true)"
+    if [[ -z "$lock_pid" || ! "$lock_pid" =~ ^[0-9]+$ || ! -d "/proc/$lock_pid" ]]; then
+      rm -f "$lock_path" "$socket_path"
+    fi
+  fi
   Xvfb "$display_id" -screen 0 "$screen_size" >"$log_path" 2>&1 &
   local pid=$!
   quillui_assign_output "$output_var" "$pid" || return $?
@@ -989,6 +1000,7 @@ quillui_install_linux_backend_smoke_packages() {
 
   local packages=(
     clang
+    ffmpeg
     fontconfig
     fonts-noto-cjk
     fonts-noto-color-emoji
