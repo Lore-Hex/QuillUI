@@ -1883,13 +1883,6 @@ public extension Section {
     }
 }
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        _ = axis
-        self.init(title, text: text)
-    }
-}
-
 public extension SearchFieldPlacement {
     static var navigationBarDrawer: SearchFieldPlacement {
         .navigationBarDrawer(displayMode: .automatic)

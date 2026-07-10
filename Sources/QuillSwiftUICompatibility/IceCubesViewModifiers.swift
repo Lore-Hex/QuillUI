@@ -18,12 +18,6 @@ public extension View {
         _ = factor
         return self
     }
-
-    @_disfavoredOverload
-    func formStyle(_ style: GroupedFormStyle) -> Self {
-        _ = style
-        return self
-    }
 }
 
 /// SwiftUI's `Image.TemplateRenderingMode` shim. Upstream uses it only as an

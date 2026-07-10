@@ -4754,6 +4754,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/AppStorage.swift"),
             encoding: .utf8
         )
+        let iceCubesViewModifiers = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/IceCubesViewModifiers.swift"),
+            encoding: .utf8
+        )
         let iceCubesShims = try String(
             contentsOf: root.appendingPathComponent("Sources/IceCubesShims/IceCubesShims.swift"),
             encoding: .utf8
@@ -4780,6 +4784,10 @@ struct SourceHygieneTests {
         )
         let swiftOpenUIFocusedValue = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/State/FocusedValue.swift"),
+            encoding: .utf8
+        )
+        let swiftOpenUITextField = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/TextField.swift"),
             encoding: .utf8
         )
 
@@ -4815,6 +4823,9 @@ struct SourceHygieneTests {
         #expect(!designCompatibility.contains("func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self"))
         #expect(swiftUIPlatformSurface.contains("func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType>"))
         #expect(designCompatibility.contains("func formStyle(_ style: GroupedFormStyle) -> Self"))
+        #expect(!iceCubesViewModifiers.contains("func formStyle(_ style: GroupedFormStyle) -> Self"))
+        #expect(swiftOpenUITextField.contains("public init(_ title: String, text: Binding<String>, axis: Axis = .horizontal)"))
+        #expect(!designCompatibility.contains("init(_ title: String, text: Binding<String>, axis: Axis)"))
         #expect(designCompatibility.contains("public static func offset(_ offset: CGSize) -> AnyTransition"))
         #expect(designCompatibility.contains("public static func offset(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition"))
         #expect(designCompatibility.contains("@MainActor\n    static var circle: Circle { Circle() }"))
