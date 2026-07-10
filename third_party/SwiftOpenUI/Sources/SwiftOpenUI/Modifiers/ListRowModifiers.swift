@@ -1,3 +1,18 @@
+import Foundation
+
+private func swiftOpenUIRecordCompatibilityFallback(_ operation: String, message: String) {
+    NotificationCenter.default.post(
+        name: Notification.Name("QuillSwiftOpenUICompatibilityFallback"),
+        object: nil,
+        userInfo: [
+            "subsystem": "QuillUI",
+            "operation": operation,
+            "severity": "info",
+            "message": message
+        ]
+    )
+}
+
 /// Protocol for views that carry SwiftUI list/form row inset metadata.
 public protocol ListRowInsetsProvider {
     var listRowInsets: EdgeInsets? { get }
@@ -49,11 +64,19 @@ public struct ListRowSeparatorView<Content: View>: View, ListRowSeparatorProvide
 public extension View {
     /// Sets the insets for this row when rendered inside a List or Form.
     func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
-        ListRowInsetsView(content: self, insets: insets)
+        swiftOpenUIRecordCompatibilityFallback(
+            "listRowInsets",
+            message: "listRowInsets is preserved as list row layout metadata on Linux."
+        )
+        return ListRowInsetsView(content: self, insets: insets)
     }
 
     /// Sets row separator visibility when rendered inside a List or Form.
     func listRowSeparator(_ visibility: Visibility, edges: Edge.Set = .all) -> ListRowSeparatorView<Self> {
-        ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
+        swiftOpenUIRecordCompatibilityFallback(
+            "listRowSeparator",
+            message: "listRowSeparator is preserved as list row separator metadata on Linux."
+        )
+        return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
     }
 }

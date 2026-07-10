@@ -164,6 +164,79 @@ def quill_chat_first_completion_delete(path: Path) -> tuple[int, int]:
     return center_x, center_y
 
 
+def _is_neutral_outline(r: int, g: int, b: int) -> bool:
+    return 145 <= r <= 225 and 145 <= g <= 225 and 145 <= b <= 225 and max(r, g, b) - min(r, g, b) <= 12
+
+
+def _neutral_outline_components(
+    *,
+    width: int,
+    height: int,
+    bpp: int,
+    pixels: bytearray,
+    x_min_ratio: float,
+    x_max_ratio: float,
+    y_min_ratio: float,
+    y_max_ratio: float,
+) -> list[tuple[int, int, int, int, int]]:
+    x_min = max(0, min(width - 1, int(width * x_min_ratio)))
+    x_max = max(x_min + 1, min(width, int(width * x_max_ratio)))
+    y_min = max(0, min(height - 1, int(height * y_min_ratio)))
+    y_max = max(y_min + 1, min(height, int(height * y_max_ratio)))
+    outline: set[tuple[int, int]] = set()
+    for y in range(y_min, y_max):
+        for x in range(x_min, x_max):
+            if _is_neutral_outline(*_rgb_at(pixels, width, bpp, x, y)):
+                outline.add((x, y))
+
+    components: list[tuple[int, int, int, int, int]] = []
+    while outline:
+        start = outline.pop()
+        stack = [start]
+        xs = [start[0]]
+        ys = [start[1]]
+        while stack:
+            x, y = stack.pop()
+            for nx in (x - 1, x, x + 1):
+                for ny in (y - 1, y, y + 1):
+                    if (nx, ny) in outline:
+                        outline.remove((nx, ny))
+                        stack.append((nx, ny))
+                        xs.append(nx)
+                        ys.append(ny)
+        components.append((min(xs), min(ys), max(xs), max(ys), len(xs)))
+    return components
+
+
+def quill_chat_composer(path: Path) -> tuple[int, int]:
+    width, height, bpp, pixels = decode_png(path)
+    components = _neutral_outline_components(
+        width=width,
+        height=height,
+        bpp=bpp,
+        pixels=pixels,
+        x_min_ratio=0.24,
+        x_max_ratio=0.99,
+        y_min_ratio=0.84,
+        y_max_ratio=0.99,
+    )
+
+    candidates = []
+    for x0, y0, x1, y1, count in components:
+        component_width = x1 - x0 + 1
+        component_height = y1 - y0 + 1
+        if component_width >= width * 0.25 and 8 <= component_height <= 90 and count >= 120:
+            candidates.append((y1, component_width, x0, y0, x1, y1, count))
+
+    if not candidates:
+        raise RuntimeError(f"{path}: Quill Chat composer input was not detected")
+
+    _, _, x0, y0, x1, y1, _ = max(candidates, key=lambda candidate: (candidate[0], candidate[1]))
+    component_width = x1 - x0 + 1
+    inset = max(36, min(96, round(component_width * 0.06)))
+    return x0 + inset, round((y0 + y1) / 2)
+
+
 def _png_chunk(kind: bytes, payload: bytes) -> bytes:
     checksum = binascii.crc32(kind)
     checksum = binascii.crc32(payload, checksum) & 0xFFFFFFFF
@@ -214,6 +287,30 @@ def _write_delete_test_png(path: Path) -> None:
     path.write_bytes(data)
 
 
+def _write_composer_test_png(path: Path) -> None:
+    width = 220
+    height = 160
+    rows = bytearray()
+    for y in range(height):
+        rows.append(0)
+        for x in range(width):
+            if (42 <= x <= 198 and y in (138, 139, 150, 151)) or (
+                138 <= y <= 151 and x in (42, 43, 197, 198)
+            ):
+                rows.extend((184, 188, 188))
+            else:
+                rows.extend((246, 246, 246))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    data = (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", ihdr)
+        + _png_chunk(b"IDAT", zlib.compress(bytes(rows)))
+        + _png_chunk(b"IEND", b"")
+    )
+    path.write_bytes(data)
+
+
 def self_test() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "target.png"
@@ -229,13 +326,24 @@ def self_test() -> int:
     if not (152 <= x <= 153 and 68 <= y <= 69):
         print(f"unexpected delete self-test target: {x} {y}", file=sys.stderr)
         return 1
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "composer.png"
+        _write_composer_test_png(path)
+        x, y = quill_chat_composer(path)
+    if not (86 <= x <= 90 and 143 <= y <= 147):
+        print(f"unexpected composer self-test target: {x} {y}", file=sys.stderr)
+        return 1
     return 0
 
 
 def main(argv: list[str]) -> int:
     if len(argv) == 2 and argv[1] == "--self-test":
         return self_test()
-    if len(argv) != 3 or argv[1] not in {"quill-chat-new-completion", "quill-chat-first-completion-delete"}:
+    if len(argv) != 3 or argv[1] not in {
+        "quill-chat-new-completion",
+        "quill-chat-first-completion-delete",
+        "quill-chat-composer",
+    }:
         print(
             "Usage: quillui-image-click-target.py TARGET SCREENSHOT.png",
             file=sys.stderr,
@@ -245,8 +353,10 @@ def main(argv: list[str]) -> int:
     try:
         if argv[1] == "quill-chat-new-completion":
             x, y = quill_chat_new_completion(Path(argv[2]))
-        else:
+        elif argv[1] == "quill-chat-first-completion-delete":
             x, y = quill_chat_first_completion_delete(Path(argv[2]))
+        else:
+            x, y = quill_chat_composer(Path(argv[2]))
     except Exception as error:
         print(str(error), file=sys.stderr)
         return 1

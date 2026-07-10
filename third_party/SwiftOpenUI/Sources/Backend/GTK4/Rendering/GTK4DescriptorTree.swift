@@ -690,6 +690,13 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
         return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
     if hasReactiveProperties(view) {
+        if V.Body.self != Never.self {
+            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+            )
+        }
         return GTK4DescriptorNode(
             kind: .composite,
             typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>"

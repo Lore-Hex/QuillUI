@@ -22,7 +22,11 @@ public extension View {
     }
 
     func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
-        MinimumScaleFactorView(content: self, factor: factor)
+        recordSwiftUICompatibilityFallback(
+            "minimumScaleFactor",
+            message: "minimumScaleFactor is preserved as text layout metadata on Linux."
+        )
+        return MinimumScaleFactorView(content: self, factor: factor)
     }
 }
 

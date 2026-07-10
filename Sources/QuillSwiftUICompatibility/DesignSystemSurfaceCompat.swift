@@ -4,7 +4,7 @@ import QuillFoundation
 import QuillKit
 import SwiftOpenUI
 
-private func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
+func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
     QuillCompatibilityDiagnostics.shared.record(
         subsystem: "QuillUI",
         operation: operation,

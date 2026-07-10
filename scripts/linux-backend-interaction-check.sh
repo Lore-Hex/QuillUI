@@ -1041,6 +1041,46 @@ quill_chat_mac_reference_first_completion_delete_click_target() {
   fi
 }
 
+quill_chat_mac_reference_composer_click_target() {
+  local probe_path="$1"
+  local target
+  local target_x
+  local target_y
+
+  target="$(python3 "$ROOT_DIR/scripts/quillui-image-click-target.py" \
+    quill-chat-composer \
+    "$probe_path")" || return 1
+  [[ "$target" =~ ^[0-9]+[[:space:]][0-9]+$ ]] || return 1
+  read -r target_x target_y <<< "$target"
+
+  if [[ "$capture_window" == "root" ]]; then
+    printf '%s %s\n' "$target_x" "$target_y"
+  else
+    printf '%s %s\n' "$((window_x + target_x))" "$((window_y + target_y))"
+  fi
+}
+
+click_quill_chat_composer() {
+  local fallback_x="$1"
+  local fallback_y="$2"
+  local probe_path
+  local target
+  local target_x
+  local target_y
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    probe_path="$OUTPUT_DIR/quill-chat-composer-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+    if capture_backend_screenshot "$probe_path" >/dev/null 2>&1 \
+      && target="$(quill_chat_mac_reference_composer_click_target "$probe_path" 2>/dev/null)"; then
+      read -r target_x target_y <<< "$target"
+      click_at "$target_x" "$target_y"
+      return 0
+    fi
+  fi
+
+  click_at "$fallback_x" "$fallback_y"
+}
+
 open_quill_chat_new_completion_sheet() {
   local new_x
   local new_y
@@ -1567,7 +1607,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # which looks for typed pixels near the composer's left inset.
         click_x="$(quill_chat_composer_click_x)"
         click_y="$(quill_chat_composer_click_y)"
-        click_at "$click_x" "$click_y"
+        click_quill_chat_composer "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
@@ -1580,7 +1620,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         # the live Ollama/persistence proof remains a separate functional smoke.
         click_x="$(quill_chat_composer_click_x)"
         click_y="$(quill_chat_composer_click_y)"
-        click_at "$click_x" "$click_y"
+        click_quill_chat_composer "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-hello from linux}"
         sleep 1
@@ -1599,7 +1639,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
         click_x="$(quill_chat_composer_click_x)"
         click_y="$(quill_chat_composer_click_y)"
-        click_at "$click_x" "$click_y"
+        click_quill_chat_composer "$click_x" "$click_y"
         sleep 1
         type_text "${QUILLUI_BACKEND_TYPE_TEXT:-describe this image from linux}"
         sleep 1

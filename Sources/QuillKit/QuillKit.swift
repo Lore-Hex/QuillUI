@@ -104,6 +104,8 @@ public struct QuillCompatibilityEvent: Equatable, Sendable {
     }
 }
 
+private let quillSwiftOpenUICompatibilityFallbackNotification = Notification.Name("QuillSwiftOpenUICompatibilityFallback")
+
 public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
     public static let shared = QuillCompatibilityDiagnostics()
 
@@ -148,15 +150,35 @@ public final class QuillCompatibilityDiagnostics: @unchecked Sendable {
         lock.lock()
         let previousEvents = storedEvents
         storedEvents.removeAll()
+        let observer = NotificationCenter.default.addObserver(
+            forName: quillSwiftOpenUICompatibilityFallbackNotification,
+            object: nil,
+            queue: nil
+        ) { [weak self] notification in
+            guard let operation = notification.userInfo?["operation"] as? String else { return }
+            let subsystem = notification.userInfo?["subsystem"] as? String ?? "QuillUI"
+            let message = notification.userInfo?["message"] as? String
+                ?? "\(operation) is currently a source-compatibility fallback on Linux."
+            let severity = (notification.userInfo?["severity"] as? String)
+                .flatMap(QuillCompatibilityEvent.Severity.init(rawValue:)) ?? .info
+            self?.record(
+                subsystem: subsystem,
+                operation: operation,
+                severity: severity,
+                message: message
+            )
+        }
 
         do {
             let result = try body()
             let capturedEvents = storedEvents
             storedEvents = previousEvents
+            NotificationCenter.default.removeObserver(observer)
             lock.unlock()
             return (result, capturedEvents)
         } catch {
             storedEvents = previousEvents
+            NotificationCenter.default.removeObserver(observer)
             lock.unlock()
             throw error
         }

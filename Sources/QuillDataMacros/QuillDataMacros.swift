@@ -244,7 +244,7 @@ public struct QuillObservableMacro: MemberMacro, MemberAttributeMacro, Extension
 
         if variable.modifiers.contains(where: { modifier in
             let name = modifier.name.text
-            return name == "static" || name == "class" || name == "lazy"
+            return name == "static" || name == "class" || name == "lazy" || name == "private"
         }) {
             return false
         }
