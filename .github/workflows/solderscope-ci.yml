@@ -137,7 +137,7 @@ jobs:
         run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-snapshot.png interaction
 
       - name: SolderScope GTK freeze smoke
-        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=0 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
+        run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=shortcut QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER=window QUILLUI_GTK_DEBUG_ACTIONS=1 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction
 
       - name: SolderScope GTK recording smoke
         run: QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=1 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-recording.png interaction

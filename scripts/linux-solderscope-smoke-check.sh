@@ -327,16 +327,18 @@ quillui_solderscope_drive_freeze_once() {
   local window_y="$4"
   local window_width="$5"
   local label="${6:-freeze}"
+  local freeze_key_driver="${7:-${QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER:-window}}"
 
   case "$freeze_driver" in
     toolbar)
       quillui_solderscope_click_toolbar_button "$window_x" "$window_y" "$window_width" \
-        "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-235}" \
+        "${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-218}" \
         "$label" \
         "${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET:-38}"
       ;;
     shortcut)
-      QUILLUI_SOLDERSCOPE_KEY_DRIVER="${QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER:-window}" \
+      echo "SolderScope interaction smoke: shortcut $label $freeze_key_driver key space" >&2
+      QUILLUI_SOLDERSCOPE_KEY_DRIVER="$freeze_key_driver" \
         quillui_solderscope_send_key "$window_id" space
       ;;
     none)
@@ -347,6 +349,63 @@ quillui_solderscope_drive_freeze_once() {
       return 64
       ;;
   esac
+}
+
+quillui_solderscope_freeze_shortcut_handled_count() {
+  grep -E -c "key shortcut=none\\+space .* handled=true" "$APP_LOG_PATH" 2>/dev/null || true
+}
+
+quillui_solderscope_verify_freeze_loop() {
+  local attempt_screenshot="$1"
+  local label="$2"
+  local freeze_attempts="${QUILLUI_SOLDERSCOPE_FREEZE_ATTEMPTS:-3}"
+  local attempt
+  for ((attempt = 1; attempt <= freeze_attempts; attempt += 1)); do
+    sleep "${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_SETTLE_SECONDS:-1}"
+    if quillui_solderscope_verify_freeze_attempt "$attempt_screenshot"; then
+      echo "SolderScope interaction smoke: $label reached verified state on attempt $attempt" >&2
+      return 0
+    fi
+    echo "SolderScope interaction smoke: $label attempt $attempt did not show the FROZEN badge" >&2
+  done
+  return 1
+}
+
+quillui_solderscope_try_freeze_driver() {
+  local freeze_driver="$1"
+  local window_id="$2"
+  local window_x="$3"
+  local window_y="$4"
+  local window_width="$5"
+  local attempt_screenshot="$6"
+  local label="${7:-freeze}"
+  local key_driver="${8:-${QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER:-window}}"
+  local handled_before=0
+
+  if [[ "$freeze_driver" == "shortcut" ]]; then
+    handled_before="$(quillui_solderscope_freeze_shortcut_handled_count)"
+  fi
+
+  quillui_solderscope_drive_freeze_once \
+    "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width" "$label" "$key_driver"
+
+  if quillui_solderscope_verify_freeze_loop "$attempt_screenshot" "$label"; then
+    return 0
+  fi
+
+  if [[ "$freeze_driver" == "shortcut" ]]; then
+    local handled_after
+    handled_after="$(quillui_solderscope_freeze_shortcut_handled_count)"
+    if [[ "$handled_after" =~ ^[0-9]+$ && "$handled_before" =~ ^[0-9]+$ ]]; then
+      if (( handled_after > handled_before )); then
+        echo "SolderScope interaction smoke: shortcut $label reached GTK but did not verify frozen UI" >&2
+      else
+        echo "SolderScope interaction smoke: shortcut $label did not reach GTK handler" >&2
+      fi
+    fi
+  fi
+
+  return 1
 }
 
 quillui_solderscope_freeze_fallback_driver() {
@@ -583,34 +642,36 @@ quillui_solderscope_converge_freeze() {
   fi
 
   local attempt_screenshot="${SCREENSHOT_PATH%.png}-freeze-attempt.png"
-  local freeze_attempts="${QUILLUI_SOLDERSCOPE_FREEZE_ATTEMPTS:-3}"
-  local attempt
-  quillui_solderscope_drive_freeze_once "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
-  for ((attempt = 1; attempt <= freeze_attempts; attempt += 1)); do
-    sleep "${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_SETTLE_SECONDS:-1}"
-    if quillui_solderscope_verify_freeze_attempt "$attempt_screenshot"; then
-      echo "SolderScope interaction smoke: freeze reached verified state on attempt $attempt" >&2
-      return 0
+  local primary_key_driver="${QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER:-window}"
+  if quillui_solderscope_try_freeze_driver \
+      "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width" \
+      "$attempt_screenshot" freeze "$primary_key_driver"; then
+    return 0
+  fi
+
+  if [[ "$freeze_driver" == "shortcut" ]]; then
+    local alternate_key_driver="${QUILLUI_SOLDERSCOPE_FREEZE_ALT_KEY_DRIVER:-active}"
+    if [[ "$alternate_key_driver" != "none" && "$alternate_key_driver" != "$primary_key_driver" ]]; then
+      if quillui_solderscope_try_freeze_driver \
+          shortcut "$window_id" "$window_x" "$window_y" "$window_width" \
+          "$attempt_screenshot" freeze-shortcut-fallback "$alternate_key_driver"; then
+        return 0
+      fi
     fi
-    echo "SolderScope interaction smoke: freeze attempt $attempt did not show the FROZEN badge" >&2
-  done
+  fi
 
   local fallback_driver
   fallback_driver="$(quillui_solderscope_freeze_fallback_driver "$freeze_driver")" || return $?
   if [[ "$fallback_driver" != "none" && "$fallback_driver" != "$freeze_driver" ]]; then
-    quillui_solderscope_drive_freeze_once "$fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" freeze-fallback
-    for ((attempt = 1; attempt <= freeze_attempts; attempt += 1)); do
-      sleep "${QUILLUI_SOLDERSCOPE_FREEZE_VERIFY_SETTLE_SECONDS:-1}"
-      if quillui_solderscope_verify_freeze_attempt "$attempt_screenshot"; then
-        echo "SolderScope interaction smoke: freeze fallback reached verified state on attempt $attempt" >&2
-        return 0
-      fi
-      echo "SolderScope interaction smoke: freeze fallback attempt $attempt did not show the FROZEN badge" >&2
-    done
+    if quillui_solderscope_try_freeze_driver \
+        "$fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" \
+        "$attempt_screenshot" freeze-fallback "$primary_key_driver"; then
+      return 0
+    fi
   fi
 
   cp -f "$attempt_screenshot" "$SCREENSHOT_PATH" 2>/dev/null || true
-  echo "SolderScope interaction smoke did not reach the verified frozen state after $freeze_attempts attempts" >&2
+  echo "SolderScope interaction smoke did not reach the verified frozen state" >&2
   return 1
 }
 

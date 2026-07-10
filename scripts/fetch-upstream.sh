@@ -2745,8 +2745,9 @@ patch_solderscope() {
     # 1. `import os.log` is lowered to `import os`, which pure-Swift shims cannot
     #    express as a clang submodule.
     # 2. The Linux CoreImage/CoreVideo bridge needs frozen camera frames
-    #    materialized to CGImage; otherwise a frozen CIImage can later draw black
-    #    when its backing capture storage changes.
+    #    materialized to CGImage and cached across the freeze state flip;
+    #    otherwise a frozen CIImage can later draw black when its backing
+    #    capture storage or representable update order changes.
     if [[ "$(uname -s)" == "Linux" ]]; then
         local dir="$UPSTREAM_DIR/solderscope/SolderScope"
         local logger="$dir/Utilities/Logger.swift"
@@ -2773,7 +2774,7 @@ import sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 new = text
-replacements = [
+base_replacements = [
     (
         """            if isFrozen && frozenFrame == nil {
                 frozenFrame = currentFrame
@@ -2782,7 +2783,7 @@ replacements = [
             }
 """,
         """            if isFrozen && frozenFrame == nil {
-                frozenFrame = materializedFrame(from: currentFrame)
+                frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame
                 needsDisplay = true
             } else if !isFrozen {
                 frozenFrame = nil
@@ -2794,6 +2795,18 @@ replacements = [
         """    private var frozenFrame: CIImage?
 """,
         """    private var frozenFrame: QuillFoundation.CGImage?
+    private var lastRenderedFrame: QuillFoundation.CGImage?
+""",
+    ),
+    (
+        """                self.currentFrame = frame
+                self.needsDisplay = true
+""",
+        """                self.currentFrame = frame
+                if let renderedFrame = self.materializedFrame(from: frame) {
+                    self.lastRenderedFrame = renderedFrame
+                }
+                self.needsDisplay = true
 """,
     ),
     (
@@ -2811,7 +2824,7 @@ replacements = [
             }
 """,
         """            if frozenFrame == nil {
-                frozenFrame = materializedFrame(from: image)
+                frozenFrame = materializedFrame(from: image) ?? lastRenderedFrame
                 needsDisplay = true
             }
 """,
@@ -2849,25 +2862,85 @@ replacements = [
         } else {
             guard let ciImage = currentFrame,
                   let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            lastRenderedFrame = renderedImage
             cgImage = renderedImage
         }
 """,
     ),
 ]
+upgrade_replacements = [
+    (
+        """                frozenFrame = materializedFrame(from: currentFrame)
+                needsDisplay = true
+""",
+        """                frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame
+                needsDisplay = true
+""",
+    ),
+    (
+        """    private var frozenFrame: QuillFoundation.CGImage?
+    private var ciContext: CIContext?
+""",
+        """    private var frozenFrame: QuillFoundation.CGImage?
+    private var lastRenderedFrame: QuillFoundation.CGImage?
+    private var ciContext: CIContext?
+""",
+    ),
+    (
+        """                self.currentFrame = frame
+                self.needsDisplay = true
+""",
+        """                self.currentFrame = frame
+                if let renderedFrame = self.materializedFrame(from: frame) {
+                    self.lastRenderedFrame = renderedFrame
+                }
+                self.needsDisplay = true
+""",
+    ),
+    (
+        """                frozenFrame = materializedFrame(from: image)
+                needsDisplay = true
+""",
+        """                frozenFrame = materializedFrame(from: image) ?? lastRenderedFrame
+                needsDisplay = true
+""",
+    ),
+    (
+        """            guard let ciImage = currentFrame,
+                  let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            cgImage = renderedImage
+""",
+        """            guard let ciImage = currentFrame,
+                  let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            lastRenderedFrame = renderedImage
+            cgImage = renderedImage
+""",
+    ),
+]
 patched_markers = [
-    "frozenFrame = materializedFrame(from: currentFrame)",
+    "frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame",
     "private var frozenFrame: QuillFoundation.CGImage?",
+    "private var lastRenderedFrame: QuillFoundation.CGImage?",
     "private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage?",
+    "lastRenderedFrame = renderedImage",
 ]
 if all(marker in new for marker in patched_markers):
     raise SystemExit(0)
-for old, replacement in replacements:
-    if old not in new:
-        raise SystemExit(f"patch_solderscope: expected MicroscopeView snippet not found in {path}: {old.splitlines()[0]}")
-    new = new.replace(old, replacement, 1)
+for old, replacement in base_replacements:
+    if old in new:
+        new = new.replace(old, replacement, 1)
+for old, replacement in upgrade_replacements:
+    if old in new:
+        new = new.replace(old, replacement, 1)
+missing_markers = [marker for marker in patched_markers if marker not in new]
+if missing_markers:
+    raise SystemExit(
+        f"patch_solderscope: expected MicroscopeView snippet not found in {path}: "
+        + ", ".join(missing_markers)
+    )
 if new != text:
     path.write_text(new)
-    print(f"patch_solderscope: materialized frozen frames in {path}")
+    print(f"patch_solderscope: materialized and cached frozen frames in {path}")
 PY
         fi
     fi
