@@ -4215,6 +4215,59 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testVerticalScrollViewLeavesFixedFooterVisibleInVStack() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(0..<40) { index in
+                            Text("History item \(index)")
+                                .font(.system(size: 16))
+                                .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .clipped()
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 18) {
+                    Text("Completions")
+                    Text("Shortcuts")
+                    Text("Settings")
+                }
+                .frame(height: 146)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .clipped()
+            }
+        ))
+        gtkConfigureRootContentToFillWindow(wrapper)
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 600))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let settingsLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "Settings"
+        })
+        let settingsOrigin = translatedChildOrigin(child: settingsLabel, in: wrapper)
+        let settingsSize = allocatedSize(of: settingsLabel)
+
+        XCTAssertLessThanOrEqual(
+            settingsOrigin.y + settingsSize.height,
+            600,
+            "A vertical ScrollView above fixed footer navigation must shrink to the remaining stack height."
+        )
+        XCTAssertGreaterThan(
+            settingsOrigin.y,
+            430,
+            "Footer navigation should remain pinned near the lower sidebar edge, not inline with scroll content."
+        )
+    }
+
     /// A `.frame(height: 0.5)` (sub-pixel divider) must request at least
     /// 1 device-pixel of height. Truncating via `gint()` collapses 0.5 to 0
     /// and makes the divider invisible.

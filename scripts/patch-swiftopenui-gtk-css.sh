@@ -1073,6 +1073,77 @@ gtk_swift_remove_event_controller(GtkWidget *widget, gpointer controller) {
         text = text.replace(remove_controller_marker, event_controller_widget_helper + remove_controller_marker, 1)
     else:
         text = text.rstrip() + "\n\n" + event_controller_widget_helper
+if "gtk_swift_compressible_height_clamp_new" not in text:
+    compressible_height_clamp = """static inline void
+gtk_swift_compressible_height_clamp_measure(GtkWidget *widget,
+                                            GtkOrientation orientation,
+                                            int for_size,
+                                            int *minimum,
+                                            int *natural,
+                                            int *minimum_baseline,
+                                            int *natural_baseline) {
+    GtkWidget *child = gtk_widget_get_first_child(widget);
+    if (minimum_baseline) *minimum_baseline = -1;
+    if (natural_baseline) *natural_baseline = -1;
+    if (child == NULL || !gtk_widget_should_layout(child)) {
+        if (minimum) *minimum = 0;
+        if (natural) *natural = 0;
+        return;
+    }
+
+    if (orientation == GTK_ORIENTATION_VERTICAL) {
+        if (minimum) *minimum = 1;
+        if (natural) *natural = 1;
+        return;
+    }
+
+    gtk_widget_measure(
+        child,
+        orientation,
+        for_size,
+        minimum,
+        natural,
+        minimum_baseline,
+        natural_baseline);
+}
+
+static inline GtkWidget *
+gtk_swift_compressible_height_clamp_new(GtkWidget *child) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_width_clamp_request_mode,
+        gtk_swift_compressible_height_clamp_measure,
+        gtk_swift_width_clamp_allocate);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_hexpand(container, gtk_widget_get_hexpand(child));
+    gtk_widget_set_vexpand(container, gtk_widget_get_vexpand(child));
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
+"""
+    width_clamp_marker = """static inline GtkWidget *
+gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_width_clamp_request_mode,
+        gtk_swift_compressible_width_clamp_measure,
+        gtk_swift_width_clamp_allocate);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_hexpand(container, gtk_widget_get_hexpand(child));
+    gtk_widget_set_vexpand(container, gtk_widget_get_vexpand(child));
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
+"""
+    if width_clamp_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK compressible width clamp insertion point was not recognized")
+    text = text.replace(width_clamp_marker, width_clamp_marker + compressible_height_clamp, 1)
 path.write_text(text)
 PY
 fi
@@ -5333,6 +5404,27 @@ if "SwiftUI lays vertical ScrollView content out in the viewport" not in text:
         raise SystemExit("SwiftOpenUI ScrollView child sizing shape was not recognized")
     text = text.replace(old_scroll, new_scroll, 1)
 
+if "gtk_scrolled_window_set_min_content_height(scrolledOp, 1)" not in text:
+    old_scroll_natural_size = '''        if axes.contains(.horizontal) {
+            gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        }
+        if axes.contains(.vertical) {
+            gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+        }
+'''
+    new_scroll_natural_size = '''        if axes.contains(.horizontal) {
+            gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+            gtk_scrolled_window_set_min_content_width(scrolledOp, 1)
+        }
+        if axes.contains(.vertical) {
+            gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+            gtk_scrolled_window_set_min_content_height(scrolledOp, 1)
+        }
+'''
+    if old_scroll_natural_size not in text:
+        raise SystemExit("SwiftOpenUI ScrollView natural-size clamp shape was not recognized")
+    text = text.replace(old_scroll_natural_size, new_scroll_natural_size, 1)
+
 if "let childWantsVerticalFill = gtkHasVerticalFillIntent(child)" not in text:
     scroll_child_marker_anchor = "        let child = widgetFromOpaque(gtkRenderView(content))\n        if axes.contains(.vertical) {\n"
     if scroll_child_marker_anchor not in text:
@@ -6262,11 +6354,12 @@ scroll_view_expansion = '''        gtkInstallScrollViewCrossAxisFill(
         }
         gtk_widget_set_hexpand(scrolled, 1)
 '''
+legacy_axis_vexpand = "gtk_widget_set_vexpand(scrolled, axes.contains(.vertical) ? " + "1 : 0)"
 if legacy_scroll_view_expansion in text:
     text = text.replace(legacy_scroll_view_expansion, scroll_view_expansion, 1)
-elif "gtk_widget_set_vexpand(scrolled, axes.contains(.vertical) ? 1 : 0)" in text:
+elif legacy_axis_vexpand in text:
     text = text.replace(
-        "        gtk_widget_set_vexpand(scrolled, axes.contains(.vertical) ? 1 : 0)\n        gtk_widget_set_hexpand(scrolled, 1)\n",
+        "        " + legacy_axis_vexpand + "\n        gtk_widget_set_hexpand(scrolled, 1)\n",
         "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)\n        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        if scrollerWantsVerticalFill {\n            gtkMarkVerticalFillIntent(scrolled)\n        }\n        gtk_widget_set_hexpand(scrolled, 1)\n",
         1,
     )
@@ -6839,6 +6932,142 @@ if "gtkMarkVerticalFillIntent(area)" not in text:
     if shape_vexpand not in text:
         raise SystemExit("SwiftOpenUI shape fill marker insertion point was not recognized")
     text = text.replace(shape_vexpand, shape_vexpand + "    gtkMarkVerticalFillIntent(area)\n", 1)
+
+compressible_layout_helpers = '''private func gtkCompressibleHeightClamp(
+    _ child: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let wrapper = gtk_swift_compressible_height_clamp_new(child)!
+    if gtk_widget_get_hexpand(child) != 0 {
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(child) != 0 {
+        gtk_widget_set_vexpand(wrapper, 1)
+        gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
+    }
+    gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+    return wrapper
+}
+
+private func gtkCompressibleProposalClamp(
+    _ child: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let heightWrapper = gtkCompressibleHeightClamp(child)
+    let widthWrapper = gtk_swift_compressible_width_clamp_new(heightWrapper)!
+    if gtk_widget_get_hexpand(heightWrapper) != 0 {
+        gtk_widget_set_hexpand(widthWrapper, 1)
+        gtk_widget_set_halign(widthWrapper, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(heightWrapper) != 0 {
+        gtk_widget_set_vexpand(widthWrapper, 1)
+        gtk_widget_set_valign(widthWrapper, GTK_ALIGN_FILL)
+    }
+    gtkPropagateSingleChildLayoutMarkers(from: [heightWrapper], to: widthWrapper)
+    return widthWrapper
+}
+
+'''
+if "private func gtkCompressibleHeightClamp" not in text:
+    measure_helper = '''private func gtkMeasureWidgetNaturalSize(_ widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {
+    var widthMin: Int32 = 0
+    var widthNat: Int32 = 0
+    var heightMin: Int32 = 0
+    var heightNat: Int32 = 0
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &widthMin, &widthNat)
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &heightMin, &heightNat)
+    let width = max(widthMin, widthNat)
+    let height = max(heightMin, heightNat)
+    return ViewSize(width: Double(width), height: Double(height))
+}
+
+'''
+    if measure_helper not in text:
+        raise SystemExit("SwiftOpenUI compressible layout helper insertion point was not recognized")
+    text = text.replace(measure_helper, measure_helper + compressible_layout_helpers, 1)
+
+if "for originalWidget in children {\n        var widget = originalWidget" not in text:
+    old_vstack_loop = '''    for widget in children {
+        let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            gtk_widget_set_hexpand(widget, 0)
+            gtk_widget_set_vexpand(widget, 1)
+        }
+        if gtk_widget_get_hexpand(widget) != 0 {
+            needsHExpand = true
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        } else {
+            gtk_widget_set_halign(widget, gtkAlign)
+        }
+        if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true; gtk_widget_set_valign(widget, GTK_ALIGN_FILL) }
+        gtk_box_append(boxPointer(box), widget)
+    }
+'''
+    new_vstack_loop = '''    var hasVerticalFillIntent = false
+
+    for originalWidget in children {
+        var widget = originalWidget
+        let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+        if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            gtk_widget_set_hexpand(widget, 0)
+            gtk_widget_set_vexpand(widget, 1)
+        }
+        if gtk_widget_get_hexpand(widget) != 0 {
+            needsHExpand = true
+            gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
+        } else {
+            gtk_widget_set_halign(widget, gtkAlign)
+        }
+        if gtk_widget_get_vexpand(widget) != 0 && gtkHasVerticalFillIntent(widget) {
+            widget = gtkCompressibleHeightClamp(widget)
+        }
+        if gtkHasVerticalFillIntent(widget) {
+            hasVerticalFillIntent = true
+        }
+        if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true; gtk_widget_set_valign(widget, GTK_ALIGN_FILL) }
+        gtk_box_append(boxPointer(box), widget)
+    }
+'''
+    if old_vstack_loop not in text:
+        raise SystemExit("SwiftOpenUI VStack compressible-child loop shape was not recognized")
+    text = text.replace(old_vstack_loop, new_vstack_loop, 1)
+
+if "if hasVerticalFillIntent { gtkMarkVerticalFillIntent(box) }\n    return opaqueFromWidget(box)\n}\n\nprivate func gtkRenderFallbackHStack" not in text:
+    text = text.replace(
+        '''    if needsHExpand { gtk_widget_set_hexpand(box, 1) }
+    if needsVExpand { gtk_widget_set_vexpand(box, 1) }
+    return opaqueFromWidget(box)
+}
+
+private func gtkRenderFallbackHStack''',
+        '''    if needsHExpand { gtk_widget_set_hexpand(box, 1) }
+    if needsVExpand { gtk_widget_set_vexpand(box, 1) }
+    if hasVerticalFillIntent { gtkMarkVerticalFillIntent(box) }
+    return opaqueFromWidget(box)
+}
+
+private func gtkRenderFallbackHStack''',
+        1,
+    )
+
+if "return opaqueFromWidget(gtkCompressibleProposalClamp(box))" not in text:
+    geometry_return = '''        return opaqueFromWidget(box)
+    }
+}
+
+// MARK: - Searchable GTK extension
+'''
+    if geometry_return not in text:
+        raise SystemExit("SwiftOpenUI GeometryReader return shape was not recognized")
+    text = text.replace(
+        geometry_return,
+        '''        return opaqueFromWidget(gtkCompressibleProposalClamp(box))
+    }
+}
+
+// MARK: - Searchable GTK extension
+''',
+        1,
+    )
 
 overlay_marker = "\n// MARK: - Overlay GTK extension\n\n"
 decorative_overlay_helper = """\nprivate protocol GTKDecorativeOverlay {}\nextension Circle: GTKDecorativeOverlay {}\nextension Rectangle: GTKDecorativeOverlay {}\nextension RoundedRectangle: GTKDecorativeOverlay {}\nextension Capsule: GTKDecorativeOverlay {}\nextension Ellipse: GTKDecorativeOverlay {}\nextension FilledShape: GTKDecorativeOverlay {}\nextension StrokedShape: GTKDecorativeOverlay {}\n\n"""

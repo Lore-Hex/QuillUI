@@ -2680,6 +2680,7 @@ private func gtkRenderFallbackVStack(
     let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, gint(spacing))!
     var needsHExpand = false
     var needsVExpand = false
+    var hasVerticalFillIntent = false
 
     let gtkAlign: GtkAlign
     switch alignment {
@@ -2688,7 +2689,8 @@ private func gtkRenderFallbackVStack(
     case .trailing: gtkAlign = GTK_ALIGN_END
     }
 
-    for widget in children {
+    for originalWidget in children {
+        var widget = originalWidget
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
             gtk_widget_set_hexpand(widget, 0)
@@ -2700,11 +2702,18 @@ private func gtkRenderFallbackVStack(
         } else {
             gtk_widget_set_halign(widget, gtkAlign)
         }
+        if gtk_widget_get_vexpand(widget) != 0 && gtkHasVerticalFillIntent(widget) {
+            widget = gtkCompressibleHeightClamp(widget)
+        }
+        if gtkHasVerticalFillIntent(widget) {
+            hasVerticalFillIntent = true
+        }
         if gtk_widget_get_vexpand(widget) != 0 { needsVExpand = true; gtk_widget_set_valign(widget, GTK_ALIGN_FILL) }
         gtk_box_append(boxPointer(box), widget)
     }
     if needsHExpand { gtk_widget_set_hexpand(box, 1) }
     if needsVExpand { gtk_widget_set_vexpand(box, 1) }
+    if hasVerticalFillIntent { gtkMarkVerticalFillIntent(box) }
     return opaqueFromWidget(box)
 }
 
@@ -2801,6 +2810,7 @@ private func gtkRenderFallbackHStack(
     let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, gint(spacing))!
     var needsHExpand = false
     var needsVExpand = false
+    var hasVerticalFillIntent = false
     let hasNonSpacerHExpand = children.contains { widget in
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         return g_object_get_data(gobject, gtkSwiftSpacerMarker) == nil
@@ -2842,10 +2852,14 @@ private func gtkRenderFallbackHStack(
         } else {
             gtk_widget_set_valign(widget, gtkAlign)
         }
+        if gtkHasVerticalFillIntent(widget) {
+            hasVerticalFillIntent = true
+        }
         gtk_box_append(boxPointer(box), widget)
     }
     if needsHExpand { gtk_widget_set_hexpand(box, 1) }
     if needsVExpand { gtk_widget_set_vexpand(box, 1) }
+    if hasVerticalFillIntent { gtkMarkVerticalFillIntent(box) }
     return opaqueFromWidget(box)
 }
 
@@ -2955,7 +2969,11 @@ private func gtkRenderFallbackZStack(
     let overlay = gtk_overlay_new()!
     let (hAlign, vAlign) = gtkAlignFromAlignment(alignment)
     var first = true
+    var hasVerticalFillIntent = false
     for widget in children {
+        if gtkHasVerticalFillIntent(widget) {
+            hasVerticalFillIntent = true
+        }
         if first {
             gtk_overlay_set_child(OpaquePointer(overlay), widget)
             // Propagate first child's expand to the overlay
@@ -2982,6 +3000,9 @@ private func gtkRenderFallbackZStack(
             gtk_overlay_add_overlay(OpaquePointer(overlay), widget)
             gtk_swift_overlay_set_measure_overlay(overlay, widget, 1)
         }
+    }
+    if hasVerticalFillIntent {
+        gtkMarkVerticalFillIntent(overlay)
     }
     return opaqueFromWidget(overlay)
 }
@@ -3399,7 +3420,10 @@ extension FrameView: GTKRenderable, GTKDescribable {
             gtk_widget_set_valign(child, GTK_ALIGN_FILL)
             gtk_widget_set_vexpand(child, heightMayGrowWithParent ? 1 : 0)
             gtk_box_append(boxPointer(wrapper), child)
-            return opaqueFromWidget(wrapper)
+            let output = heightMayGrowWithParent && maxHeight == .infinity
+                ? gtkCompressibleHeightClamp(wrapper)
+                : wrapper
+            return opaqueFromWidget(output)
         }
 
         if heightMayGrowWithParent {
@@ -3456,7 +3480,10 @@ extension FrameView: GTKRenderable, GTKDescribable {
             }
         }
 
-        return opaqueFromWidget(wrapper)
+        let output = heightMayGrowWithParent && maxHeight == .infinity
+            ? gtkCompressibleHeightClamp(wrapper)
+            : wrapper
+        return opaqueFromWidget(output)
     }
 
     private func gtkFrameFlexibleWidthFixedHeightClip(
@@ -3493,34 +3520,23 @@ extension FrameView: GTKRenderable, GTKDescribable {
         child: UnsafeMutablePointer<GtkWidget>,
         width: gint
     ) -> OpaquePointer {
-        let scrolled = gtk_scrolled_window_new()!
-        let scrolledOp = OpaquePointer(scrolled)
-        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
-        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
-        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
-        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
-        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
-        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
-
-        gtk_widget_set_size_request(scrolled, width, -1)
-        gtk_widget_set_hexpand(scrolled, 0)
-        gtk_widget_set_vexpand(scrolled, 1)
+        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_size_request(wrapper, width, -1)
+        gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
+        gtk_widget_set_hexpand(wrapper, 0)
+        gtk_widget_set_vexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_START)
+        gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
         gtk_widget_set_hexpand(child, 1)
         gtk_widget_set_vexpand(child, 1)
         gtk_widget_set_halign(child, GTK_ALIGN_FILL)
         gtk_widget_set_valign(child, GTK_ALIGN_FILL)
         gtk_widget_set_size_request(child, width, -1)
-        gtk_scrolled_window_set_child(scrolledOp, child)
-        gtkInstallScrollViewCrossAxisFill(
-            on: scrolled,
-            child: child,
-            fillWidth: true,
-            fillHeight: true
-        )
+        gtk_box_append(boxPointer(wrapper), child)
         if gtkHasVerticalFillIntent(child) {
-            gtkMarkVerticalFillIntent(scrolled)
+            gtkMarkVerticalFillIntent(wrapper)
         }
-        return opaqueFromWidget(scrolled)
+        return opaqueFromWidget(gtkCompressibleHeightClamp(wrapper))
     }
 
     /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
@@ -3585,6 +3601,39 @@ private func gtkMeasureWidgetNaturalSize(_ widget: UnsafeMutablePointer<GtkWidge
     let width = max(widthMin, widthNat)
     let height = max(heightMin, heightNat)
     return ViewSize(width: Double(width), height: Double(height))
+}
+
+private func gtkCompressibleHeightClamp(
+    _ child: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let wrapper = gtk_swift_compressible_height_clamp_new(child)!
+    if gtk_widget_get_hexpand(child) != 0 {
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(child) != 0 {
+        gtk_widget_set_vexpand(wrapper, 1)
+        gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
+    }
+    gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+    return wrapper
+}
+
+private func gtkCompressibleProposalClamp(
+    _ child: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget> {
+    let heightWrapper = gtkCompressibleHeightClamp(child)
+    let widthWrapper = gtk_swift_compressible_width_clamp_new(heightWrapper)!
+    if gtk_widget_get_hexpand(heightWrapper) != 0 {
+        gtk_widget_set_hexpand(widthWrapper, 1)
+        gtk_widget_set_halign(widthWrapper, GTK_ALIGN_FILL)
+    }
+    if gtk_widget_get_vexpand(heightWrapper) != 0 {
+        gtk_widget_set_vexpand(widthWrapper, 1)
+        gtk_widget_set_valign(widthWrapper, GTK_ALIGN_FILL)
+    }
+    gtkPropagateSingleChildLayoutMarkers(from: [heightWrapper], to: widthWrapper)
+    return widthWrapper
 }
 
 extension ForegroundColorView: GTKRenderable, GTKDescribable {
@@ -7667,17 +7716,20 @@ extension HelpView: GTKRenderable {
 extension ClippedView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let inner = widgetFromOpaque(gtkRenderView(content))
-        let wrapper = gtk_swift_width_clamp_new(inner)!
-        gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
+        let widthWrapper = gtk_swift_width_clamp_new(inner)!
+        gtk_widget_set_overflow(widthWrapper, GTK_OVERFLOW_HIDDEN)
         if gtk_widget_get_hexpand(inner) != 0 {
-            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_hexpand(widthWrapper, 1)
             gtk_widget_set_halign(inner, GTK_ALIGN_FILL)
         }
         if gtk_widget_get_vexpand(inner) != 0 {
-            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_vexpand(widthWrapper, 1)
             gtk_widget_set_valign(inner, GTK_ALIGN_FILL)
         }
-        gtkPropagateSingleChildLayoutMarkers(from: [inner], to: wrapper)
+        gtkPropagateSingleChildLayoutMarkers(from: [inner], to: widthWrapper)
+        let wrapper = gtk_widget_get_vexpand(inner) != 0 && gtkHasVerticalFillIntent(inner)
+            ? gtkCompressibleHeightClamp(widthWrapper)
+            : widthWrapper
         return opaqueFromWidget(wrapper)
     }
 }
@@ -7685,8 +7737,7 @@ extension ClippedView: GTKRenderable {
 extension ClipShapeView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let inner = widgetFromOpaque(gtkRenderView(content))
-        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_box_append(boxPointer(wrapper), inner)
+        let wrapper = gtk_swift_width_clamp_new(inner)!
         gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
         if gtk_widget_get_hexpand(inner) != 0 {
             gtk_widget_set_hexpand(wrapper, 1)
@@ -8246,9 +8297,11 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         // in the scroll direction — otherwise scrolling never activates.
         if axes.contains(.horizontal) {
             gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+            gtk_scrolled_window_set_min_content_width(scrolledOp, 1)
         }
         if axes.contains(.vertical) {
             gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+            gtk_scrolled_window_set_min_content_height(scrolledOp, 1)
         }
 
         let child = widgetFromOpaque(gtkRenderView(content))
@@ -12906,7 +12959,7 @@ extension GeometryReader: GTKRenderable {
             nil, nil
         )
 
-        return opaqueFromWidget(box)
+        return opaqueFromWidget(gtkCompressibleProposalClamp(box))
     }
 }
 

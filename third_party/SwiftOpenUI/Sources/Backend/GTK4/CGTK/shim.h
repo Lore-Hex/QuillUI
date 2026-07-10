@@ -324,6 +324,55 @@ gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
     return container;
 }
 
+static inline void
+gtk_swift_compressible_height_clamp_measure(GtkWidget *widget,
+                                            GtkOrientation orientation,
+                                            int for_size,
+                                            int *minimum,
+                                            int *natural,
+                                            int *minimum_baseline,
+                                            int *natural_baseline) {
+    GtkWidget *child = gtk_widget_get_first_child(widget);
+    if (minimum_baseline) *minimum_baseline = -1;
+    if (natural_baseline) *natural_baseline = -1;
+    if (child == NULL || !gtk_widget_should_layout(child)) {
+        if (minimum) *minimum = 0;
+        if (natural) *natural = 0;
+        return;
+    }
+
+    if (orientation == GTK_ORIENTATION_VERTICAL) {
+        if (minimum) *minimum = 1;
+        if (natural) *natural = 1;
+        return;
+    }
+
+    gtk_widget_measure(
+        child,
+        orientation,
+        for_size,
+        minimum,
+        natural,
+        minimum_baseline,
+        natural_baseline);
+}
+
+static inline GtkWidget *
+gtk_swift_compressible_height_clamp_new(GtkWidget *child) {
+    GtkWidget *container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+    GtkLayoutManager *layout = gtk_custom_layout_new(
+        gtk_swift_width_clamp_request_mode,
+        gtk_swift_compressible_height_clamp_measure,
+        gtk_swift_width_clamp_allocate);
+    gtk_widget_set_layout_manager(container, layout);
+    gtk_widget_set_parent(child, container);
+    gtk_widget_set_hexpand(container, gtk_widget_get_hexpand(child));
+    gtk_widget_set_vexpand(container, gtk_widget_get_vexpand(child));
+    gtk_widget_set_halign(container, GTK_ALIGN_FILL);
+    gtk_widget_set_valign(container, GTK_ALIGN_FILL);
+    return container;
+}
+
 typedef void (*GtkSwiftCustomLayoutMeasureFunc)(void *user_data,
                                                 GtkOrientation orientation,
                                                 int for_size,
