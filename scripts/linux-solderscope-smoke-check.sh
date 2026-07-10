@@ -127,6 +127,15 @@ quillui_solderscope_focus_window() {
   local window_id="$1"
   DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
   DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK:-0}"; then
+    local focus_x="${QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK_X:-590}"
+    local focus_y="${QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK_Y:-380}"
+    DISPLAY="$DISPLAY_ID" xdotool mousemove --sync --window "$window_id" "$focus_x" "$focus_y"
+    DISPLAY="$DISPLAY_ID" xdotool click 1
+    sleep "${QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK_SETTLE_SECONDS:-0.1}"
+    DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+    DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  fi
 }
 
 quillui_solderscope_send_key() {
@@ -348,6 +357,7 @@ quillui_solderscope_drive_freeze_once() {
       ;;
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label $freeze_key_driver key space" >&2
+      QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK="${QUILLUI_SOLDERSCOPE_FREEZE_KEY_FOCUS_CLICK:-1}" \
       QUILLUI_SOLDERSCOPE_KEY_DRIVER="$freeze_key_driver" \
         quillui_solderscope_send_key "$window_id" space
       ;;

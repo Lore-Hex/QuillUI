@@ -1029,7 +1029,7 @@ def validate_quill_chat_mac_reference(image: Screenshot, require_sidebar_footer_
     require(alert_height >= 80, f"Mac-reference alert is too short: height={alert_height}px")
 
     composer = None
-    for y in range(top + int(app_height * 0.86), bottom + 1):
+    for y in range(top + int(app_height * 0.80), bottom + 1):
         candidates = [
             segment
             for segment in image.segments_at(
@@ -1276,7 +1276,7 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
     detail_width = right - detail_left + 1
 
     composer = None
-    for y in range(top + int(app_height * 0.86), bottom + 1):
+    for y in range(top + int(app_height * 0.80), bottom + 1):
         candidates = [
             segment
             for segment in image.segments_at(

@@ -538,6 +538,17 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference typed composer text was not detected"))
         #expect(verifier.contains("Quill Chat composer border was not detected"))
         #expect(verifier.contains("Quill Chat composer is too narrow"))
+        let typedComposerValidatorStart = try #require(
+            verifier.range(of: "def validate_quill_chat_mac_reference_composer_typed")
+        )
+        let typedComposerValidatorEnd = try #require(
+            verifier.range(
+                of: "\ndef validate_quill_chat_mac_reference_settings_panel",
+                range: typedComposerValidatorStart.lowerBound..<verifier.endIndex
+            )
+        )
+        let typedComposerValidator = String(verifier[typedComposerValidatorStart.lowerBound..<typedComposerValidatorEnd.lowerBound])
+        #expect(typedComposerValidator.contains("top + int(app_height * 0.80)"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_settings_panel"))
         #expect(verifier.contains("panel_kind = \"root-overlay\""))
         #expect(verifier.contains("top + int(app_height * 0.18)"))
