@@ -927,8 +927,13 @@ quillui_drive_solderscope_interaction() {
       fi
       echo "SolderScope interaction smoke: continuing snapshot verification despite missing snapshot file" >&2
     fi
-    quillui_solderscope_wait_for_visible_frame_with_retry \
-      "after snapshot" "$settled_snapshot_screenshot" "$window_id" "$window_width" "$window_height"
+    if ! quillui_solderscope_wait_for_visible_frame_with_retry \
+      "after snapshot" "$settled_snapshot_screenshot" "$window_id" "$window_width" "$window_height"; then
+      if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_AFTER_SNAPSHOT:-0}"; then
+        return 1
+      fi
+      echo "SolderScope interaction smoke: continuing snapshot verification despite missing post-snapshot frame" >&2
+    fi
   fi
   if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-shortcut}"

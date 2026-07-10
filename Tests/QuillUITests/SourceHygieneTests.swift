@@ -7271,6 +7271,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("xdotool windowsize --sync \"$window_id\" \"$window_width\" \"$window_height\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key \"$window_id\" 0"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame_with_retry \\\n      \"after snapshot\" \"$settled_snapshot_screenshot\" \"$window_id\" \"$window_width\" \"$window_height\""))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_AFTER_SNAPSHOT:-0"))
+        #expect(solderScopeSmoke.contains("continuing snapshot verification despite missing post-snapshot frame"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle()"))
         #expect(solderScopeSmoke.contains("local label=\"${1:-before interaction}\""))
         #expect(solderScopeSmoke.contains("local settled_screenshot_path=\"${2:-}\""))
