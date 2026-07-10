@@ -3213,7 +3213,7 @@ targets += [
 // these targets (SPM's swiftmodule filename follows the target name).
 // Source dirs are *Shim-suffixed to avoid a directory naming clash
 // with anything upstream might want to vendor.
-targets.append(contentsOf: [
+let quillLinuxCoreShadowTargets: [Target] = [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
@@ -3272,6 +3272,10 @@ targets.append(contentsOf: [
     // macOS WireGuard app; see Sources/CoreWLAN). Internal Linux shadow.
     .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
     .testTarget(name: "CoreWLANTests", dependencies: ["CoreWLAN"], path: "Tests/CoreWLANTests"),
+]
+targets += quillLinuxCoreShadowTargets
+
+let quillLinuxAppKitShadowTargets: [Target] = [
     // QuillAppKit — compile-only AppKit shadow. Target named `AppKit`
     // so upstream `import AppKit` resolves to this swiftmodule on
     // Linux. Phase A: type stubs only. Phase B will back the heavy
@@ -3362,6 +3366,10 @@ targets.append(contentsOf: [
         path: "Sources/QuillGtkInteractionSmoke",
         swiftSettings: appSwiftSettings
     ),
+]
+targets += quillLinuxAppKitShadowTargets
+
+let quillLinuxAppleFrameworkShadowTargets: [Target] = [
     // Apple-framework compatibility shims that the generated
     // Enchanted package references by canonical name. Each target
     // shadows a real Apple module on Linux; the matching products
@@ -3398,6 +3406,10 @@ targets.append(contentsOf: [
         path: "Sources/FoundationModels",
         swiftSettings: quillFoundationModelsSwiftSettings
     ),
+]
+targets += quillLinuxAppleFrameworkShadowTargets
+
+let quillLinuxThirdPartyShadowTargets: [Target] = [
     // CV4L2 (Linux): named non-variadic ioctl wrappers + V4L2 constants the
     // Swift importer can't surface (variadic ioctl, _IOWR function-like
     // macros). The shim header self-gates on __linux__; the AVFoundation
@@ -3470,7 +3482,8 @@ targets.append(contentsOf: [
         path: "Sources/IOKit",
         publicHeadersPath: "."
     ),
-])
+]
+targets += quillLinuxThirdPartyShadowTargets
 // Linux-only target that compiles a hand-picked set of real
 // CodeEdit upstream files (the ones that import AppKit only,
 // with no dependency on Sparkle/CodeEditSourceEditor/SwiftUI/etc.)
