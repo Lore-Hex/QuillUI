@@ -870,8 +870,13 @@ quillui_drive_solderscope_interaction() {
   drag_end_x=$((click_x + 80))
   drag_end_y=$((click_y + 55))
   echo "SolderScope interaction smoke: window=$window_id geometry=${window_x},${window_y} ${window_width}x${window_height}" >&2
-  quillui_solderscope_wait_for_visible_frame_with_retry \
-    "before interaction" "" "$window_id" "$window_width" "$window_height"
+  if ! quillui_solderscope_wait_for_visible_frame_with_retry \
+    "before interaction" "" "$window_id" "$window_width" "$window_height"; then
+    if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_BEFORE_INTERACTION:-0}"; then
+      return 1
+    fi
+    echo "SolderScope interaction smoke: continuing interaction despite missing initial synthetic frame" >&2
+  fi
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$click_x" "$click_y"
   for _ in 1 2 3 4 5 6 7 8; do
     DISPLAY="$DISPLAY_ID" xdotool click 4

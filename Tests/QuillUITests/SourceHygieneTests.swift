@@ -7267,6 +7267,8 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("quillui_solderscope_nudge_frame_redraw()"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FRAME_WAIT_RETRIES:-1"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FRAME_NUDGE_SETTLE_SECONDS:-0.2"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_BEFORE_INTERACTION:-0"))
+        #expect(solderScopeSmoke.contains("continuing interaction despite missing initial synthetic frame"))
         #expect(solderScopeSmoke.contains("xdotool windowsize --sync \"$window_id\" \"$nudge_width\" \"$nudge_height\""))
         #expect(solderScopeSmoke.contains("xdotool windowsize --sync \"$window_id\" \"$window_width\" \"$window_height\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key \"$window_id\" 0"))
