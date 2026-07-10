@@ -46,14 +46,47 @@ private func recordOSLoggerMessage(level: String, operation: String, message: St
     print(renderedMessage)
 }
 
-public struct OSLogType: Sendable, Equatable {
-    public let label: String
-    public init(label: String) { self.label = label }
-    public static let `default` = OSLogType(label: "DEFAULT")
-    public static let info = OSLogType(label: "INFO")
-    public static let debug = OSLogType(label: "DEBUG")
-    public static let error = OSLogType(label: "ERROR")
-    public static let fault = OSLogType(label: "FAULT")
+public struct OSLogType: RawRepresentable, Sendable, Equatable, Hashable {
+    public let rawValue: UInt8
+
+    public var label: String {
+        switch rawValue {
+        case Self.info.rawValue:
+            return "INFO"
+        case Self.debug.rawValue:
+            return "DEBUG"
+        case Self.error.rawValue:
+            return "ERROR"
+        case Self.fault.rawValue:
+            return "FAULT"
+        default:
+            return "DEFAULT"
+        }
+    }
+
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+
+    public init(_ rawValue: UInt8) {
+        self.init(rawValue: rawValue)
+    }
+
+    public init(label: String) {
+        switch label.uppercased() {
+        case "INFO": self = .info
+        case "DEBUG": self = .debug
+        case "ERROR": self = .error
+        case "FAULT": self = .fault
+        default: self = .default
+        }
+    }
+
+    public static let `default` = OSLogType(rawValue: 0x00)
+    public static let info = OSLogType(rawValue: 0x01)
+    public static let debug = OSLogType(rawValue: 0x02)
+    public static let error = OSLogType(rawValue: 0x10)
+    public static let fault = OSLogType(rawValue: 0x11)
 }
 
 public final class OSLog: @unchecked Sendable {
@@ -138,6 +171,7 @@ public struct OSLogPrivacy: Equatable, Sendable {
     public static let `public` = OSLogPrivacy(.rendered)
     public static let `private` = OSLogPrivacy(.redacted)
     public static let auto = OSLogPrivacy(.automatic)
+    public static let sensitive = OSLogPrivacy(.redacted)
 
     fileprivate static func render(_ any: Any, privacy: OSLogPrivacy) -> String {
         privacy.visibility == .redacted ? "<private>" : "\(any)"

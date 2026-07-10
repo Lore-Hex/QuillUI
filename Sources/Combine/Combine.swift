@@ -307,5 +307,312 @@ public extension Publishers {
             }
         }
     }
+
+    struct MergeMany<Upstream: Publisher>: Publisher {
+        public typealias Output = Upstream.Output
+        public typealias Failure = Upstream.Failure
+
+        private let upstreams: [Upstream]
+
+        public init(_ upstreams: [Upstream]) {
+            self.upstreams = upstreams
+        }
+
+        public init(_ upstreams: Upstream...) {
+            self.upstreams = upstreams
+        }
+
+        public func receive<Downstream: Subscriber>(subscriber: Downstream)
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            let inner = Inner(downstream: subscriber, expectedInputs: upstreams.count)
+            subscriber.receive(subscription: inner)
+            guard upstreams.isEmpty == false else {
+                inner.completeIfEmpty()
+                return
+            }
+            upstreams.forEach { $0.receive(subscriber: inner) }
+        }
+
+        private final class Inner<Downstream: Subscriber>: Subscriber, Subscription
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            typealias Input = Output
+
+            private let lock = NSRecursiveLock()
+            private let expectedInputs: Int
+            private var downstream: Downstream?
+            private var subscriptions: [any Subscription] = []
+            private var demand: Subscribers.Demand = .none
+            private var buffer: [Output] = []
+            private var finishedInputs = 0
+
+            let combineIdentifier = CombineIdentifier()
+
+            init(downstream: Downstream, expectedInputs: Int) {
+                self.downstream = downstream
+                self.expectedInputs = expectedInputs
+            }
+
+            func receive(subscription: any Subscription) {
+                lock.withLock {
+                    subscriptions.append(subscription)
+                }
+                subscription.request(.unlimited)
+            }
+
+            func receive(_ input: Output) -> Subscribers.Demand {
+                lock.withLock {
+                    buffer.append(input)
+                    drain()
+                }
+                return .none
+            }
+
+            func receive(completion: Subscribers.Completion<Failure>) {
+                lock.withLock {
+                    switch completion {
+                    case .finished:
+                        finishedInputs += 1
+                        drain()
+                    case .failure:
+                        complete(completion)
+                    }
+                }
+            }
+
+            func request(_ newDemand: Subscribers.Demand) {
+                guard newDemand > .none else { return }
+                lock.withLock {
+                    demand += newDemand
+                    drain()
+                }
+            }
+
+            func cancel() {
+                let currentSubscriptions = lock.withLock {
+                    let subscriptions = self.subscriptions
+                    self.subscriptions.removeAll()
+                    self.buffer.removeAll()
+                    self.downstream = nil
+                    return subscriptions
+                }
+                currentSubscriptions.forEach { $0.cancel() }
+            }
+
+            func completeIfEmpty() {
+                lock.withLock {
+                    guard expectedInputs == 0 else { return }
+                    complete(.finished)
+                }
+            }
+
+            private func drain() {
+                while demand > .none, buffer.isEmpty == false, let downstream {
+                    let value = buffer.removeFirst()
+                    if demand != .unlimited {
+                        demand -= 1
+                    }
+                    demand += downstream.receive(value)
+                }
+
+                if finishedInputs >= expectedInputs, buffer.isEmpty {
+                    complete(.finished)
+                }
+            }
+
+            private func complete(_ completion: Subscribers.Completion<Failure>) {
+                guard let downstream else { return }
+                self.downstream = nil
+                buffer.removeAll()
+                subscriptions.removeAll()
+                downstream.receive(completion: completion)
+            }
+        }
+    }
+
+    struct CombineLatest<UpstreamA: Publisher, UpstreamB: Publisher>: Publisher
+        where UpstreamA.Failure == UpstreamB.Failure
+    {
+        public typealias Output = (UpstreamA.Output, UpstreamB.Output)
+        public typealias Failure = UpstreamA.Failure
+
+        private let first: UpstreamA
+        private let second: UpstreamB
+
+        public init(_ first: UpstreamA, _ second: UpstreamB) {
+            self.first = first
+            self.second = second
+        }
+
+        public func receive<Downstream: Subscriber>(subscriber: Downstream)
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            let inner = Inner(downstream: subscriber)
+            subscriber.receive(subscription: inner)
+            first.receive(subscriber: inner.firstSubscriber())
+            second.receive(subscriber: inner.secondSubscriber())
+        }
+
+        private final class Inner<Downstream: Subscriber>: Subscription
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            private let lock = NSRecursiveLock()
+            private var downstream: Downstream?
+            private var subscriptions: [any Subscription] = []
+            private var demand: Subscribers.Demand = .none
+            private var latestFirst: UpstreamA.Output?
+            private var latestSecond: UpstreamB.Output?
+            private var buffer: [Output] = []
+            private var finishedInputs = 0
+
+            let combineIdentifier = CombineIdentifier()
+
+            init(downstream: Downstream) {
+                self.downstream = downstream
+            }
+
+            func firstSubscriber() -> FirstChild<Downstream> {
+                FirstChild(parent: self)
+            }
+
+            func secondSubscriber() -> SecondChild<Downstream> {
+                SecondChild(parent: self)
+            }
+
+            func request(_ newDemand: Subscribers.Demand) {
+                guard newDemand > .none else { return }
+                lock.withLock {
+                    demand += newDemand
+                    drain()
+                }
+            }
+
+            func cancel() {
+                let currentSubscriptions = lock.withLock {
+                    let subscriptions = self.subscriptions
+                    self.subscriptions.removeAll()
+                    self.buffer.removeAll()
+                    self.downstream = nil
+                    return subscriptions
+                }
+                currentSubscriptions.forEach { $0.cancel() }
+            }
+
+            fileprivate func receive(subscription: any Subscription) {
+                lock.withLock {
+                    subscriptions.append(subscription)
+                }
+                subscription.request(.unlimited)
+            }
+
+            fileprivate func receiveFirst(_ input: UpstreamA.Output) {
+                lock.withLock {
+                    latestFirst = input
+                    enqueueLatestIfReady()
+                    drain()
+                }
+            }
+
+            fileprivate func receiveSecond(_ input: UpstreamB.Output) {
+                lock.withLock {
+                    latestSecond = input
+                    enqueueLatestIfReady()
+                    drain()
+                }
+            }
+
+            fileprivate func receive(completion: Subscribers.Completion<Failure>) {
+                lock.withLock {
+                    switch completion {
+                    case .finished:
+                        finishedInputs += 1
+                        drain()
+                    case .failure:
+                        complete(completion)
+                    }
+                }
+            }
+
+            private func enqueueLatestIfReady() {
+                guard let latestFirst, let latestSecond else { return }
+                buffer.append((latestFirst, latestSecond))
+            }
+
+            private func drain() {
+                while demand > .none, buffer.isEmpty == false, let downstream {
+                    let value = buffer.removeFirst()
+                    if demand != .unlimited {
+                        demand -= 1
+                    }
+                    demand += downstream.receive(value)
+                }
+
+                if finishedInputs >= 2, buffer.isEmpty {
+                    complete(.finished)
+                }
+            }
+
+            private func complete(_ completion: Subscribers.Completion<Failure>) {
+                guard let downstream else { return }
+                self.downstream = nil
+                buffer.removeAll()
+                subscriptions.removeAll()
+                downstream.receive(completion: completion)
+            }
+        }
+
+        private final class FirstChild<Downstream: Subscriber>: Subscriber
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            typealias Input = UpstreamA.Output
+
+            private let parent: Inner<Downstream>
+            let combineIdentifier = CombineIdentifier()
+
+            init(parent: Inner<Downstream>) {
+                self.parent = parent
+            }
+
+            func receive(subscription: any Subscription) {
+                parent.receive(subscription: subscription)
+            }
+
+            func receive(_ input: UpstreamA.Output) -> Subscribers.Demand {
+                parent.receiveFirst(input)
+                return .none
+            }
+
+            func receive(completion: Subscribers.Completion<Failure>) {
+                parent.receive(completion: completion)
+            }
+        }
+
+        private final class SecondChild<Downstream: Subscriber>: Subscriber
+            where Downstream.Input == Output, Downstream.Failure == Failure
+        {
+            typealias Input = UpstreamB.Output
+
+            private let parent: Inner<Downstream>
+            let combineIdentifier = CombineIdentifier()
+
+            init(parent: Inner<Downstream>) {
+                self.parent = parent
+            }
+
+            func receive(subscription: any Subscription) {
+                parent.receive(subscription: subscription)
+            }
+
+            func receive(_ input: UpstreamB.Output) -> Subscribers.Demand {
+                parent.receiveSecond(input)
+                return .none
+            }
+
+            func receive(completion: Subscribers.Completion<Failure>) {
+                parent.receive(completion: completion)
+            }
+        }
+    }
 }
 #endif

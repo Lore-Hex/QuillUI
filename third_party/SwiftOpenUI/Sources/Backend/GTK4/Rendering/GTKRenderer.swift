@@ -27,6 +27,20 @@ private let gtkSwiftVerticalFillIntentMarker = "gtk-swift-vertical-fill-intent"
 /// these views accept the parent's proposed width, so GTK must not advertise
 /// their unconstrained text width as the row's natural width.
 private let gtkSwiftHorizontallyCompressibleFixedSizeMarker = "gtk-swift-horizontal-compressible-fixed-size"
+/// Marker string for indeterminate SwiftUI ProgressView widgets.
+let gtkSwiftIndeterminateProgressMarker = "gtk-swift-indeterminate-progress"
+
+private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable {
+    var value: Value!
+}
+
+func gtkAssumeMainActorIsolated<Value>(_ body: @MainActor () -> Value) -> Value {
+    let result = GTKMainActorIsolatedResult<Value>()
+    MainActor.assumeIsolated {
+        result.value = body()
+    }
+    return result.value
+}
 
 private func gtkMarkLayoutHelper(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
@@ -466,7 +480,7 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action, keyboard shortcut, or submit runs
+/// or eagerly before any app action, keyboard shortcut, or submit runs
 /// (actions read the model, never the entry). Same-field edits always keep a
 /// prefix relation between successive values; unrelated values mean a
 /// different field, so the previous field's pending write flushes first and
@@ -500,21 +514,99 @@ private let gtkTextInputSubmitActivateHandler: @convention(c) (gpointer?, gpoint
     Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
 }
 
-private let gtkTextInputSubmitKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+private func gtkKeyEquivalent(for keyval: guint) -> KeyEquivalent? {
     switch keyval {
     case 0xff0d, 0xff8d:
-        guard let userData else { return 0 }
-        Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
-        return 1
+        return .return
+    case 0xff09, 0xfe20:
+        return .tab
+    case 0xff52:
+        return .upArrow
+    case 0xff54:
+        return .downArrow
+    case 0xff51:
+        return .leftArrow
+    case 0xff53:
+        return .rightArrow
+    case 0xff1b:
+        return .escape
+    case 0xffff:
+        return .deleteForward
+    case 0xff08:
+        return .delete
+    case 0x20:
+        return .space
     default:
-        return 0
+        guard let scalar = UnicodeScalar(UInt32(keyval)) else { return nil }
+        return KeyEquivalent(Character(scalar))
     }
+}
+
+private final class GTKTextInputKeyControllerBox {
+    let submitAction: SubmitAction?
+    let keyPressActions: [KeyPressAction]
+
+    init(submitAction: SubmitAction?, keyPressActions: [KeyPressAction]) {
+        self.submitAction = submitAction
+        self.keyPressActions = keyPressActions
+    }
+
+    func handle(keyval: guint) -> gboolean {
+        if let key = gtkKeyEquivalent(for: keyval) {
+            for keyPressAction in keyPressActions.reversed() where keyPressAction.key == key {
+                gtkFlushPendingTextBindingUpdate()
+                if keyPressAction.handler() == .handled {
+                    return 1
+                }
+            }
+        }
+
+        switch keyval {
+        case 0xff0d, 0xff8d:
+            guard let submitAction else { return 0 }
+            gtkPerformSubmitAction(submitAction)
+            return 1
+        default:
+            return 0
+        }
+    }
+}
+
+private let gtkTextInputKeyPressedHandler: @convention(c) (OpaquePointer?, guint, guint, guint, gpointer?) -> gboolean = { _, keyval, _, _, userData in
+    guard let userData else { return 0 }
+    return Unmanaged<GTKTextInputKeyControllerBox>.fromOpaque(userData).takeUnretainedValue().handle(keyval: keyval)
+}
+
+private func gtkInstallTextInputKeyController(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    submitAction: SubmitAction?,
+    keyPressActions: [KeyPressAction]
+) {
+    guard submitAction != nil || !keyPressActions.isEmpty else { return }
+
+    let keyController = gtk_swift_key_capture_controller()!
+    let keyBox = Unmanaged.passRetained(GTKTextInputKeyControllerBox(
+        submitAction: submitAction,
+        keyPressActions: keyPressActions
+    )).toOpaque()
+    g_signal_connect_data(
+        gpointer(keyController), "key-pressed",
+        unsafeBitCast(gtkTextInputKeyPressedHandler, to: GCallback.self),
+        keyBox,
+        { data, _ in
+            guard let data else { return }
+            Unmanaged<GTKTextInputKeyControllerBox>.fromOpaque(data).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(widget, keyController)
 }
 
 private func gtkWireTextInputSubmit(
     widget: UnsafeMutablePointer<GtkWidget>,
     signalTarget: gpointer,
-    submitAction: SubmitAction
+    submitAction: SubmitAction,
+    keyPressActions: [KeyPressAction] = []
 ) {
     let submit = {
         gtkPerformSubmitAction(submitAction)
@@ -532,19 +624,153 @@ private func gtkWireTextInputSubmit(
         GConnectFlags(rawValue: 0)
     )
 
-    let keyController = gtk_swift_key_capture_controller()!
-    let keyBox = Unmanaged.passRetained(ClosureBox(submit)).toOpaque()
-    g_signal_connect_data(
-        gpointer(keyController), "key-pressed",
-        unsafeBitCast(gtkTextInputSubmitKeyPressedHandler, to: GCallback.self),
-        keyBox,
-        { data, _ in
-            guard let data else { return }
-            Unmanaged<ClosureBox>.fromOpaque(data).release()
-        },
-        GConnectFlags(rawValue: 0)
+    gtkInstallTextInputKeyController(
+        on: widget,
+        submitAction: submitAction,
+        keyPressActions: keyPressActions
     )
-    gtk_swift_add_event_controller(widget, keyController)
+}
+
+let gtkSwiftInheritedTextInputForegroundMarker = "gtk-swift-inherited-text-input-foreground"
+let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
+
+private func gtkApplyInheritedTextInputForegroundIfNeeded(to widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let foregroundColor = _gtkCurrentForegroundColor else { return }
+    gtkApplyTextInputForeground(foregroundColor, to: widget)
+}
+
+private func gtkApplyTextInputForeground(_ color: Color, to widget: UnsafeMutablePointer<GtkWidget>) {
+    let textCSS = "color: \(gtkCSSRGBA(color));"
+    let disabledCSS = "color: \(gtkCSSRGBA(color.opacity(color.alpha * 0.45)));"
+    applyCSSToWidget(
+        widget,
+        properties: textCSS,
+        disabledProperties: disabledCSS,
+        descendantSelectors: ["text"]
+    )
+
+    let placeholderColor = color.opacity(color.alpha * 0.62)
+    applyCSSToWidget(
+        widget,
+        properties: "color: \(gtkCSSRGBA(placeholderColor));",
+        descendantSelectors: ["placeholder", "text placeholder"]
+    )
+    gtk_widget_add_css_class(widget, gtkSwiftInheritedTextInputForegroundMarker)
+}
+
+private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\(red), \(green), \(blue), \(color.alpha))"
+}
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \(gtkCSSFontSizePixels(forApplePointSize: size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+    }
 }
 
 // MARK: - GTK rendering protocol
@@ -776,7 +1002,7 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
     // Primitive views with known GTK rendering. gtkCreateWidget is @MainActor
     // (GTKRenderable); the renderer runs on the GTK main loop == main thread.
     if let renderable = view as? GTKRenderable {
-        return MainActor.assumeIsolated { renderable.gtkCreateWidget() }
+        return gtkAssumeMainActorIsolated { renderable.gtkCreateWidget() }
     }
 
     // Transparent multi-child views (ViewList, TupleView, Group, ForEach, etc.)
@@ -824,14 +1050,14 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
     // or from a ViewHost rebuild.
     let namespace = gtkNextStateIdentityKey(for: view)
     return gtkWithForcedStateIdentityNamespace(namespace) {
-        MainActor.assumeIsolated { gtkRenderView(view.body) }
+        return gtkAssumeMainActorIsolated { gtkRenderView(view.body) }
     }
 }
 
 /// Render children from a view.
 public func gtkRenderChildren<V: View>(_ view: V) -> [OpaquePointer] {
     if let multi = view as? GTKMultiChildRenderable {
-        return MainActor.assumeIsolated { multi.gtkRenderChildren() }
+        return gtkAssumeMainActorIsolated { multi.gtkRenderChildren() }
     }
     if let keyedRows = view as? GTKKeyedListRowProducer {
         return keyedRows.gtkKeyedListRows(depth: 0).flatMap { child in
@@ -901,6 +1127,7 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return {
+        gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
@@ -918,6 +1145,7 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
     return { value in
+        gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
@@ -1066,20 +1294,259 @@ extension Divider: GTKRenderable, GTKDescribable {
     }
 }
 
+private final class GTKMultilineTextFieldBindingBox {
+    let binding: Binding<String>
+    let placeholderLabel: UnsafeMutablePointer<GtkWidget>?
+
+    init(
+        binding: Binding<String>,
+        placeholderLabel: UnsafeMutablePointer<GtkWidget>?
+    ) {
+        self.binding = binding
+        self.placeholderLabel = placeholderLabel
+    }
+
+    func apply(_ newText: String) {
+        gtkScheduleTextBindingUpdate(binding, value: newText)
+        updatePlaceholderVisibility(text: newText)
+    }
+
+    func updatePlaceholderVisibility(text: String) {
+        guard let placeholderLabel else { return }
+        gtk_widget_set_visible(placeholderLabel, text.isEmpty ? 1 : 0)
+    }
+}
+
+private final class GTKTextInputFocusTarget {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+        g_object_ref(gpointer(widget))
+    }
+
+    deinit {
+        g_object_unref(gpointer(widget))
+    }
+}
+
+private func gtkFocusTextInputWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
+    gtk_widget_set_focusable(widget, 1)
+    _ = gtk_swift_root_grab_focus(widget)
+    gtkScheduleTextInputFocus(widget)
+}
+
+private func gtkScheduleTextInputFocus(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let target = GTKTextInputFocusTarget(widget: widget)
+    _ = g_idle_add({ userData -> gboolean in
+        guard let userData else { return 0 }
+        let target = Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).takeRetainedValue()
+        guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
+        gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
+        gtk_widget_set_focusable(target.widget, 1)
+        _ = gtk_swift_root_grab_focus(target.widget)
+        return 0
+    }, Unmanaged.passRetained(target).toOpaque())
+}
+
+private func gtkInstallTextInputFocusGesture(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    target: UnsafeMutablePointer<GtkWidget>
+) {
+    let gesture = gtk_gesture_click_new()!
+    let targetBox = Unmanaged.passRetained(GTKTextInputFocusTarget(widget: target)).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            let target = Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).takeUnretainedValue()
+            gtkFocusTextInputWidget(target.widget)
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        targetBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKTextInputFocusTarget>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
+private func gtkTextBufferString(_ buffer: UnsafeMutablePointer<GtkTextBuffer>) -> String {
+    var start = GtkTextIter()
+    var end = GtkTextIter()
+    gtk_text_buffer_get_bounds(buffer, &start, &end)
+    let cStr = gtk_text_buffer_get_text(buffer, &start, &end, 0)!
+    let result = String(cString: cStr)
+    g_free(gpointer(mutating: cStr))
+    return result
+}
+
+private let gtkPlainMultilineTextInputCSS = """
+    background: transparent;
+    background-color: transparent;
+    background-image: none;
+    border: none;
+    outline: none;
+    box-shadow: none;
+    padding: 0;
+    min-width: 0;
+    min-height: 0;
+    """
+
+private let gtkPlainMultilineScrolledDescendants = [
+    "viewport",
+    "textview",
+    "textview text",
+    "viewport textview",
+    "viewport textview text",
+    "text"
+]
+
+private func gtkApplyPlainMultilineTextFieldChrome(
+    scrolledWindow: UnsafeMutablePointer<GtkWidget>,
+    textView: UnsafeMutablePointer<GtkWidget>
+) {
+    applyCSSToWidget(
+        scrolledWindow,
+        properties: gtkPlainMultilineTextInputCSS,
+        descendantSelectors: gtkPlainMultilineScrolledDescendants
+    )
+    applyCSSToWidget(
+        textView,
+        properties: gtkPlainMultilineTextInputCSS,
+        descendantSelectors: ["text"]
+    )
+}
+
+private func gtkCreateMultilineTextField(
+    title: String,
+    text: Binding<String>
+) -> OpaquePointer {
+    let textView = gtk_text_view_new()!
+    let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
+    gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+    gtk_text_view_set_accepts_tab(textViewPtr, 0)
+    let environment = getCurrentEnvironment()
+    let textFieldStyleType = environment.textFieldStyle
+
+    let current = text.wrappedValue
+    let buffer = gtk_text_view_get_buffer(textViewPtr)!
+    if !current.isEmpty {
+        gtk_text_buffer_set_text(buffer, current, gint(current.utf8.count))
+    }
+
+    let placeholderLabel: UnsafeMutablePointer<GtkWidget>? = title.isEmpty ? nil : gtk_label_new(title)
+    if let placeholderLabel {
+        let labelPtr = OpaquePointer(placeholderLabel)
+        gtk_label_set_xalign(labelPtr, 0)
+        gtk_widget_set_halign(placeholderLabel, GTK_ALIGN_START)
+        gtk_widget_set_valign(placeholderLabel, GTK_ALIGN_START)
+        gtk_widget_set_margin_start(placeholderLabel, textFieldStyleType == .plain ? 0 : 6)
+        gtk_widget_set_margin_top(placeholderLabel, textFieldStyleType == .plain ? 0 : 8)
+        gtk_widget_set_opacity(placeholderLabel, 0.45)
+        gtk_widget_set_can_target(placeholderLabel, 0)
+        gtk_widget_set_visible(placeholderLabel, current.isEmpty ? 1 : 0)
+    }
+
+    let box = Unmanaged.passRetained(GTKMultilineTextFieldBindingBox(
+        binding: text,
+        placeholderLabel: placeholderLabel
+    )).toOpaque()
+    g_signal_connect_data(
+        gpointer(buffer),
+        "changed",
+        unsafeBitCast({ (bufferPtr: gpointer?, userData: gpointer?) in
+            let box = Unmanaged<GTKMultilineTextFieldBindingBox>.fromOpaque(userData!).takeUnretainedValue()
+            let buf = UnsafeMutableRawPointer(bufferPtr!).assumingMemoryBound(to: GtkTextBuffer.self)
+            box.apply(gtkTextBufferString(buf))
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        box,
+        { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
+            Unmanaged<GTKMultilineTextFieldBindingBox>.fromOpaque(userData!).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    gtkInstallTextInputKeyController(
+        on: textView,
+        submitAction: environment.submitAction,
+        keyPressActions: environment.keyPressActions
+    )
+
+    let scrolled = gtk_scrolled_window_new()!
+    gtk_scrolled_window_set_policy(OpaquePointer(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+    gtk_scrolled_window_set_child(OpaquePointer(scrolled), textView)
+    gtk_widget_set_hexpand(scrolled, 1)
+    gtk_widget_set_vexpand(scrolled, 0)
+
+    gtkApplyEnabledState(to: textView)
+    let rendered: OpaquePointer
+    var useQuillPaintTextEditor = false
+    switch textFieldStyleType {
+    case .plain:
+        gtkApplyPlainMultilineTextFieldChrome(scrolledWindow: scrolled, textView: textView)
+    case .automatic, .roundedBorder:
+        useQuillPaintTextEditor = true
+    }
+
+    if useQuillPaintTextEditor,
+       let paintedEditor = quill_gtk_text_editor_paint_hook?(
+        OpaquePointer(scrolled),
+        OpaquePointer(textView)
+    ) {
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
+        rendered = paintedEditor
+    } else {
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
+        rendered = opaqueFromWidget(scrolled)
+    }
+
+    guard let placeholderLabel else {
+        return rendered
+    }
+
+    let overlay = gtk_overlay_new()!
+    gtk_widget_set_can_focus(overlay, 0)
+    gtk_widget_set_focusable(overlay, 0)
+    gtk_widget_set_can_target(overlay, 1)
+    let renderedWidget = widgetFromOpaque(rendered)
+    gtk_widget_set_hexpand(overlay, gtk_widget_get_hexpand(renderedWidget))
+    gtk_widget_set_vexpand(overlay, gtk_widget_get_vexpand(renderedWidget))
+    gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+    gtk_overlay_set_child(OpaquePointer(overlay), renderedWidget)
+    gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)
+    gtkInstallTextInputFocusGesture(on: overlay, target: textView)
+    gtkInstallTextInputFocusGesture(on: renderedWidget, target: textView)
+    return opaqueFromWidget(overlay)
+}
+
 extension TextField: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
-        GTK4DescriptorNode(
+        let content = gtkTextInputFocusDescriptorContent(
+            typeName: "TextField",
+            binding: text,
+            label: title
+        )
+        return GTK4DescriptorNode(
             kind: .composite,
             typeName: "TextField",
-            props: .text(GTK4TextDescriptor(content: gtkTextInputFocusDescriptorContent(
-                typeName: "TextField",
-                binding: text,
-                label: title
-            )))
+            props: .text(GTK4TextDescriptor(content: "\(content)|axis:\(axis.rawValue)"))
         )
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
+        if axis.contains(.vertical) {
+            return gtkCreateMultilineTextField(title: title, text: text)
+        }
+
         let entry = gtk_entry_new()!
         gtk_widget_set_hexpand(entry, 1)
         let entryPtr = UnsafeMutableRawPointer(entry).assumingMemoryBound(to: GtkEntry.self)
@@ -1144,12 +1611,20 @@ extension TextField: GTKRenderable, GTKDescribable {
             useQuillPaintTextField = true
         }
 
-        // Wire onSubmit: GtkEntry fires "activate" on Enter key
-        if let submitAction = getCurrentEnvironment().submitAction {
+        // Wire keyboard actions: GtkEntry fires "activate" on Enter key.
+        let environment = getCurrentEnvironment()
+        if let submitAction = environment.submitAction {
             gtkWireTextInputSubmit(
                 widget: entry,
                 signalTarget: gpointer(entry),
-                submitAction: submitAction
+                submitAction: submitAction,
+                keyPressActions: environment.keyPressActions
+            )
+        } else {
+            gtkInstallTextInputKeyController(
+                on: entry,
+                submitAction: nil,
+                keyPressActions: environment.keyPressActions
             )
         }
 
@@ -1159,8 +1634,10 @@ extension TextField: GTKRenderable, GTKDescribable {
                OpaquePointer(entry),
                textFieldStyleType == .roundedBorder
            ) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
             return paintedEntry
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
         return opaqueFromWidget(entry)
     }
 }
@@ -1371,9 +1848,49 @@ private func gtkDebugGeometryLog(_ message: String) {
     }
 }
 
+/// Decides whether a button-activation signal may fire the action.
+///
+/// One physical click reaches the action box through several redundant
+/// paths: the click gesture, the legacy capture controller, and the
+/// root-event fallback all fire on pointer PRESS, while GtkButton's
+/// `clicked` signal fires on RELEASE. Wall-clock dedup alone is
+/// load-sensitive: on a busy runner the press→release gap can exceed any
+/// reasonable window, so a single click fired the action twice (#502).
+/// A pointer press therefore arms the gate and the following `clicked`
+/// consumes it — suppressed regardless of elapsed time — while keyboard
+/// activation (a `clicked` with no preceding pointer press) still fires.
+/// The wall-clock window keeps deduplicating the press-side paths, which
+/// always dispatch within one main-loop iteration of each other.
+struct GTKButtonActivationGate {
+    enum Phase {
+        case pointerPress
+        case clicked
+    }
+
+    private var lastActivationTime: TimeInterval = -.infinity
+    private var pointerPressAwaitingClicked = false
+
+    mutating func shouldFire(_ phase: Phase, now: TimeInterval) -> Bool {
+        switch phase {
+        case .pointerPress:
+            pointerPressAwaitingClicked = true
+        case .clicked:
+            if pointerPressAwaitingClicked {
+                pointerPressAwaitingClicked = false
+                return false
+            }
+        }
+        if now - lastActivationTime < 0.08 {
+            return false
+        }
+        lastActivationTime = now
+        return true
+    }
+}
+
 private final class GTKButtonActionBox {
     var action: () -> Void
-    var lastActivationTime: TimeInterval = 0
+    var activationGate = GTKButtonActivationGate()
 
     init(_ action: @escaping () -> Void) {
         self.action = action
@@ -1977,14 +2494,17 @@ func gtkTestActiveMenuOverlayLayerTypeName() -> String? {
     return String(cString: g_type_name(gtk_swift_get_widget_type(layer)))
 }
 
-private func gtkScheduleButtonAction(_ box: GTKButtonActionBox, source: String) {
+private func gtkScheduleButtonAction(
+    _ box: GTKButtonActionBox,
+    source: String,
+    phase: GTKButtonActivationGate.Phase = .pointerPress
+) {
     gtkFlushPendingTextBindingUpdate()
     let now = Date().timeIntervalSinceReferenceDate
-    if now - box.lastActivationTime < 0.08 {
+    guard box.activationGate.shouldFire(phase, now: now) else {
         gtkDebugLog("button duplicate \(source)")
         return
     }
-    box.lastActivationTime = now
     gtkDebugLog("button \(source)")
     let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
     g_idle_add({ userData -> gboolean in
@@ -2022,7 +2542,7 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
             guard isTopmost || isVisualHit else { return 0 }
             let source = isTopmost ? "root-legacy" : "root-visual"
-            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("\(source)@\(Int(x)),\(Int(y))", widget: context.widget))
+            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("\(source)@\(Int(x)),\(Int(y))", widget: context.widget), phase: .pointerPress)
             return 0
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
@@ -2113,11 +2633,17 @@ extension Button: GTKRenderable, GTKDescribable {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
                     border: none;
+                    border-radius: 0;
+                    box-shadow: none;
                     outline: none;
                     padding: 0;
                     min-height: 0;
                     min-width: 0;
+                    text-shadow: none;
                     """)
             }
         }
@@ -2186,7 +2712,7 @@ extension Button: GTKRenderable, GTKDescribable {
                         color: rgba(255, 255, 255, 0.7);
                         """
                 )
-            case .bordered, .quillPaintMacBordered:
+            case .bordered, .accessoryBarAction, .quillPaintMacBordered:
                 applyCSSToWidget(button, properties: """
                     border: 1px solid @borders; border-radius: 6px;
                     padding: 6px 12px;
@@ -2245,7 +2771,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: false)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget))
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget), phase: .clicked)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -2260,7 +2786,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: true)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget))
+                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget), phase: .pointerPress)
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -2275,7 +2801,7 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let event, let userData else { return 0 }
                 guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
                 let box = Unmanaged<GTKButtonActionBox>.fromOpaque(userData).takeUnretainedValue()
-                gtkScheduleButtonAction(box, source: "legacy")
+                gtkScheduleButtonAction(box, source: "legacy", phase: .pointerPress)
                 return 0
             } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
             buttonActionBox,
@@ -3007,7 +3533,7 @@ private func gtkRenderFallbackZStack(
     return opaqueFromWidget(overlay)
 }
 
-extension Group: GTKRenderable {
+extension Group: GTKRenderable where Content: View {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         var needsHExpand = false
@@ -3362,8 +3888,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
             )
         }
 
-        let requestWidth = widthMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.width)
-        let requestHeight = heightMayGrowWithParent ? -1 : gtkPixelSize(layout.containerSize.height)
+        let requestWidth = widthMayGrowWithParent
+            ? minWidth.map(gtkPixelSize) ?? -1
+            : gtkPixelSize(layout.containerSize.width)
+        let requestHeight = heightMayGrowWithParent
+            ? minHeight.map(gtkPixelSize) ?? -1
+            : gtkPixelSize(layout.containerSize.height)
         if widthMayGrowWithParent && !heightMayGrowWithParent {
             return gtkFrameFlexibleWidthFixedHeightClip(
                 child: child,
@@ -3520,23 +4050,34 @@ extension FrameView: GTKRenderable, GTKDescribable {
         child: UnsafeMutablePointer<GtkWidget>,
         width: gint
     ) -> OpaquePointer {
-        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-        gtk_widget_set_size_request(wrapper, width, -1)
-        gtk_widget_set_overflow(wrapper, GTK_OVERFLOW_HIDDEN)
-        gtk_widget_set_hexpand(wrapper, 0)
-        gtk_widget_set_vexpand(wrapper, 1)
-        gtk_widget_set_halign(wrapper, GTK_ALIGN_START)
-        gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
+        let scrolled = gtk_scrolled_window_new()!
+        let scrolledOp = OpaquePointer(scrolled)
+        gtk_scrolled_window_set_policy(scrolledOp, GTK_POLICY_EXTERNAL, GTK_POLICY_EXTERNAL)
+        gtk_scrolled_window_set_has_frame(scrolledOp, 0)
+        gtk_scrolled_window_set_min_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_max_content_width(scrolledOp, width)
+        gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+        gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
+
+        gtk_widget_set_size_request(scrolled, width, -1)
+        gtk_widget_set_hexpand(scrolled, 0)
+        gtk_widget_set_vexpand(scrolled, 1)
         gtk_widget_set_hexpand(child, 1)
         gtk_widget_set_vexpand(child, 1)
         gtk_widget_set_halign(child, GTK_ALIGN_FILL)
         gtk_widget_set_valign(child, GTK_ALIGN_FILL)
         gtk_widget_set_size_request(child, width, -1)
-        gtk_box_append(boxPointer(wrapper), child)
+        gtk_scrolled_window_set_child(scrolledOp, child)
+        gtkInstallScrollViewCrossAxisFill(
+            on: scrolled,
+            child: child,
+            fillWidth: true,
+            fillHeight: true
+        )
         if gtkHasVerticalFillIntent(child) {
-            gtkMarkVerticalFillIntent(wrapper)
+            gtkMarkVerticalFillIntent(scrolled)
         }
-        return opaqueFromWidget(gtkCompressibleHeightClamp(wrapper))
+        return opaqueFromWidget(scrolled)
     }
 
     /// Build a frame wrapper using GtkBox instead of GtkFixed, for frames
@@ -3645,10 +4186,9 @@ extension ForegroundColorView: GTKRenderable, GTKDescribable {
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
-        let prev = _gtkCurrentForegroundColor
-        gtkSetCurrentForegroundColor(color)
-        let widget = widgetFromOpaque(gtkRenderView(content))
-        gtkSetCurrentForegroundColor(prev)
+        let widget = gtkWithCurrentForegroundColor(color) {
+            widgetFromOpaque(gtkRenderView(content))
+        }
         applyCSSToWidget(widget, properties: "color: \(color.hex);")
         return opaqueFromWidget(widget)
     }
@@ -3845,27 +4385,21 @@ extension FontModifiedView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
-        let css: String
-        switch font {
-        case .largeTitle:  css = "font-size: 28px;"
-        case .title:       css = "font-size: 24px;"
-        case .title2:      css = "font-size: 20px; font-weight: bold;"
-        case .title3:      css = "font-size: 18px;"
-        case .headline:    css = "font-weight: bold;"
-        case .subheadline: css = "font-size: 12px; font-weight: bold;"
-        case .body:        css = "font-size: 14px;"
-        case .callout:     css = "font-size: 12px;"
-        case .footnote:    css = "font-size: 10px;"
-        case .caption:     css = "font-size: 12px;"
-        case .caption2:    css = "font-size: 10px; font-weight: bold;"
-        case .custom(let size, _, _): css = "font-size: \(gtkCSSFontSizePixels(forApplePointSize: size))px;"
+        let css = gtkFontCSS(font)
+        applyCSSToWidget(
+            widget,
+            properties: css.properties,
+            descendantSelectors: gtkFontDescendantSelectors
+        )
+        if let designMarker = css.designMarker {
+            gtk_widget_add_css_class(widget, designMarker)
         }
-        applyCSSToWidget(widget, properties: css)
         return opaqueFromWidget(widget)
     }
 }
 
-private func gtkCSSFontSizePixels(forApplePointSize pointSize: Double) -> Int {
+private func gtkCSSFontSizePixels(forApplePointSize size: Double) -> Int {
+    let pointSize = size
     if pointSize < 14 {
         return max(1, Int(pointSize.rounded()))
     }
@@ -4121,6 +4655,28 @@ extension OnSubmitView: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
         env.submitAction = SubmitAction(handler: action)
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(prev) }
+        return gtkRenderView(content)
+    }
+}
+
+// MARK: - onKeyPress GTK extension
+
+extension OnKeyPressView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "OnKeyPressView",
+            props: .text(GTK4TextDescriptor(content: String(key.character))),
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.keyPressActions.append(KeyPressAction(key: key, handler: action))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
@@ -4888,6 +5444,24 @@ extension ToggleStyleModifier: GTKRenderable {
         let widget = gtkRenderView(content)
         setCurrentEnvironment(prev)
         return widget
+    }
+}
+
+extension CustomToggleStyleModifier: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        env.customToggleStyle = style
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let widget = gtkRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
+extension ControlGroupStyleModifier: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(content)
     }
 }
 
@@ -5925,11 +6499,14 @@ private func gtkScheduleOnAppear(_ action: @escaping () -> Void, on widget: Unsa
 
 extension TaskView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment {
+            await action()
+        }
         gtkCollectTaskPayload(
             GTK4TaskPayload(
                 priority: priority,
                 lifecycleID: lifecycleID,
-                action: bindTaskActionToCurrentEnvironment(action)
+                action: boundAction
             )
         )
         return GTK4DescriptorNode(
@@ -5941,6 +6518,9 @@ extension TaskView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = widgetFromOpaque(gtkRenderView(content))
+        let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment {
+            await action()
+        }
 
         // Stateful hosts reconcile `.task` by descriptor identity so a full
         // child teardown during rebuild does not re-run the task. Standalone
@@ -5950,7 +6530,7 @@ extension TaskView: GTKRenderable, GTKDescribable {
                 to: widget,
                 priority: priority,
                 lifecycleID: lifecycleID,
-                action: bindTaskActionToCurrentEnvironment(action)
+                action: boundAction
             )
         }
         return opaqueFromWidget(widget)
@@ -6557,6 +7137,7 @@ private func gtkFocusSheetEditable(
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
     guard gtk_swift_is_widget(widget) != 0 else { return }
     gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
     gtk_widget_set_focusable(widget, 1)
     let grabbed = gtk_swift_root_grab_focus(widget)
     gtkDebugLog("sheet focus widget grab=\(grabbed) target=\(gtkButtonDebugSource("editable", widget: widget))")
@@ -6564,6 +7145,7 @@ private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidge
        let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
         let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
         gtk_widget_set_can_target(delegateWidget, 1)
+        gtk_widget_set_can_focus(delegateWidget, 1)
         gtk_widget_set_focusable(delegateWidget, 1)
         _ = gtk_swift_root_grab_focus(delegateWidget)
         gtkScheduleSheetEditableFocus(delegateWidget)
@@ -6581,6 +7163,7 @@ private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWid
         defer { g_object_unref(gpointer(target.widget)) }
         guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
         gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
         gtk_widget_set_focusable(target.widget, 1)
         let grabbed = gtk_swift_root_grab_focus(target.widget)
         gtkDebugLog("sheet focus idle grab=\(grabbed) target=\(gtkButtonDebugSource("editable", widget: target.widget))")
@@ -7475,19 +8058,29 @@ extension SecureField: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
-        // Wire onSubmit action from environment (same as TextField)
-        if let submitAction = getCurrentEnvironment().submitAction {
+        // Wire keyboard actions from environment (same as TextField).
+        let environment = getCurrentEnvironment()
+        if let submitAction = environment.submitAction {
             gtkWireTextInputSubmit(
                 widget: entry,
                 signalTarget: gpointer(entry),
-                submitAction: submitAction
+                submitAction: submitAction,
+                keyPressActions: environment.keyPressActions
+            )
+        } else {
+            gtkInstallTextInputKeyController(
+                on: entry,
+                submitAction: nil,
+                keyPressActions: environment.keyPressActions
             )
         }
 
         gtkApplyEnabledState(to: entry)
         if let paintedEntry = quill_gtk_text_field_paint_hook?(OpaquePointer(entry), true) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
             return paintedEntry
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: entry)
         return opaqueFromWidget(entry)
     }
 }
@@ -7510,6 +8103,7 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         let textView = gtk_text_view_new()!
         let textViewPtr = UnsafeMutableRawPointer(textView).assumingMemoryBound(to: GtkTextView.self)
         gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+        gtk_text_view_set_accepts_tab(textViewPtr, 1)
 
         let current = text.wrappedValue
         if !current.isEmpty {
@@ -7543,6 +8137,12 @@ extension TextEditor: GTKRenderable, GTKDescribable {
             GConnectFlags(rawValue: 0)
         )
 
+        gtkInstallTextInputKeyController(
+            on: textView,
+            submitAction: nil,
+            keyPressActions: getCurrentEnvironment().keyPressActions
+        )
+
         let scrolled = gtk_scrolled_window_new()!
         gtk_scrolled_window_set_policy(OpaquePointer(scrolled), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC)
         gtk_scrolled_window_set_child(OpaquePointer(scrolled), textView)
@@ -7554,8 +8154,10 @@ extension TextEditor: GTKRenderable, GTKDescribable {
             OpaquePointer(scrolled),
             OpaquePointer(textView)
         ) {
+            gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
             return paintedEditor
         }
+        gtkApplyInheritedTextInputForegroundIfNeeded(to: textView)
         return opaqueFromWidget(scrolled)
     }
 }
@@ -7566,12 +8168,30 @@ extension ProgressView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let bar = gtk_progress_bar_new()!
         if let value = value {
-            gtk_progress_bar_set_fraction(OpaquePointer(bar), max(0, min(1, value / total)))
+            gtk_progress_bar_set_fraction(
+                OpaquePointer(bar),
+                gtkSanitizedProgressFraction(value: value, total: total)
+            )
+        } else {
+            gtk_widget_add_css_class(bar, gtkSwiftIndeterminateProgressMarker)
+            gtk_progress_bar_set_pulse_step(OpaquePointer(bar), 0.015)
+            gtk_progress_bar_pulse(OpaquePointer(bar))
+            _ = gtk_widget_add_tick_callback(bar, gtkProgressViewPulseTickCallback, nil, nil)
         }
-        // TODO: indeterminate mode (pulse) when value is nil
         gtk_widget_set_hexpand(bar, 1)
         return opaqueFromWidget(bar)
     }
+}
+
+private let gtkProgressViewPulseTickCallback: GtkTickCallback = { widget, _, _ in
+    guard let widget else { return 0 }
+    gtk_progress_bar_pulse(OpaquePointer(widget))
+    return 1
+}
+
+private func gtkSanitizedProgressFraction(value: Double, total: Double) -> Double {
+    guard value.isFinite, total.isFinite, total > 0 else { return 0 }
+    return max(0, min(1, value / total))
 }
 
 // MARK: - Stepper GTK extension
@@ -7645,7 +8265,7 @@ extension Label: GTKRenderable {
         if let iconView {
             gtk_box_append(boxPointer(box), widgetFromOpaque(gtkRenderView(iconView)))
         } else if let iconName = systemImage {
-            let materialName = gtkMaterialNameForSystemImage(iconName)
+            let materialName = gtkMaterialSymbolName(forSystemName: iconName)
             gtk_box_append(boxPointer(box), gtkRenderMaterialSymbolLabel(materialName, scale: .small))
         } else if let path = imagePath {
             let img = gtk_image_new_from_file(path)!
@@ -7894,7 +8514,14 @@ private func gtkAlignFromAlignment(_ alignment: Alignment) -> (GtkAlign, GtkAlig
 
 extension Toggle: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
-        let toggleStyleType = getCurrentEnvironment().toggleStyle
+        let environment = getCurrentEnvironment()
+
+        if let customToggleStyle = environment.customToggleStyle {
+            let configuration = ToggleStyleConfiguration(label: AnyView(Text(label)), isOn: isOn)
+            return gtkRenderView(customToggleStyle.makeBody(configuration: configuration))
+        }
+
+        let toggleStyleType = environment.toggleStyle
 
         if toggleStyleType == .switch {
             return gtkCreateSwitchWidget()
@@ -8361,13 +8988,13 @@ extension Image: GTKRenderable {
             // themes/distros); unmapped names render the "missing icon"
             // placeholder glyph so the gap is visible rather than silent.
             //
-            // This replaces the previous `gtk_image_new_from_icon_name`
-            // path. Any app that was passing a freedesktop-style icon
+            // This replaces the previous GTK icon-name path. Any app
+            // that was passing a freedesktop-style icon
             // name (e.g. "folder-new-symbolic") — not SwiftUI-canonical —
             // will now see the placeholder; it should switch to a real
             // SF name or use `Image(material:)` for direct Material
             // names.
-            let materialName = gtkMaterialNameForSystemImage(sfName)
+            let materialName = gtkMaterialSymbolName(forSystemName: sfName)
             return opaqueFromWidget(gtkRenderMaterialSymbolLabel(materialName, scale: scale))
 
         case .filePath(let path):
@@ -8399,6 +9026,18 @@ extension Image: GTKRenderable {
             return opaqueFromWidget(gtkRenderMaterialSymbolLabel(name, scale: scale))
         }
     }
+}
+
+private func gtkMaterialSymbolName(forSystemName sfName: String) -> String {
+    guard let materialName = SFSymbolCompatibility.materialName(for: sfName) else {
+        #if DEBUG
+        FileHandle.standardError.write(Data(
+            "[SwiftOpenUI] Image(systemName: \"\(sfName)\") has no Material mapping; rendering placeholder\n".utf8
+        ))
+        #endif
+        return SFSymbolCompatibility.missingSymbolPlaceholderName
+    }
+    return materialName
 }
 
 /// Render a Material Symbols glyph as a GtkLabel via Pango markup.
@@ -9163,7 +9802,7 @@ private func gtkAppendRows(
     _ rows: [any View],
     to box: UnsafeMutablePointer<GtkWidget>,
     includeOuterSeparators: Bool = false,
-    installPrimaryActionFallback: Bool = false
+    installPrimaryActionFallback: Bool = true
 ) {
     guard !rows.isEmpty else { return }
     for (index, rowView) in rows.enumerated() {
@@ -11145,6 +11784,18 @@ extension EnvironmentModifierView: GTKRenderable, GTKDescribable {
     }
 }
 
+extension TransformEnvironmentModifierView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        var env = getCurrentEnvironment()
+        transform(&env[keyPath: keyPath])
+        let prev = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        let widget = gtkRenderView(content)
+        setCurrentEnvironment(prev)
+        return widget
+    }
+}
+
 extension DisabledView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         GTK4DescriptorNode(
@@ -12044,17 +12695,26 @@ extension Form: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12)!
         let boxPtr = boxPointer(box)
+        let formChildren = gtkFormChildViews(of: content)
 
-        for child in gtkFormChildViews(of: content) {
-            if gtkIsSectionView(child) {
-                gtk_box_append(boxPtr, widgetFromOpaque(gtkRenderAnyView(child)))
-            } else {
-                let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-                gtk_widget_set_hexpand(rows, 1)
-                gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
-                gtkAppendRows([child], to: rows, installPrimaryActionFallback: true)
-                gtk_box_append(boxPtr, rows)
+        if formChildren.contains(where: gtkIsSectionView) {
+            for child in gtkFormChildViews(of: content) {
+                if gtkIsSectionView(child) {
+                    gtk_box_append(boxPtr, widgetFromOpaque(gtkRenderAnyView(child)))
+                } else {
+                    let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+                    gtk_widget_set_hexpand(rows, 1)
+                    gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
+                    gtkAppendRows([child], to: rows)
+                    gtk_box_append(boxPtr, rows)
+                }
             }
+        } else {
+            let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+            gtk_widget_set_hexpand(rows, 1)
+            gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
+            gtkAppendRows(gtkDirectChildViews(of: content), to: rows)
+            gtk_box_append(boxPtr, rows)
         }
 
         gtk_widget_set_hexpand(box, 1)
@@ -12108,11 +12768,7 @@ extension Section: GTKRenderable {
         let rows = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         gtk_widget_set_hexpand(rows, 1)
         gtk_widget_set_halign(rows, GTK_ALIGN_FILL)
-        gtkAppendRows(
-            gtkDirectChildViews(of: content),
-            to: rows,
-            installPrimaryActionFallback: true
-        )
+        gtkAppendRows(gtkDirectChildViews(of: content), to: rows)
         gtk_box_append(boxPtr, rows)
 
         if let footer = footer {
@@ -12138,8 +12794,11 @@ private class LazyListContext {
 
     init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content) {
         self.itemCount = items.count
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            }
         }
     }
 }
@@ -12358,16 +13017,22 @@ private class LazyGridContext {
                               cellMinWidth: Int) {
         self.itemCount = items.count
         self.cellMinWidth = cellMinWidth
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderView(contentBuilder(items[index])))
+            }
         }
     }
 
     init(views: [any View], cellMinWidth: Int) {
         self.itemCount = views.count
         self.cellMinWidth = cellMinWidth
+        let foregroundColor = _gtkCurrentForegroundColor
         self.renderItem = { index in
-            widgetFromOpaque(gtkRenderAnyView(views[index]))
+            gtkWithCurrentForegroundColor(foregroundColor) {
+                widgetFromOpaque(gtkRenderAnyView(views[index]))
+            }
         }
     }
 }
@@ -14025,16 +14690,53 @@ private func gtkInstallMenuPopupGestures(
     }
 }
 
+private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
+    let className = "gtk-swift-plain-menu-button"
+    let css = """
+    .\(className),
+    menubutton.\(className),
+    menubutton.\(className) > button,
+    menubutton.\(className) button {
+        background: transparent;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        outline: none;
+        padding: 0;
+        min-height: 0;
+        min-width: 0;
+        -gtk-icon-shadow: none;
+        text-shadow: none;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(button) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(button, "flat")
+    gtk_widget_add_css_class(button, className)
+    g_object_unref(gpointer(provider))
+}
+
 extension Menu: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let button = gtk_menu_button_new()!
         gtkDebugLog("menu render title='\(title)' elements=\(elements.count) labels=[\(gtkDebugMenuLabels(elements).joined(separator: ", "))]")
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
         if let labelView {
             let environment = getCurrentEnvironment()
             gtkDebugLog(
                 "menu label environment customButtonStyle=\(environment.customButtonStyle != nil) buttonStyle=\(environment.buttonStyle)"
             )
-            let child: UnsafeMutablePointer<GtkWidget>
+            let childWidget: UnsafeMutablePointer<GtkWidget>
             if let customButtonStyle = environment.customButtonStyle {
                 var renderEnvironment = environment
                 renderEnvironment.customButtonStyle = nil
@@ -14044,7 +14746,7 @@ extension Menu: GTKRenderable {
                 let styledBody = customButtonStyle.makeBody(
                     configuration: .init(label: labelView, isPressed: false)
                 )
-                child = widgetFromOpaque(gtkRenderView(styledBody))
+                childWidget = widgetFromOpaque(gtkRenderView(styledBody))
                 setCurrentEnvironment(previousEnvironment)
                 applyCSSToWidget(button, properties: """
                     background: transparent;
@@ -14060,14 +14762,19 @@ extension Menu: GTKRenderable {
                     text-shadow: none;
                     """)
             } else {
-                child = widgetFromOpaque(gtkRenderView(labelView))
+                childWidget = widgetFromOpaque(gtkRenderView(labelView))
             }
-            gtkDisableButtonChildTargeting(child)
-            gtk_swift_menu_button_set_child(button, child)
+            gtkDisableButtonChildTargeting(childWidget)
+            gtk_swift_menu_button_set_child(button, childWidget)
             gtk_swift_menu_button_set_always_show_arrow(button, 0)
-            gtkMarkMenuOwner(under: child, menuButton: button)
+            gtkApplyPlainMenuButtonChrome(to: button)
+            gtkMarkMenuOwner(under: childWidget, menuButton: button)
         } else {
             gtk_swift_menu_button_set_label(button, title)
+            if buttonStyleType == .plain {
+                gtk_swift_menu_button_set_always_show_arrow(button, 0)
+                gtkApplyPlainMenuButtonChrome(to: button)
+            }
         }
 
         let actionBox = MenuActionBox()
@@ -14825,7 +15532,7 @@ extension Canvas: GTKRenderable, GTKDescribable {
     }
 }
 
-// MARK: - Foreground color propagation for Cairo rendering
+// MARK: - Foreground color propagation for text and Cairo rendering
 //
 // ForegroundColorView applies CSS color: to widgets, but GtkDrawingArea
 // Cairo callbacks can't read CSS properties. Track the current foreground
@@ -14843,6 +15550,13 @@ func gtkCurrentForegroundColorIfSet() -> Color? {
 
 func gtkSetCurrentForegroundColor(_ color: Color?) {
     _gtkCurrentForegroundColor = color
+}
+
+private func gtkWithCurrentForegroundColor<T>(_ color: Color?, _ body: () -> T) -> T {
+    let previous = _gtkCurrentForegroundColor
+    gtkSetCurrentForegroundColor(color)
+    defer { gtkSetCurrentForegroundColor(previous) }
+    return body()
 }
 
 // MARK: - Shape view rendering
@@ -14955,7 +15669,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     // body reads hop onto the main actor (View.body is @MainActor; host
     // rebuilds always run on the GTK main loop == main thread).
     let host = GTKViewHost(buildBody: {
-        MainActor.assumeIsolated { gtkRenderView(view.body) }
+        gtkAssumeMainActorIsolated { gtkRenderView(view.body) }
     })
     host.describeBody = {
         MainActor.assumeIsolated { gtkDescribeView(view.body) }

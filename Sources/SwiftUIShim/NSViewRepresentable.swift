@@ -74,25 +74,25 @@ extension NSViewRepresentable {
 /// Host view that lowers an NSViewRepresentable into the active native mount.
 public struct QuillNSViewRepresentableHostView<R: NSViewRepresentable>: View {
 #if QUILLUI_SWIFTUI_GTK_MOUNT
-    let representable: R
+    nonisolated(unsafe) let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     public var body: some View {
         _QuillGTKRepresentableMountLeaf(representable: representable)
     }
 #elseif QUILLUI_SWIFTUI_QT_MOUNT
-    let representable: R
+    nonisolated(unsafe) let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     public var body: some View {
         _QuillQtRepresentableMountLeaf(representable: representable)
     }
 #else
-    let representable: R
+    nonisolated(unsafe) let representable: R
 
-    init(_ representable: R) { self.representable = representable }
+    nonisolated init(_ representable: R) { self.representable = representable }
 
     // Graphs without a native mount keep compile-only representables.
     public var body: Never {

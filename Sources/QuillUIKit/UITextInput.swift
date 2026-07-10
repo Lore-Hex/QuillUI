@@ -121,6 +121,13 @@ extension UIControl {
         entries.append(QuillControlAction(action: action, events: controlEvents))
         UIControl.quillControlActions[key] = entries
     }
+
+    public func quillRegisteredActionCount(for controlEvents: Event) -> Int {
+        let key = ObjectIdentifier(self)
+        return UIControl.quillControlActions[key, default: []].filter {
+            !$0.events.intersection(controlEvents).isEmpty
+        }.count
+    }
 }
 
 #endif // !os(iOS)

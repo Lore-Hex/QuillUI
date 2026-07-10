@@ -2,8 +2,22 @@ import Foundation
 import Combine
 import QuillKit
 
-public final class SPUUpdater: @unchecked Sendable {
+public protocol SPUUpdaterDelegate: AnyObject {
+    func allowedChannels(for updater: SPUUpdater) -> Set<String>
+}
+
+public extension SPUUpdaterDelegate {
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        _ = updater
+        return []
+    }
+}
+
+public final class SPUUpdater: NSObject, @unchecked Sendable {
     private let service: QuillUpdateService
+
+    public var automaticallyChecksForUpdates: Bool = false
+    public var lastUpdateCheckDate: Date?
 
     public var canCheckForUpdates: Bool {
         get { service.canCheckForUpdates }
@@ -12,11 +26,18 @@ public final class SPUUpdater: @unchecked Sendable {
 
     public init(service: QuillUpdateService = .shared) {
         self.service = service
+        super.init()
     }
 
     public func checkForUpdates() {
+        lastUpdateCheckDate = Date()
         service.checkForUpdates()
     }
+
+    public func setFeedURL(_ url: URL?) {
+        _ = url
+    }
+
 }
 
 public final class SPUStandardUpdaterController: @unchecked Sendable {

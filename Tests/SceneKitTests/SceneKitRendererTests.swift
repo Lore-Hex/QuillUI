@@ -568,6 +568,59 @@ struct SceneKitRendererTests {
         #expect(stats.greenDominantPixels > 1_400)
     }
 
+    @Test("Software renderer interpolates SCNGeometry vertex colors")
+    func rendererInterpolatesBufferedGeometryVertexColors() {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let vertices = [
+            SCNVector3(-1.3, -1.1, 0),
+            SCNVector3(1.3, -1.1, 0),
+            SCNVector3(0, 1.25, 0),
+        ]
+        let colors: [Float] = [
+            1, 0, 0, 1,
+            0, 1, 0, 1,
+            0, 0, 1, 1,
+        ]
+        let colorSource = SCNGeometrySource(
+            data: Data(bytes: colors, count: colors.count * MemoryLayout<Float>.size),
+            semantic: .color,
+            vectorCount: 3,
+            usesFloatComponents: true,
+            componentsPerVector: 4,
+            bytesPerComponent: MemoryLayout<Float>.size,
+            dataOffset: 0,
+            dataStride: 4 * MemoryLayout<Float>.size
+        )
+        let geometry = SCNGeometry(
+            sources: [
+                SCNGeometrySource(vertices: vertices),
+                colorSource,
+            ],
+            elements: [SCNGeometryElement(indices: [UInt32(0), 1, 2], primitiveType: .triangles)]
+        )
+        geometry.firstMaterial?.diffuse.contents = CGColor.white
+        scene.rootNode.addChildNode(SCNNode(geometry: geometry))
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 220, height: 180, pointOfView: cameraNode)
+        let stats = PixelStats(image)
+        #expect(stats.redDominantPixels > 600)
+        #expect(stats.greenDominantPixels > 600)
+        #expect(stats.blueDominantPixels > 600)
+        #expect(PixelStats.dominantColor(atX: 50, y: 140, in: image) == .red)
+        #expect(PixelStats.dominantColor(atX: 170, y: 140, in: image) == .green)
+        #expect(PixelStats.dominantColor(atX: 110, y: 35, in: image) == .blue)
+    }
+
     @Test("SCNGeometrySource decoder rejects unsupported or malformed vertex layouts")
     func geometrySourceDecoderRejectsMalformedLayouts() {
         let floats: [Float] = [1, 2, 3]
@@ -657,6 +710,54 @@ struct SceneKitRendererTests {
         let stats = PixelStats(renderParametricGeometry(zeroEmission))
         #expect(stats.redDominantPixels > 900)
         #expect(stats.greenDominantPixels == 0)
+    }
+
+    @Test("Software renderer inherits opacity through the node hierarchy")
+    func rendererInheritsOpacityThroughNodeHierarchy() throws {
+        let scene = SCNScene()
+        scene.background.contents = CGColor.black
+
+        let plane = SCNPlane(width: 2, height: 2)
+        plane.firstMaterial?.diffuse.contents = RSColor(red: 1, green: 0, blue: 0, alpha: 1)
+        let planeNode = SCNNode(geometry: plane)
+
+        let group = SCNNode()
+        group.opacity = 0.5
+        group.addChildNode(planeNode)
+        scene.rootNode.addChildNode(group)
+
+        let camera = SCNCamera()
+        camera.usesOrthographicProjection = true
+        camera.orthographicScale = 3
+        let cameraNode = SCNNode()
+        cameraNode.camera = camera
+        cameraNode.position = SCNVector3(0, 0, 4)
+        scene.rootNode.addChildNode(cameraNode)
+
+        let image = scene.quillRenderImage(width: 90, height: 90, pointOfView: cameraNode)
+        let center = try #require(PixelStats.bgra(atX: 45, y: 45, in: image))
+        #expect(center[0] == 0)
+        #expect(center[1] == 0)
+        #expect(center[2] > 80)
+        #expect(center[2] < 160)
+        #expect(center[3] == 255)
+    }
+
+    @Test("Software renderer applies material multiply channel")
+    func rendererAppliesMaterialMultiplyChannel() {
+        let disabledMultiply = SCNSphere(radius: 1)
+        disabledMultiply.firstMaterial?.multiply.contents = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+        disabledMultiply.firstMaterial?.multiply.intensity = 0
+        #expect(PixelStats(renderParametricGeometry(disabledMultiply)).redDominantPixels > 900)
+
+        let greenMultiply = SCNSphere(radius: 1)
+        greenMultiply.firstMaterial?.multiply.contents = CGColor(red: 0, green: 1, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(greenMultiply)).nonBlackPixels == 0)
+
+        let emissionMultiply = SCNSphere(radius: 1)
+        emissionMultiply.firstMaterial?.emission.contents = RSColor(red: 0, green: 1, blue: 0, alpha: 1)
+        emissionMultiply.firstMaterial?.multiply.contents = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
+        #expect(PixelStats(renderParametricGeometry(emissionMultiply)).nonBlackPixels == 0)
     }
 
     @Test("Software renderer draws parametric planes")
@@ -1735,6 +1836,7 @@ private struct PixelStats {
     var nonBlackPixels = 0
     var redDominantPixels = 0
     var greenDominantPixels = 0
+    var blueDominantPixels = 0
     var bounds = PixelBounds.empty
 
     init(_ image: CGImage) {
@@ -1761,6 +1863,9 @@ private struct PixelStats {
                 if g > r * 2, g > b * 2 {
                     greenDominantPixels += 1
                 }
+                if b > r * 2, b > g * 2 {
+                    blueDominantPixels += 1
+                }
             }
         }
     }
@@ -1769,6 +1874,7 @@ private struct PixelStats {
         switch color {
         case .red: redDominantPixels
         case .green: greenDominantPixels
+        case .blue: blueDominantPixels
         }
     }
 
@@ -1790,7 +1896,22 @@ private struct PixelStats {
         if g > r * 2, g > b * 2 {
             return .green
         }
+        if b > r * 2, b > g * 2 {
+            return .blue
+        }
         return nil
+    }
+
+    static func bgra(atX x: Int, y: Int, in image: CGImage) -> [UInt8]? {
+        guard let pixels = image.quillBGRAPixels else { return nil }
+        let stride = image.quillBytesPerRow > 0 ? image.quillBytesPerRow : image.width * 4
+        guard x >= 0, x < image.width, y >= 0, y < image.height, stride >= image.width * 4 else {
+            return nil
+        }
+
+        let offset = y * stride + x * 4
+        guard offset + 3 < pixels.count else { return nil }
+        return Array(pixels[offset..<(offset + 4)])
     }
 }
 
@@ -1818,6 +1939,7 @@ private struct AppleSceneKitGoldenEnvelope {
 private enum DominantPixelColor {
     case red
     case green
+    case blue
 }
 
 private struct PixelBounds {

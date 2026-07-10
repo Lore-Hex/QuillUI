@@ -12,7 +12,7 @@ MSG
   exit 64
 fi
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 SOURCE_DIR="$1"
 OUTPUT_DIR="$2"
 
@@ -20,8 +20,9 @@ if [[ -n "${QUILLUI_SOURCE_LOWER:-}" ]]; then
   exec "$QUILLUI_SOURCE_LOWER" "$SOURCE_DIR" "$OUTPUT_DIR"
 fi
 
-TOOL_PACKAGE_DIR="${QUILLUI_SOURCE_LOWER_PACKAGE_DIR:-$ROOT_DIR/.build/quill-source-lower-package}"
-TOOL_SCRATCH_PATH="${QUILLUI_SOURCE_LOWER_SCRATCH_PATH:-$ROOT_DIR/.build/quill-source-lower-tool}"
+TOOL_CACHE_KEY="$(printf '%s' "$ROOT_DIR" | cksum | awk '{print $1}')"
+TOOL_PACKAGE_DIR="${QUILLUI_SOURCE_LOWER_PACKAGE_DIR:-$ROOT_DIR/.build/quill-source-lower-package-$TOOL_CACHE_KEY}"
+TOOL_SCRATCH_PATH="${QUILLUI_SOURCE_LOWER_SCRATCH_PATH:-$ROOT_DIR/.build/quill-source-lower-tool-$TOOL_CACHE_KEY}"
 
 if [[ -z "$TOOL_PACKAGE_DIR" || "$TOOL_PACKAGE_DIR" == "/" || "$TOOL_PACKAGE_DIR" == "$ROOT_DIR" ]]; then
   echo "Refusing unsafe source-lower package directory: ${TOOL_PACKAGE_DIR:-<empty>}" >&2
@@ -35,7 +36,13 @@ rm -rf \
 ln -s "$ROOT_DIR/Sources/QuillSourceLowering" "$TOOL_PACKAGE_DIR/Sources/QuillSourceLowering"
 ln -s "$ROOT_DIR/Sources/quill-source-lower" "$TOOL_PACKAGE_DIR/Sources/quill-source-lower"
 
-cat > "$TOOL_PACKAGE_DIR/Package.swift" <<'SWIFT'
+if [[ -f "$ROOT_DIR/third_party/swift-syntax/Package.swift" ]]; then
+  SWIFT_SYNTAX_DEPENDENCY="        .package(name: \"swift-syntax\", path: \"$ROOT_DIR/third_party/swift-syntax\")"
+else
+  SWIFT_SYNTAX_DEPENDENCY="        .package(url: \"https://github.com/swiftlang/swift-syntax.git\", from: \"600.0.0\")"
+fi
+
+cat > "$TOOL_PACKAGE_DIR/Package.swift" <<SWIFT
 // swift-tools-version: 6.0
 import PackageDescription
 
@@ -46,7 +53,7 @@ let package = Package(
         .executable(name: "quill-source-lower", targets: ["quill-source-lower"])
     ],
     dependencies: [
-        .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0")
+${SWIFT_SYNTAX_DEPENDENCY}
     ],
     targets: [
         .target(

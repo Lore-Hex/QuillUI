@@ -2218,9 +2218,9 @@ def validate_quill_chat_mac_reference_completions_saved(image: Screenshot) -> st
 def validate_quill_chat_mac_reference_completions_edited(image: Screenshot) -> str:
     panel_summary = validate_quill_chat_mac_reference_completions_panel(
         image,
-        minimum_row_dividers=1,
-        minimum_row_action_segments=1,
+        minimum_row_dividers=2,
         minimum_wordmark_pixels=350,
+        minimum_row_action_segments=1,
     )
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -7610,6 +7610,250 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
     )
 
 
+def signal_incoming_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 215 <= red <= 242 and 215 <= green <= 242 and 215 <= blue <= 244 and max(rgb) - min(rgb) <= 14
+
+
+def signal_outgoing_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return red <= 65 and 80 <= green <= 150 and blue >= 190 and blue - red >= 145 and blue - green >= 65
+
+
+def signal_composer_border_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 188 <= red <= 230 and 188 <= green <= 230 and 188 <= blue <= 235 and max(rgb) - min(rgb) <= 14
+
+
+def signal_request_warning_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 150 <= red <= 235 and 45 <= green <= 130 and blue <= 110 and red - blue >= 60
+
+
+def signal_chat_blue_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 35 <= red <= 85 and 85 <= green <= 150 and blue >= 185 and blue - red >= 120
+
+
+def signal_chat_incoming_bubble_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 225 <= red <= 242 and 225 <= green <= 242 and 228 <= blue <= 246 and sum(rgb) < 725
+
+
+def signal_chat_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 245 <= red <= 255 and 245 <= green <= 255 and 247 <= blue <= 255 and max(rgb) - min(rgb) <= 10
+
+
+def signal_chat_composer_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 248 <= red <= 255 and 248 <= green <= 255 and 248 <= blue <= 255 and max(rgb) - min(rgb) <= 8
+
+
+def validate_signal_chat_stub(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1000 <= app_width <= 1200, f"Signal chat window width is unexpected: {app_width}px")
+    require(640 <= app_height <= 780, f"Signal chat window height is unexpected: {app_height}px")
+
+    sidebar_right = left + min(340, int(app_width * 0.36))
+    sidebar_blue_pixels = pixel_count(
+        image,
+        left,
+        top,
+        sidebar_right,
+        top + 90,
+        signal_chat_blue_pixel,
+    )
+    sidebar_surface_pixels = pixel_count(
+        image,
+        left,
+        top + 90,
+        sidebar_right,
+        bottom,
+        signal_chat_sidebar_pixel,
+    )
+    detail_blue_pixels = pixel_count(
+        image,
+        sidebar_right,
+        top + 120,
+        right,
+        bottom - 92,
+        signal_chat_blue_pixel,
+    )
+    incoming_pixels = pixel_count(
+        image,
+        sidebar_right,
+        top + 120,
+        right - 80,
+        bottom - 92,
+        signal_chat_incoming_bubble_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        sidebar_right,
+        bottom - 86,
+        right,
+        bottom,
+        signal_chat_composer_pixel,
+    )
+    dark_text_pixels = dark_pixel_count(
+        image,
+        left,
+        top,
+        right,
+        bottom,
+    )
+
+    require(sidebar_blue_pixels >= 6_000, f"Signal chat sidebar brand header missing: pixels={sidebar_blue_pixels}")
+    require(sidebar_surface_pixels >= 30_000, f"Signal chat sidebar surface missing: pixels={sidebar_surface_pixels}")
+    require(detail_blue_pixels >= 3_000, f"Signal chat outgoing bubble missing: pixels={detail_blue_pixels}")
+    require(incoming_pixels >= 4_000, f"Signal chat incoming bubble missing: pixels={incoming_pixels}")
+    require(composer_pixels >= 20_000, f"Signal chat composer surface missing: pixels={composer_pixels}")
+    require(dark_text_pixels >= 3_500, f"Signal chat text/content missing: pixels={dark_text_pixels}")
+
+    return (
+        "Signal chat stub: "
+        f"app={app_width}x{app_height}, "
+        f"sidebar_blue_pixels={sidebar_blue_pixels}, "
+        f"sidebar_surface_pixels={sidebar_surface_pixels}, "
+        f"detail_blue_pixels={detail_blue_pixels}, "
+        f"incoming_pixels={incoming_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"dark_text_pixels={dark_text_pixels}"
+    )
+
+
+def validate_signal_real_conversation(image: Screenshot, variant: str = "base") -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(700 <= app_width <= 900, f"Signal conversation window width is unexpected: {app_width}px")
+    require(620 <= app_height <= 860, f"Signal conversation window height is unexpected: {app_height}px")
+
+    center_left = left + int(app_width * 0.26)
+    center_right = right - int(app_width * 0.26)
+    header_dark_pixels = dark_pixel_count(
+        image,
+        center_left,
+        top + 18,
+        center_right,
+        top + int(app_height * 0.24),
+    )
+    incoming_pixels = pixel_count(
+        image,
+        left + 8,
+        top + int(app_height * 0.25),
+        left + int(app_width * 0.86),
+        bottom - 86,
+        signal_incoming_bubble_pixel,
+    )
+    outgoing_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.06),
+        top + int(app_height * 0.35),
+        right - 8,
+        bottom - 86,
+        signal_outgoing_bubble_pixel,
+    )
+    composer_pixels = pixel_count(
+        image,
+        left + 45,
+        bottom - 60,
+        right - 8,
+        bottom - 4,
+        signal_composer_border_pixel,
+    )
+    bottom_incoming_pixels = pixel_count(
+        image,
+        left + 8,
+        top + int(app_height * 0.72),
+        left + int(app_width * 0.55),
+        bottom - 58,
+        signal_incoming_bubble_pixel,
+    )
+    bottom_outgoing_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.45),
+        top + int(app_height * 0.72),
+        right - 8,
+        bottom - 58,
+        signal_outgoing_bubble_pixel,
+    )
+    request_warning_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.30),
+        top + 80,
+        right - int(app_width * 0.30),
+        top + int(app_height * 0.34),
+        signal_request_warning_pixel,
+    )
+    request_action_pixels = dark_pixel_count(
+        image,
+        left,
+        bottom - 64,
+        left + int(app_width * 0.70),
+        bottom,
+    )
+    request_continue_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.66),
+        bottom - 64,
+        right,
+        bottom,
+    )
+
+    require(header_dark_pixels >= 650, f"Signal contact header was not detected: pixels={header_dark_pixels}")
+    require(incoming_pixels >= 6_000, f"Signal incoming bubble was not detected: pixels={incoming_pixels}")
+    require(outgoing_pixels >= 10_000, f"Signal outgoing bubble was not detected: pixels={outgoing_pixels}")
+    if variant == "pending":
+        require(
+            request_warning_pixels >= 120,
+            "Signal message-request warning badge was not detected: "
+            f"pixels={request_warning_pixels}",
+        )
+        require(
+            request_action_pixels >= 80,
+            "Signal message-request Block/Report actions were not detected: "
+            f"pixels={request_action_pixels}",
+        )
+        require(
+            request_continue_pixels >= 120,
+            "Signal message-request Continue action was not detected: "
+            f"pixels={request_continue_pixels}",
+        )
+    else:
+        require(composer_pixels >= 750, f"Signal composer border was not detected: pixels={composer_pixels}")
+
+    if variant == "send":
+        require(
+            bottom_outgoing_pixels >= 2_500,
+            "Signal sent message bubble was not detected near the transcript bottom: "
+            f"pixels={bottom_outgoing_pixels}",
+        )
+    elif variant == "receive":
+        require(
+            bottom_incoming_pixels >= 2_500,
+            "Signal received message bubble was not detected near the transcript bottom: "
+            f"pixels={bottom_incoming_pixels}",
+        )
+
+    return (
+        f"Signal real conversation {variant}: "
+        f"app={app_width}x{app_height}, "
+        f"header_dark_pixels={header_dark_pixels}, "
+        f"incoming_pixels={incoming_pixels}, "
+        f"outgoing_pixels={outgoing_pixels}, "
+        f"composer_pixels={composer_pixels}, "
+        f"bottom_incoming_pixels={bottom_incoming_pixels}, "
+        f"bottom_outgoing_pixels={bottom_outgoing_pixels}, "
+        f"request_warning_pixels={request_warning_pixels}, "
+        f"request_action_pixels={request_action_pixels}, "
+        f"request_continue_pixels={request_continue_pixels}"
+    )
+
+
 def solderscope_toolbar_pixel(rgb: tuple[int, int, int]) -> bool:
     total = sum(rgb)
     return 24 <= total <= 560 and max(rgb) - min(rgb) <= 96
@@ -7779,6 +8023,13 @@ def main() -> int:
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
     }
+    signal_real_conversation_product = product in {
+        "signal-real-conversation",
+        "signal-real-conversation-pending",
+        "signal-real-conversation-accepted-request",
+        "signal-real-conversation-send",
+        "signal-real-conversation-receive",
+    }
     solderscope_launch_product = product in {
         "quill-solderscope-launch",
         "quill-solderscope-visual",
@@ -7833,6 +8084,9 @@ def main() -> int:
     elif compact_wireguard_dialog_product:
         minimum_width = 500
         minimum_height = 360
+    elif signal_real_conversation_product:
+        minimum_width = 700
+        minimum_height = 620
     elif smoke_product:
         minimum_width = 600
         minimum_height = 560
@@ -7999,6 +8253,18 @@ def main() -> int:
         print(validate_quill_wireguard_gtk_import(image))
     elif product in {"quill-wireguard-import-invalid-paste", "quill-wireguard-import-invalid-file"}:
         print(validate_quill_wireguard_import_error(image, backend="gtk"))
+    elif product == "signal-real-conversation":
+        print(validate_signal_real_conversation(image))
+    elif product == "signal-real-conversation-pending":
+        print(validate_signal_real_conversation(image, variant="pending"))
+    elif product == "signal-real-conversation-accepted-request":
+        print(validate_signal_real_conversation(image, variant="accepted"))
+    elif product == "signal-real-conversation-send":
+        print(validate_signal_real_conversation(image, variant="send"))
+    elif product == "signal-real-conversation-receive":
+        print(validate_signal_real_conversation(image, variant="receive"))
+    elif product == "signal-chat-stub":
+        print(validate_signal_chat_stub(image))
     elif product == "quill-solderscope-interaction":
         print(validate_quill_solderscope_interaction(image))
     elif product == "quill-solderscope-freeze-interaction":

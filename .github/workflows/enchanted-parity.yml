@@ -28,6 +28,7 @@ on:
   pull_request:
     branches:
       - main
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -46,7 +47,6 @@ jobs:
     env:
       QUILLUI_SKIP_APT: "1"
       QUILLUI_BACKEND_MAC_REFERENCE: "1"
-      QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted
       # Match Linux CI's tuned guard floor. The default 12 GiB threshold can
       # fail after the generated Enchanted build on otherwise healthy runners.
       QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
@@ -58,7 +58,7 @@ jobs:
       - name: Install Linux dependencies
         run: |
           apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --fix-missing \
             ca-certificates \
             dbus-x11 \
             fontconfig \
@@ -67,6 +67,8 @@ jobs:
             fonts-noto-core \
             git \
             imagemagick \
+            libc++-dev \
+            libc++abi-dev \
             libgdk-pixbuf-2.0-dev \
             libgtk-4-dev \
             libsqlite3-dev \
@@ -75,12 +77,23 @@ jobs:
             qt6-base-dev \
             ripgrep \
             x11-apps \
+            xclip \
             xdotool \
-            xvfb
+            xvfb \
+            zstd
           rm -rf /var/lib/apt/lists/*
 
-      - name: Fetch Enchanted upstream source
-        run: scripts/fetch-upstream.sh enchanted
+      - name: Restore lowered source cache
+        uses: ./.github/actions/lowered-source-cache
+        with:
+          cache-name: enchanted
+          source-app: enchanted
+
+      - name: Confirm vendored Enchanted source
+        run: scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md
+
+      - name: Audit vendored Enchanted SwiftPM sources
+        run: scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored
 
       - name: Run strict Enchanted GTK mac-reference verifier
         run: |
@@ -91,10 +104,12 @@ jobs:
               gtk
 
       - name: Package real-source GTK release artifact
+        shell: bash
         run: |
           scripts/package-swiftui-linux-app.sh \
             --profile enchanted-full-source \
-            --source-dir "$QUILL_CHAT_DIR/Enchanted" \
+            --source-app enchanted \
+            --source-subdir Enchanted \
             --app-type EnchantedApp \
             --product-name quill-chat-linux \
             --workdir .build/quill-chat-linux-gtk \
@@ -221,12 +236,12 @@ jobs:
 
       - name: Upload verifier artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: enchanted-parity-verifier
           path: |
             .qa/**
-          # .qa is a DOT-directory; upload-artifact@v4 excludes hidden files by
+          # .qa is a DOT-directory; upload-artifact@v6 excludes hidden files by
           # default, which is why the render never uploaded ("No files found").
           include-hidden-files: true
           retention-days: 1

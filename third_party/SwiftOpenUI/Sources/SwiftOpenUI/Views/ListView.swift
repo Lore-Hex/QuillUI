@@ -17,6 +17,22 @@ public struct List<Content: View>: View {
         self.content = content()
     }
 
+    public init<SelectionValue: Hashable>(
+        selection: Binding<SelectionValue?>?,
+        @ViewBuilder content: () -> Content
+    ) {
+        _ = selection
+        self.content = content()
+    }
+
+    public init<SelectionValue: Hashable>(
+        selection: Binding<Set<SelectionValue>>?,
+        @ViewBuilder content: () -> Content
+    ) {
+        _ = selection
+        self.content = content()
+    }
+
     public var body: Never { fatalError("List is a primitive view") }
 }
 
@@ -29,5 +45,16 @@ public extension List {
             Data.Element: Identifiable,
             RowContent: View {
         self.content = ForEach(Array(data), content: rowContent)
+    }
+
+    init<Element, RowContent>(
+        _ data: Binding<[Element]>,
+        selection: Binding<Set<Element>>,
+        @ViewBuilder rowContent: @escaping (Binding<Element>) -> RowContent
+    ) where Content == ForEach<Binding<Element>, Element.ID, RowContent>,
+            Element: Identifiable & Hashable,
+            RowContent: View {
+        _ = selection
+        self.content = ForEach(data, content: rowContent)
     }
 }

@@ -229,6 +229,173 @@ final class GTK4TextFormattingTests: XCTestCase {
         }
     }
 
+    // MARK: - ForegroundColorView
+
+    func testForegroundColorAppliesMarkupToPlainTextLabels() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Ask QuillCode").foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(
+            gtk_swift_label_get_use_markup(widgetFromOpaque(label)),
+            0,
+            "Inherited foregroundColor should reach plain Text instead of depending on CSS inheritance."
+        )
+    }
+
+    func testForegroundColorAppliesMarkupThroughFontModifier() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Ask QuillCode")
+                .font(.title3)
+                .foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundColorAppliesMarkupThroughCustomViewBody() throws {
+        try requireGTK()
+
+        struct Probe: View {
+            var body: some View {
+                VStack {
+                    Text("Ask QuillCode")
+                        .font(.title3)
+                }
+                .foregroundColor(Color(red: 0.93, green: 0.97, blue: 0.98))
+            }
+        }
+
+        let widget = widgetFromOpaque(gtkRenderView(Probe()))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundStyleSurvivesBackgroundWrapper() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                Text("Ask QuillCode")
+                    .font(.title3)
+            }
+            .background(Color(red: 0.03, green: 0.06, blue: 0.08))
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundStyleSurvivesLazyVStackDeferredBinding() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            LazyVStack([0]) { _ in
+                Text("Ask QuillCode")
+                    .font(.title3.weight(.semibold))
+            }
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let window = gtk_window_new()!
+        defer { gtk_window_destroy(windowPointer(window)) }
+        gtk_window_set_child(windowPointer(window), widget)
+        gtk_window_present(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Ask QuillCode")
+        XCTAssertNotEqual(gtk_swift_label_get_use_markup(widgetFromOpaque(label)), 0)
+    }
+
+    func testForegroundStyleReachesPlainTextFieldInternalText() throws {
+        try requireGTK()
+
+        var text = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                TextField("Message QuillCode", text: Binding(get: { text }, set: { text = $0 }))
+                    .textFieldStyle(.plain)
+            }
+            .background(Color(red: 0.03, green: 0.06, blue: 0.08))
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let entry = try findWidget(ofType: "GtkEntry", in: widget)
+
+        XCTAssertNotEqual(
+            gtk_widget_has_css_class(entry, gtkSwiftInheritedTextInputForegroundMarker),
+            0,
+            "Ancestor foregroundStyle should reach GtkEntry text/placeholder nodes."
+        )
+    }
+
+    func testForegroundStyleReachesRoundedTextFieldInternalText() throws {
+        try requireGTK()
+
+        var text = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                TextField("Search models", text: Binding(get: { text }, set: { text = $0 }))
+                    .textFieldStyle(.roundedBorder)
+            }
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let entry = try findWidget(ofType: "GtkEntry", in: widget)
+
+        XCTAssertNotEqual(
+            gtk_widget_has_css_class(entry, gtkSwiftInheritedTextInputForegroundMarker),
+            0,
+            "QuillPaint/rounded fields should preserve the app foreground after chrome hooks run."
+        )
+    }
+
+    func testForegroundStyleReachesSecureFieldAndTextEditorInternalText() throws {
+        try requireGTK()
+
+        var secret = ""
+        var notes = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                SecureField("API token", text: Binding(get: { secret }, set: { secret = $0 }))
+                TextEditor(text: Binding(get: { notes }, set: { notes = $0 }))
+            }
+            .foregroundStyle(Color(red: 0.93, green: 0.97, blue: 0.98))
+        ))
+        let passwordEntry = try findWidget(ofType: "GtkPasswordEntry", in: widget)
+        let textView = try findWidget(ofType: "GtkTextView", in: widget)
+
+        XCTAssertNotEqual(gtk_widget_has_css_class(passwordEntry, gtkSwiftInheritedTextInputForegroundMarker), 0)
+        XCTAssertNotEqual(gtk_widget_has_css_class(textView, gtkSwiftInheritedTextInputForegroundMarker), 0)
+    }
+
+    func testMonospacedSystemFontReachesTextEditorRoot() throws {
+        try requireGTK()
+
+        var source = "let value = 42"
+        let widget = widgetFromOpaque(gtkRenderView(
+            TextEditor(text: Binding(get: { source }, set: { source = $0 }))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+        ))
+        _ = try findWidget(ofType: "GtkTextView", in: widget)
+
+        XCTAssertNotEqual(
+            gtk_widget_has_css_class(widget, gtkSwiftFontMonospacedMarker),
+            0,
+            "QuillCode-style monospaced TextEditor fonts should stay in the generic GTK renderer."
+        )
+    }
+
     // MARK: - Modifier composition
 
     func testLineLimitWithFontModifier() throws {
@@ -321,6 +488,39 @@ private func findLabel(
     return first
 }
 
+private func findWidget(
+    ofType typeName: String,
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    file: StaticString = #filePath,
+    line: UInt = #line
+) throws -> UnsafeMutablePointer<GtkWidget> {
+    try XCTUnwrap(
+        findFirstWidget(ofType: typeName, in: widget),
+        "No \(typeName) found in widget tree",
+        file: file,
+        line: line
+    )
+}
+
+private func findFirstWidget(
+    ofType expectedTypeName: String,
+    in widget: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard gtk_swift_is_widget(widget) != 0 else { return nil }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    if typeName == expectedTypeName {
+        return widget
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        if let found = findFirstWidget(ofType: expectedTypeName, in: c) {
+            return found
+        }
+        child = gtk_widget_get_next_sibling(c)
+    }
+    return nil
+}
+
 /// Collect all GtkLabel descendants via DFS.
 private func findAllLabels(in widget: UnsafeMutablePointer<GtkWidget>) -> [OpaquePointer] {
     var result: [OpaquePointer] = []
@@ -339,5 +539,13 @@ private func collectLabels(in widget: UnsafeMutablePointer<GtkWidget>, into resu
     while let c = child {
         collectLabels(in: c, into: &result)
         child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func drainGTKMainContext(maxIterations: Int = 20) {
+    for _ in 0..<maxIterations {
+        if g_main_context_iteration(nil, 0) == 0 {
+            break
+        }
     }
 }

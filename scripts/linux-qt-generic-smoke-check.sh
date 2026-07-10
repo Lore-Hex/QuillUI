@@ -106,6 +106,20 @@ if [[ -n "$window_id" ]]; then
   capture_window="$window_id"
 fi
 
+if [[ "${QUILLUI_QT_GENERIC_VERIFY_SHORTCUT:-1}" == "1" && -n "$window_id" ]]; then
+  echo "==> Verifying Qt .keyboardShortcut(.defaultAction) dispatch"
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool key --window "$window_id" --clearmodifiers Return
+  sleep "${QUILLUI_QT_GENERIC_SHORTCUT_SETTLE_SLEEP:-0.35}"
+
+  if ! grep -q "\\[qt-smoke\\] keyboardShortcut default" "$APP_LOG_PATH"; then
+    echo "Qt .keyboardShortcut(.defaultAction) did not reach the Swift action." >&2
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" "${QUILLUI_QT_GENERIC_APP_LOG_LINES:-120}"
+    exit 1
+  fi
+fi
+
 DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$SCREENSHOT_PATH"
 
 if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then

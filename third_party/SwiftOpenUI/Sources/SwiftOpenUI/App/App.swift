@@ -148,6 +148,26 @@ public struct WindowGroup<Content: View>: Scene {
     public var body: Never { fatalError("WindowGroup is a primitive scene") }
 }
 
+/// A menu-bar/status-area extra scene.
+public struct MenuBarExtra<Content: View, LabelContent: View>: Scene {
+    public typealias Body = Never
+
+    public let content: Content
+    public let label: LabelContent
+
+    public init(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder label: () -> LabelContent
+    ) {
+        self.content = content()
+        self.label = label()
+    }
+
+    public var body: Never {
+        fatalError("MenuBarExtra is a primitive scene")
+    }
+}
+
 /// A composite scene that holds two child scenes.
 public struct TupleScene<S0: Scene, S1: Scene>: Scene {
     public typealias Body = Never
@@ -167,6 +187,11 @@ public struct TupleScene<S0: Scene, S1: Scene>: Scene {
 }
 
 public extension Scene {
+    func environment<V>(_ keyPath: WritableKeyPath<EnvironmentValues, V>, _ value: V) -> Self {
+        _ = (keyPath, value)
+        return self
+    }
+
     func onChange<Value: Equatable>(
         of value: Value,
         _ action: @escaping (Value, Value) -> Void
@@ -197,5 +222,16 @@ public struct SceneBuilder {
 
     public static func buildBlock<S0: Scene, S1: Scene>(_ s0: S0, _ s1: S1) -> TupleScene<S0, S1> {
         TupleScene(s0, s1)
+    }
+
+    public static func buildPartialBlock<Content: Scene>(first content: Content) -> Content {
+        content
+    }
+
+    public static func buildPartialBlock<S0: Scene, S1: Scene>(
+        accumulated: S0,
+        next: S1
+    ) -> TupleScene<S0, S1> {
+        TupleScene(accumulated, next)
     }
 }

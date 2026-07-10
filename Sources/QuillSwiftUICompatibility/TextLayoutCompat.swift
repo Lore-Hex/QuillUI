@@ -1,8 +1,28 @@
 import SwiftOpenUI
 
+public struct MinimumScaleFactorView<Content: View>: View {
+    public let content: Content
+    public let factor: Double
+
+    public init(content: Content, factor: Double) {
+        self.content = content
+        self.factor = factor
+    }
+
+    public var body: some View { content }
+}
+
 public extension View {
     func baselineOffset(_ baselineOffset: Double) -> some View {
         self
+    }
+
+    func lineLimit(_ range: ClosedRange<Int>) -> some View {
+        lineLimit(range.upperBound)
+    }
+
+    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
+        MinimumScaleFactorView(content: self, factor: factor)
     }
 }
 
@@ -38,6 +58,15 @@ public extension Font {
     }
 
     func bold() -> Font { self.weight(.bold) }
+
+    func monospaced() -> Font {
+        switch self {
+        case .custom(let size, let weight, _):
+            return .system(size: size, weight: weight, design: .monospaced)
+        default:
+            return .system(self, design: .monospaced)
+        }
+    }
 }
 
 public extension ToolbarItemPlacement {
@@ -52,6 +81,7 @@ public extension ToolbarItemPlacement {
     static var confirmationAction: ToolbarItemPlacement { .trailing }
     static var destructiveAction: ToolbarItemPlacement { .trailing }
     static var bottomBar: ToolbarItemPlacement { .primaryAction }
+    static var sidebarToggle: ToolbarItemPlacement { .leading }
 }
 
 public struct ToolbarItemGroup<Content: View>: ToolbarContent, ToolbarContentItemsProvider {

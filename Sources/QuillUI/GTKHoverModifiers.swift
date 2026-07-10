@@ -1,5 +1,6 @@
 #if os(Linux)
 import CGTK
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import BackendGTK4
 
@@ -20,6 +21,20 @@ private final class QuillGTKHoverActionBox {
 
 extension OnHoverView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
+        quillGTKCreateHoverWidget(content: content, action: action)
+    }
+}
+
+extension QuillCompatibilityOnHoverView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        quillGTKCreateHoverWidget(content: content, action: action)
+    }
+}
+
+private func quillGTKCreateHoverWidget<Content: View>(
+    content: Content,
+    action: @escaping (Bool) -> Void
+) -> OpaquePointer {
         let container = gtk_overlay_new()!
         let widget = quillGTKHoverWidgetPointer(gtkRenderView(content))
         let box = QuillGTKHoverActionBox(action)
@@ -44,7 +59,6 @@ extension OnHoverView: GTKRenderable {
 
         quillGTKInstallHoverControllers(on: container, retainedBox: retainedBox)
         return OpaquePointer(container)
-    }
 }
 
 private func quillGTKInstallHoverControllers(

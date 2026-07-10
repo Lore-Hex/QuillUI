@@ -1,5 +1,6 @@
 #if os(Linux)
 import CGTK
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import BackendGTK4
 
@@ -31,9 +32,29 @@ extension AccessibilityValueView: GTKRenderable {
     }
 }
 
+extension AccessibilityHintView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = quillGTKWidgetPointer(gtkRenderView(content))
+        hint.withCString { hintPointer in
+            gtk_swift_accessible_update_description(widget, hintPointer)
+        }
+        return quillGTKOpaquePointer(widget)
+    }
+}
+
 extension AccessibilityElementView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget = quillGTKWidgetPointer(gtkRenderView(content))
+        return quillGTKOpaquePointer(widget)
+    }
+}
+
+extension AccessibilityIdentifierView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let widget = quillGTKWidgetPointer(gtkRenderView(content))
+        identifier.withCString { identifierPointer in
+            gtk_widget_set_name(widget, identifierPointer)
+        }
         return quillGTKOpaquePointer(widget)
     }
 }

@@ -174,27 +174,21 @@ if [[ "$SKIP_ENCHANTED_BUILD" != "1" && -d "$ENCHANTED_APP_DIR" ]]; then
   for row in "${GENERATED_APP_SMOKE_ROWS[@]}"; do
     IFS="$tab" read -r product backend <<< "$row"
     generated_work_root="$ENCHANTED_WORK_ROOT-$backend"
+    artifact_path_file="$generated_work_root/.quillui-artifact-path"
 
+    QUILLUI_APP_ARTIFACT_PATH_FILE="$artifact_path_file" \
     QUILLUI_ENCHANTED_BUILD_WORKDIR="$generated_work_root" \
       QUILLUI_ENCHANTED_PRODUCT_NAME="$product" \
       QUILLUI_ENCHANTED_BACKEND_FACADE="$backend" \
       scripts/build-enchanted-linux.sh
 
-    if [[ "$backend" == "qt" ]]; then
-      ENCHANTED_BIN_DIR="$(QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
-        --disable-index-store \
-        --package-path "$generated_work_root/package" \
-        --scratch-path "$generated_work_root/.build-check" \
-        --show-bin-path)"
-    else
-      ENCHANTED_BIN_DIR="$(swift build \
-        --disable-index-store \
-        --package-path "$generated_work_root/package" \
-        --scratch-path "$generated_work_root/.build-check" \
-        --show-bin-path)"
+    ENCHANTED_ARTIFACT_PATH=""
+    if ! quillui_artifact_path_from_file "$artifact_path_file" ENCHANTED_ARTIFACT_PATH; then
+      echo "Generated app build did not write a usable artifact path for $product: $artifact_path_file" >&2
+      exit 66
     fi
 
-    run_executable_smoke "$product" "$ENCHANTED_BIN_DIR/$product" "$backend"
+    run_executable_smoke "$product" "$ENCHANTED_ARTIFACT_PATH" "$backend"
     generated_app_smoke_count=$((generated_app_smoke_count + 1))
   done
 fi

@@ -12,7 +12,10 @@
 #   scripts/fetch-upstream.sh telegram
 #
 # Idempotent: each upstream is `git clone --depth=1` on first run
-# and `git fetch + reset --hard FETCH_HEAD` on subsequent runs.
+# and `git fetch + reset --hard FETCH_HEAD` on subsequent runs. CI can
+# set QUILLUI_TRUST_UPSTREAM_CACHE=1 after restoring `.upstream` from
+# actions/cache; existing checkouts are then reused without a network
+# refresh, while cache misses still clone normally.
 
 set -euo pipefail
 
@@ -20,13 +23,36 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UPSTREAM_DIR="$ROOT_DIR/.upstream"
 mkdir -p "$UPSTREAM_DIR"
 
+source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+source "$ROOT_DIR/scripts/quillui-vendored-source.sh"
+
+quillui_truthy() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+quillui_trust_upstream_cache() {
+    quillui_truthy "${QUILLUI_TRUST_UPSTREAM_CACHE:-0}"
+}
+
 fetch_repo() {
     local name="$1"
     local url="$2"
     local ref="${3:-}"
     local dest="$UPSTREAM_DIR/$name"
 
+    if quillui_materialize_vendored_app_source "$ROOT_DIR" "$name" "$dest"; then
+        return
+    fi
+
     if [[ -d "$dest/.git" ]]; then
+        if quillui_trust_upstream_cache; then
+            echo "==> using cached $name (QUILLUI_TRUST_UPSTREAM_CACHE=1)"
+            git -C "$dest" reset --hard HEAD >/dev/null
+            return
+        fi
         echo "==> updating $name"
         if [[ -n "$ref" ]]; then
             git -C "$dest" fetch --depth=1 origin "$ref" >/dev/null
@@ -42,6 +68,25 @@ fetch_repo() {
             git clone --depth=1 "$url" "$dest" >/dev/null
         fi
     fi
+}
+
+reset_repo_to_commit() {
+    local name="$1"
+    local commit="$2"
+    local dest="$UPSTREAM_DIR/$name"
+
+    if [[ ! -d "$dest/.git" ]]; then
+        echo "error: cannot pin missing upstream checkout: $name" >&2
+        return 1
+    fi
+
+    if git -C "$dest" cat-file -e "$commit^{commit}" 2>/dev/null; then
+        echo "==> resetting $name to cached commit $commit"
+    else
+        echo "==> fetching pinned $name commit $commit"
+        git -C "$dest" fetch --depth=1 origin "$commit" >/dev/null
+    fi
+    git -C "$dest" reset --hard "$commit" >/dev/null
 }
 
 apply_generated_source_patch() {
@@ -1158,6 +1203,27 @@ s = open(path).read()
 s = s.replace("        configuration.defaultTransactionKind = .immediate\n", "")
 s = s.replace("        configuration.automaticMemoryManagement = false\n", "")
 open(path, "w").write(s)
+PY
+    fi
+
+    # Signal's Yap/GRDB bridge expects the in-memory SDSRecord delegate to learn
+    # the inserted GRDB row id immediately after anyInsert(...). SQLite on Linux
+    # successfully inserts the row, but without this callback outgoing messages
+    # still see `sqliteRowId == nil` and the real send pipeline aborts with
+    # "Failed to insert message!". Match the update path by propagating GRDB's
+    # last inserted row id from the Linux-patched disposable checkout.
+    local sds="$UPSTREAM_DIR/signal-ios/SignalServiceKit/Storage/Database/SDSRecord.swift"
+    if [[ -f "$sds" ]] && ! grep -q 'delegate?.updateRowId(transaction.database.lastInsertedRowID)' "$sds"; then
+        echo "==> patching signal-ios SDSRecord.swift insert row-id propagation"
+        python3 - "$sds" <<'PY'
+import sys
+path = sys.argv[1]
+s = open(path).read()
+needle = "        failIfThrows {\n            try self.insert(transaction.database)\n        }\n"
+replacement = "        failIfThrows {\n            try self.insert(transaction.database)\n            delegate?.updateRowId(transaction.database.lastInsertedRowID)\n        }\n"
+if needle not in s:
+    raise SystemExit("SDSRecord.sdsInsert shape changed")
+open(path, "w").write(s.replace(needle, replacement, 1))
 PY
     fi
 
@@ -2683,9 +2749,20 @@ patch_solderscope() {
     #    when its backing capture storage changes.
     if [[ "$(uname -s)" == "Linux" ]]; then
         local dir="$UPSTREAM_DIR/solderscope/SolderScope"
-        if [[ -d "$dir" ]] && grep -rqE 'import os\.log' "$dir" 2>/dev/null; then
+        local logger="$dir/Utilities/Logger.swift"
+        if [[ -f "$logger" ]] && grep -qE '^import os\.log$' "$logger" 2>/dev/null; then
             echo "==> lowering solderscope for Linux (import os.log)"
-            ( cd "$ROOT_DIR" && swift run quill-lower-appkit "$dir" )
+            python3 - "$logger" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+new = text.replace("import os.log\n", "import os\n", 1)
+if new != text:
+    path.write_text(new)
+    print(f"patch_solderscope: lowered import os.log in {path}")
+PY
         fi
         local microscope="$dir/Renderer/MicroscopeView.swift"
         if [[ -f "$microscope" ]]; then
@@ -2945,7 +3022,7 @@ if [[ ${#want[@]} -eq 0 ]]; then
     # from source"). Until the upstream is patched or replaced,
     # the CodeEdit work has to be opt-in via:
     #   scripts/fetch-upstream.sh codeedit codeeditsymbols
-    want=(enchanted netnewswire wireguard icecubes)
+    want=(enchanted netnewswire wireguard icecubes solderscope)
 fi
 
 for name in "${want[@]}"; do
@@ -2961,8 +3038,7 @@ for name in "${want[@]}"; do
             # (DatabaseResult lost tableExists/executeStatements/...), which
             # turned the Linux CI lane red. Advance the pin together with
             # the slice, not implicitly via HEAD-tracking fetches.
-            git -C "$UPSTREAM_DIR/netnewswire" fetch --depth=1 origin 7fc1e65308583fb014818c342ecbb1560e8461db
-            git -C "$UPSTREAM_DIR/netnewswire" reset --hard 7fc1e65308583fb014818c342ecbb1560e8461db
+            reset_repo_to_commit netnewswire 7fc1e65308583fb014818c342ecbb1560e8461db
             patch_netnewswire
             ;;
         wireguard)

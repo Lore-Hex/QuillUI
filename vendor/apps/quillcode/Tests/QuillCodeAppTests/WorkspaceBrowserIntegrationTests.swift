@@ -1,0 +1,380 @@
+import XCTest
+import QuillCodeCore
+@testable import QuillCodeApp
+
+private struct FakeBrowserPageFetcher: BrowserPageFetching {
+    var result: Result<BrowserFetchedPage, BrowserPageFetchFailure>
+
+    func fetchHTML(from url: URL) async throws -> BrowserFetchedPage {
+        try result.get()
+    }
+}
+
+private struct FakeBrowserLiveDOMCapturer: BrowserLiveDOMCapturing {
+    var result: Result<BrowserLiveDOMSnapshot, BrowserLiveDOMCaptureFailure>
+
+    func captureLiveDOM(for url: URL) async throws -> BrowserLiveDOMSnapshot {
+        try result.get()
+    }
+}
+
+@MainActor
+final class WorkspaceBrowserIntegrationTests: XCTestCase {
+    func testBrowserSurfaceIncludesPreviewState() throws {
+        let root = try makeTempDirectory()
+        let model = QuillCodeWorkspaceModel()
+        model.toggleBrowser()
+        XCTAssertTrue(model.openBrowserPreview("example.com", workspaceRoot: root))
+        XCTAssertTrue(model.addBrowserComment("Looks aligned"))
+
+        let surface = model.surface()
+
+        XCTAssertTrue(surface.browser.isVisible)
+        XCTAssertEqual(surface.browser.currentURL, "https://example.com")
+        XCTAssertEqual(surface.browser.title, "example.com")
+        XCTAssertEqual(surface.browser.statusLabel, "Comment added")
+        XCTAssertEqual(surface.browser.snapshot?.sourceLabel, "Web page")
+        XCTAssertEqual(surface.browser.snapshot?.inspectionDepth, .metadataOnly)
+        XCTAssertEqual(surface.browser.snapshot?.inspectionDepthLabel, "Metadata only")
+        XCTAssertEqual(
+            surface.browser.snapshot?.summary,
+            "Live DOM capture is not attached yet; QuillCode has URL metadata for this web page."
+        )
+        XCTAssertEqual(surface.browser.snapshot?.details, [
+            "Host: example.com",
+            "Scheme: HTTPS",
+            "Path: /"
+        ])
+        XCTAssertEqual(surface.browser.comments.first?.text, "Looks aligned")
+        XCTAssertTrue(surface.browser.canOpen)
+        XCTAssertTrue(surface.commands.contains { $0.id == "toggle-browser" && $0.title == "Browser" })
+    }
+
+    func testBrowserPreviewNormalizesURLsAndStoresComments() throws {
+        let root = try makeTempDirectory()
+        let previewFile = root.appendingPathComponent("preview.html")
+        try """
+        <!doctype html>
+        <html>
+          <head><title>Preview Page</title><script src="/app.js"></script></head>
+          <body>
+            <h1>Hero Preview</h1>
+            <a href="/next">Next</a>
+            <button>Buy now</button>
+            <img src="/hero.png" alt="">
+            <form><input name="email"></form>
+          </body>
+        </html>
+        """.write(to: previewFile, atomically: true, encoding: .utf8)
+        let model = QuillCodeWorkspaceModel()
+
+        XCTAssertTrue(model.runWorkspaceCommand("toggle-browser", workspaceRoot: root))
+        XCTAssertTrue(model.browser.isVisible)
+
+        XCTAssertTrue(model.openBrowserPreview("localhost:3000", workspaceRoot: root))
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:3000")
+        XCTAssertEqual(model.browser.title, "localhost")
+        XCTAssertEqual(model.browser.status, "Preview ready")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Local web app")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .metadataOnly)
+        XCTAssertEqual(
+            model.browser.snapshot?.summary,
+            "Live DOM capture is not attached yet; QuillCode has URL metadata for this local page."
+        )
+        XCTAssertEqual(model.browser.snapshot?.details, [
+            "Host: localhost",
+            "Scheme: HTTP",
+            "Path: /"
+        ])
+
+        XCTAssertTrue(model.openBrowserPreview("preview.html", workspaceRoot: root))
+        XCTAssertEqual(model.browser.currentURL, previewFile.standardizedFileURL.resolvingSymlinksInPath().absoluteString)
+        XCTAssertEqual(model.browser.title, "Preview Page")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Local HTML")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .staticHTMLSnapshot)
+        XCTAssertEqual(model.browser.snapshot?.summary, "HTML snapshot captured for browser review.")
+        XCTAssertEqual(model.browser.snapshot?.details.filter { $0 == "Title: Preview Page" }.count, 1)
+        XCTAssertEqual(model.browser.snapshot?.details.filter { $0 == "Heading: Hero Preview" }.count, 1)
+        XCTAssertEqual(model.browser.snapshot.map { Array($0.details.suffix(4)) }, [
+            "Links: 1",
+            "Scripts: 1",
+            "Images: 1",
+            "Forms: 1"
+        ])
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("H1: Hero Preview") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Link: Next -> /next") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Button: Buy now") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Input: email") == true)
+        XCTAssertTrue(model.browser.snapshot?.textSnippet?.contains("Hero Preview Next Buy now") == true)
+
+        XCTAssertTrue(model.addBrowserComment("Check the hero spacing"))
+        XCTAssertEqual(model.browser.comments.count, 1)
+        XCTAssertEqual(model.browser.comments[0].text, "Check the hero spacing")
+        XCTAssertEqual(model.browser.comments[0].url, model.browser.currentURL)
+
+        let inspectionResult = model.runToolCall(
+            ToolCall(name: ToolDefinition.browserInspect.name, argumentsJSON: "{}"),
+            workspaceRoot: root
+        )
+        XCTAssertTrue(inspectionResult.ok)
+        let inspection = try JSONHelpers.decode(BrowserInspectionToolOutput.self, from: inspectionResult.stdout)
+        XCTAssertEqual(inspection.title, "Preview Page")
+        XCTAssertEqual(inspection.sourceLabel, "Local HTML")
+        XCTAssertEqual(inspection.inspectionDepth, .staticHTMLSnapshot)
+        XCTAssertTrue(inspection.outline.contains("H1: Hero Preview"))
+        XCTAssertEqual(inspection.comments.map(\.text), ["Check the hero spacing"])
+
+        XCTAssertFalse(model.openBrowserPreview("not-a-valid-target", workspaceRoot: root))
+        XCTAssertEqual(model.browser.status, "Invalid address")
+        XCTAssertEqual(model.lastError, "Enter an http, https, file, localhost, or project file URL.")
+    }
+
+    func testBrowserPreviewSupportsHistoryNavigationAndReload() throws {
+        let model = QuillCodeWorkspaceModel()
+
+        XCTAssertTrue(model.openBrowserPreview("localhost:3000"))
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:3000")
+        XCTAssertFalse(model.browser.canGoBack)
+        XCTAssertFalse(model.browser.canGoForward)
+        XCTAssertTrue(model.browser.canReload)
+
+        XCTAssertTrue(model.openBrowserPreview("localhost:5173/dashboard"))
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:5173/dashboard")
+        XCTAssertEqual(model.browser.history, [
+            "http://localhost:3000",
+            "http://localhost:5173/dashboard"
+        ])
+        XCTAssertEqual(model.browser.historyIndex, 1)
+        XCTAssertTrue(model.browser.canGoBack)
+        XCTAssertFalse(model.browser.canGoForward)
+
+        XCTAssertTrue(model.goBackInBrowser())
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:3000")
+        XCTAssertEqual(model.browser.historyIndex, 0)
+        XCTAssertFalse(model.browser.canGoBack)
+        XCTAssertTrue(model.browser.canGoForward)
+
+        XCTAssertTrue(model.reloadBrowserPreview())
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:3000")
+        XCTAssertEqual(model.browser.status, "Reloaded")
+        XCTAssertEqual(model.browser.history, [
+            "http://localhost:3000",
+            "http://localhost:5173/dashboard"
+        ])
+        XCTAssertEqual(model.browser.historyIndex, 0)
+
+        XCTAssertTrue(model.openBrowserPreview("example.com"))
+        XCTAssertEqual(model.browser.currentURL, "https://example.com")
+        XCTAssertEqual(model.browser.history, [
+            "http://localhost:3000",
+            "https://example.com"
+        ])
+        XCTAssertEqual(model.browser.historyIndex, 1)
+        XCTAssertFalse(model.browser.canGoForward)
+    }
+
+    func testBrowserPreviewFetchesReachableHTMLSnapshot() async throws {
+        let model = QuillCodeWorkspaceModel()
+        let html = """
+        <!doctype html>
+        <html>
+          <head><title>Running App</title></head>
+          <body>
+            <h1>Dashboard</h1>
+            <a href="/settings">Settings</a>
+            <button>Launch</button>
+            <form aria-label="Search"><input placeholder="Find files"></form>
+          </body>
+        </html>
+        """
+        let fetchedURL = try XCTUnwrap(URL(string: "http://localhost:5173/dashboard"))
+        let fetcher = FakeBrowserPageFetcher(result: .success(BrowserFetchedPage(
+            finalURL: fetchedURL,
+            statusCode: 200,
+            contentType: "text/html; charset=utf-8",
+            html: html,
+            byteCount: 512,
+            wasTruncated: false
+        )))
+
+        let didOpen = await model.openBrowserPreview("localhost:5173", pageFetcher: fetcher)
+        XCTAssertTrue(didOpen)
+
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:5173/dashboard")
+        XCTAssertEqual(model.browser.addressDraft, "http://localhost:5173/dashboard")
+        XCTAssertEqual(model.browser.title, "Running App")
+        XCTAssertEqual(model.browser.status, "Preview ready")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Local web app")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .networkHTMLSnapshot)
+        XCTAssertEqual(model.browser.snapshot?.summary, "Fetched a network HTML snapshot for this local page.")
+        XCTAssertTrue(model.browser.snapshot?.details.contains("HTTP: 200") == true)
+        XCTAssertTrue(model.browser.snapshot?.details.contains("Content-Type: text/html; charset=utf-8") == true)
+        XCTAssertTrue(model.browser.snapshot?.details.contains("Size: 512 bytes") == true)
+        XCTAssertTrue(model.browser.snapshot?.details.contains("Title: Running App") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("H1: Dashboard") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Link: Settings -> /settings") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Button: Launch") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Input: Find files") == true)
+        XCTAssertTrue(model.browser.snapshot?.outline.contains("Form: Search") == true)
+        XCTAssertTrue(model.browser.snapshot?.textSnippet?.contains("Dashboard Settings Launch") == true)
+    }
+
+    func testBrowserPreviewCapturesLiveDOMSnapshotWhenSessionIsAvailable() async throws {
+        let root = try makeTempDirectory()
+        let model = QuillCodeWorkspaceModel()
+        XCTAssertTrue(model.openBrowserPreview("localhost:5173"))
+
+        let capturer = FakeBrowserLiveDOMCapturer(result: .success(BrowserLiveDOMSnapshot(
+            finalURL: try XCTUnwrap(URL(string: "http://localhost:5173/dashboard")),
+            title: "Rendered App",
+            visibleText: "Rendered page text",
+            outline: ["H1: Rendered App", "Button: Save"],
+            viewportDescription: "1280x720 @2x"
+        )))
+
+        let didCapture = await model.refreshRenderedBrowserSnapshot(capturer: capturer)
+        XCTAssertTrue(didCapture)
+
+        XCTAssertEqual(model.browser.currentURL, "http://localhost:5173/dashboard")
+        XCTAssertEqual(model.browser.addressDraft, "http://localhost:5173/dashboard")
+        XCTAssertEqual(model.browser.title, "Rendered App")
+        XCTAssertEqual(model.browser.status, "Preview ready")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Local web app")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .liveDOMSnapshot)
+        XCTAssertEqual(model.browser.snapshot?.summary, "Captured a live DOM snapshot from the rendered browser session.")
+        XCTAssertTrue(model.browser.snapshot?.details.contains("Viewport: 1280x720 @2x") == true)
+        XCTAssertEqual(model.browser.snapshot?.outline, ["H1: Rendered App", "Button: Save"])
+        XCTAssertEqual(model.browser.snapshot?.textSnippet, "Rendered page text")
+
+        let inspectionResult = model.runToolCall(
+            ToolCall(name: ToolDefinition.browserInspect.name, argumentsJSON: "{}"),
+            workspaceRoot: root
+        )
+        XCTAssertTrue(inspectionResult.ok)
+        let inspection = try JSONHelpers.decode(BrowserInspectionToolOutput.self, from: inspectionResult.stdout)
+        XCTAssertEqual(inspection.url, "http://localhost:5173/dashboard")
+        XCTAssertEqual(inspection.title, "Rendered App")
+        XCTAssertEqual(inspection.inspectionDepth, BrowserInspectionDepth.liveDOMSnapshot)
+        XCTAssertEqual(inspection.outline, ["H1: Rendered App", "Button: Save"])
+        XCTAssertEqual(inspection.textSnippet, "Rendered page text")
+    }
+
+    func testBrowserPreviewKeepsMetadataSnapshotWhenHTMLFetchFails() async throws {
+        let model = QuillCodeWorkspaceModel()
+        let fetcher = FakeBrowserPageFetcher(result: .failure(.httpStatus(503)))
+
+        let didOpen = await model.openBrowserPreview("example.com", pageFetcher: fetcher)
+        XCTAssertTrue(didOpen)
+
+        XCTAssertEqual(model.browser.currentURL, "https://example.com")
+        XCTAssertEqual(model.browser.title, "example.com")
+        XCTAssertEqual(model.browser.status, "Preview ready")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Web page")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .metadataOnly)
+        XCTAssertTrue(model.browser.snapshot?.details.contains("Snapshot fetch: The page returned HTTP 503.") == true)
+        XCTAssertNil(model.lastError)
+    }
+
+    func testBrowserPreviewKeepsMetadataSnapshotWhenLiveDOMCaptureFails() async throws {
+        let model = QuillCodeWorkspaceModel()
+        XCTAssertTrue(model.openBrowserPreview("example.com"))
+        let capturer = FakeBrowserLiveDOMCapturer(result: .failure(.noRenderedSession))
+
+        let didCapture = await model.refreshRenderedBrowserSnapshot(capturer: capturer)
+        XCTAssertFalse(didCapture)
+
+        XCTAssertEqual(model.browser.currentURL, "https://example.com")
+        XCTAssertEqual(model.browser.title, "example.com")
+        XCTAssertEqual(model.browser.status, "Preview ready")
+        XCTAssertEqual(model.browser.snapshot?.sourceLabel, "Web page")
+        XCTAssertEqual(model.browser.snapshot?.inspectionDepth, .metadataOnly)
+        XCTAssertTrue(
+            model.browser.snapshot?.details.contains("Live DOM capture: No rendered browser session is attached.") == true
+        )
+        XCTAssertNil(model.lastError)
+    }
+
+    func testComposerCanInspectCurrentBrowserPage() async throws {
+        let root = try makeTempDirectory()
+        let previewFile = root.appendingPathComponent("preview.html")
+        try """
+        <!doctype html>
+        <html>
+          <head><title>Browser Agent</title></head>
+          <body>
+            <h1>Agent Preview</h1>
+            <p>Visible copy.</p>
+          </body>
+        </html>
+        """.write(to: previewFile, atomically: true, encoding: .utf8)
+        let model = QuillCodeWorkspaceModel()
+
+        XCTAssertTrue(model.openBrowserPreview("preview.html", workspaceRoot: root))
+        model.setDraft("inspect browser page")
+        await model.submitComposer(workspaceRoot: root)
+
+        let thread = try XCTUnwrap(model.selectedThread)
+        XCTAssertTrue(thread.events.contains { $0.summary.contains(ToolDefinition.browserInspect.name) })
+        XCTAssertEqual(model.currentToolCards.last?.title, ToolDefinition.browserInspect.name)
+        XCTAssertEqual(model.currentToolCards.last?.status, .done)
+        XCTAssertTrue(thread.messages.last?.content.contains("Inspected `Browser Agent`") == true)
+        XCTAssertTrue(thread.messages.last?.content.contains("H1: Agent Preview") == true)
+        XCTAssertTrue(thread.messages.last?.content.contains("Visible copy.") == true)
+    }
+
+    func testComposerCanOpenBrowserPage() async throws {
+        let root = try makeTempDirectory()
+        let previewFile = root.appendingPathComponent("preview.html")
+        try """
+        <!doctype html>
+        <html>
+          <head><title>Agent Opened Page</title></head>
+          <body>
+            <h1>Opened By Agent</h1>
+            <p>Browser tool navigation works.</p>
+          </body>
+        </html>
+        """.write(to: previewFile, atomically: true, encoding: .utf8)
+        let model = QuillCodeWorkspaceModel()
+
+        model.setDraft("open `preview.html` in the browser")
+        await model.submitComposer(workspaceRoot: root)
+
+        let thread = try XCTUnwrap(model.selectedThread)
+        XCTAssertEqual(model.browser.currentURL, previewFile.standardizedFileURL.resolvingSymlinksInPath().absoluteString)
+        XCTAssertEqual(model.browser.title, "Agent Opened Page")
+        XCTAssertTrue(thread.events.contains { $0.summary.contains(ToolDefinition.browserOpen.name) })
+        XCTAssertEqual(model.currentToolCards.last?.title, ToolDefinition.browserOpen.name)
+        XCTAssertEqual(model.currentToolCards.last?.status, .done)
+        XCTAssertTrue(thread.messages.last?.content.contains("Opened `Agent Opened Page`") == true)
+        XCTAssertTrue(thread.messages.last?.content.contains("H1: Opened By Agent") == true)
+    }
+
+    func testHTMLRendererIncludesVisibleBrowserPane() throws {
+        let model = QuillCodeWorkspaceModel()
+        model.toggleBrowser()
+        XCTAssertTrue(model.openBrowserPreview("localhost:5173"))
+        XCTAssertTrue(model.addBrowserComment("Inspect responsive state"))
+
+        let html = WorkspaceHTMLRenderer.render(model.surface())
+
+        XCTAssertTrue(html.contains(#"data-testid="browser-pane""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-preview""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-back" disabled"#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-forward" disabled"#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-reload" "#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-current-url""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-snapshot""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-source""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-inspection-depth""#))
+        XCTAssertTrue(html.contains(#"data-depth="metadata_only""#))
+        XCTAssertTrue(html.contains(#"data-testid="browser-snapshot-outline""#))
+        XCTAssertTrue(html.contains("Page: localhost"))
+        XCTAssertTrue(html.contains("Local web app"))
+        XCTAssertTrue(html.contains("Metadata only"))
+        XCTAssertTrue(html.contains("http://localhost:5173"))
+        XCTAssertTrue(html.contains(#"data-testid="browser-comment""#))
+        XCTAssertTrue(html.contains("Inspect responsive state"))
+    }
+
+}

@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$ROOT_DIR/scripts/quillui-backend-products.sh"
 
 PROFILE="${QUILLUI_APP_PROFILE:-enchanted-full-source}"
+SOURCE_APP="${QUILLUI_APP_SOURCE_APP:-}"
+SOURCE_SUBDIR="${QUILLUI_APP_SOURCE_SUBDIR:-}"
 SOURCE_DIR="${QUILLUI_APP_SOURCE_DIR:-}"
 APP_TYPE="${QUILLUI_APP_ENTRY_TYPE:-}"
 PRODUCT_NAME="${QUILLUI_APP_PRODUCT_NAME:-}"
@@ -23,13 +25,17 @@ NORMALIZED_BACKEND_FACADE=""
 
 usage() {
   cat <<MSG
-Usage: $(basename "$0") --source-dir PATH --app-type TYPE [options]
+Usage: $(basename "$0") (--source-dir PATH | --source-app NAME) --app-type TYPE [options]
 
 Builds a SwiftUI-shaped app for Linux and creates a runnable release directory
 without editing the app tree.
 
 Options:
   --profile NAME        Lowering profile to use.
+  --source-app NAME     Resolve source from vendor/apps/NAME first, then
+                        .upstream/NAME. Use with --source-subdir for app
+                        trees whose Swift sources live below the checkout root.
+  --source-subdir PATH  Relative source path inside --source-app checkout.
   --source-dir PATH     Directory containing the app's Swift sources.
   --app-type TYPE       Swift App type to launch through the generated entry.
   --product-name NAME   Output executable name. Defaults from --app-type.
@@ -51,6 +57,8 @@ Options:
 
 Environment aliases:
   QUILLUI_APP_PROFILE
+  QUILLUI_APP_SOURCE_APP
+  QUILLUI_APP_SOURCE_SUBDIR
   QUILLUI_APP_SOURCE_DIR
   QUILLUI_APP_ENTRY_TYPE
   QUILLUI_APP_PRODUCT_NAME
@@ -88,6 +96,30 @@ validate_swift_type() {
     echo "$label must be a Swift type path, got: $value" >&2
     exit 64
   fi
+}
+
+validate_source_app_name() {
+  local value="$1"
+
+  if [[ ! "$value" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "--source-app must be a simple app source name, got: $value" >&2
+    exit 64
+  fi
+}
+
+validate_relative_source_path() {
+  local value="$1"
+  local label="$2"
+
+  if [[ -z "$value" ]]; then
+    return
+  fi
+  case "$value" in
+    /*|.*|*/../*|../*|*/..)
+      echo "$label must be a relative path inside the app checkout, got: $value" >&2
+      exit 64
+      ;;
+  esac
 }
 
 app_id_component() {
@@ -148,6 +180,14 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --profile)
       PROFILE="${2:-}"
+      shift 2
+      ;;
+    --source-app)
+      SOURCE_APP="${2:-}"
+      shift 2
+      ;;
+    --source-subdir)
+      SOURCE_SUBDIR="${2:-}"
       shift 2
       ;;
     --source-dir)
@@ -226,9 +266,17 @@ MSG
   exit 64
 fi
 
-if [[ -z "$SOURCE_DIR" ]]; then
-  echo "--source-dir or QUILLUI_APP_SOURCE_DIR is required" >&2
+if [[ -z "$SOURCE_DIR" && -z "$SOURCE_APP" ]]; then
+  echo "--source-dir, --source-app, QUILLUI_APP_SOURCE_DIR, or QUILLUI_APP_SOURCE_APP is required" >&2
   usage >&2
+  exit 64
+fi
+if [[ -n "$SOURCE_DIR" && -n "$SOURCE_APP" ]]; then
+  echo "--source-dir and --source-app are mutually exclusive" >&2
+  exit 64
+fi
+if [[ -n "$SOURCE_SUBDIR" && -z "$SOURCE_APP" ]]; then
+  echo "--source-subdir requires --source-app" >&2
   exit 64
 fi
 
@@ -240,7 +288,10 @@ fi
 
 validate_swift_type "$APP_TYPE" "--app-type"
 
-if [[ ! -d "$SOURCE_DIR" ]]; then
+if [[ -n "$SOURCE_APP" ]]; then
+  validate_source_app_name "$SOURCE_APP"
+  validate_relative_source_path "$SOURCE_SUBDIR" "--source-subdir"
+elif [[ ! -d "$SOURCE_DIR" ]]; then
   cat >&2 <<MSG
 Swift app source was not found at:
   $SOURCE_DIR
@@ -284,9 +335,19 @@ fi
 require_safe_output_dir "$ARTIFACT_DIR" "--artifact-dir"
 
 ARTIFACT_PATH_FILE="$WORK_ROOT/.quillui-artifact-path"
+BUILD_SOURCE_ARGS=()
+if [[ -n "$SOURCE_APP" ]]; then
+  BUILD_SOURCE_ARGS=(--source-app "$SOURCE_APP")
+  if [[ -n "$SOURCE_SUBDIR" ]]; then
+    BUILD_SOURCE_ARGS+=(--source-subdir "$SOURCE_SUBDIR")
+  fi
+else
+  BUILD_SOURCE_ARGS=(--source-dir "$SOURCE_DIR")
+fi
+
 "$ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
   --profile "$PROFILE" \
-  --source-dir "$SOURCE_DIR" \
+  "${BUILD_SOURCE_ARGS[@]}" \
   --app-type "$APP_TYPE" \
   --product-name "$PRODUCT_NAME" \
   --workdir "$WORK_ROOT" \

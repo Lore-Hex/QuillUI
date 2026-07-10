@@ -53,6 +53,7 @@ struct ChatRootView: View {
     @State private var selected: String? = nil
     @State private var draft = ""
     @State private var status = "connecting to bridge…"
+    @State private var pollTimer: Timer?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -64,8 +65,10 @@ struct ChatRootView: View {
         .onAppear {
             ChatStore.shared.start()
             if ChatStore.shared.beginUIPolling() {
-                Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
-                    pollStore()
+                pollTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { _ in
+                    Task { @MainActor in
+                        pollStore()
+                    }
                 }
             }
         }

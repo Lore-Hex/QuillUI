@@ -138,10 +138,18 @@ import QuillFoundation
 
     public override init() { super.init() }
 
-    /// Invalidation is bookkeeping-only on Linux (no layout pass to
-    /// re-schedule); subclasses clear their caches around the super call.
-    open func invalidateLayout() {}
-    open func invalidateLayout(with context: UICollectionViewLayoutInvalidationContext) { _ = context }
+    /// Schedule the collection view to realize a fresh cell snapshot after
+    /// subclass invalidation finishes. UIKit performs this on the next layout
+    /// pass; Linux has no run-loop layout engine, so the shim coalesces the
+    /// equivalent work onto the next main-actor turn.
+    open func invalidateLayout() {
+        collectionView?.quillScheduleReloadAfterLayoutInvalidation()
+    }
+
+    open func invalidateLayout(with context: UICollectionViewLayoutInvalidationContext) {
+        _ = context
+        collectionView?.quillScheduleReloadAfterLayoutInvalidation()
+    }
 
     open func prepare() {}
 
@@ -357,7 +365,9 @@ private struct QuillCollectionViewState {
     var realizedIndexPaths: [IndexPath] = []
     var selectedIndexPaths: Set<IndexPath> = []
     var isPerformingBatchUpdates = false
+    var isReloadingData = false
     var needsReloadAfterBatchUpdates = false
+    var hasScheduledReloadAfterLayoutInvalidation = false
 }
 
 @MainActor private var quillCollectionViewStates: [ObjectIdentifier: QuillCollectionViewState] = [:]
@@ -590,7 +600,7 @@ extension UICollectionView {
         quillCollectionState = state
 
         if shouldReload {
-            quillReloadData()
+            quillReloadDataAndNotify()
         }
         completion?(true)
     }
@@ -602,11 +612,57 @@ extension UICollectionView {
             state.needsReloadAfterBatchUpdates = true
             quillCollectionState = state
         } else {
-            quillReloadData()
+            quillReloadDataAndNotify()
         }
     }
 
     // MARK: Realized-cell snapshot
+
+    func quillReloadDataAndNotify() {
+        var state = quillCollectionState
+        guard !state.isReloadingData else { return }
+        state.isReloadingData = true
+        quillCollectionState = state
+        defer {
+            var state = quillCollectionState
+            let shouldReloadAgain = state.needsReloadAfterBatchUpdates
+            state.isReloadingData = false
+            state.needsReloadAfterBatchUpdates = false
+            quillCollectionState = state
+            if shouldReloadAgain {
+                quillScheduleReloadAfterLayoutInvalidation()
+            }
+        }
+
+        QuillUIKitMutationNotifications.withoutNotifications {
+            quillReloadData()
+        }
+        quillNotifySubviewMutation()
+    }
+
+    func quillScheduleReloadAfterLayoutInvalidation() {
+        var state = quillCollectionState
+        guard state.dataSource != nil else { return }
+
+        if state.isReloadingData || state.isPerformingBatchUpdates {
+            state.needsReloadAfterBatchUpdates = true
+            quillCollectionState = state
+            return
+        }
+
+        guard !state.hasScheduledReloadAfterLayoutInvalidation else { return }
+        state.hasScheduledReloadAfterLayoutInvalidation = true
+        quillCollectionState = state
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            var state = self.quillCollectionState
+            guard state.hasScheduledReloadAfterLayoutInvalidation else { return }
+            state.hasScheduledReloadAfterLayoutInvalidation = false
+            self.quillCollectionState = state
+            self.quillReloadDataAndNotify()
+        }
+    }
 
     func quillReloadData() {
         var state = quillCollectionState
@@ -630,6 +686,7 @@ extension UICollectionView {
         var realizedIndexPaths: [IndexPath] = []
         var fallbackY: CGFloat = 0
         var contentUnion = CGRect.null
+        let prefetchedAttributes = quillPrefetchedLayoutAttributesByIndexPath()
 
         let sectionCount = max(0, dataSource.numberOfSections(in: self))
         for section in 0..<sectionCount {
@@ -638,7 +695,9 @@ extension UICollectionView {
                 let indexPath = IndexPath(item: item, section: section)
                 let cell = dataSource.collectionView(self, cellForItemAt: indexPath)
 
-                if let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
+                if let attributes = prefetchedAttributes[indexPath] {
+                    cell.apply(attributes)
+                } else if prefetchedAttributes.isEmpty, let attributes = collectionViewLayout.layoutAttributesForItem(at: indexPath) {
                     cell.apply(attributes)
                 } else if cell.frame.size == .zero {
                     let fallbackSize = quillFallbackItemSize()
@@ -668,6 +727,22 @@ extension UICollectionView {
         } else {
             contentSize = .zero
         }
+    }
+
+    private func quillPrefetchedLayoutAttributesByIndexPath() -> [IndexPath: UICollectionViewLayoutAttributes] {
+        let layoutContentSize = collectionViewLayout.collectionViewContentSize
+        let scanRect = CGRect(
+            x: min(bounds.minX, contentOffset.x) - 10_000,
+            y: min(bounds.minY, contentOffset.y) - 1_000_000,
+            width: max(bounds.width, layoutContentSize.width, 1) + 20_000,
+            height: max(bounds.height, layoutContentSize.height, 1) + 2_000_000
+        )
+        let attributes = collectionViewLayout.layoutAttributesForElements(in: scanRect) ?? []
+        var result: [IndexPath: UICollectionViewLayoutAttributes] = [:]
+        for attributes in attributes {
+            result[attributes.indexPath] = attributes
+        }
+        return result
     }
 
     func quillCellForItem(at indexPath: IndexPath) -> UICollectionViewCell? {

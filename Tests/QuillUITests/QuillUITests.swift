@@ -7,6 +7,43 @@ import Testing
 @testable import QuillUI
 #if os(Linux)
 import Glibc
+
+private final class QuillFocusedModel {}
+
+private struct QuillFocusedModelKey: FocusedValueKey {
+    typealias Value = QuillFocusedModel
+}
+
+private struct QuillFocusedVisibilityKey: FocusedValueKey {
+    typealias Value = Binding<NavigationSplitViewVisibility>
+}
+
+private extension FocusedValues {
+    var quillFocusedModel: QuillFocusedModel? {
+        get { self[QuillFocusedModelKey.self] }
+        set { self[QuillFocusedModelKey.self] = newValue }
+    }
+
+    var quillFocusedVisibility: Binding<NavigationSplitViewVisibility>? {
+        get { self[QuillFocusedVisibilityKey.self] }
+        set { self[QuillFocusedVisibilityKey.self] = newValue }
+    }
+}
+
+private struct QuillFocusedProbe: DynamicProperty {
+    @FocusedObject(\.quillFocusedModel) var model
+    @FocusedBinding(\.quillFocusedVisibility) var visibility
+}
+
+private struct QuillTraitKey: _ViewTraitKey {
+    static let defaultValue = 0
+}
+
+private struct QuillMenuProbeStyle: MenuStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Menu(configuration)
+    }
+}
 #endif
 
 @Suite("QuillUI core library")
@@ -59,6 +96,76 @@ struct QuillUITests {
     }
 
     #if os(Linux)
+    @Test("SwiftUI Table compatibility preserves row cell renderers")
+    @MainActor
+    func swiftUITableCompatibilityPreservesRowCellRenderers() {
+        struct Row: Identifiable {
+            let id = UUID()
+            let name: String
+            let value: String
+        }
+
+        let rows = [
+            Row(name: "Editor", value: "CodeEdit"),
+            Row(name: "Backend", value: "QuillUI"),
+        ]
+        let nameColumn = TableColumn<Row, Text>("Name") { row in
+            Text(row.name)
+        }
+        let valueColumn = TableColumn<Row, Text>("Value") { row in
+            Text(row.value)
+        }
+        let keyPathColumn = TableColumn<Row, Text>("Name", value: \.name)
+        let erasedNameColumn = AnyTableColumn(nameColumn)
+        var selectedRows: Set<UUID> = []
+        let table = Table(rows) {
+            nameColumn
+            valueColumn
+        }
+        let selectionTable = Table(
+            rows,
+            selection: Binding(get: { selectedRows }, set: { selectedRows = $0 })
+        ) {
+            keyPathColumn
+        }
+
+        #expect(erasedNameColumn.title == "Name")
+        #expect(table.rows.count == 2)
+        #expect(table.columns.map(\.title) == ["Name", "Value"])
+        #expect(selectionTable.rows.count == 2)
+        _ = nameColumn.render(rows[0])
+        _ = keyPathColumn.render(rows[0])
+        _ = erasedNameColumn.cell(for: rows[0])
+        _ = table.body
+        _ = selectionTable.body
+    }
+    #endif
+
+    @Test("SwiftUI compatibility covers CodeEdit AboutWindow modifier surface")
+    func swiftUICompatibilityCoversCodeEditAboutWindowSurface() {
+        @Namespace var namespace
+        _ = Spacer(minLength: CGFloat(20.5))
+        #expect(EventModifiers.numericPad.rawValue != EventModifiers.command.rawValue)
+        _ = Color.clear
+            .background(.bar)
+        _ = Color.clear
+            .background(.regularMaterial.opacity(0))
+        _ = Rectangle()
+            .fill(.regularMaterial)
+            .blendMode(.plusLighter)
+            .padding(.top, 12)
+            .padding(.bottom, -4)
+            .matchedGeometryEffect(
+                id: "scrollView",
+                in: namespace,
+                properties: .position,
+                anchor: .bottom
+            )
+        _ = AnyTransition.offset(x: -14).combined(with: .opacity)
+        _ = AnyTransition.offset(CGSize(width: 3, height: 5))
+    }
+
+    #if os(Linux)
     @Test("LocalizedStringKey interpolation keeps catalog keys and formatted arguments")
     func localizedStringKeyInterpolationKeepsCatalogShape() throws {
         let count = 872_850
@@ -82,6 +189,64 @@ struct QuillUITests {
 
         let interpolated = "\(date, style: Text.DateStyle.time)"
         #expect(interpolated == expectedTime)
+    }
+
+    @Test("SwiftUI compatibility covers CodeEdit private view and gesture surfaces")
+    @MainActor
+    func swiftUICompatibilityCoversCodeEditPrivateSurfaces() {
+        let drag = DragGesture(minimumDistance: 1, coordinateSpace: .global)
+            .onChanged { value in
+                _ = value.location
+            }
+            .onEnded { value in
+                _ = value.startLocation
+            }
+        _ = Text("drag").gesture(drag)
+        _ = Text("drag").simultaneousGesture(drag, including: .all)
+        _ = Text("drag").highPriorityGesture(TapGesture(count: 2))
+        _ = Text("trait")._trait(QuillTraitKey.self, 4)
+
+        let children = _VariadicView.Children([
+            _VariadicView.Child(id: AnyHashable("first")),
+            _VariadicView.Child(id: AnyHashable("second"))
+        ])
+        #expect(children.last?.id == AnyHashable("second"))
+        _ = ForEach(children, id: \.id) { child in
+            child
+        }
+
+        var focused = QuillFocusedProbe()
+        focused.update()
+        #expect(focused.model == nil)
+        #expect(focused.visibility == nil)
+        let emptyFocusedValues = FocusedValues()
+        #expect(emptyFocusedValues[QuillFocusedModelKey.self] == nil)
+        var visibility = NavigationSplitViewVisibility.doubleColumn
+        let visibilityBinding = Binding<NavigationSplitViewVisibility>(
+            get: { visibility },
+            set: { visibility = $0 }
+        )
+        FocusedKeyPathValuesStore.shared.publish(visibilityBinding, for: \.quillFocusedVisibility)
+        defer {
+            FocusedKeyPathValuesStore.shared.clear(\.quillFocusedVisibility)
+        }
+        #expect(focused.visibility != nil)
+        let optionalFocusedView = Text("focus").focusedValue(
+            \.quillFocusedVisibility,
+            visibilityBinding as Binding<NavigationSplitViewVisibility>?
+        )
+        _ = optionalFocusedView.body
+        #expect(FocusedKeyPathValuesStore.shared.resolve(\.quillFocusedVisibility) != nil)
+        focused.visibility?.wrappedValue = .detailOnly
+        if case .detailOnly = visibility {
+            #expect(Bool(true))
+        } else {
+            #expect(Bool(false), "FocusedBinding did not write through the stored binding")
+        }
+
+        let menuStyle = QuillMenuProbeStyle()
+        _ = menuStyle.makeBody(configuration: .init(label: AnyView(Text("Actions"))))
+        _ = Image(systemName: "folder").imageScale(Image.Scale.small)
     }
     #endif
 

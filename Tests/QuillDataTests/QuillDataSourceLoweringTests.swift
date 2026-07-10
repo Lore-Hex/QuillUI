@@ -61,7 +61,10 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(lowererWrapper.contains("QUILLUI_SOURCE_LOWER"))
+        #expect(lowererWrapper.contains("TOOL_CACHE_KEY=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
         #expect(lowererWrapper.contains(".build/quill-source-lower-package"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-package-$TOOL_CACHE_KEY"))
+        #expect(lowererWrapper.contains(".build/quill-source-lower-tool-$TOOL_CACHE_KEY"))
         #expect(lowererWrapper.contains("ln -s \"$ROOT_DIR/Sources/QuillSourceLowering\""))
         #expect(lowererWrapper.contains("--package-path \"$TOOL_PACKAGE_DIR\""))
         #expect(lowererWrapper.contains("--disable-index-store"))
@@ -327,6 +330,7 @@ struct QuillDataSourceLoweringTests {
             "--max-rewrite-lines", "137"
         ])
         #expect(passing.status == 0, Comment(rawValue: passing.output))
+        #expect(passing.output.contains("scripts/profiles/generic-swiftui.sh"))
         #expect(passing.output.contains("scripts/profiles/enchanted-full-source/lower-profile-source.sh"))
         #expect(passing.output.contains("profile template budget report: scripts/profiles/enchanted-full-source/templates has"))
         #expect(passing.output.contains("profile rewrite budget ok: scripts/profiles/enchanted-full-source/rewrite-rules has "))
@@ -368,17 +372,24 @@ struct QuillDataSourceLoweringTests {
         #expect(wrapper.contains("--scratch-path=*"))
         #expect(wrapper.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(!wrapper.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+        #expect(wrapper.contains(": \"${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}\""))
+        #expect(wrapper.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
         // The wrapper builds the test bundle first (untimed) then runs it with
         // a timeout, so a post-suite hang (a leaked GTK/Xvfb subprocess) can't
-        // wedge the CI step. Both invocations pass the scratch path through.
+        // wedge the CI step. The build phase must keep SwiftPM's index store on
+        // because generated test discovery reads index units for test files.
         #expect(wrapper.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
-        #expect(wrapper.contains("swift test --skip-build --scratch-path \"$SCRATCH_PATH\""))
+        #expect(!wrapper.contains("swift build --build-tests --disable-index-store"))
+        #expect(wrapper.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
         #expect(wrapper.contains("TEST_RUN_TIMEOUT"))
         // The wrapper pre-builds the isolated SwiftSyntax source-lowering tool
         // untimed and pins QUILLUI_SOURCE_LOWER, so loweringScriptConvertsModelSyntax
         // execs a prebuilt binary instead of cold-building swift-syntax inside
         // the timeout-bounded run (that cold build wedged the CI suite).
         #expect(wrapper.contains("export QUILLUI_SOURCE_LOWER="))
+        #expect(wrapper.contains("lower_cache_key=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
+        #expect(wrapper.contains(".build/quill-source-lower-package-$lower_cache_key"))
+        #expect(wrapper.contains(".build/quill-source-lower-tool-$lower_cache_key"))
 
         let preparationScript = try String(
             contentsOf: root.appendingPathComponent("scripts/prepare-linux-build-backend.sh"),
@@ -392,7 +403,14 @@ struct QuillDataSourceLoweringTests {
             encoding: .utf8
         )
         #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux"))
-        #expect(workflow.contains("scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen"))
+        let offscreenStep = try #require(workflow.range(of: "GTK offscreen ImageRenderer smoke"))
+        let backendProductStep = try #require(workflow.range(of: "Build native backend app products"))
+        #expect(offscreenStep.lowerBound < backendProductStep.lowerBound)
+        #expect(workflow.contains("timeout-minutes: 15"))
+        #expect(workflow.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(workflow.contains("QUILLUI_LINUX_BACKEND: \"gtk\""))
+        #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests"))
     }
 
     @Test("Package exports generated app compatibility products")
@@ -490,6 +508,7 @@ struct QuillDataSourceLoweringTests {
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
         #expect(smokeLib.contains("quillui_place_reference_window()"))
         #expect(smokeLib.contains("openbox"))
+        #expect(smokeLib.contains("xclip"))
         #expect(visualScript.contains("capture_window=\"$window_id\""))
         #expect(smokeLib.contains("quillui_backend_visual_verify_product()"))
         #expect(smokeLib.contains("quill-chat-linux-mac-reference"))
@@ -610,6 +629,9 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(verifier.contains("validate_quill_chat_functional_transcript"))
         #expect(verifier.contains("Functional transcript assistant reply was not detected"))
+        #expect(verifier.contains("QUILLUI_FUNCTIONAL_TRANSCRIPT_MIN_USER_PIXELS"))
+        #expect(verifier.contains("trailing_message_pixels >= minimum_trailing_message_pixels"))
+        #expect(verifier.contains("user_pixels={trailing_message_pixels}/{minimum_trailing_message_pixels}"))
         #expect(verifier.contains("transcript_message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("transcript_message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("quill-chat-linux-functional-transcript"))
@@ -663,13 +685,22 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("click_x=\"${QUILLUI_BACKEND_CLICK_X:-$(quill_chat_settings_click_x)}\""))
         #expect(interactionScript.contains("click_y=\"${QUILLUI_BACKEND_CLICK_Y:-$(quill_chat_settings_click_y)}\""))
         #expect(interactionScript.contains("endpoint_x=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}\""))
-        #expect(interactionScript.contains("endpoint_y=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}\""))
+        #expect(interactionScript.contains("endpoint_y=\"${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-459}\""))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_TYPE_METHOD:-paste-first"))
+        #expect(interactionScript.contains("xclip -selection clipboard -loops 1"))
+        #expect(interactionScript.contains("xdotool key --clearmodifiers ctrl+v"))
+        #expect(interactionScript.contains("xdotool type --clearmodifiers --delay 30"))
+        #expect(interactionScript.contains("QUILLUI_APP_STORAGE_OLLAMAURI=${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}"))
+        #expect(interactionScript.contains("type_text \"${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}\""))
         #expect(interactionScript.contains("token_x=\"${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}\""))
-        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-680}\""))
+        #expect(interactionScript.contains("token_y=\"${QUILLUI_BACKEND_TOKEN_CLICK_Y:-624}\""))
+        #expect(interactionScript.contains("QUILLUI_APP_STORAGE_OLLAMABEARERTOKEN=${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}"))
+        #expect(interactionScript.contains("type_text \"${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}\""))
         #expect(interactionScript.contains("ping_x=\"${QUILLUI_BACKEND_PING_CLICK_X:-1000}\""))
-        #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-684}\""))
+        #expect(interactionScript.contains("ping_y=\"${QUILLUI_BACKEND_PING_CLICK_Y:-644}\""))
+        #expect(interactionScript.contains("QUILLUI_APP_STORAGE_PINGINTERVAL=${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}"))
         #expect(interactionScript.contains("model_x=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}\""))
-        #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-772}\""))
+        #expect(interactionScript.contains("model_y=\"${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-598}\""))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_OPEN_SLEEP"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Down Return"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"))
@@ -809,6 +840,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("quill_chat_startup_history_selection=1"))
         #expect(interactionScript.contains("quill_chat_should_trust_startup_history_selection()"))
         #expect(interactionScript.contains("quill_chat_verified_selection_probe()"))
+        #expect(interactionScript.contains("quill_chat_last_verified_selection_probe_path=\"\""))
+        #expect(interactionScript.contains("quill_chat_last_verified_selection_probe_path=\"$probe_path\""))
         #expect(interactionScript.contains("probe_suffix=\"${2:-}\""))
         #expect(interactionScript.contains("quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}${probe_suffix}.png"))
         #expect(interactionScript.contains("verify-backend-screenshot.py"))
@@ -870,6 +903,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection"))
         #expect(interactionScript.contains("quill-chat-linux-mac-reference-long-transcript-selection \"-initial\""))
         #expect(interactionScript.contains("quill-chat-linux-mac-reference-long-transcript-selection \"-scroll-${scroll_attempt}\""))
+        #expect(interactionScript.contains("cp -f \"$quill_chat_last_verified_selection_probe_path\" \"$SCREENSHOT_PATH\""))
+        #expect(interactionScript.contains("settled_capture_taken=1"))
         #expect(interactionScript.contains("long transcript bottom marker not verified; applying explicit scroll fallback"))
         #expect(interactionScript.contains("long transcript bottom marker not verified after scroll attempt"))
         #expect(interactionScript.contains("ensure_quill_chat_long_transcript_bottom_scroll"))
@@ -885,13 +920,15 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file"))
         #expect(interactionScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_CLICK_X"))
-        #expect(interactionScript.contains("window_width - 70"))
+        #expect(interactionScript.contains("window_width - 100"))
         #expect(interactionScript.contains("attachment_y=\"${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}\""))
+        #expect(interactionScript.contains("interaction-check: attachment=${attachment_x},${attachment_y}"))
         #expect(interactionScript.contains("window_height - 190"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SEND_CLICK_X"))
         #expect(interactionScript.contains("window_width - 65"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_SEND_CLICK_Y"))
         #expect(interactionScript.contains("send_y=\"${QUILLUI_BACKEND_SEND_CLICK_Y:-$(quill_chat_composer_click_y)}\""))
+        #expect(interactionScript.contains("interaction-check: send=${send_x},${send_y}"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_SEND_FALLBACK_SLEEP"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Return"))
         #expect(interactionScript.contains("toolbar-model-selected"))
@@ -1013,13 +1050,34 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE"))
         #expect(functionalScript.contains("QUILLDATA_HOME=$RUN_HOME"))
         #expect(functionalScript.contains("quillui_append_enchanted_reference_mode_environment app_environment"))
+        #expect(functionalScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1"))
         #expect(functionalScript.contains("mock Ollama did not start"))
         #expect(functionalScript.contains("quillui_functional_xdotool()"))
         #expect(functionalScript.contains("quillui_functional_click_at()"))
+        #expect(functionalScript.contains("quillui_functional_paste_text()"))
+        #expect(functionalScript.contains("quillui_functional_enter_text()"))
+        #expect(functionalScript.contains("quillui_functional_mousemove_to()"))
+        #expect(functionalScript.contains("xclip -selection clipboard -loops 1"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE"))
+        #expect(functionalScript.contains("${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-paste-first}"))
+        #expect(functionalScript.contains("long prompts are inserted\n  # atomically before attachment/send clicks"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE=type"))
+        #expect(functionalScript.contains("expected auto, paste-first, paste, or type"))
+        #expect(functionalScript.contains("auto|paste-first|paste)"))
+        #expect(functionalScript.contains("if [[ \"$input_mode\" == \"paste\" ]]; then"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_SETTLE_SLEEP"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_PASTE_CLEANUP_DEADLINE"))
+        #expect(functionalScript.contains("quillui_functional_xdotool key --clearmodifiers ctrl+v"))
+        #expect(functionalScript.contains("kill \"$clipboard_pid\" 2>/dev/null || true\n      wait \"$clipboard_pid\" 2>/dev/null || true\n      return 1"))
+        #expect(functionalScript.contains("wait \"$clipboard_pid\"\n    return $?"))
         #expect(functionalScript.contains("quillui_functional_refocus_window()"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP"))
         #expect(functionalScript.contains("xdotool \"$@\""))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MOUSEMOVE_SYNC_TIMEOUT"))
+        #expect(functionalScript.contains("xdotool mousemove --sync \"$x\" \"$y\""))
+        #expect(functionalScript.contains("quillui_functional_xdotool mousemove \"$x\" \"$y\""))
+        #expect(functionalScript.contains("quillui_functional_mousemove_to \"$x\" \"$y\""))
         #expect(functionalScript.contains("windowactivate --sync"))
         #expect(functionalScript.contains("windowfocus --sync"))
         #expect(functionalScript.contains("quillui_functional_default_display()"))
@@ -1039,50 +1097,144 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("135 310 410 220 80"))
         #expect(functionalScript.contains("window_height - 80"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_COMPOSER_PROBE"))
+        #expect(functionalScript.contains("quill_chat_functional_detected_send_click_point()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_PROBE"))
+        #expect(functionalScript.contains("detected_send_point=\"$(quill_chat_functional_detected_send_click_point | head -n 1 || true)\""))
+        #expect(functionalScript.contains("read -r send_x send_y <<< \"$detected_send_point\""))
         #expect(functionalScript.contains("verify-backend-screenshot.py"))
         #expect(functionalScript.contains("mac_reference_composer_pixel"))
+        #expect(functionalScript.contains("sys.modules[spec.name] = module"))
+        #expect(functionalScript.contains("top + int(app_height * 0.68)"))
+        #expect(functionalScript.contains("bottom_band_floor = top + int(app_height * 0.82)"))
+        #expect(functionalScript.contains("preferred_matches = ["))
+        #expect(functionalScript.contains("if y >= bottom_band_floor"))
+        #expect(functionalScript.contains("best_y, composer_segment = max(preferred_matches, key=lambda item: (item[0], item[1].width))"))
+        #expect(functionalScript.contains("composer_matches.append((y, segment))"))
+        #expect(functionalScript.contains("composer_click_y = (top_row + bottom_row) // 2"))
+        #expect(functionalScript.contains("composer_click_y = best_y - 24"))
+        #expect(functionalScript.contains("composer_click_y = best_y + 24"))
+        #expect(functionalScript.contains("composer_click_y = max(top, min(bottom, composer_click_y))"))
+        #expect(functionalScript.contains("click_y = window_y + composer_click_y"))
+        #expect(!functionalScript.contains("click_y = window_y + composer_y + 30"))
+        #expect(functionalScript.contains("quill_chat_functional_detected_relaunch_history_click_point()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_PROBE"))
+        #expect(functionalScript.contains("if sum(image.rgb(x, y)) < 430"))
+        #expect(functionalScript.contains("mapfile -t relaunch_history_points < <(quill_chat_functional_relaunch_history_click_points)"))
+        #expect(functionalScript.contains("relaunch_history_points=(\"$((window_x + 220)) $((window_y + window_height / 2))\")"))
+        #expect(functionalScript.contains("functional-check: relaunch history=${history_x},${history_y}"))
+        #expect(!functionalScript.contains("window_y + 172"))
+        if let composerPointsRange = functionalScript.range(of: "quill_chat_functional_composer_click_points() {"),
+           let attachmentRange = functionalScript.range(
+            of: "quill_chat_functional_attachment_action_click_points",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ),
+           let detectedRange = functionalScript.range(
+            of: "quill_chat_functional_detected_composer_click_points",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ),
+           let fallbackRange = functionalScript.range(
+            of: "quill_chat_functional_static_composer_click_points",
+            range: composerPointsRange.upperBound..<functionalScript.endIndex
+           ) {
+            #expect(detectedRange.lowerBound < fallbackRange.lowerBound)
+            #expect(fallbackRange.lowerBound < attachmentRange.lowerBound)
+        } else {
+            Issue.record("Functional composer points should try detected coordinates, static fallbacks, then attachment action coordinates")
+        }
+        #expect(functionalScript.contains("""
+  else
+    {
+      quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
+    }
+"""))
         #expect(functionalScript.contains("for candidate in :96 :97 :98 :99"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_XDOTOOL_TIMEOUT"))
         #expect(functionalScript.contains("launch_app_instance()"))
         #expect(functionalScript.contains("resolve_app_window_geometry()"))
         #expect(functionalScript.contains("payload.get(\"path\") == \"/api/chat\""))
+        #expect(functionalScript.contains("logged_chat_requests()"))
+        #expect(functionalScript.contains("for request in reversed(last_requests)"))
         #expect(functionalScript.contains("home / \".quilldata\" / \"default.sqlite\""))
         #expect(functionalScript.contains("row[0].endswith(\"_MessageSD\")"))
         #expect(functionalScript.contains("len(matching_request_users) == 1"))
         #expect(functionalScript.contains("request_message_has_image"))
         #expect(functionalScript.contains("persisted_message_has_image"))
+        #expect(functionalScript.contains("def message_content_matches(message: dict[str, object]) -> bool:"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX"))
+        #expect(functionalScript.contains("expected.startswith(content)"))
+        #expect(!functionalScript.contains("return bool(content.strip())"))
         #expect(functionalScript.contains("attachment_required={require_attachment}"))
         #expect(functionalScript.contains("request_ok and user_persisted and assistant_persisted"))
         #expect(functionalScript.contains("quill_chat_functional_send_attempt()"))
+        #expect(functionalScript.contains("quill_chat_functional_send_attempt_index=0"))
+        #expect(functionalScript.contains("quill_chat_functional_send_attempt_index=$((quill_chat_functional_send_attempt_index + 1))"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_CLEAR_FIRST_ATTEMPT"))
+        #expect(functionalScript.contains("should_clear_before_type=0"))
         #expect(functionalScript.contains("quill_chat_functional_wait_for_completion()"))
+        #expect(functionalScript.contains("quill_chat_functional_wait_for_matching_request()"))
+        #expect(functionalScript.contains("functional-check: matching request observed for {functional_mode}"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_REQUEST_OBSERVED_DEADLINE"))
+        #expect(functionalScript.contains("if quill_chat_functional_wait_for_matching_request"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE"))
         #expect(functionalScript.contains("completion_verified=0"))
         #expect(functionalScript.contains("baseline_chat_requests"))
         #expect(functionalScript.contains("last_request_count == baseline_chat_requests"))
         #expect(functionalScript.contains("quill-chat-linux-functional-transcript"))
         #expect(functionalScript.contains("Functional relaunch screenshot"))
+        #expect(functionalScript.contains("quill_chat_functional_static_relaunch_history_click_points()"))
+        #expect(functionalScript.contains("quill_chat_functional_relaunch_history_click_points()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y_RATIOS"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_MAX_POINTS"))
+        #expect(functionalScript.contains("functional-check: relaunch visual history=${history_x},${history_y}"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_VISUAL_SETTLE_SLEEP"))
+        #expect(functionalScript.contains("relaunch_visual_verified=1"))
         #expect(functionalScript.contains("Functional failure screenshot"))
         #expect(functionalScript.contains("quillui_print_backend_app_log_tail"))
         #expect(functionalScript.contains("Mock Ollama log"))
+        #expect(functionalScript.contains("quill_chat_functional_action_click_y()"))
+        #expect(functionalScript.contains("quill_chat_functional_static_composer_click_points()"))
+        #expect(functionalScript.contains("quill_chat_functional_attachment_action_click_points()"))
+        #expect(functionalScript.contains("quill_chat_functional_detected_attachment_click_point()"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_PROBE"))
+        #expect(functionalScript.contains("clusters[-2] if len(clusters) >= 2 else clusters[-1]"))
+        #expect(functionalScript.contains("click_y=\"$(quill_chat_functional_action_click_y \"$(quill_chat_functional_composer_click_y)\")\""))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ACTION_Y"))
+        #expect(functionalScript.contains("if [[ -n \"$fallback_y\" ]]; then"))
+        #expect(functionalScript.contains("reference_height - 170"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_X"))
-        #expect(functionalScript.contains("window_width - 70"))
+        #expect(functionalScript.contains("window_width - 100"))
+        #expect(functionalScript.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_ATTACHMENT_Y"))
-        #expect(functionalScript.contains("attachment_y=\"${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$click_y}\""))
+        #expect(functionalScript.contains("attachment_y=\"${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_action_click_y \"$click_y\")}\""))
+        #expect(functionalScript.contains("detected_attachment_point=\"$(quill_chat_functional_detected_attachment_click_point | head -n 1 || true)\""))
+        #expect(functionalScript.contains("functional-check: attachment=${attachment_x},${attachment_y}"))
         #expect(functionalScript.contains("quillui_functional_click_at \"$attachment_x\" \"$attachment_y\""))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_X"))
         #expect(functionalScript.contains("window_width - 65"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_SEND_Y"))
-        #expect(functionalScript.contains("send_y=\"${QUILLUI_FUNCTIONAL_SEND_Y:-$click_y}\""))
+        #expect(functionalScript.contains("send_y=\"${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y \"$click_y\")}\""))
+        #expect(functionalScript.contains("functional-check: send=${send_x},${send_y}"))
         #expect(functionalScript.contains("quillui_functional_click_at \"$send_x\" \"$send_y\""))
-        #expect(functionalScript.contains("quill_chat_functional_send_attempt \"$click_x\" \"$click_y\""))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS"))
+        #expect(functionalScript.contains("quill_chat_functional_submit_methods()"))
+        #expect(functionalScript.contains("printf 'return\\nbutton\\n'"))
+        #expect(functionalScript.contains("quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace"))
+        #expect(functionalScript.contains("if (( should_clear_before_type == 1 )); then"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TYPE_DELAY"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP"))
+        #expect(functionalScript.contains("quill_chat_functional_send_attempt \"$click_x\" \"$click_y\" \"$submit_method\""))
+        #expect(functionalScript.contains("done < <(quill_chat_functional_submit_methods)"))
         #expect(functionalScript.contains("done < <(quill_chat_functional_composer_click_points)"))
         #expect(functionalScript.contains("functional-check: window='${window_id:-none}'"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_FOCUS_PRIME"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_FOCUS_PRIME_SLEEP"))
         #expect(functionalScript.contains("quillui_functional_click_at \"$click_x\" \"$click_y\""))
-        #expect(functionalScript.contains("window_x + 110"))
-        #expect(functionalScript.contains("window_y + 172"))
-        #expect(functionalScript.contains("Click the row band rather than the header"))
+        #expect(functionalScript.contains("for relaunch_history_point in \"${relaunch_history_points[@]}\""))
+        #expect(functionalScript.contains("history_x=\"${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}\""))
+        #expect(functionalScript.contains("quillui_functional_click_at \"$history_x\" \"$history_y\""))
+        #expect(!functionalScript.contains("window_x + 110"))
+        #expect(!functionalScript.contains("window_y + 172"))
         #expect(!functionalScript.contains("QUILLUI_QUILL_CHAT_FORCE_UNREACHABLE=1"))
         #expect(!functionalScript.contains("QUILLUI_ENCHANTED_FORCE_UNREACHABLE=1"))
         #expect(mockOllama.contains("class MockOllamaHandler"))
@@ -1091,12 +1243,16 @@ struct QuillDataSourceLoweringTests {
         #expect(mockOllama.contains("self.path == \"/api/tags\""))
         #expect(mockOllama.contains("self.path != \"/api/chat\""))
         #expect(mockOllama.contains("application/x-ndjson"))
+        #expect(mockOllama.contains("self.send_header(\"Connection\", \"close\")"))
+        #expect(mockOllama.contains("self.wfile.flush()"))
+        #expect(mockOllama.contains("self.close_connection = True"))
 
         let parityWorkflow = try String(
             contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
             encoding: .utf8
         )
         #expect(parityWorkflow.contains("openbox"))
+        #expect(parityWorkflow.contains("xclip"))
         #expect(parityWorkflow.contains("QUILLUI_BACKEND_SKIP_BUILD: \"1\""))
         #expect(parityWorkflow.contains("Run packaged release artifact interaction verifiers"))
         #expect(parityWorkflow.contains("quill_chat_modes=\"$(scripts/quillui-backend-products.sh quill-chat-mac-reference-interaction-modes)\""))
@@ -1245,6 +1401,7 @@ struct QuillDataSourceLoweringTests {
         #expect(modelStoreRule.contains("llava:latest"))
         #expect(modelStoreRule.contains("mistral-7b-reference-linux:latest"))
         #expect(modelStoreRule.contains("imageSupport: vision"))
+        #expect(modelStoreRule.contains("MainActor.assumeIsolated"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModel"))
         #expect(modelStoreRule.contains("self.selectedModel = fallbackModels.first"))
         #expect(modelStoreRule.contains("let availableModels = storedModels.filter"))
@@ -1444,6 +1601,9 @@ struct QuillDataSourceLoweringTests {
         )
         #expect(conversationStoreRule.contains("if !currentMessageBuffer.isEmpty"))
         #expect(conversationStoreRule.contains("lastMesasge.content.append(currentMessageBuffer)"))
+        #expect(conversationStoreRule.contains("let bufferedContent = currentMessageBuffer"))
+        #expect(conversationStoreRule.contains("self.messages[lastIndex].content.append(bufferedContent)"))
+        #expect(conversationStoreRule.contains("try? await self.swiftDataService.updateMessage(updatedMessage)"))
         #expect(conversationStoreRule.contains("var pendingMessages = conversation.messages.sorted"))
         #expect(conversationStoreRule.contains("pendingMessages.append(userMessage)"))
         #expect(conversationStoreRule.contains("pendingMessages.append(assistantMessage)"))
@@ -1452,6 +1612,9 @@ struct QuillDataSourceLoweringTests {
         #expect(!conversationStoreRule.contains("let currentUserRequestMessage = OKChatRequestData.Message"))
         #expect(!conversationStoreRule.contains("messageHistory.append(currentUserRequestMessage)"))
         #expect(conversationStoreRule.contains("Task { try? await self.loadConversations() }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleComplete() }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleError(error.localizedDescription) }"))
+        #expect(conversationStoreRule.contains("Task { \\@MainActor in self?.handleReceive(response) }"))
         #expect(!conversationStoreRule.contains("conversation.messages + [userMessage]"))
 
         let appStoreRule = try String(
@@ -1483,6 +1646,7 @@ struct QuillDataSourceLoweringTests {
 
         let source = directory.appendingPathComponent("App.swift")
         try """
+        import Foundation
         import SwiftUI
 
         @main
@@ -1506,6 +1670,16 @@ struct QuillDataSourceLoweringTests {
                 }
             }
 
+            func shorthandFixtures(
+                image: NSImage,
+                symbolConfiguration: NSImage.SymbolConfiguration,
+                point: CGPoint
+            ) {
+                _ = image.withSymbolConfiguration(.init(pointSize: 14, weight: .regular))
+                _ = symbolConfiguration.applying(.init(pointSize: 15, weight: .bold))
+                _ = point.applying(.init(translationX: 1, y: 2))
+            }
+
             var body: some View {
         #if os(macOS) && canImport(AppKit)
                 Text("desktop")
@@ -1514,6 +1688,20 @@ struct QuillDataSourceLoweringTests {
                     .keyboardType(.URL)
                     .textContentType(.URL)
         #endif
+            }
+        }
+
+        struct PersistenceClock {
+            init(
+                now: @escaping @Sendable () -> Date = Date.init,
+                id: @escaping @Sendable () -> UUID = UUID.init,
+                plain: @escaping () -> String = String.init,
+                timestamp: TimeInterval = 0
+            ) {
+                _ = now
+                _ = id
+                _ = plain
+                _ = Date.init(timeIntervalSince1970: timestamp)
             }
         }
 
@@ -1537,15 +1725,15 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.components(separatedBy: "import QuillShims").count == 2)
         #expect(lowered.contains("#if (os(macOS) || os(Linux)) && canImport(AppKit)"))
         #expect(lowered.contains("#elseif !os(macOS) && canImport(UIKit)"))
-        #expect(lowered.contains("#if os(macOS) || os(Linux)"))
-        #expect(lowered.contains("let action: (() -> Void)?"))
+        #expect(!lowered.contains("#if os(macOS) && canImport(AppKit)"))
+        #expect(lowered.contains("let action: (@MainActor () -> Void)?"))
         #expect(lowered.contains("""
-        Task {
+        Task { @MainActor in
             action?()
         }
 """))
         #expect(lowered.contains("""
-        Task { [action] in
+        Task { @MainActor [action] in
             action?()
         }
 """))
@@ -1554,11 +1742,20 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("private var cachedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
+        #expect(lowered.contains("image.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))"))
+        #expect(lowered.contains("symbolConfiguration.applying(NSImage.SymbolConfiguration(pointSize: 15, weight: .bold))"))
+        #expect(lowered.contains("point.applying(.init(translationX: 1, y: 2))"))
+        #expect(!lowered.contains("point.applying(NSImage.SymbolConfiguration(translationX: 1, y: 2))"))
+        #expect(lowered.contains("now: @escaping @Sendable () -> Date = { Date() }"))
+        #expect(lowered.contains("id: @escaping @Sendable () -> UUID = { UUID() }"))
+        #expect(lowered.contains("plain: @escaping () -> String = String.init"))
+        #expect(lowered.contains("Date.init(timeIntervalSince1970: timestamp)"))
+        #expect(!lowered.contains("@Sendable () -> Date = Date.init"))
         #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@Observable"))
-        #expect(!lowered.contains("@MainActor"))
+        #expect(lowered.contains("@MainActor\nstruct DesktopRoot: View {"))
         #expect(!lowered.contains("#Preview"))
     }
 
@@ -2655,9 +2852,13 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
         #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
+        #expect(patchScript.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
+        #expect(patchScript.contains("idle_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
         #expect(patchScript.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
         #expect(patchScript.contains("case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)"))
@@ -2671,7 +2872,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
-        #expect(patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
+        #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))
@@ -2844,7 +3045,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
         #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
         // Debounced entry->binding writes: typing must not schedule a rebuild
-        // per keystroke, and button actions flush eagerly so Save reads the
+        // per keystroke, and UI actions flush eagerly so callbacks read the
         // typed text from the model.
         #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
         #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))
@@ -2872,6 +3073,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKSheetPanelFocusTarget"))
         #expect(patchedRenderer.contains("gtk_editable_get_delegate(OpaquePointer(widget))"))
         #expect(patchedRenderer.contains("gtkScheduleSheetEditableFocus(delegateWidget)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_can_target(widget, 1)\n    gtk_widget_set_can_focus(widget, 1)\n    gtk_widget_set_focusable(widget, 1)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_can_target(delegateWidget, 1)\n        gtk_widget_set_can_focus(delegateWidget, 1)\n        gtk_widget_set_focusable(delegateWidget, 1)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_can_target(target.widget, 1)\n        gtk_widget_set_can_focus(target.widget, 1)\n        gtk_widget_set_focusable(target.widget, 1)"))
         #expect(patchedRenderer.contains("gtkFindFirstSheetEditable(in: target.panel)"))
         #expect(patchedRenderer.contains("g_idle_add({ userData -> gboolean in"))
         #expect(patchedRenderer.contains("gtk_swift_root_grab_focus(widget)"))
@@ -3194,7 +3398,9 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("gtkCollectTaskPayload("))
         #expect(rendererSource.contains("GTK4TaskPayload("))
         #expect(rendererSource.contains("gtkCollectOnAppearPayload("))
-        #expect(rendererSource.contains("action: bindTaskActionToCurrentEnvironment(action)"))
+        #expect(rendererSource.contains("let boundAction: @Sendable () async -> Void = bindTaskActionToCurrentEnvironment"))
+        #expect(rendererSource.contains("await action()"))
+        #expect(rendererSource.contains("action: boundAction"))
         #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
         #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))

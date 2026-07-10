@@ -3,6 +3,7 @@ import Foundation
 #if os(Linux)
 @_exported import Combine
 
+#if !QUILLUI_NO_OBSERVATION_MACROS
 @attached(member)
 @attached(memberAttribute)
 @attached(extension, conformances: Observable)
@@ -10,6 +11,7 @@ public macro Observable() = #externalMacro(module: "QuillDataMacros", type: "Qui
 
 @attached(peer)
 public macro ObservationIgnored() = #externalMacro(module: "QuillDataMacros", type: "QuillAttributeMacro")
+#endif
 
 public protocol Observable: ObservableObject {}
 

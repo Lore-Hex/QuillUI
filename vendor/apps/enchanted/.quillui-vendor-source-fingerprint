@@ -1,0 +1,17 @@
+quillui-app-source-vendor/v1
+app=enchanted
+source=tree:c94153266a59251c21e4257592469ada2a21257e8e9baf5a03586d3a813be208
+exclude=--exclude
+exclude=.git
+exclude=--exclude
+exclude=.build
+exclude=--exclude
+exclude=.build-*
+exclude=--exclude
+exclude=.swiftpm
+exclude=--exclude
+exclude=DerivedData
+exclude=--exclude
+exclude=xcuserdata
+exclude=--exclude
+exclude=.DS_Store

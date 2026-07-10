@@ -50,7 +50,7 @@ STORE = {
 NAMES = {ALICE: "Alice Moreau", BOB: "Bob Tanaka", DANA: "Dana Reyes"}
 
 INCOMING = [
-    (ALICE, ALICE, "just saw the window. this is the real deal 🔥"),
+    (ALICE, ALICE, "just saw the window. this is the real deal"),
     (TEAM, DANA, "demo day is going to be fun"),
     (ALICE, ALICE, "Brian is going to love this"),
 ]

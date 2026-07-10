@@ -15,12 +15,116 @@ import Foundation
 // `scripts/fetch-upstream.sh` to fetch the upstreams and enable
 // the gated targets.
 //
-// Path resolution: SwiftPM evaluates this manifest inside a
-// sandbox copy, so `#filePath` points at the sandbox staging
-// directory — not the package directory. CWD is reliable.
-let packageRoot: String = FileManager.default.currentDirectoryPath
-func upstreamPresent(_ relativePath: String) -> Bool {
+// Path resolution: SwiftPM can evaluate this manifest from the package root,
+// a scratch directory inside it, or a separate generated package that consumes
+// QuillUI by absolute path. Anchor the first search at this manifest file so
+// path dependencies still discover vendored sources and `.upstream` checkouts.
+//
+// Focused library loops can set QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS=1 to
+// suppress heavyweight app-source targets while preserving vendored third-party
+// package paths under `third_party/`.
+func locatePackageRoot() -> String {
+    let fileManager = FileManager.default
+    let startingPoints = [
+        URL(fileURLWithPath: #filePath, isDirectory: false)
+            .standardizedFileURL
+            .deletingLastPathComponent(),
+        URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+            .standardizedFileURL
+    ]
+
+    for start in startingPoints {
+        var candidate = start
+        for _ in 0..<12 {
+            let packageManifest = candidate.appendingPathComponent("Package.swift").path
+            let sources = candidate.appendingPathComponent("Sources").path
+            if fileManager.fileExists(atPath: packageManifest),
+               fileManager.fileExists(atPath: sources) {
+                return candidate.path
+            }
+            let parent = candidate.deletingLastPathComponent()
+            if parent.path == candidate.path {
+                break
+            }
+            candidate = parent
+        }
+    }
+
+    return fileManager.currentDirectoryPath
+}
+
+let packageRoot: String = locatePackageRoot()
+func pathPresent(_ relativePath: String) -> Bool {
     FileManager.default.fileExists(atPath: "\(packageRoot)/\(relativePath)")
+}
+
+let quillUIDisableUpstreamAppGraphsEnvironmentKey = "QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"
+let quillUIDisableUpstreamAppGraphs: Bool = {
+    let raw = ProcessInfo.processInfo.environment[quillUIDisableUpstreamAppGraphsEnvironmentKey]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    switch raw {
+    case "1", "true", "yes", "on":
+        return true
+    default:
+        return false
+    }
+}()
+
+let quillUIRuntimeOnlyMacrosEnvironmentKey = "QUILLUI_RUNTIME_ONLY_MACROS"
+let quillUIRuntimeOnlyMacros: Bool = {
+    let raw = ProcessInfo.processInfo.environment[quillUIRuntimeOnlyMacrosEnvironmentKey]?
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .lowercased()
+    switch raw {
+    case "1", "true", "yes", "on":
+        return true
+    default:
+        return false
+    }
+}()
+
+func upstreamPresent(_ relativePath: String) -> Bool {
+    guard !quillUIDisableUpstreamAppGraphs else {
+        return false
+    }
+    return pathPresent(relativePath)
+}
+
+func vendoredPackage(
+    name: String,
+    path: String,
+    url: String,
+    from version: Version
+) -> Package.Dependency {
+    if pathPresent(path) {
+        return .package(name: name, path: path)
+    }
+    return .package(url: url, from: version)
+}
+
+func vendoredExactPackage(
+    name: String,
+    path: String,
+    url: String,
+    exact version: Version
+) -> Package.Dependency {
+    if pathPresent(path) {
+        return .package(name: name, path: path)
+    }
+    return .package(url: url, exact: version)
+}
+
+func vendoredBranchPackage(
+    name: String,
+    path: String,
+    url: String,
+    branch: String
+) -> Package.Dependency {
+    if pathPresent(path) {
+        return .package(name: name, path: path)
+    }
+    return .package(url: url, branch: branch)
 }
 
 enum QuillUILinuxBuildBackend: String {
@@ -202,6 +306,9 @@ let wireGuardConformanceUIEnabled: Bool = wireguardUpstreamPresent
     && ProcessInfo.processInfo.environment["QUILLUI_WIREGUARD_CONFORMANCE_UI"] == "1"
 let codeEditSourceUpstreamPresent: Bool = upstreamPresent(".upstream/codeedit/CodeEdit")
 let codeEditSymbolsUpstreamPresent: Bool = upstreamPresent(".upstream/codeeditsymbols")
+let codeEditUpstreamEnabled: Bool = codeEditSourceUpstreamPresent
+    && codeEditSymbolsUpstreamPresent
+    && ProcessInfo.processInfo.environment["QUILLUI_CODEEDIT_UPSTREAM"] == "1"
 // Signal-iOS upstream-slice gates (per-worktree `.upstream/...`, not committed).
 // `signalUpstreamPresent` → the real signalapp/Signal-iOS source tree.
 // `libsignalUpstreamPresent` → real signalapp/libsignal (LibSignalClient Swift
@@ -390,7 +497,6 @@ products += [
     .library(name: "MessageUI", targets: ["MessageUI"]),
     .library(name: "SafariServices", targets: ["SafariServices"]),
     .library(name: "MobileCoreServices", targets: ["MobileCoreServices"]),
-    .library(name: "WebKit", targets: ["WebKit"]),
     .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
     .library(name: "AppIntents", targets: ["AppIntents"]),
     .library(name: "RevenueCat", targets: ["RevenueCat"]),
@@ -409,6 +515,7 @@ products += [
 #if os(Linux)
 if quillUILinuxBuildBackend == .gtk {
     products.append(.executable(name: "quill-gtk-interaction-smoke", targets: ["QuillGtkInteractionSmoke"]))
+    products.append(.executable(name: "quill-appkit-smoke", targets: ["QuillAppKitSmokeRunner"]))
     products.append(.library(name: "SignalUIRenderCore", targets: ["SignalUIRenderCore"]))
     products.append(.executable(name: "signal-ui-render-core-smoke", targets: ["SignalUIRenderCoreSmoke"]))
 }
@@ -440,13 +547,16 @@ products += [
     .library(name: "CoreImage", targets: ["CoreImage"]),
     .library(name: "AVFoundation", targets: ["AVFoundation"]),
     .library(name: "AVKit", targets: ["AVKit"]),
+    .library(name: "PDFKit", targets: ["PDFKit"]),
     .library(name: "Photos", targets: ["Photos"]),
     .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
     .library(name: "QuickLook", targets: ["QuickLook"]),
+    .library(name: "QuickLookUI", targets: ["QuickLookUI"]),
     .library(name: "FoundationModels", targets: ["FoundationModels"]),
     .library(name: "Speech", targets: ["Speech"]),
     .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
     .library(name: "ApplicationServices", targets: ["ApplicationServices"]),
+    .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
     .library(name: "ServiceManagement", targets: ["ServiceManagement"]),
     .library(name: "Alamofire", targets: ["Alamofire"]),
     .library(name: "MarkdownUI", targets: ["MarkdownUI"]),
@@ -477,29 +587,26 @@ products += [
     .library(name: "Accelerate", targets: ["Accelerate"]),
     .library(name: "AudioToolbox", targets: ["AudioToolbox"]),
     .library(name: "CoreHaptics", targets: ["CoreHaptics"]),
-    .library(name: "CoreImage", targets: ["CoreImage"]),
     .library(name: "CoreLocation", targets: ["CoreLocation"]),
     .library(name: "CoreSpotlight", targets: ["CoreSpotlight"]),
     .library(name: "QuartzCore", targets: ["QuartzCore"]),
     .library(name: "CoreText", targets: ["CoreText"]),
     .library(name: "CoreVideo", targets: ["CoreVideo"]),
     .library(name: "CoreMedia", targets: ["CoreMedia"]),
+    .library(name: "ExtensionFoundation", targets: ["ExtensionFoundation"]),
+    .library(name: "ExtensionKit", targets: ["ExtensionKit"]),
     .library(name: "Vision", targets: ["Vision"]),
     .library(name: "CloudKit", targets: ["CloudKit"]),
     .library(name: "VideoToolbox", targets: ["VideoToolbox"]),
     .library(name: "IOSurface", targets: ["IOSurface"]),
-    .library(name: "LinkPresentation", targets: ["LinkPresentation"]),
     .library(name: "Metal", targets: ["Metal"]),
     .library(name: "MetalKit", targets: ["MetalKit"]),
     .library(name: "MetalPerformanceShaders", targets: ["MetalPerformanceShaders"]),
     .library(name: "StoreKit", targets: ["StoreKit"]),
     // Telegram-Mac app-target products.
-    .library(name: "AVKit", targets: ["AVKit"]),
     .library(name: "Quartz", targets: ["Quartz"]),
-    .library(name: "QuickLook", targets: ["QuickLook"]),
     .library(name: "Contacts", targets: ["Contacts"]),
     .library(name: "OSLog", targets: ["OSLog"]),
-    .library(name: "AppIntents", targets: ["AppIntents"]),
     .library(name: "CoreMediaIO", targets: ["CoreMediaIO"]),
     .library(name: "MapKit", targets: ["MapKit"]),
     .library(name: "SceneKit", targets: ["SceneKit"]),
@@ -654,15 +761,8 @@ let appSwiftSettings: [SwiftSetting] = [
     .unsafeFlags(["-strict-concurrency=minimal"])
 ] + quillUIGTKSwiftImporterSettings
 
-#if compiler(>=6.2)
-let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
-    .unsafeFlags(["-strict-concurrency=minimal", "-default-isolation", "MainActor"])
-]
-#else
-let quillLegacyMainActorConcurrencySettings: [SwiftSetting] = [
-    .unsafeFlags(["-strict-concurrency=minimal"])
-]
-#endif
+let quillLegacyMainActorConcurrencySettings: [SwiftSetting] =
+    quillMinimalConcurrencyMainActorSwiftSettings
 
 let quillLegacyMainActorSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v5)
@@ -685,7 +785,7 @@ let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim", "os"]
 // QuillRSCoreShim's vendored Cache uses OSAllocatedUnfairLock via `import os`
 // (the os shadow target on Linux), same as Articles' AuthorCache.
 let quillRSCoreShimDependencies: [Target.Dependency] = ["QuillFoundation", "os"]
-let swiftUIIntrospectTargetDependencies: [Target.Dependency] = ["SwiftUI"]
+let swiftUIIntrospectTargetDependencies: [Target.Dependency] = ["SwiftUI", "AppKit"]
 #else
 let quillArticlesDependencies: [Target.Dependency] = ["QuillRSCoreShim"]
 let quillRSCoreShimDependencies: [Target.Dependency] = []
@@ -709,7 +809,7 @@ let quillShimsDependencies: [Target.Dependency] = [
     "QuillFoundation", "QuillWebKit", "QuillUIKit", "QuillRS",
     "AppKit", "UIKit", "Combine", "MessageUI", "SafariServices", "MobileCoreServices",
     "Zip", "Tidemark", "UniformTypeIdentifiers", "Network", "NetworkExtension",
-    "KeychainSwift", "NetNewsWireContext"
+    "KeychainSwift", "NetNewsWireContext", "SearchKit", "CoreServices"
 ]
 #else
 let quillShimsDependencies: [Target.Dependency] = [
@@ -851,16 +951,36 @@ let wireGuardKitExcludes: [String] = ["WireGuardAdapter.swift"]
 #endif
 
 var quillDataPackageDependencies: [Package.Dependency] = [
-    .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-    .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.0.0"),
-    .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0")
+    vendoredPackage(
+        name: "swift-syntax",
+        path: "third_party/swift-syntax",
+        url: "https://github.com/swiftlang/swift-syntax.git",
+        from: "600.0.0"
+    ),
+    vendoredPackage(
+        name: "GRDB.swift",
+        path: "third_party/GRDB.swift",
+        url: "https://github.com/groue/GRDB.swift.git",
+        from: "7.0.0"
+    ),
+    vendoredPackage(
+        name: "swift-crypto",
+        path: "third_party/swift-crypto",
+        url: "https://github.com/apple/swift-crypto.git",
+        from: "3.0.0"
+    )
 ]
 // SwiftProtobuf is Signal-only (SSK's *.pb.swift wire format), while swift-crypto
 // is now a general Linux Apple-framework shim dependency because both Signal and
 // IceCubes import CryptoKit.
 if signalUpstreamPresent {
     quillDataPackageDependencies.append(
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.36.1")
+        vendoredPackage(
+            name: "swift-protobuf",
+            path: "third_party/swift-protobuf",
+            url: "https://github.com/apple/swift-protobuf.git",
+            from: "1.36.1"
+        )
     )
 }
 
@@ -966,14 +1086,32 @@ let quillDataMacroTarget: Target = .macro(
     path: "Sources/QuillDataMacros"
 )
 
+let quillDataMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : ["QuillDataMacros"]
+let quillDataSwiftSettings: [SwiftSetting] = quillUIRuntimeOnlyMacros ? [.define("QUILLDATA_NO_MACROS")] : []
+let quillFoundationModelsMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : ["QuillDataMacros"]
+let quillFoundationModelsSwiftSettings: [SwiftSetting] = quillUIRuntimeOnlyMacros ? [.define("QUILLUI_NO_FOUNDATION_MODELS_MACROS")] : []
+
 let quillDataTarget: Target = .target(
     name: "QuillData",
-    dependencies: [
-        "QuillDataMacros",
+    dependencies: quillDataMacroDependencies + [
         "CSQLite",
         .product(name: "GRDB", package: "GRDB.swift")
-    ]
+    ],
+    swiftSettings: quillDataSwiftSettings
 )
+
+#if os(Linux)
+let swiftDataShadowDependencies: [Target.Dependency] = [
+    "QuillData",
+    "Observation",
+    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+]
+#else
+let swiftDataShadowDependencies: [Target.Dependency] = [
+    "QuillData",
+    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+]
+#endif
 
 let quillEnchantedDataTarget: Target = .target(
     name: "QuillEnchantedData",
@@ -1243,7 +1381,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "SwiftData",
-        dependencies: ["QuillData", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: swiftDataShadowDependencies,
         path: "Sources/SwiftData"
     ),
     .target(name: "LRUCache", dependencies: [], path: "Sources/LRUCache"),
@@ -2237,29 +2375,26 @@ targets.append(
 )
 #endif
 
-// CommonCrypto Linux shim → OpenSSL libcrypto (the AES subset Signal uses in
-// CipherContext / Cryptography / PaddingBucket / ProvisioningCipher). A C target
-// whose public umbrella is the canonical <CommonCrypto/CommonCrypto.h>, so
-// upstream `import CommonCrypto` resolves here. Links system libcrypto (apt
-// libssl-dev).
+// CommonCrypto Linux shim → vendored BoringSSL from swift-crypto (the AES subset
+// Signal uses in CipherContext / Cryptography / PaddingBucket /
+// ProvisioningCipher). A C target whose public umbrella is the canonical
+// <CommonCrypto/CommonCrypto.h>, so upstream `import CommonCrypto` resolves here
+// without requiring system OpenSSL headers in CI.
 //
-// Gated on signalUpstreamPresent: ONLY this target's C `#include <openssl/evp.h>`
-// + `link "crypto"` require libssl-dev, which CI runners lack. Only SignalServiceKit
-// depends on CommonCrypto (and SSK is itself gated), so excluding it on a fresh
-// checkout / CI (signal absent) leaves no dangling dependency and the package builds
-// identically to clean main. NOTE: the OTHER Signal shims (CryptoKit / the
-// signalAppleFrameworkShims loop / etc.) stay ungated — they compile inertly on CI
-// AND some are consumed by the always-built UIKit shim (e.g. UIKit →
-// UserNotifications), so gating them would dangle that dependency and invalidate the
-// whole manifest.
+// Gated on signalUpstreamPresent because only SignalServiceKit currently depends
+// on CommonCrypto. The OTHER Signal shims (CryptoKit / the
+// signalAppleFrameworkShims loop / etc.) stay ungated — they compile inertly on
+// CI AND some are consumed by the always-built UIKit shim (e.g. UIKit →
+// UserNotifications), so gating them would dangle that dependency and invalidate
+// the whole manifest.
 #if os(Linux)
 if signalUpstreamPresent {
 targets.append(
     .target(
         name: "CommonCrypto",
+        dependencies: [.product(name: "CCryptoBoringSSL", package: "swift-crypto")],
         path: "Sources/CommonCryptoShim",
-        publicHeadersPath: "include",
-        linkerSettings: [.linkedLibrary("crypto")]
+        publicHeadersPath: "include"
     )
 )
 }
@@ -2331,8 +2466,9 @@ let signalAppleFrameworkShims = [
     // instead of this loop (the loop would create a duplicate target named the same).
     "ContactsUI", "Intents", "PassKit", "Accelerate",
     "LinkPresentation", "Metal", "MetalKit", "MetalPerformanceShaders",
-    "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "Vision", "AuthenticationServices",
+    "QuartzCore", "CoreText", "ImageIO", "CoreServices", "CoreImage", "CoreLocation", "CoreSpotlight", "SearchKit", "Vision", "AuthenticationServices",
     "UserNotifications", "SystemConfiguration", "CloudKit", "StoreKit", "NaturalLanguage",
+    "ExtensionFoundation", "ExtensionKit",
     "DeviceCheck", "CoreTelephony", "CFNetwork", "AudioToolbox", "AVFAudio", "CoreVideo", "CoreMedia", "VideoToolbox", "IOSurface",
     "CocoaLumberjack", "SDWebImage", "SDWebImageWebPCoder", "blurhash",
     "ObjCAssoc", "System", "notify",
@@ -2341,7 +2477,7 @@ let signalAppleFrameworkShims = [
     // NOTE: "AVKit" is NOT here either — it's an explicit shared target
     // (Sources/AVKit, SwiftUI VideoPlayer surface) used by both SignalUI and
     // the Telegram-Mac app graph.
-    "Quartz", "QuickLook", "OSLog", "AppIntents", "CoreMediaIO",
+    "Quartz", "QuickLook", "QuickLookUI", "PDFKit", "OSLog", "AppIntents", "CoreMediaIO",
     // NOTE: "Lottie" is NOT here — Sources/Lottie (Signal's LibMobileCoin dep)
     // already declares it explicitly.
     "MapKit", "SceneKit", "RealityKit", "Firebase", "FirebaseCrashlytics", "TdBinding",
@@ -2404,6 +2540,14 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "QuartzCore"]
         swiftSettings = []
         linkerSettings = []
+    case "QuickLookUI":
+        dependencies = ["QuillFoundation", "AppKit", "QuickLook"]
+        swiftSettings = []
+        linkerSettings = []
+    case "PDFKit":
+        dependencies = ["QuillFoundation", "AppKit"]
+        swiftSettings = []
+        linkerSettings = []
     case "OSLog":
         dependencies = ["os"]
         swiftSettings = []
@@ -2420,6 +2564,14 @@ for shimName in signalAppleFrameworkShims {
         dependencies = ["QuillFoundation", "CGdkPixbuf"]
         swiftSettings = [.unsafeFlags(gdkPixbufSwiftImporterFlags)]
         linkerSettings = [.unsafeFlags(gdkPixbufLinkerFlags)]
+    case "ExtensionFoundation":
+        dependencies = ["QuillFoundation", "AppKit"]
+        swiftSettings = []
+        linkerSettings = []
+    case "ExtensionKit":
+        dependencies = ["QuillFoundation", "SwiftUI", "ExtensionFoundation"]
+        swiftSettings = []
+        linkerSettings = []
     case "Vision":
         // VNImageRequestHandler's init overloads take ImageIO's
         // CGImagePropertyOrientation and CoreVideo's CVPixelBuffer (face
@@ -2649,6 +2801,8 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
             // annotations otherwise reject thousands of legal UIKit-style calls.
             exclude: [
                 "SignalUI.h",
+                "Fonts",
+                "Views/BodyRanges/SpoilerRendering/SpoilerParticleShader.metal",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.h",
                 "UIKitExtensions/UIButton+DeprecationWorkaround.m",
                 "Calls/CallLinkTest.swift",
@@ -2709,6 +2863,11 @@ if signalUpstreamPresent && libsignalUpstreamPresent {
 // constants the Swift importer can't surface. shim.h self-gates on __linux__;
 // no linkerSettings needed (ioctl/mmap live in libc).
 #if os(Linux)
+let quillSwiftUICompatibilityMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : ["QuillDataMacros"]
+let quillSwiftUICompatibilitySwiftSettings: [SwiftSetting] = quillUIRuntimeOnlyMacros ? [.define("QUILLUI_NO_COMPAT_MACROS")] : []
+let quillObservationMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : ["QuillDataMacros"]
+let quillObservationSwiftSettings: [SwiftSetting] = quillUIRuntimeOnlyMacros ? [.define("QUILLUI_NO_OBSERVATION_MACROS")] : []
+
 targets += [
     .executableTarget(
         name: "QuillImageIOSmoke",
@@ -2968,8 +3127,16 @@ if v4l2LiveProbeEnabled {
 // surface is non-conditional AppKit. Also gated on the vendored
 // CodeEditSymbols checkout being present (see top-of-file note).
 #if !os(Linux)
-if codeEditSymbolsUpstreamPresent && codeEditSourceUpstreamPresent {
+if codeEditUpstreamEnabled {
+products += [
+    .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"]),
+    .library(name: "Sparkle", targets: ["Sparkle"]),
+    .library(name: "SwiftUIIntrospect", targets: ["SwiftUIIntrospect"])
+]
 targets += [
+    .target(name: "AsyncAlgorithms", dependencies: [], path: "Sources/AsyncAlgorithms"),
+    .target(name: "Sparkle", dependencies: ["QuillKit"], path: "Sources/Sparkle"),
+    .target(name: "SwiftUIIntrospect", dependencies: [], path: "Sources/SwiftUIIntrospect"),
     .executableTarget(
         name: "CodeEditUpstream",
         // Keep CodeEditApp.swift (the @main entry point) — the
@@ -2983,12 +3150,12 @@ targets += [
             .product(name: "LanguageClient", package: "LanguageClient"),
             .product(name: "LanguageServerProtocol", package: "LanguageServerProtocol"),
             .product(name: "ZIPFoundation", package: "ZIPFoundation"),
-            .product(name: "Sparkle", package: "Sparkle"),
+            "Sparkle",
             .product(name: "LogStream", package: "LogStream"),
             .product(name: "Collections", package: "swift-collections"),
-            .product(name: "CollectionConcurrencyKit", package: "collectionconcurrencykit"),
-            .product(name: "SwiftUIIntrospect", package: "SwiftUI-Introspect"),
-            .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+            .product(name: "CollectionConcurrencyKit", package: "CollectionConcurrencyKit"),
+            "SwiftUIIntrospect",
+            "AsyncAlgorithms",
             .product(name: "SwiftTerm", package: "SwiftTerm"),
             .product(name: "GRDB", package: "GRDB.swift")
         ],
@@ -3050,9 +3217,16 @@ targets.append(contentsOf: [
     .target(name: "os", dependencies: ["QuillKit"], path: "Sources/osShim"),
     .target(
         name: "QuillSwiftUICompatibility",
-        dependencies: ["QuillFoundation", "QuillKit", "QuillDataMacros", "CoreTransferable", "Combine", .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: [
+            "QuillFoundation",
+            "QuillKit",
+            "CoreTransferable",
+            "Combine",
+            "Observation",
+            .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+        ] + quillSwiftUICompatibilityMacroDependencies,
         path: "Sources/QuillSwiftUICompatibility",
-        swiftSettings: quillFoundationSwiftSettings
+        swiftSettings: quillSwiftUICompatibilitySwiftSettings
     ),
     .target(
         name: "SwiftUI",
@@ -3073,7 +3247,12 @@ targets.append(contentsOf: [
             .unsafeFlags(["-strict-concurrency=minimal"]),
         ] + swiftUIShadowMountSwiftSettings
     ),
-    .target(name: "Observation", dependencies: ["QuillDataMacros", "Combine"], path: "Sources/Observation"),
+    .target(
+        name: "Observation",
+        dependencies: ["Combine"] + quillObservationMacroDependencies,
+        path: "Sources/Observation",
+        swiftSettings: quillObservationSwiftSettings
+    ),
     .target(name: "UniformTypeIdentifiers", dependencies: [], path: "Sources/UniformTypeIdentifiersShim"),
     .target(name: "Network", dependencies: [], path: "Sources/NetworkShim"),
     .target(name: "NetworkExtension", dependencies: ["Network"], path: "Sources/NetworkExtensionShim"),
@@ -3123,7 +3302,7 @@ targets.append(contentsOf: [
     // branch). Apps that want the runtime backing import QuillAppKitGTK.
     .target(
         name: "QuillAppKitGTK",
-        dependencies: ["AppKit", "CGtk4", .product(name: "CGTK", package: "SwiftOpenUI")],
+        dependencies: ["AppKit", "CGtk4", "Observation", .product(name: "CGTK", package: "SwiftOpenUI"), .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
         path: "Sources/QuillAppKitGTK",
         swiftSettings: [
             .swiftLanguageMode(.v5),
@@ -3157,6 +3336,15 @@ targets.append(contentsOf: [
         name: "QuillAppKitSmoke",
         dependencies: ["AppKit"],
         path: "Sources/QuillAppKitSmoke",
+        swiftSettings: [
+            .swiftLanguageMode(.v5),
+            .unsafeFlags(["-strict-concurrency=minimal"])
+        ]
+    ),
+    .executableTarget(
+        name: "QuillAppKitSmokeRunner",
+        dependencies: ["QuillAppKitSmoke"],
+        path: "Sources/QuillAppKitSmokeRunner",
         swiftSettings: [
             .swiftLanguageMode(.v5),
             .unsafeFlags(["-strict-concurrency=minimal"])
@@ -3204,7 +3392,12 @@ targets.append(contentsOf: [
     .target(name: "CoreHaptics", dependencies: [], path: "Sources/AppleFrameworkShims/CoreHaptics"),
     .target(name: "Photos", dependencies: ["QuillFoundation", "QuillKit"], path: "Sources/PhotosShim"),
     .target(name: "CoreTransferable", dependencies: ["UniformTypeIdentifiers"], path: "Sources/CoreTransferable"),
-    .target(name: "FoundationModels", dependencies: ["QuillDataMacros"], path: "Sources/FoundationModels"),
+    .target(
+        name: "FoundationModels",
+        dependencies: quillFoundationModelsMacroDependencies,
+        path: "Sources/FoundationModels",
+        swiftSettings: quillFoundationModelsSwiftSettings
+    ),
     // CV4L2 (Linux): named non-variadic ioctl wrappers + V4L2 constants the
     // Swift importer can't surface (variadic ioctl, _IOWR function-like
     // macros). The shim header self-gates on __linux__; the AVFoundation
@@ -3321,7 +3514,12 @@ var allPackageDependencies: [Package.Dependency] = [
 // (Sources/Combine re-exports OpenCombine / OpenCombineDispatch /
 // OpenCombineFoundation). macOS uses the SDK Combine module.
 allPackageDependencies.append(
-    .package(url: "https://github.com/OpenCombine/OpenCombine.git", from: "0.14.0")
+    vendoredPackage(
+        name: "OpenCombine",
+        path: "third_party/OpenCombine",
+        url: "https://github.com/OpenCombine/OpenCombine.git",
+        from: "0.14.0"
+    )
 )
 #endif
 #if os(Linux)
@@ -3331,35 +3529,97 @@ allPackageDependencies.append(
 // SwiftSoup, and the Models target isn't a dependency of any qt app anyway.
 if iceCubesLinuxGraphEnabled {
 allPackageDependencies.append(
-    .package(url: "https://github.com/scinfu/SwiftSoup.git", from: "2.4.3")
+    vendoredPackage(
+        name: "SwiftSoup",
+        path: "third_party/SwiftSoup",
+        url: "https://github.com/scinfu/SwiftSoup.git",
+        from: "2.4.3"
+    )
 )
 }
 #endif
 #if !os(Linux)
-if codeEditSymbolsUpstreamPresent {
+if codeEditUpstreamEnabled {
 allPackageDependencies += [
     // CodeEditSymbols 0.2.3's upstream Package.swift never declares
     // `Symbols.xcassets` as a resource — Bundle.module is undefined
-    // under SwiftPM. Locally-vendored copy at .upstream/codeeditsymbols
-    // adds the missing `resources: [.process("Symbols.xcassets")]` line.
-    .package(name: "CodeEditSymbols", path: ".upstream/codeeditsymbols"),
-    .package(url: "https://github.com/CodeEditApp/CodeEditSourceEditor", exact: "0.15.1"),
-    .package(url: "https://github.com/CodeEditApp/CodeEditKit", exact: "0.1.2"),
-    .package(url: "https://github.com/CodeEditApp/AboutWindow", from: "1.0.0"),
-    .package(url: "https://github.com/CodeEditApp/WelcomeWindow", from: "1.0.0"),
-    .package(url: "https://github.com/ChimeHQ/LanguageClient", from: "0.8.0"),
-    .package(url: "https://github.com/ChimeHQ/LanguageServerProtocol", from: "0.13.0"),
-    .package(url: "https://github.com/weichsel/ZIPFoundation", from: "0.9.19"),
-    .package(url: "https://github.com/sparkle-project/Sparkle.git", from: "2.0.0"),
-    .package(url: "https://github.com/Wouter01/LogStream", from: "1.3.0"),
-    .package(url: "https://github.com/apple/swift-collections.git", from: "1.0.0"),
-    .package(url: "https://github.com/johnsundell/collectionconcurrencykit", from: "0.2.0"),
-    .package(url: "https://github.com/siteline/SwiftUI-Introspect.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-async-algorithms", from: "1.0.0"),
+    // under SwiftPM. The vendored `third_party/CodeEditSymbols` copy carries
+    // the missing `resources: [.process("Symbols.xcassets")]` line.
+    vendoredExactPackage(
+        name: "CodeEditSymbols",
+        path: "third_party/CodeEditSymbols",
+        url: "https://github.com/CodeEditApp/CodeEditSymbols",
+        exact: "0.2.3"
+    ),
+    vendoredExactPackage(
+        name: "CodeEditSourceEditor",
+        path: "third_party/CodeEditSourceEditor",
+        url: "https://github.com/CodeEditApp/CodeEditSourceEditor",
+        exact: "0.15.1"
+    ),
+    vendoredExactPackage(
+        name: "CodeEditKit",
+        path: "third_party/CodeEditKit",
+        url: "https://github.com/CodeEditApp/CodeEditKit",
+        exact: "0.1.2"
+    ),
+    vendoredPackage(
+        name: "AboutWindow",
+        path: "third_party/AboutWindow",
+        url: "https://github.com/CodeEditApp/AboutWindow",
+        from: "1.0.0"
+    ),
+    vendoredPackage(
+        name: "WelcomeWindow",
+        path: "third_party/WelcomeWindow",
+        url: "https://github.com/CodeEditApp/WelcomeWindow",
+        from: "1.0.0"
+    ),
+    vendoredPackage(
+        name: "LanguageClient",
+        path: "third_party/LanguageClient",
+        url: "https://github.com/ChimeHQ/LanguageClient",
+        from: "0.8.0"
+    ),
+    vendoredPackage(
+        name: "LanguageServerProtocol",
+        path: "third_party/LanguageServerProtocol",
+        url: "https://github.com/ChimeHQ/LanguageServerProtocol",
+        from: "0.13.0"
+    ),
+    vendoredPackage(
+        name: "ZIPFoundation",
+        path: "third_party/ZIPFoundation",
+        url: "https://github.com/weichsel/ZIPFoundation",
+        from: "0.9.19"
+    ),
+    vendoredPackage(
+        name: "LogStream",
+        path: "third_party/LogStream",
+        url: "https://github.com/Wouter01/LogStream",
+        from: "1.3.0"
+    ),
+    vendoredPackage(
+        name: "swift-collections",
+        path: "third_party/swift-collections",
+        url: "https://github.com/apple/swift-collections.git",
+        from: "1.0.0"
+    ),
+    vendoredPackage(
+        name: "CollectionConcurrencyKit",
+        path: "third_party/CollectionConcurrencyKit",
+        url: "https://github.com/johnsundell/collectionconcurrencykit",
+        from: "0.2.0"
+    ),
     // CodeEdit uses thecoolwinter's SwiftTerm fork (branch `codeedit`)
     // because it preserves the older `selectedPositions()` API the
     // upstream main has since renamed.
-    .package(url: "https://github.com/thecoolwinter/SwiftTerm", branch: "codeedit")
+    vendoredBranchPackage(
+        name: "SwiftTerm",
+        path: "third_party/SwiftTerm",
+        url: "https://github.com/thecoolwinter/SwiftTerm",
+        branch: "codeedit"
+    )
 ]
 }
 #endif
@@ -3432,10 +3692,7 @@ if quillUILinuxBuildBackend == .qt {
         // rendered through Qt6. All GTK-free.
         .target(
             name: "QuillUIKit",
-            dependencies: [
-                "QuillFoundation", "QuillKit", "CoreGraphics", "QuartzCore",
-                "CoreTransferable", "UniformTypeIdentifiers",
-            ],
+            dependencies: ["QuillFoundation", "QuillKit", "CoreGraphics", "CoreTransferable", "UniformTypeIdentifiers"],
             path: "Sources/QuillUIKit"
         ),
         // Inert GTK-free Apple-framework shims the AppKit shadow
@@ -3600,7 +3857,7 @@ if quillUILinuxBuildBackend == .qt {
         // Qt-specific ones below win instead of colliding ("duplicate target").
         let qtReplacedShadowNames: Set<String> = ["Combine", "QuillSwiftUICompatibility", "SwiftUI"]
         targets.removeAll { qtReplacedShadowNames.contains($0.name) }
-        targets += [
+        targets.append(
             .target(
                 name: "Combine",
                 dependencies: [
@@ -3609,18 +3866,23 @@ if quillUILinuxBuildBackend == .qt {
                     .product(name: "OpenCombineFoundation", package: "OpenCombine")
                 ],
                 path: "Sources/Combine"
-            ),
+            )
+        )
+        targets.append(
             .target(
                 name: "QuillSwiftUICompatibility",
                 dependencies: [
                     "QuillFoundation",
                     "QuillKit",
-                    "QuillDataMacros",
                     "CoreTransferable",
+                    "Observation",
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
-                ],
-                path: "Sources/QuillSwiftUICompatibility"
-            ),
+                ] + quillSwiftUICompatibilityMacroDependencies,
+                path: "Sources/QuillSwiftUICompatibility",
+                swiftSettings: quillSwiftUICompatibilitySwiftSettings
+            )
+        )
+        targets.append(
             .target(
                 name: "CQtBridge",
                 path: "Sources/CQtBridge",
@@ -3631,12 +3893,15 @@ if quillUILinuxBuildBackend == .qt {
                 linkerSettings: [
                     .unsafeFlags(qt6WidgetsLinkerFlags)
                 ]
-            ),
+            )
+        )
+        targets.append(
             .target(
                 name: "BackendQt",
                 dependencies: [
                     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
                     .product(name: "SwiftOpenUISymbols", package: "SwiftOpenUI"),
+                    "QuillSwiftUICompatibility",
                     "Observation",
                     "CQtBridge"
                 ],
@@ -3644,7 +3909,9 @@ if quillUILinuxBuildBackend == .qt {
                 swiftSettings: appSwiftSettings + [
                     .define("QUILLUI_QT_GENERIC")
                 ]
-            ),
+            )
+        )
+        targets.append(
             .target(
                 name: "SwiftUI",
                 dependencies: swiftUIShadowCoreDependencies + swiftUIShadowMountDependencies,
@@ -3653,7 +3920,9 @@ if quillUILinuxBuildBackend == .qt {
                     .swiftLanguageMode(.v5),
                     .unsafeFlags(["-strict-concurrency=minimal"]),
                 ] + swiftUIShadowMountSwiftSettings
-            ),
+            )
+        )
+        targets.append(
             .executableTarget(
                 name: "QuillQtGenericSmoke",
                 dependencies: ["BackendQt"],
@@ -3662,7 +3931,7 @@ if quillUILinuxBuildBackend == .qt {
                     .define("QUILLUI_QT_GENERIC")
                 ]
             )
-        ]
+        )
         products.append(
             .executable(name: "quill-qt-generic-smoke", targets: ["QuillQtGenericSmoke"])
         )
@@ -4046,7 +4315,7 @@ if iceCubesLinuxGraphEnabled {
     targets += [
         .target(
             name: "IceCubesShims",
-            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI"), "QuillFoundation", "QuillSwiftUICompatibility", "SwiftData", "SwiftUI"],
+            dependencies: [.product(name: "SwiftOpenUI", package: "SwiftOpenUI"), "Observation", "QuillFoundation", "QuillSwiftUICompatibility", "SwiftData", "SwiftUI"],
             path: "Sources/IceCubesShims"
         ),
         .target(

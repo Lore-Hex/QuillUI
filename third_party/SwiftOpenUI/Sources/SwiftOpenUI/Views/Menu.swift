@@ -21,6 +21,14 @@ public struct MenuDivider {
     public init() {}
 }
 
+public struct MenuIndicatorVisibility: Hashable, Sendable {
+    public let rawValue: String
+    public init(_ rawValue: String = "automatic") { self.rawValue = rawValue }
+    public static let automatic = MenuIndicatorVisibility("automatic")
+    public static let visible = MenuIndicatorVisibility("visible")
+    public static let hidden = MenuIndicatorVisibility("hidden")
+}
+
 /// A submenu with nested menu elements.
 public struct SubMenu {
     public let label: String
@@ -39,23 +47,56 @@ public struct Menu: View {
     public let title: String
     public let elements: [MenuElement]
     public let labelView: AnyView?
+    public let primaryAction: (() -> Void)?
 
     public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.init(title, elements: content())
+    }
+
+    public init<Content: View>(_ title: String, @ViewBuilder content: () -> Content) {
+        _ = content()
+        self.init(title, elements: [])
+    }
+
+    public init<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content,
+        primaryAction: @escaping () -> Void
+    ) {
+        _ = content()
+        self.init(title, elements: [], primaryAction: primaryAction)
+    }
+
+    public init(_ title: String, elements: [MenuElement], labelView: AnyView? = nil, primaryAction: (() -> Void)? = nil) {
         self.title = quillResolveLocalizedString(title)
-        self.elements = content()
-        self.labelView = nil
+        self.elements = elements
+        self.labelView = labelView
+        self.primaryAction = primaryAction
+    }
+
+    public init<Label: View>(
+        @MenuBuilder content: () -> [MenuElement],
+        @ViewBuilder label: () -> Label,
+        primaryAction: @escaping () -> Void
+    ) {
+        self.init("", elements: content(), labelView: AnyView(label()), primaryAction: primaryAction)
     }
 
     public init<Label: View>(
         @MenuBuilder content: () -> [MenuElement],
         @ViewBuilder label: () -> Label
     ) {
-        self.title = ""
-        self.elements = content()
-        self.labelView = AnyView(label())
+        self.init("", elements: content(), labelView: AnyView(label()))
     }
 
     public var body: Never { fatalError("Menu is a primitive view") }
+}
+
+extension View {
+    public func menuIndicator(_ visibility: MenuIndicatorVisibility) -> Self {
+        _ = visibility
+        return self
+    }
 }
 
 /// Result builder for composing menu elements.

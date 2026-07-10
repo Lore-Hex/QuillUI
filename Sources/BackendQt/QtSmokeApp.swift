@@ -23,6 +23,8 @@
 // The point is that all of this is plain SwiftUI; the renderer is app-agnostic.
 
 #if canImport(CQtBridge)
+import Foundation
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 
 /// Window/panel metrics chosen to satisfy validate_quill_backend_interaction_smoke.
@@ -43,6 +45,10 @@ enum QtSmokeMetrics {
     static let panelBlue: Double = 39.0 / 255.0
     static let listWidth: Double = 300
     static let listHeight: Double = 120
+}
+
+private func qtSmokeInteractionLog(_ message: String) {
+    FileHandle.standardError.write(Data("[qt-smoke] \(message)\n".utf8))
 }
 
 public struct QtSmokeApp: App {
@@ -82,6 +88,11 @@ struct QtSmokeView: View {
 
                 Divider()
 
+                ProgressView(value: 0.5)
+                    .frame(width: 220, height: 14)
+                ProgressView()
+                    .frame(width: 220, height: 14)
+
                 LazyVGrid(
                     columns: Array(repeating: GridItem(.flexible), count: 2),
                     data: [0, 1, 2, 3]
@@ -106,6 +117,11 @@ struct QtSmokeView: View {
                 Button(isOpen ? "Toggle (on)" : "Toggle (off)") {
                     isOpen.toggle()
                 }
+                Button("Default shortcut") {
+                    qtSmokeInteractionLog("keyboardShortcut default")
+                    textFieldValue = "Qt keyboardShortcut default"
+                }
+                .keyboardShortcut(.defaultAction)
 
                 Toggle(
                     isCheckboxOn ? "QCheckBox Toggle (on)" : "QCheckBox Toggle (off)",
@@ -113,7 +129,19 @@ struct QtSmokeView: View {
                 )
 
                 TextField("QLineEdit placeholder", text: $textFieldValue)
+                    .onKeyPress(.tab) {
+                        textFieldValue = "Qt onKeyPress tab"
+                        return .handled
+                    }
                 Text("TextField echo: \(textFieldValue)")
+                Text("Selectable Qt transcript")
+                    .textSelection(.enabled)
+                Text("Hoverable Qt row")
+                    .onHover { hovering in
+                        menuSelection = hovering ? "hover" : "none"
+                    }
+                Text("Decorative Qt label")
+                    .allowsHitTesting(false)
 
                 Picker("QComboBox Picker", selection: $pickerSelection) {
                     Text("Picker Alpha").tag("alpha")

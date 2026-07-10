@@ -373,6 +373,19 @@ fi
 if [[ "$PRODUCT" == "quill-chat-linux" && "$INTERACTION_MODE" == "toolbar-model-selected" ]]; then
   app_environment+=("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}")
 fi
+if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
+  case "$INTERACTION_MODE" in
+    settings-endpoint-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_OLLAMAURI=${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}")
+      ;;
+    settings-bearer-token-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_OLLAMABEARERTOKEN=${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}")
+      ;;
+    settings-ping-interval-typed)
+      app_environment+=("QUILLUI_APP_STORAGE_PINGINTERVAL=${QUILLUI_BACKEND_TYPE_TEXT:-123456789012345}")
+      ;;
+  esac
+fi
 if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
   case "$INTERACTION_MODE" in
     completions-panel|completions-new-sheet|completions-save|completions-edit-save|completions-delete)
@@ -555,10 +568,16 @@ quill_chat_verified_selection_probe() {
   local probe_suffix="${2:-}"
   local probe_path="$OUTPUT_DIR/quill-chat-selection-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}${probe_suffix}.png"
 
+  quill_chat_last_verified_selection_probe_path=""
   capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
-  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
-    "$probe_path" \
-    "$verify_product" >/dev/null 2>&1
+  if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$probe_path" \
+      "$verify_product" >/dev/null 2>&1; then
+    quill_chat_last_verified_selection_probe_path="$probe_path"
+    return 0
+  fi
+
+  return 1
 }
 
 scroll_quill_chat_transcript_to_bottom() {
@@ -659,7 +678,55 @@ run_list_selection_or_header_interaction() {
 }
 
 type_text() {
-  DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$1"
+  local text="$1"
+  local method="${QUILLUI_BACKEND_TYPE_METHOD:-paste-first}"
+
+  case "$method" in
+    paste)
+      paste_text "$text"
+      ;;
+    type)
+      DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$text"
+      ;;
+    paste-first|*)
+      paste_text "$text" || DISPLAY="$DISPLAY_ID" xdotool type --clearmodifiers --delay 30 "$text"
+      ;;
+  esac
+}
+
+paste_text() {
+  local text="$1"
+  local clipboard_pid
+  local paste_settle_sleep="${QUILLUI_BACKEND_PASTE_SETTLE_SLEEP:-0.2}"
+  local paste_cleanup_deadline
+
+  command -v xclip >/dev/null 2>&1 || return 1
+
+  printf '%s' "$text" \
+    | DISPLAY="$DISPLAY_ID" xclip -selection clipboard -loops 1 >/dev/null 2>&1 &
+  clipboard_pid=$!
+  sleep "$paste_settle_sleep"
+
+  if DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+v; then
+    paste_cleanup_deadline=$((SECONDS + ${QUILLUI_BACKEND_PASTE_CLEANUP_DEADLINE:-2}))
+    while kill -0 "$clipboard_pid" 2>/dev/null; do
+      if (( SECONDS >= paste_cleanup_deadline )); then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$clipboard_pid" 2>/dev/null; then
+      kill "$clipboard_pid" 2>/dev/null || true
+      wait "$clipboard_pid" 2>/dev/null || true
+      return 1
+    fi
+    wait "$clipboard_pid"
+    return $?
+  fi
+
+  kill "$clipboard_pid" 2>/dev/null || true
+  wait "$clipboard_pid" 2>/dev/null || true
+  return 1
 }
 
 type_multiline_text() {
@@ -1139,6 +1206,8 @@ ensure_quill_chat_long_transcript_bottom_scroll() {
   fi
 
   if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-initial"; then
+    cp -f "$quill_chat_last_verified_selection_probe_path" "$SCREENSHOT_PATH"
+    settled_capture_taken=1
     return 0
   fi
   echo "interaction-check: long transcript bottom marker not verified; applying explicit scroll fallback" >&2
@@ -1146,6 +1215,8 @@ ensure_quill_chat_long_transcript_bottom_scroll() {
   for ((scroll_attempt = 1; scroll_attempt <= scroll_attempts; scroll_attempt++)); do
     scroll_quill_chat_transcript_to_bottom
     if quill_chat_verified_selection_probe quill-chat-linux-mac-reference-long-transcript-selection "-scroll-${scroll_attempt}"; then
+      cp -f "$quill_chat_last_verified_selection_probe_path" "$SCREENSHOT_PATH"
+      settled_capture_taken=1
       return 0
     fi
     if (( scroll_attempt < scroll_attempts )); then
@@ -1426,12 +1497,13 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 3
         ;;
       attachment-send|image-attachment-send)
-        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 70))}"
+        attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 100))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}"
         else
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$((window_y + window_height - 190))}"
         fi
+        echo "interaction-check: attachment=${attachment_x},${attachment_y}" >&2
         click_at "$attachment_x" "$attachment_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
         click_x="$(quill_chat_composer_click_x)"
@@ -1446,6 +1518,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         else
           send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$((window_y + window_height - 190))}"
         fi
+        echo "interaction-check: send=${send_x},${send_y}" >&2
         click_at "$send_x" "$send_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SEND_FALLBACK_SLEEP:-0.4}"
         DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Return
@@ -1480,10 +1553,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_y="$(quill_chat_settings_click_y)"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-459}"
           else
             endpoint_x="${QUILLUI_BACKEND_ENDPOINT_CLICK_X:-1000}"
-            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-506}"
+            endpoint_y="${QUILLUI_BACKEND_ENDPOINT_CLICK_Y:-459}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1495,7 +1568,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         click_at "$endpoint_x" "$endpoint_y"
         sleep 1
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434}"
+        DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+a
+        sleep 0.2
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-http://127.0.0.1:11434/quill-linux-endpoint-check}"
         sleep 1
         ;;
       settings-bearer-token-typed)
@@ -1504,10 +1579,10 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_y="$(quill_chat_settings_click_y)"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-640}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-624}"
           else
             token_x="${QUILLUI_BACKEND_TOKEN_CLICK_X:-1000}"
-            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-680}"
+            token_y="${QUILLUI_BACKEND_TOKEN_CLICK_Y:-624}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1519,7 +1594,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 1
         click_at "$token_x" "$token_y"
         sleep 1
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345}"
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-quill-linux-token-12345-ci-typed-check}"
         sleep 1
         ;;
       settings-ping-interval-typed)
@@ -1529,9 +1604,9 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
           if [[ "$SELECTED_BACKEND" == "qt" ]]; then
             ping_x="${QUILLUI_BACKEND_PING_CLICK_X:-1000}"
-            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-706}"
+            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-644}"
           else
-            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-684}"
+            ping_y="${QUILLUI_BACKEND_PING_CLICK_Y:-644}"
           fi
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
@@ -1553,7 +1628,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
           settings_x="$(quill_chat_settings_click_x)"
           settings_y="$(quill_chat_settings_click_y)"
           model_x="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_X:-770}"
-          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-772}"
+          model_y="${QUILLUI_BACKEND_MODEL_PICKER_CLICK_Y:-598}"
         else
           settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
           settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"

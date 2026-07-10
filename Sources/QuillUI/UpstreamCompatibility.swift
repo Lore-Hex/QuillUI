@@ -79,25 +79,6 @@ public extension FocusState {
     }
 }
 
-public struct PinnedScrollableViews: OptionSet, Sendable {
-    public var rawValue: Int
-
-    public init(rawValue: Int) {
-        self.rawValue = rawValue
-    }
-
-    public static let sectionHeaders = PinnedScrollableViews(rawValue: 1 << 0)
-    public static let sectionFooters = PinnedScrollableViews(rawValue: 1 << 1)
-}
-
-public struct ContextMenu {
-    public var menuElements: [MenuElement]
-
-    public init(@MenuBuilder menuItems: () -> [MenuElement]) {
-        self.menuElements = menuItems()
-    }
-}
-
 public enum TextSelectability: Sendable {
     case enabled
     case disabled
@@ -106,38 +87,11 @@ public enum TextSelectability: Sendable {
 #if !os(macOS) && !os(iOS) && !os(visionOS)
 public typealias ToolbarItemGroup<Content: View> = ToolbarItem<Content>
 
-// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`
-// live in `QuillSwiftUICompatibility`, which both `QuillUI` and
-// the Linux `SwiftUI` shadow re-export. Keeping one defining
-// module avoids ambiguous uses in code that imports both modules.
-
-public extension GridItem.Size {
-    static func flexible(minimum: Double = 10, maximum: Double = .infinity) -> GridItem.Size {
-        .flexible
-    }
-
-    static func fixed(_ size: Double) -> GridItem.Size {
-        .fixed
-    }
-}
-
-public extension GridItem {
-    init(_ size: Size = .flexible, spacing: Double? = nil, alignment: Alignment? = nil) {
-        self.init(size)
-    }
-}
-
-public extension LazyVGrid where Data == Int {
-    init(
-        columns: [GridItem],
-        alignment: HorizontalAlignment = .center,
-        spacing: Double? = nil,
-        pinnedViews: PinnedScrollableViews = [],
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.init(columns: columns, data: [0]) { _ in content() }
-    }
-}
+// `VerticalAlignment.firstTextBaseline` / `.lastTextBaseline`, `GridItem`
+// spacing/alignment initializers, `PinnedScrollableViews`, and aligned
+// `LazyVGrid` overloads live in `QuillSwiftUICompatibility`, which both
+// `QuillUI` and the Linux `SwiftUI` shadow import. Keeping one defining module
+// avoids ambiguous uses in code that imports both modules.
 #endif
 
 public extension Animation {
@@ -179,19 +133,6 @@ public func withAnimation(_ animation: Animation = .default, _ body: @MainActor 
         MainActor.assumeIsolated {
             body()
         }
-    }
-}
-
-public extension CommandGroupPlacement {
-    static var appInfo: CommandGroupPlacement { .help }
-}
-
-public extension CommandGroup {
-    init(
-        after placement: CommandGroupPlacement,
-        @CommandMenuBuilder content: () -> [CommandMenuItem]
-    ) {
-        self.init(replacing: placement, content: content)
     }
 }
 
@@ -251,22 +192,6 @@ public extension Section {
 }
 
 public extension Image {
-    /// Linux source-compatibility inits matching SwiftUI's
-    /// `Image(nsImage:)` / `Image(uiImage:)`. SwiftOpenUI's
-    /// `Image` doesn't have bitmap-decoding initializers yet;
-    /// fall through to the system-symbol placeholder so call
-    /// sites compile. When a real GTK decoder lands, both can
-    /// route through `image.data`. (`init(data:)` is provided
-    /// separately in `Compatibility.swift` with a temp-file
-    /// implementation.)
-    init(nsImage image: RSImage) {
-        self.init(systemName: "photo")
-    }
-
-    init(uiImage image: RSImage) {
-        self.init(systemName: "photo")
-    }
-
     enum TemplateRenderingMode {
         case original
         case template
@@ -291,6 +216,7 @@ public extension Image {
         return self
     }
 
+    @_disfavoredOverload
     func symbolRenderingMode(_ mode: SymbolRenderingMode?) -> Image {
         recordQuillUIFallback(
             "symbolRenderingMode",
@@ -342,56 +268,6 @@ public struct LabeledContent<Content: View>: View {
                 .multilineTextAlignment(.trailing)
         }
     }
-}
-
-public struct AccessibilityChildBehavior: Hashable, Sendable {
-    private let rawValue: String
-
-    private init(_ rawValue: String) {
-        self.rawValue = rawValue
-    }
-
-    public static let combine = AccessibilityChildBehavior("combine")
-    public static let ignore = AccessibilityChildBehavior("ignore")
-}
-
-public struct AccessibilityLabelView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let label: String
-
-    public var body: Never { fatalError("AccessibilityLabelView is a primitive view") }
-}
-
-public struct AccessibilityValueView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let value: String
-
-    public var body: Never { fatalError("AccessibilityValueView is a primitive view") }
-}
-
-public struct AccessibilityElementView<Content: View>: View {
-    public typealias Body = Never
-
-    public let content: Content
-    public let children: AccessibilityChildBehavior
-
-    public var body: Never { fatalError("AccessibilityElementView is a primitive view") }
-}
-
-public struct MinimumScaleFactorView<Content: View>: View {
-    public let content: Content
-    public let factor: Double
-
-    public init(content: Content, factor: Double) {
-        self.content = content
-        self.factor = factor
-    }
-
-    public var body: some View { content }
 }
 
 public struct ImageScaleView<Content: View>: View {
@@ -701,20 +577,24 @@ public extension View {
         accessibilityValue(String(describing: value))
     }
 
+    func accessibilityHint(_ hint: String) -> AccessibilityHintView<Self> {
+        recordQuillUIFallback(
+            "accessibilityHint",
+            message: "View accessibility hints are propagated to native accessibility descriptions on Linux."
+        )
+        return AccessibilityHintView(content: self, hint: hint)
+    }
+
+    func accessibilityHint<T>(_ hint: T) -> AccessibilityHintView<Self> {
+        accessibilityHint(String(describing: hint))
+    }
+
     func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self> {
         recordQuillUIFallback(
             "accessibilityElement(children:)",
             message: "View accessibility child behavior is preserved for GTK accessibility rendering on Linux."
         )
         return AccessibilityElementView(content: self, children: children)
-    }
-
-    func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
-        recordQuillUIFallback(
-            "minimumScaleFactor",
-            message: "minimumScaleFactor is preserved as layout metadata on Linux."
-        )
-        return MinimumScaleFactorView(content: self, factor: factor)
     }
 
     func lineLimit(_ number: Int?, reservesSpace: Bool) -> some View {
@@ -817,11 +697,9 @@ public extension View {
         }
     }
 
-    func contextMenu(_ contextMenu: ContextMenu) -> ContextMenuView<Self> {
-        self.contextMenu {
-            contextMenu.menuElements
-        }
-    }
+    // `contextMenu(_ contextMenu: ContextMenu)` is canonical in
+    // QuillSwiftUICompatibility so files importing SwiftUI and QuillUI see one
+    // ContextMenu type and one overload.
 
     // `matchedGeometryEffect` is canonical in QuillSwiftUICompatibility
     // (DesignSystemSurfaceCompat.swift) — main canonicalized it there, so
@@ -841,21 +719,8 @@ public extension View {
     func focusedSceneValue<Value>(
         _ keyPath: WritableKeyPath<FocusedValues, Value?>,
         _ value: Value
-    ) -> Self {
-        recordQuillUIFallback(
-            "focusedSceneValue",
-            message: "focusedSceneValue is currently a source-compatibility fallback on Linux."
-        )
-        return self
-    }
-
-    func formStyle(_ style: GroupedFormStyle) -> BackgroundView<PaddedView<Self>, Color> {
-        recordQuillUIFallback(
-            "formStyle",
-            message: "GroupedFormStyle is approximated with grouped padding and background on Linux."
-        )
-        return padding(8)
-            .background(Color.gray5Custom)
+    ) -> OptionalFocusedValueView<Self, Value> {
+        OptionalFocusedValueView(content: self, keyPath: keyPath, value: value)
     }
 
 }
@@ -907,6 +772,38 @@ private protocol QuillWrappedViewRepresentable {
 }
 
 @MainActor
+private protocol QuillConditionalViewRepresentable {
+    var quillActiveContent: any View { get }
+}
+
+extension _ConditionalView: QuillConditionalViewRepresentable {
+    fileprivate var quillActiveContent: any View {
+        switch self {
+        case .trueContent(let content):
+            return content
+        case .falseContent(let content):
+            return content
+        }
+    }
+}
+
+@MainActor
+private protocol QuillOptionalViewRepresentable {
+    var quillOptionalContent: (any View)? { get }
+}
+
+extension Optional: QuillOptionalViewRepresentable where Wrapped: View {
+    fileprivate var quillOptionalContent: (any View)? {
+        switch self {
+        case .some(let content):
+            return content
+        case .none:
+            return nil
+        }
+    }
+}
+
+@MainActor
 private protocol QuillAccessibilityLabelRepresentable: QuillWrappedViewRepresentable {
     var quillAccessibilityLabel: String { get }
 }
@@ -917,6 +814,10 @@ extension AccessibilityLabelView: QuillAccessibilityLabelRepresentable {
 }
 
 extension AccessibilityValueView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
+extension AccessibilityHintView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
@@ -1149,6 +1050,15 @@ public func quillTextLabel(from view: any View) -> String {
         return contentLabel.isEmpty ? accessibility.quillAccessibilityLabel : contentLabel
     }
 
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillTextLabel(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return "" }
+        return quillTextLabel(from: content)
+    }
+
     if let wrapped = view as? any QuillWrappedViewRepresentable {
         return quillTextLabel(from: wrapped.quillWrappedContent)
     }
@@ -1185,6 +1095,15 @@ public func quillMenuElements(from view: any View) -> [MenuElement] {
 
     if let shortcut = view as? any QuillKeyboardShortcutRepresentable {
         return quillMenuElements(from: shortcut.quillShortcutContent)
+    }
+
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillMenuElements(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return [] }
+        return quillMenuElements(from: content)
     }
 
     if let wrapped = view as? any QuillWrappedViewRepresentable {
@@ -1241,6 +1160,15 @@ public func quillCommandMenuItems(from view: any View) -> [CommandMenuItem] {
     if let disabled = view as? any QuillDisabledRepresentable {
         return quillCommandMenuItems(from: disabled.quillDisabledContent)
             .map { quillCommandMenuItem($0, disabled: disabled.quillIsDisabled) }
+    }
+
+    if let conditional = view as? any QuillConditionalViewRepresentable {
+        return quillCommandMenuItems(from: conditional.quillActiveContent)
+    }
+
+    if let optional = view as? any QuillOptionalViewRepresentable {
+        guard let content = optional.quillOptionalContent else { return [] }
+        return quillCommandMenuItems(from: content)
     }
 
     if let wrapped = view as? any QuillWrappedViewRepresentable {

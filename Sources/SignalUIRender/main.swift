@@ -13,8 +13,241 @@ import QuillUIKit
 import UIKit
 import QuillFoundation
 import SignalUIRenderCore
+import SignalUI
+#if canImport(SignalApp)
+import SignalApp
+#endif
+#if canImport(SignalServiceKit)
+import SignalServiceKit
+#endif
 import Foundation
 import Dispatch
+
+@MainActor
+private final class DeferredSignalButtonClick {
+    let rootWidget: UnsafeMutableRawPointer
+    let cssClass: String
+    weak var viewController: UIViewController?
+
+    init(rootWidget: UnsafeMutableRawPointer, cssClass: String, viewController: UIViewController?) {
+        self.rootWidget = rootWidget
+        self.cssClass = cssClass
+        self.viewController = viewController
+    }
+
+    func run() {
+        logSignalInputBody(in: viewController, label: "before send click")
+        let didClick = quillSignalRenderClickButton(in: rootWidget, cssClass: cssClass)
+        let status = didClick ? "clicked send button" : "found no send button"
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: viewController, label: "after send click")
+        logSignalAcceptedInteractionSummary(label: "after send click interactions")
+    }
+}
+
+private let deferredSignalButtonClick: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalButtonClick>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
+@MainActor
+private final class DeferredSignalButtonLabelClick {
+    let rootWidget: UnsafeMutableRawPointer
+    let window: UnsafeMutablePointer<GtkWindow>
+    let labelText: String
+    weak var viewController: UIViewController?
+
+    init(rootWidget: UnsafeMutableRawPointer, window: UnsafeMutablePointer<GtkWindow>, labelText: String, viewController: UIViewController?) {
+        self.rootWidget = rootWidget
+        self.window = window
+        self.labelText = labelText
+        self.viewController = viewController
+    }
+
+    func run() {
+        logSignalInputBody(in: viewController, label: "before button label click")
+        let didClick = quillSignalRenderClickButton(in: rootWidget, labelText: labelText)
+        let status = didClick ? "clicked button label=\"\(labelText)\"" : "found no button label=\"\(labelText)\""
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: viewController, label: "after button label click")
+        guard didClick, let viewController else { return }
+        Task { @MainActor in
+            let delayMS = UInt64(
+                ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_RERENDER_DELAY_MS"]
+                    .flatMap(UInt64.init) ?? 1_600
+            )
+            if delayMS > 0 {
+                try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+            }
+            #if canImport(SignalApp)
+            if labelText == "Continue" {
+                do {
+                    let summary = try await QuillSignalRealConversationProbe.settlePendingRequestContinuation(in: viewController)
+                    FileHandle.standardError.write(Data("signal-ui-render: pending request continuation settled \(summary)\n".utf8))
+                } catch {
+                    FileHandle.standardError.write(Data("signal-ui-render: pending request continuation failed error=\"\(error)\"\n".utf8))
+                }
+            }
+            #endif
+            rerenderRootViewController(viewController, in: window, reason: "button label click \"\(labelText)\"")
+        }
+    }
+}
+
+private let deferredSignalButtonLabelClick: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalButtonLabelClick>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
+@MainActor
+private func rerenderRootViewController(_ vc: UIViewController, in window: UnsafeMutablePointer<GtkWindow>, reason: String) {
+    vc.view.layoutIfNeeded()
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DUMP"] == "1" {
+        FileHandle.standardError.write(Data("signal-ui-render: rerendered UIKit tree after \(reason)\n".utf8))
+        dumpViewTree(vc.view, depth: 0)
+    }
+    guard let nextRootWidget = UIKitGtkRenderer.render(vc.view) else {
+        FileHandle.standardError.write(Data("signal-ui-render: rerender after \(reason) produced no widget\n".utf8))
+        return
+    }
+    gtk_window_set_child(window, nextRootWidget)
+    FileHandle.standardError.write(Data("signal-ui-render: rerendered root after \(reason)\n".utf8))
+}
+
+@MainActor
+private final class DeferredSignalIncomingInjection {
+    let text: String
+    weak var viewController: UIViewController?
+
+    init(text: String, viewController: UIViewController?) {
+        self.text = text
+        self.viewController = viewController
+    }
+
+    func run() {
+        guard let viewController else {
+            FileHandle.standardError.write(Data("signal-ui-render: incoming injection skipped missing view controller\n".utf8))
+            return
+        }
+        Task { @MainActor in
+            #if canImport(SignalApp)
+            do {
+                let summary = try await QuillSignalRealConversationProbe.injectAcceptedIncomingMessage(text, in: viewController)
+                FileHandle.standardError.write(Data("signal-ui-render: injected incoming message summary \(summary)\n".utf8))
+            } catch {
+                FileHandle.standardError.write(Data("signal-ui-render: incoming injection failed error=\"\(error)\"\n".utf8))
+            }
+            #else
+            FileHandle.standardError.write(Data("signal-ui-render: incoming injection unavailable SignalApp not linked\n".utf8))
+            #endif
+        }
+    }
+}
+
+private let deferredSignalIncomingInjection: @convention(c) (gpointer?) -> gboolean = { userData in
+    guard let userData else { return 0 }
+    let box = Unmanaged<DeferredSignalIncomingInjection>.fromOpaque(userData).takeRetainedValue()
+    MainActor.assumeIsolated {
+        box.run()
+    }
+    return 0
+}
+
+@MainActor
+private func logSignalInputBody(in viewController: UIViewController?, label: String) {
+    guard ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INPUT_BODY"] == "1" else { return }
+    guard let rootView = viewController?.view else {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) body unavailable\n".utf8))
+        return
+    }
+    guard let textView = firstBodyRangesTextView(in: rootView) else {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) body text view missing\n".utf8))
+        return
+    }
+    let body = textView.messageBodyForSending
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) body=\"\(body.text)\"\n".utf8))
+}
+
+@MainActor
+private func logSignalAcceptedInteractionSummary(label: String) {
+    guard ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INTERACTIONS"] == "1" else { return }
+    let delayMS = UInt64(
+        ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_LOG_INTERACTIONS_DELAY_MS"]
+            .flatMap(UInt64.init) ?? 1200
+    )
+    let summaryLabel = label
+    Task.detached {
+        if delayMS > 0 {
+            try? await Task.sleep(nanoseconds: delayMS * 1_000_000)
+        }
+        #if canImport(SignalApp)
+        if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE"] == "1" {
+            await logSignalSendQueueDrain(label: "\(summaryLabel) send queue")
+        }
+        do {
+            let summary = try QuillSignalRealConversationProbe.acceptedInteractionDebugSummary()
+            FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) \(summary)\n".utf8))
+        } catch {
+            FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) unavailable error=\"\(error)\"\n".utf8))
+        }
+        #else
+        FileHandle.standardError.write(Data("signal-ui-render: \(summaryLabel) unavailable SignalApp not linked\n".utf8))
+        #endif
+    }
+}
+
+private enum SignalRenderSendQueueDrainError: Error {
+    case timedOut
+}
+
+private func logSignalSendQueueDrain(label: String) async {
+    #if canImport(SignalServiceKit)
+    let timeoutMS = UInt64(
+        ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE_TIMEOUT_MS"]
+            .flatMap(UInt64.init) ?? 4_000
+    )
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) draining\n".utf8))
+    do {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask {
+                try await ThreadUtil.enqueueSendQueue.enqueue(operation: {}).value
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutMS * 1_000_000)
+                throw SignalRenderSendQueueDrainError.timedOut
+            }
+            _ = try await group.next()
+            group.cancelAll()
+        }
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) drained\n".utf8))
+    } catch {
+        FileHandle.standardError.write(Data("signal-ui-render: \(label) drain error=\"\(error)\"\n".utf8))
+    }
+    #else
+    FileHandle.standardError.write(Data("signal-ui-render: \(label) drain unavailable SignalServiceKit not linked\n".utf8))
+    #endif
+}
+
+@MainActor
+private func firstBodyRangesTextView(in view: UIView) -> BodyRangesTextView? {
+    if let textView = view as? BodyRangesTextView {
+        return textView
+    }
+    for subview in view.subviews {
+        if let textView = firstBodyRangesTextView(in: subview) {
+            return textView
+        }
+    }
+    return nil
+}
 
 // MARK: - First-light demo view controller (trivial; no SignalUI dependency)
 
@@ -163,7 +396,71 @@ func renderRootViewController(_ vc: UIViewController, title: String, width: Int,
     title.withCString { gtk_window_set_title(winPtr, $0) }
     gtk_window_set_default_size(winPtr, gint(width), gint(height))
     gtk_window_set_child(winPtr, rootWidget)
+
+    if let typedText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_TYPE_TEXT"],
+       !typedText.isEmpty {
+        let didSet = quillSignalRenderSetFirstTextEntry(
+            in: UnsafeMutableRawPointer(rootWidget),
+            text: typedText
+        )
+        let status = didSet ? "updated first text entry" : "found no text entry"
+        FileHandle.standardError.write(Data("signal-ui-render: \(status)\n".utf8))
+        logSignalInputBody(in: vc, label: "after text entry")
+    }
+
+    if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_SEND"] == "1" {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_SEND_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 250
+        )
+        let box = Unmanaged.passRetained(DeferredSignalButtonClick(
+            rootWidget: UnsafeMutableRawPointer(rootWidget),
+            cssClass: "signal-uikit-button-send",
+            viewController: vc
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalButtonClick, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled send button click\n".utf8))
+    }
+
+    if let labelText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL"],
+       !labelText.isEmpty {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 700
+        )
+        let box = Unmanaged.passRetained(DeferredSignalButtonLabelClick(
+            rootWidget: UnsafeMutableRawPointer(rootWidget),
+            window: winPtr,
+            labelText: labelText,
+            viewController: vc
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalButtonLabelClick, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled button label click \"\(labelText)\"\n".utf8))
+    }
+
+    if let incomingText = ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"],
+       !incomingText.isEmpty {
+        let delayMS = UInt32(
+            ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_INJECT_INCOMING_DELAY_MS"]
+                .flatMap(UInt32.init) ?? 900
+        )
+        let box = Unmanaged.passRetained(DeferredSignalIncomingInjection(
+            text: incomingText,
+            viewController: vc
+        )).toOpaque()
+        g_timeout_add(guint(delayMS), deferredSignalIncomingInjection, box)
+        FileHandle.standardError.write(Data("signal-ui-render: scheduled incoming injection\n".utf8))
+    }
+
     gtk_window_present(winPtr)
+}
+
+@MainActor
+func runGtkMainLoopCooperatively() async {
+    while true {
+        while g_main_context_iteration(nil, 0) != 0 {}
+        try? await Task.sleep(nanoseconds: 2_000_000)
+    }
 }
 
 // MARK: - Entry
@@ -210,9 +507,7 @@ if selectedDemo == "ssk-bootstrap" || selectedDemo == "real-conversation" || sel
                 height = 280
             }
             renderRootViewController(vc, title: title, width: width, height: height, windowBackground: "#FFFFFF")
-            let loop = g_main_loop_new(nil, 0)
-            g_main_loop_run(loop)
-            g_main_loop_unref(loop)
+            await runGtkMainLoopCooperatively()
         }
     }
     dispatchMain()

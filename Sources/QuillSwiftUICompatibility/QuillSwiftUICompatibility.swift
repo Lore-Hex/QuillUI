@@ -3,6 +3,7 @@ import Foundation
 import QuillFoundation
 
 #if os(Linux)
+#if !QUILLUI_NO_COMPAT_MACROS
 /// SwiftUI's iOS-18 `@Entry` macro for `EnvironmentValues` entries, backed by
 /// `QuillDataMacros.QuillEntryMacro`. Expands `@Entry var name: T = default`
 /// into a computed get/set plus a private `EnvironmentKey` peer that carries
@@ -17,6 +18,7 @@ public macro Entry() = #externalMacro(module: "QuillDataMacros", type: "QuillEnt
 /// previews compiles. Backed by `QuillDataMacros.QuillPreviewMacro`.
 @freestanding(declaration)
 public macro Preview<Content>(_ name: String? = nil, @ViewBuilder body: () -> Content) = #externalMacro(module: "QuillDataMacros", type: "QuillPreviewMacro")
+#endif
 #endif
 
 #if os(Linux)

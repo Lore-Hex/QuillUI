@@ -3,7 +3,7 @@ import QuillUI
 import QuillWireGuardCore
 import SwiftUI
 
-#if canImport(WireGuardKit)
+#if canImport(WireGuardKit) && !os(Linux)
 import WireGuardKit
 #endif
 
@@ -516,7 +516,7 @@ public typealias ContentView = WireGuardFallbackConfigurationView
 public struct ContentView: View {
     public init() {}
 
-    #if canImport(WireGuardKit)
+    #if canImport(WireGuardKit) && !os(Linux)
     @State private var tunnels: [TunnelConfiguration] = []
     @State private var selectedTunnelName: String?
 

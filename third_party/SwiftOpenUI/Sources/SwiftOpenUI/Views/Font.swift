@@ -43,6 +43,16 @@ public enum Font: Equatable {
     ) -> Font {
         .custom(size: size, weight: weight, design: design)
     }
+
+    /// SwiftUI accepts platform fonts with `Font(NSFont)` / `Font(UIFont)`.
+    /// Keep SwiftOpenUI platform-neutral by reading the common `pointSize`
+    /// storage shape instead of importing AppKit/UIKit into the core target.
+    public init(_ platformFont: Any) {
+        let reflectedPointSize = Mirror(reflecting: platformFont).children
+            .first { $0.label == "pointSize" }
+            .flatMap { Double(String(describing: $0.value)) }
+        self = .system(size: reflectedPointSize ?? 13)
+    }
 }
 
 // SwiftUI nests these on `Font` (`Font.Weight` / `Font.Design` / `Font.TextStyle`);

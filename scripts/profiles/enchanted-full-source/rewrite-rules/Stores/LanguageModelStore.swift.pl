@@ -8,9 +8,7 @@ init(swiftDataService: SwiftDataService) {
             || environment["QUILLUI_QUILL_CHAT_REFERENCE_MODE"] == "1" {
             let vision = environment["QUILLUI_ENCHANTED_REFERENCE_VISION_MODEL"] == "1" || environment["QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL"] == "1"
             let fallbackModel = LanguageModelSD(name: vision ? "llava:latest" : "mistral-7b-reference-linux:latest", imageSupport: vision, modelProvider: .ollama)
-            self.models = [fallbackModel]
-            self.selectedModel = fallbackModel
-            self.supportsImages = fallbackModel.supportsImages
+            MainActor.assumeIsolated { self.models = [fallbackModel]; self.selectedModel = fallbackModel; self.supportsImages = fallbackModel.supportsImages }
         }
     }
 SWIFT

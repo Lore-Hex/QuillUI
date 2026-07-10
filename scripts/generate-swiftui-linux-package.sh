@@ -14,6 +14,11 @@ PACKAGE_NAME="${QUILLUI_GENERATED_PACKAGE_NAME:-GeneratedSwiftUILinuxApp}"
 PRODUCT_NAME="${QUILLUI_GENERATED_PRODUCT_NAME:-swiftui-linux-app}"
 TARGET_NAME="${QUILLUI_GENERATED_TARGET_NAME:-GeneratedSwiftUILinuxApp}"
 BUILD_SCRATCH="${QUILLUI_GENERATED_BUILD_SCRATCH:-${WORK_ROOT:+$WORK_ROOT/.build-check}}"
+TARGET_LAYOUT_FILE="${QUILLUI_GENERATED_TARGET_LAYOUT_FILE:-}"
+EXTRA_PACKAGE_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}"
+EXTRA_TARGET_DEPENDENCIES_FILE="${QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE:-}"
+PREPARED_PACKAGE_CACHE_DIR="${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-}"
+PREPARED_PACKAGE_DEPENDENCIES_FILE=""
 INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
 BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
@@ -62,6 +67,16 @@ validate_swift_type() {
   if [[ ! "$value" =~ ^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$ ]]; then
     echo "$label must be a Swift type path, got: $value" >&2
     exit 64
+  fi
+}
+
+validate_relative_path() {
+  local value="$1"
+  local label="$2"
+
+  if [[ -z "$value" || "$value" = /* || "$value" == *"/../"* || "$value" == ../* || "$value" == *"/.." ]]; then
+    echo "$label must stay relative to the generated source dir, got: ${value:-<empty>}" >&2
+    exit 65
   fi
 }
 
@@ -114,14 +129,27 @@ fi
 
 TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
 RESOURCE_DIR="$TARGET_DIR/Resources"
+REQUESTED_PACKAGE_DIR="$PACKAGE_DIR"
+PACKAGE_PARENT_DIR="$(dirname "$REQUESTED_PACKAGE_DIR")"
+PACKAGE_STAGING_DIR="$PACKAGE_PARENT_DIR/.$(basename "$REQUESTED_PACKAGE_DIR").staging.$$"
 backend_import="QuillUI"
 backend_runner="QuillApp"
 backend_launch_statement=""
 copy_source_files=1
 target_dependencies=""
 target_resources=""
+target_definitions=""
+extra_package_dependencies=""
+extra_target_dependencies=""
+generated_swift_count_dir="$TARGET_DIR"
+generated_swift_count_relative="Sources/$TARGET_NAME"
 
-rm -rf "$PACKAGE_DIR"
+rm -rf "$PACKAGE_STAGING_DIR"
+trap 'rm -rf "$PACKAGE_STAGING_DIR"' EXIT
+PACKAGE_DIR="$PACKAGE_STAGING_DIR"
+TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+RESOURCE_DIR="$TARGET_DIR/Resources"
+generated_swift_count_dir="$TARGET_DIR"
 mkdir -p "$TARGET_DIR"
 
 if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
@@ -152,36 +180,29 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
     backend_launch_statement="${backend_runner}.run(${APP_ENTRY_TYPE}.self)"
   fi
 
+  appkit_runtime_import=""
+  appkit_runtime_install=""
+  if [[ "$BACKEND_FACADE" != "qt" ]]; then
+    appkit_runtime_import=$'#if canImport(QuillAppKitGTK)\nimport QuillAppKitGTK\n#endif\n'
+    appkit_runtime_install=$'        #if canImport(QuillAppKitGTK)\n        _ = QuillAppKitGTKAutoInstall.didInstall\n        #endif\n'
+  fi
+
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
 import $backend_import
+$appkit_runtime_import
 
 @main
 struct $APP_MAIN_TYPE {
     static func main() {
+$appkit_runtime_install
         $backend_launch_statement
     }
 }
 SWIFT
 fi
 
-if [[ "$copy_source_files" == "1" ]]; then
-  while IFS= read -r -d '' source_file; do
-    relative_path="${source_file#$SOURCE_DIR/}"
-    destination_file="$TARGET_DIR/$relative_path"
-    mkdir -p "$(dirname "$destination_file")"
-    cp "$source_file" "$destination_file"
-  done < <(find "$SOURCE_DIR" -name '*.swift' -print0)
-
-  python3 "$ROOT_DIR/scripts/copy-swiftui-linux-resources.py" \
-    --source-dir "$SOURCE_DIR" \
-    --output-dir "$RESOURCE_DIR"
-  if [[ -d "$RESOURCE_DIR" ]]; then
-    target_resources='            resources: [.copy("Resources")],
-'
-  fi
-fi
-
 source_target_dependencies='                .product(name: "SwiftUI", package: "QuillUI"),
+                .product(name: "SwiftUIIntrospect", package: "QuillUI"),
                 .product(name: "SwiftData", package: "QuillUI"),
                 .product(name: "Combine", package: "QuillUI"),
                 .product(name: "UniformTypeIdentifiers", package: "QuillUI"),
@@ -197,15 +218,26 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "AsyncAlgorithms", package: "QuillUI"),
                 .product(name: "AppKit", package: "QuillUI"),
                 .product(name: "AVFoundation", package: "QuillUI"),
+                .product(name: "AVKit", package: "QuillUI"),
                 .product(name: "Speech", package: "QuillUI"),
+                .product(name: "PDFKit", package: "QuillUI"),
                 .product(name: "PhotosUI", package: "QuillUI"),
+                .product(name: "QuickLook", package: "QuillUI"),
+                .product(name: "QuickLookUI", package: "QuillUI"),
                 .product(name: "UIKit", package: "QuillUI"),
                 .product(name: "IOKit", package: "QuillUI"),
                 .product(name: "Security", package: "QuillUI"),
                 .product(name: "ServiceManagement", package: "QuillUI"),
                 .product(name: "Sparkle", package: "QuillUI"),
+                .product(name: "OSLog", package: "QuillUI"),
+                .product(name: "UserNotifications", package: "QuillUI"),
                 .product(name: "ApplicationServices", package: "QuillUI"),
                 .product(name: "CoreGraphics", package: "QuillUI"),
+                .product(name: "CoreSpotlight", package: "QuillUI"),
+                .product(name: "ExtensionFoundation", package: "QuillUI"),
+                .product(name: "ExtensionKit", package: "QuillUI"),
+                .product(name: "Network", package: "QuillUI"),
+                .product(name: "CryptoKit", package: "QuillUI"),
                 .product(name: "Alamofire", package: "QuillUI"),
                 .product(name: "os", package: "QuillUI"),
                 .product(name: "QuillUI", package: "QuillUI"),
@@ -214,9 +246,220 @@ source_target_dependencies='                .product(name: "SwiftUI", package: "
                 .product(name: "QuillFoundation", package: "QuillUI"),
                 .product(name: "QuillShims", package: "QuillUI")'
 
+swift_dependency_entry() {
+  local dependency="$1"
+  local kind=""
+  local product_name=""
+  local package_name=""
+  local extra=""
+
+  if [[ "$dependency" == product:* ]]; then
+    IFS=: read -r kind product_name package_name extra <<<"$dependency"
+    if [[ "$kind" != "product" || -z "$product_name" || -z "$package_name" || -n "${extra:-}" ]]; then
+      echo "Invalid product dependency token: $dependency" >&2
+      exit 65
+    fi
+    validate_package_token "$product_name" "product dependency name"
+    validate_package_token "$package_name" "product dependency package"
+    printf '                .product(name: "%s", package: "%s")' "$product_name" "$package_name"
+  else
+    validate_package_token "$dependency" "target dependency name"
+    printf '                "%s"' "$dependency"
+  fi
+}
+
+dependencies_block() {
+  local dependency_list="${1:-}"
+  local block="$source_target_dependencies"
+  local dependency=""
+  local entry=""
+
+  IFS=, read -ra dependencies <<<"$dependency_list"
+  for dependency in "${dependencies[@]}"; do
+    dependency="${dependency#"${dependency%%[![:space:]]*}"}"
+    dependency="${dependency%"${dependency##*[![:space:]]}"}"
+    [[ -n "$dependency" ]] || continue
+    entry="$(swift_dependency_entry "$dependency")"
+    block="$(printf '%s,\n%s' "$block" "$entry")"
+  done
+
+  printf '%s' "$block"
+}
+
+append_target_definition() {
+  local target_name="$1"
+  local dependency_list="$2"
+  local resources_line="$3"
+  local target_kind=".target"
+  local target_dependency_entries
+  local target_swift_settings='                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"]),'
+
+  target_dependency_entries="$(dependencies_block "$dependency_list")"
+  if [[ "$target_name" == "$TARGET_NAME" ]]; then
+    target_kind=".executableTarget"
+  fi
+  if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" == "gtk" ]]; then
+    target_dependency_entries="$(printf '%s,\n                .product(name: "QuillUIGtk", package: "QuillUI")' "$target_dependency_entries")"
+  fi
+  if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" != "qt" ]]; then
+    target_dependency_entries="$(printf '%s,\n                .product(name: "QuillAppKitGTK", package: "QuillUI")' "$target_dependency_entries")"
+  fi
+  if [[ -n "$target_definitions" ]]; then
+    target_definitions+=$',
+'
+  fi
+  target_definitions+=$(cat <<SWIFT
+        $target_kind(
+            name: "$target_name",
+            dependencies: [
+$target_dependency_entries
+            ],
+            path: "Sources/$target_name",
+$resources_line
+            swiftSettings: [
+$target_swift_settings
+            ]
+        )
+SWIFT
+)
+}
+
+copy_swift_sources() {
+  local source_root="$1"
+  local destination_root="$2"
+  local source_file
+  local relative_path
+  local destination_file
+
+  while IFS= read -r -d '' source_file; do
+    relative_path="${source_file#$source_root/}"
+    destination_file="$destination_root/$relative_path"
+    if [[ "$(basename "$destination_file")" == "main.swift" ]]; then
+      destination_file="$(dirname "$destination_file")/QuillGeneratedMainSource.swift"
+    fi
+    mkdir -p "$(dirname "$destination_file")"
+    cp "$source_file" "$destination_file"
+  done < <(find "$source_root" -name '*.swift' -print0)
+}
+
+copy_resources_line() {
+  local source_root="$1"
+  local target_root="$2"
+  local target_resource_dir="$target_root/Resources"
+
+  python3 "$ROOT_DIR/scripts/copy-swiftui-linux-resources.py" \
+    --source-dir "$source_root" \
+    --output-dir "$target_resource_dir" >/dev/null
+  if [[ -d "$target_resource_dir" ]]; then
+    printf '            resources: [.copy("Resources")],\n'
+  fi
+}
+
+if [[ -n "$EXTRA_PACKAGE_DEPENDENCIES_FILE" ]]; then
+  if [[ ! -f "$EXTRA_PACKAGE_DEPENDENCIES_FILE" ]]; then
+    echo "Extra package dependency file was not found: $EXTRA_PACKAGE_DEPENDENCIES_FILE" >&2
+    exit 66
+  fi
+  PREPARED_PACKAGE_DEPENDENCIES_FILE="$WORK_ROOT/prepared-package-dependencies.swift"
+  prepare_dependency_args=(
+    "$ROOT_DIR/scripts/prepare-swiftui-linux-package-dependencies.py"
+    --root-dir "$ROOT_DIR"
+    --work-root "$WORK_ROOT"
+    --dependencies-in "$EXTRA_PACKAGE_DEPENDENCIES_FILE"
+    --dependencies-out "$PREPARED_PACKAGE_DEPENDENCIES_FILE"
+  )
+  if [[ -n "$PREPARED_PACKAGE_CACHE_DIR" ]]; then
+    prepare_dependency_args+=(--prepared-cache-dir "$PREPARED_PACKAGE_CACHE_DIR")
+  fi
+  if [[ "${QUILLUI_REQUIRE_VENDORED_SOURCES:-}" =~ ^(1|true|yes)$ ]]; then
+    prepare_dependency_args+=(--require-vendored-sources)
+  fi
+  python3 "${prepare_dependency_args[@]}"
+  while IFS= read -r package_line || [[ -n "$package_line" ]]; do
+    package_line="${package_line%%#*}"
+    package_line="${package_line#"${package_line%%[![:space:]]*}"}"
+    package_line="${package_line%"${package_line##*[![:space:]]}"}"
+    [[ -n "$package_line" ]] || continue
+    extra_package_dependencies+=$(printf ',\n        %s' "$package_line")
+  done < "$PREPARED_PACKAGE_DEPENDENCIES_FILE"
+fi
+
+if [[ -n "$EXTRA_TARGET_DEPENDENCIES_FILE" ]]; then
+  if [[ ! -f "$EXTRA_TARGET_DEPENDENCIES_FILE" ]]; then
+    echo "Extra target dependency file was not found: $EXTRA_TARGET_DEPENDENCIES_FILE" >&2
+    exit 66
+  fi
+  while IFS= read -r dependency_line || [[ -n "$dependency_line" ]]; do
+    dependency_line="${dependency_line%%#*}"
+    dependency_line="${dependency_line#"${dependency_line%%[![:space:]]*}"}"
+    dependency_line="${dependency_line%"${dependency_line##*[![:space:]]}"}"
+    [[ -n "$dependency_line" ]] || continue
+    if [[ -n "$extra_target_dependencies" ]]; then
+      extra_target_dependencies+=","
+    fi
+    extra_target_dependencies+="$dependency_line"
+  done < "$EXTRA_TARGET_DEPENDENCIES_FILE"
+fi
+
+if [[ "$copy_source_files" == "1" ]]; then
+  if [[ -n "$TARGET_LAYOUT_FILE" ]]; then
+    if [[ ! -f "$TARGET_LAYOUT_FILE" ]]; then
+      echo "Target layout file was not found: $TARGET_LAYOUT_FILE" >&2
+      exit 66
+    fi
+
+    layout_targets=$'\n'
+    while IFS=$'\t' read -r layout_target layout_source_dir layout_dependencies layout_extra || [[ -n "${layout_target:-}" ]]; do
+      layout_target="${layout_target%%#*}"
+      [[ -n "${layout_target//[[:space:]]/}" ]] || continue
+      if [[ -n "${layout_extra:-}" ]]; then
+        echo "Target layout rows must have at most 3 tab-separated columns: $layout_target" >&2
+        exit 65
+      fi
+      validate_swift_identifier "$layout_target" "target layout target name"
+      validate_relative_path "$layout_source_dir" "target layout source dir"
+      layout_source_root="$SOURCE_DIR/$layout_source_dir"
+      if [[ ! -d "$layout_source_root" ]]; then
+        echo "Target layout source directory was not found: $layout_source_root" >&2
+        exit 66
+      fi
+      layout_target_root="$PACKAGE_DIR/Sources/$layout_target"
+      mkdir -p "$layout_target_root"
+      copy_swift_sources "$layout_source_root" "$layout_target_root"
+      target_resources="$(copy_resources_line "$layout_source_root" "$layout_target_root")"
+      layout_dependency_list="${layout_dependencies:-}"
+      if [[ "$layout_target" == "$TARGET_NAME" && -n "$extra_target_dependencies" ]]; then
+        if [[ -n "$layout_dependency_list" ]]; then
+          layout_dependency_list+=",$extra_target_dependencies"
+        else
+          layout_dependency_list="$extra_target_dependencies"
+        fi
+      fi
+      append_target_definition "$layout_target" "$layout_dependency_list" "$target_resources"
+      layout_targets="${layout_targets}${layout_target}"$'\n'
+    done < "$TARGET_LAYOUT_FILE"
+    if [[ "$INCLUDE_BACKEND_ENTRY" == "1" && "$layout_targets" != *$'\n'"$TARGET_NAME"$'\n'* ]]; then
+      echo "Target layout must include QUILLUI_GENERATED_TARGET_NAME=$TARGET_NAME when backend entry generation is enabled" >&2
+      exit 65
+    fi
+    generated_swift_count_dir="$PACKAGE_DIR/Sources"
+    generated_swift_count_relative="Sources"
+  else
+    copy_swift_sources "$SOURCE_DIR" "$TARGET_DIR"
+
+    target_resources="$(copy_resources_line "$SOURCE_DIR" "$TARGET_DIR")"
+    append_target_definition "$TARGET_NAME" "$extra_target_dependencies" "$target_resources"
+  fi
+elif [[ "$BACKEND_FACADE" == "qt" ]]; then
+  target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'
+fi
+
 case "$BACKEND_FACADE" in
   qt)
-    target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'
+    if [[ "$copy_source_files" == "1" ]]; then
+      target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'
+    fi
     ;;
   gtk)
     target_dependencies="$(printf '%s,\n                .product(name: "QuillUIGtk", package: "QuillUI")' "$source_target_dependencies")"
@@ -225,6 +468,22 @@ case "$BACKEND_FACADE" in
     target_dependencies="$source_target_dependencies"
     ;;
 esac
+
+if [[ -z "$target_definitions" ]]; then
+  target_definitions=$(cat <<SWIFT
+        .executableTarget(
+            name: "$TARGET_NAME",
+            dependencies: [
+$target_dependencies
+            ],
+$target_resources            swiftSettings: [
+                .swiftLanguageMode(.v5),
+                .unsafeFlags(["-strict-concurrency=minimal"])
+            ]
+        )
+SWIFT
+)
+fi
 
 cat > "$PACKAGE_DIR/Package.swift" <<SWIFT
 // swift-tools-version: 6.0
@@ -237,25 +496,44 @@ let package = Package(
         .executable(name: "$PRODUCT_NAME", targets: ["$TARGET_NAME"])
     ],
     dependencies: [
-        .package(name: "QuillUI", path: "$ROOT_DIR")
+        .package(name: "QuillUI", path: "$ROOT_DIR")$extra_package_dependencies
     ],
     targets: [
-        .executableTarget(
-            name: "$TARGET_NAME",
-            dependencies: [
-$target_dependencies
-            ],
-$target_resources
-            swiftSettings: [
-                .swiftLanguageMode(.v5)
-            ]
-        )
+$target_definitions
     ]
 )
 SWIFT
 
+sync_generated_package() {
+  local staging_dir="$1"
+  local destination_dir="$2"
+  local relative_destination="${destination_dir#$ROOT_DIR/}"
+
+  if [[ -d "$destination_dir" ]] && diff -qr "$staging_dir" "$destination_dir" >/dev/null 2>&1; then
+    rm -rf "$staging_dir"
+    echo "Reused unchanged generated package: $relative_destination"
+    return 0
+  fi
+
+  mkdir -p "$destination_dir"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete --checksum "$staging_dir"/ "$destination_dir"/
+    rm -rf "$staging_dir"
+  else
+    rm -rf "$destination_dir"
+    mv "$staging_dir" "$destination_dir"
+  fi
+  echo "Updated generated package: $relative_destination"
+}
+
+sync_generated_package "$PACKAGE_STAGING_DIR" "$REQUESTED_PACKAGE_DIR"
+PACKAGE_DIR="$REQUESTED_PACKAGE_DIR"
+TARGET_DIR="$PACKAGE_DIR/Sources/$TARGET_NAME"
+RESOURCE_DIR="$TARGET_DIR/Resources"
+generated_swift_count_dir="$PACKAGE_DIR/$generated_swift_count_relative"
+
 source_count="$(find "$SOURCE_COUNT_DIR" -name '*.swift' | wc -l | tr -d ' ')"
-generated_count="$(find "$TARGET_DIR" -name '*.swift' | wc -l | tr -d ' ')"
+generated_count="$(find "$generated_swift_count_dir" -name '*.swift' | wc -l | tr -d ' ')"
 
 if [[ "$BACKEND_FACADE" != "qt" ]]; then
   # SwiftOpenUI is now vendored in-tree (third_party/SwiftOpenUI). The synthetic
@@ -301,11 +579,24 @@ if [[ "$BACKEND_FACADE" != "qt" ]]; then
   quillui_append_pkgconfig_flags "gtk4"
 fi
 
+quillui_generated_source_requires_macro_plugin() {
+  local source_root="$1"
+
+  grep -R -E -q --include='*.swift' '(^|[^[:alnum:]_])(@(Model|Attribute|Relationship|Transient)([^[:alnum:]_]|$)|#(Predicate|QuillPredicate)([^[:alnum:]_]|$))' "$source_root"
+}
+
+quillui_runtime_only_macros="${QUILLUI_RUNTIME_ONLY_MACROS:-1}"
+validate_boolean_flag "$quillui_runtime_only_macros" "QUILLUI_RUNTIME_ONLY_MACROS"
+if [[ "$quillui_runtime_only_macros" == "1" ]] && quillui_generated_source_requires_macro_plugin "$TARGET_DIR"; then
+  echo "==> generated source still contains Swift macro syntax; disabling runtime-only macro stubs"
+  quillui_runtime_only_macros=0
+fi
+
 if [[ "$BACKEND_FACADE" == "qt" ]]; then
-  QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=qt "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 else
-  QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
+  QUILLUI_RUNTIME_ONLY_MACROS="$quillui_runtime_only_macros" QUILLUI_LINUX_BACKEND=gtk "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
     "${quillui_build_args[@]}"
 fi
 

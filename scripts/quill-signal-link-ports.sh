@@ -439,6 +439,87 @@ if "quillSignalMissingPlaceholderFallbacks" not in text:
     if needle not in text:
         raise SystemExit(f"error: NSAttributedString placeholder hook not found in {path}")
     text = text.replace(needle, replacement, 1)
+if "quillSignalCorelibsSafeAttributes" not in text:
+    text = text.replace(
+        '''    ) -> NSAttributedString {
+        do {
+''',
+        '''    ) -> NSAttributedString {
+#if os(Linux)
+        let quillDefaultAttributes = quillSignalCorelibsSafeAttributes(defaultAttributes)
+#else
+        let quillDefaultAttributes = defaultAttributes
+#endif
+        do {
+''',
+        1,
+    )
+    text = text.replace("attributes: defaultAttributes", "attributes: quillDefaultAttributes")
+    text = text.replace(
+        "attributes: placeholder.attributesToApply",
+        "attributes: quillSignalCorelibsSafeAttributes(placeholder.attributesToApply)",
+    )
+    helper_needle = '''    private struct FormatArgPlaceholder {
+'''
+    helper = '''#if os(Linux)
+    private static func quillSignalCorelibsSafeAttributes(_ attributes: AttributedFormatArg.Attributes) -> AttributedFormatArg.Attributes {
+        // swift-corelibs Foundation can trap while comparing/storing UIKit
+        // objects such as UIColor and UIFont in attributed-string dictionaries.
+        // Signal's Linux render path only needs readable fallback text here; GTK
+        // widgets get their visual styling from the view tree/CSS bridge.
+        attributes.filter { key, value in
+            switch key {
+            case .foregroundColor, .backgroundColor, .font, .paragraphStyle:
+                return false
+            default:
+                return value is String || value is Int || value is UInt || value is Double || value is Bool || value is NSNumber || value is URL
+            }
+        }
+    }
+#else
+    private static func quillSignalCorelibsSafeAttributes(_ attributes: AttributedFormatArg.Attributes) -> AttributedFormatArg.Attributes {
+        attributes
+    }
+#endif
+
+    private struct FormatArgPlaceholder {
+'''
+    if helper_needle not in text:
+        raise SystemExit(f"error: NSAttributedString attributes hook not found in {path}")
+    text = text.replace(helper_needle, helper, 1)
+path.write_text(text)
+PY
+fi
+
+OWS_ACTION_SHEETS="$(dirname "$ROOT")/SignalUI/ActionSheets/OWSActionSheets.swift"
+if [ -f "$OWS_ACTION_SHEETS" ]; then
+python3 - "$OWS_ACTION_SHEETS" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+if "SIGNAL_UI_RENDER_AUTO_CONFIRM_ACTION_SHEETS" not in text:
+    needle = '''        let okAction = ActionSheetAction(
+            title: actionTitle,
+            style: proceedStyle,
+            handler: proceedAction,
+        )
+'''
+    replacement = needle + '''#if os(Linux)
+        if ProcessInfo.processInfo.environment["SIGNAL_UI_RENDER_AUTO_CONFIRM_ACTION_SHEETS"] == "1" {
+            FileHandle.standardError.write(Data("signal-ui-render: auto-confirmed action sheet title=\\"\\(title ?? "")\\" action=\\"\\(actionTitle)\\"\\n".utf8))
+            MainActor.assumeIsolated {
+                proceedAction(okAction)
+            }
+            return
+        }
+#endif
+'''
+    count = text.count(needle)
+    if count < 2:
+        raise SystemExit(f"error: OWSActionSheets confirmation hook not found in {path}")
+    text = text.replace(needle, replacement, 2)
 path.write_text(text)
 PY
 fi

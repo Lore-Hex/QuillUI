@@ -4,7 +4,7 @@ import SwiftUI
 @_spi(QuillTesting) import QuillUI
 import QuillWireGuardUI
 
-#if canImport(WireGuardKit)
+#if canImport(WireGuardKit) && !os(Linux)
 import WireGuardKit
 #endif
 

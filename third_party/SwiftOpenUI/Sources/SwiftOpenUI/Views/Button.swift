@@ -27,7 +27,25 @@ extension Button where Label == Text {
     }
 }
 
+extension Button where Label == SwiftOpenUI.Label<Text, Image> {
+    public init(_ title: String, systemImage: String, action: @escaping () -> Void) {
+        self.action = action
+        self.label = SwiftOpenUI.Label(title, systemImage: systemImage)
+        self.role = nil
+    }
+
+    public init(_ title: String, role: ButtonRole?, systemImage: String, action: @escaping () -> Void) {
+        self.action = action
+        self.label = SwiftOpenUI.Label(title, systemImage: systemImage)
+        self.role = role
+    }
+}
+
 extension Button {
+    public init(@ViewBuilder label: () -> Label, primaryAction: @escaping () -> Void) {
+        self.init(action: primaryAction, label: label)
+    }
+
     public init(action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
         self.init(role: nil, action: action, label: label)
     }

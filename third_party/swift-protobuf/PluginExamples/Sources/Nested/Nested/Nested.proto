@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message Nested {
+  string name = 1;
+  Nested next = 2;
+}

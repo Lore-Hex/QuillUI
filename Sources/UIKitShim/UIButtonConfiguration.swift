@@ -374,6 +374,11 @@ extension UIButton {
     public convenience init(configuration: UIButton.Configuration, primaryAction: UIAction? = nil) {
         self.init(frame: .zero)
         quillConfigurationState.primaryAction = primaryAction
+        if let primaryAction {
+            if !primaryAction.title.isEmpty { setTitle(primaryAction.title, for: .normal) }
+            if let image = primaryAction.image { setImage(image, for: .normal) }
+            addAction(primaryAction, for: .primaryActionTriggered)
+        }
         self.configuration = configuration
     }
 
@@ -440,6 +445,9 @@ extension UIButton {
         titleLabel?.text = configuration.attributedTitle.map { String($0.characters) }
             ?? configuration.title
         titleLabel?.lineBreakMode = configuration.titleLineBreakMode
+        if let titleFont = configuration.quillResolvedTitleFont() {
+            titleLabel?.font = titleFont
+        }
         switch configuration.titleAlignment {
         case .automatic:
             break
@@ -502,6 +510,18 @@ extension UIButton {
     public var adjustsImageWhenDisabled: Bool {
         get { quillConfigurationState.adjustsImageWhenDisabled }
         set { quillConfigurationState.adjustsImageWhenDisabled = newValue }
+    }
+}
+
+private extension UIButtonConfiguration {
+    func quillResolvedTitleFont() -> UIFont? {
+        if let attributedTitleFont = attributedTitle?.font {
+            return attributedTitleFont
+        }
+        guard let titleTextAttributesTransformer else {
+            return nil
+        }
+        return titleTextAttributesTransformer(AttributeContainer()).font
     }
 }
 

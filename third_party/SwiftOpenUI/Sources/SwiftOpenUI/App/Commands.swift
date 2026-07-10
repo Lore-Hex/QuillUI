@@ -72,10 +72,15 @@ public enum CommandGroupPlacement: Equatable, Hashable {
 	case sidebar
 	/// Replaces the Window Size commands (Window menu).
 	case windowSize
+	/// Replaces the single-window list commands (Window menu).
+	case singleWindowList
 	/// Replaces the Help commands (Help menu).
 	case help
 	/// Replaces text formatting commands.
 	case textFormatting
+
+	/// App-info commands live in the Help menu until backend app-menu support exists.
+	public static var appInfo: CommandGroupPlacement { .help }
 }
 
 // MARK: - CommandMenuItem
@@ -151,7 +156,7 @@ private func commandMenuTitle(for placement: CommandGroupPlacement) -> String {
 		return "Edit"
 	case .toolbar, .sidebar:
 		return "View"
-	case .windowSize:
+	case .windowSize, .singleWindowList:
 		return "Window"
 	case .help:
 		return "Help"
@@ -209,6 +214,8 @@ private func commandPlacementSortKey(_ placement: CommandGroupPlacement) -> (ran
 		}
 	case .windowSize:
 		return (80, "windowSize")
+	case .singleWindowList:
+		return (81, "singleWindowList")
 	case .help:
 		return (90, "help")
 	}
@@ -229,6 +236,20 @@ public struct CommandGroup: Commands {
 	) {
 		self.placement = placement
 		self.items = content()
+	}
+
+	public init(
+		before placement: CommandGroupPlacement,
+		@CommandMenuBuilder content: () -> [CommandMenuItem]
+	) {
+		self.init(replacing: placement, content: content)
+	}
+
+	public init(
+		after placement: CommandGroupPlacement,
+		@CommandMenuBuilder content: () -> [CommandMenuItem]
+	) {
+		self.init(replacing: placement, content: content)
 	}
 
 	public var body: Never { fatalError() }
@@ -321,12 +342,27 @@ public struct CommandsBuilder {
 		component ?? CommandCollection([])
 	}
 
+	public static func buildOptional<C: Commands>(_ component: C?) -> CommandCollection {
+		if let component {
+			return CommandCollection([component])
+		}
+		return CommandCollection([])
+	}
+
 	public static func buildEither(first component: CommandCollection) -> CommandCollection {
 		component
 	}
 
 	public static func buildEither(second component: CommandCollection) -> CommandCollection {
 		component
+	}
+
+	public static func buildEither<C: Commands>(first component: C) -> CommandCollection {
+		CommandCollection([component])
+	}
+
+	public static func buildEither<C: Commands>(second component: C) -> CommandCollection {
+		CommandCollection([component])
 	}
 }
 
@@ -368,6 +404,38 @@ extension DisabledView: CommandMenuDisabledRepresentable {
 @MainActor
 private protocol CommandMenuWrappedViewRepresentable {
 	var commandMenuWrappedContent: any View { get }
+}
+
+@MainActor
+private protocol CommandMenuConditionalRepresentable {
+	var commandMenuActiveContent: any View { get }
+}
+
+extension _ConditionalView: CommandMenuConditionalRepresentable {
+	var commandMenuActiveContent: any View {
+		switch self {
+		case .trueContent(let content):
+			return content
+		case .falseContent(let content):
+			return content
+		}
+	}
+}
+
+@MainActor
+private protocol CommandMenuOptionalRepresentable {
+	var commandMenuOptionalContent: (any View)? { get }
+}
+
+extension Optional: CommandMenuOptionalRepresentable where Wrapped: View {
+	var commandMenuOptionalContent: (any View)? {
+		switch self {
+		case .some(let content):
+			return content
+		case .none:
+			return nil
+		}
+	}
 }
 
 extension LineLimitView: CommandMenuWrappedViewRepresentable {
@@ -467,6 +535,13 @@ private func commandMenuTextLabel(from view: any View) -> String {
 	if let disabled = view as? any CommandMenuDisabledRepresentable {
 		return commandMenuTextLabel(from: disabled.commandMenuDisabledContent)
 	}
+	if let conditional = view as? any CommandMenuConditionalRepresentable {
+		return commandMenuTextLabel(from: conditional.commandMenuActiveContent)
+	}
+	if let optional = view as? any CommandMenuOptionalRepresentable {
+		guard let content = optional.commandMenuOptionalContent else { return "" }
+		return commandMenuTextLabel(from: content)
+	}
 	if let multi = view as? MultiChildView {
 		for child in multi.children {
 			let label = commandMenuTextLabel(from: child)
@@ -493,6 +568,13 @@ private func commandMenuItems(from view: any View) -> [CommandMenuItem] {
 	}
 	if let wrapped = view as? any CommandMenuWrappedViewRepresentable {
 		return commandMenuItems(from: wrapped.commandMenuWrappedContent)
+	}
+	if let conditional = view as? any CommandMenuConditionalRepresentable {
+		return commandMenuItems(from: conditional.commandMenuActiveContent)
+	}
+	if let optional = view as? any CommandMenuOptionalRepresentable {
+		guard let content = optional.commandMenuOptionalContent else { return [] }
+		return commandMenuItems(from: content)
 	}
 	if let multi = view as? MultiChildView {
 		return multi.children.flatMap(commandMenuItems)
@@ -571,6 +653,12 @@ extension CommandCollection: TupleCommandsProtocol {
 	}
 }
 
+extension Group: TupleCommandsProtocol where Content: Commands {
+	func collectInto(_ result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
+		collectCommandGroups(content, into: &result)
+	}
+}
+
 private func collectKnownCommand(_ command: any Commands, into result: inout [CommandGroupPlacement: [CommandMenuItem]]) {
 	if let group = command as? CommandGroup {
 		result[group.placement, default: []].append(contentsOf: group.items)
@@ -622,6 +710,21 @@ private func commandsDebugLog(_ message: String) {
 extension WindowGroup {
 	/// Attaches app-level menu commands to this window group.
 	public func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> WindowGroup {
+		commandsDebugLog("installed commands factory type=\(C.self)")
+		globalCommandsFactory = {
+			let commandTree = commands()
+			let groups = extractCommandGroups(from: commandTree)
+			let itemCount = groups.values.reduce(0) { $0 + $1.count }
+			commandsDebugLog("commands factory invoked type=\(C.self) placements=\(groups.count) items=\(itemCount)")
+			return groups
+		}
+		return self
+	}
+}
+
+public extension Scene {
+	/// Attaches app-level menu commands to any scene-like value.
+	func commands<C: Commands>(@CommandsBuilder _ commands: @escaping () -> C) -> Self {
 		commandsDebugLog("installed commands factory type=\(C.self)")
 		globalCommandsFactory = {
 			let commandTree = commands()

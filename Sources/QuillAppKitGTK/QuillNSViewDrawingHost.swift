@@ -702,12 +702,18 @@ private final class _DrawingHostBox {
             view.mouseUp(with: event)
         case .rightMouseDown:
             view.rightMouseDown(with: event)
+        case .otherMouseDown:
+            view.otherMouseDown(with: event)
         case .rightMouseUp:
             view.rightMouseUp(with: event)
+        case .otherMouseUp:
+            view.otherMouseUp(with: event)
         case .leftMouseDragged:
             view.mouseDragged(with: event)
         case .rightMouseDragged:
             view.rightMouseDragged(with: event)
+        case .otherMouseDragged:
+            view.otherMouseDragged(with: event)
         case .mouseMoved:
             view.mouseMoved(with: event)
         case .mouseEntered:
@@ -738,7 +744,8 @@ private extension NSEvent {
     var quillShouldInvalidateDrawingHost: Bool {
         switch type {
         case .leftMouseDown, .leftMouseUp, .rightMouseDown, .rightMouseUp,
-             .leftMouseDragged, .rightMouseDragged,
+             .otherMouseDown, .otherMouseUp,
+             .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
              .scrollWheel, .magnify, .smartMagnify:
             true
         case .mouseMoved, .mouseEntered, .mouseExited, .cursorUpdate,

@@ -15,12 +15,36 @@ public struct SafeAreaRegions: OptionSet, Equatable {
 public enum VerticalEdge: Equatable {
     case top
     case bottom
+
+    public struct Set: OptionSet, Equatable {
+        public let rawValue: Int
+
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+
+        public static let top = Set(rawValue: 1 << 0)
+        public static let bottom = Set(rawValue: 1 << 1)
+        public static let all: Set = [.top, .bottom]
+    }
 }
 
 /// A horizontal edge used by safe-area APIs.
 public enum HorizontalEdge: Equatable {
     case leading
     case trailing
+
+    public struct Set: OptionSet, Equatable {
+        public let rawValue: Int
+
+        public init(rawValue: Int) {
+            self.rawValue = rawValue
+        }
+
+        public static let leading = Set(rawValue: 1 << 0)
+        public static let trailing = Set(rawValue: 1 << 1)
+        public static let all: Set = [.leading, .trailing]
+    }
 }
 
 /// A normalized edge representation for stored safe-area inset modifiers.

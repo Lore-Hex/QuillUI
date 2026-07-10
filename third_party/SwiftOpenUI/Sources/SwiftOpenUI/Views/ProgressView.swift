@@ -1,3 +1,5 @@
+import Foundation
+
 /// A view that shows progress toward completion.
 public struct ProgressView: View {
     public typealias Body = Never
@@ -11,9 +13,36 @@ public struct ProgressView: View {
         self.total = total
     }
 
+    public init(_ progress: Progress) {
+        self.value = progress.fractionCompleted
+        self.total = 1.0
+    }
+
+    public init<Label: View>(@ViewBuilder label: () -> Label) {
+        _ = label()
+        self.value = nil
+        self.total = 1.0
+    }
+
+    public init<Label: View, CurrentValueLabel: View>(
+        value: Double?,
+        total: Double = 1.0,
+        @ViewBuilder label: () -> Label,
+        @ViewBuilder currentValueLabel: () -> CurrentValueLabel
+    ) {
+        _ = label()
+        _ = currentValueLabel()
+        self.value = value
+        self.total = total
+    }
+
+    public init<Label: View>(value: Double, total: Double = 1.0, @ViewBuilder label: () -> Label) {
+        _ = label()
+        self.value = value
+        self.total = total
+    }
+
     /// Create an indeterminate progress view.
-    /// Note: GTK4 backend currently renders as an empty progress bar.
-    /// Pulse animation is not yet implemented.
     public init() {
         self.value = nil
         self.total = 1.0

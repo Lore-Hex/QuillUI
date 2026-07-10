@@ -402,16 +402,6 @@ public struct PlainListStyle: Sendable {
 // LocalizedStringKey convenience overloads live in QuillSwiftUICompatibility,
 // which QuillUI re-exports.
 
-public extension TextField {
-    init(_ title: String, text: Binding<String>, axis: Axis) {
-        self.init(title, text: text)
-    }
-
-    init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
-        self.init(title, text: text)
-    }
-}
-
 // Axis.Set is the fork's typealias (Axis itself is the OptionSet) —
 // the old nested struct here competed with it and was removed.
 

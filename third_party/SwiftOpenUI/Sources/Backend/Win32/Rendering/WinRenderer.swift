@@ -1267,7 +1267,7 @@ class FlatButtonState {
             d2d1_RenderTarget_FillRoundedRectangle(rt, brush,
                 1, 1, w - 2, h - 2, cornerRadius, cornerRadius)
 
-        case .automatic, .bordered:
+        case .automatic, .bordered, .accessoryBarAction:
             // Default bordered button
             if !enabled {
                 d2d1_SolidColorBrush_SetColor(brush, 0.94, 0.94, 0.94, 1)

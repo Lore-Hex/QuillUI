@@ -6,7 +6,38 @@
 // This static-inline helper takes the no-arg form (sufficient for
 // the "clicked" signal on GtkButton) and is callable from Swift.
 static inline void quill_signal_emit_clicked(gpointer instance) {
+    if (instance == NULL || !GTK_IS_BUTTON(instance)) {
+        return;
+    }
     g_signal_emit_by_name(instance, "clicked");
+}
+
+static inline int quill_widget_is_button(gpointer instance) {
+    if (instance == NULL) {
+        return 0;
+    }
+    return GTK_IS_BUTTON(instance) ? 1 : 0;
+}
+
+static inline int quill_widget_is_label(gpointer instance) {
+    if (instance == NULL) {
+        return 0;
+    }
+    return GTK_IS_LABEL(instance) ? 1 : 0;
+}
+
+static inline const char *quill_label_get_text(gpointer instance) {
+    if (instance == NULL || !GTK_IS_LABEL(instance)) {
+        return "";
+    }
+    return gtk_label_get_text(GTK_LABEL(instance));
+}
+
+static inline int quill_widget_has_css_class(gpointer instance, const char *class_name) {
+    if (instance == NULL || class_name == NULL || !GTK_IS_WIDGET(instance)) {
+        return 0;
+    }
+    return gtk_widget_has_css_class(GTK_WIDGET(instance), class_name) ? 1 : 0;
 }
 
 // Non-variadic typed wrapper around g_signal_connect_data. Importing both the
@@ -30,13 +61,28 @@ static inline gulong quill_signal_connect_data(gpointer instance,
 // can't bind to interface types directly. These helpers accept a
 // gpointer to any GtkEditable-conforming widget (GtkEntry, GtkText,
 // GtkSpinButton, GtkSearchEntry, etc.).
+static inline int quill_widget_is_editable(gpointer instance) {
+    if (instance == NULL) {
+        return 0;
+    }
+    return GTK_IS_EDITABLE(instance) ? 1 : 0;
+}
 static inline const char *quill_editable_get_text(gpointer instance) {
+    if (instance == NULL || !GTK_IS_EDITABLE(instance)) {
+        return "";
+    }
     return gtk_editable_get_text(GTK_EDITABLE(instance));
 }
 static inline void quill_editable_set_text(gpointer instance, const char *text) {
+    if (instance == NULL || !GTK_IS_EDITABLE(instance)) {
+        return;
+    }
     gtk_editable_set_text(GTK_EDITABLE(instance), text);
 }
 static inline void quill_entry_set_placeholder_text(gpointer instance, const char *text) {
+    if (instance == NULL || !GTK_IS_ENTRY(instance)) {
+        return;
+    }
     gtk_entry_set_placeholder_text(GTK_ENTRY(instance), text);
 }
 

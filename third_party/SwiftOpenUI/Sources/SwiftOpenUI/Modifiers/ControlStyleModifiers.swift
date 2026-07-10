@@ -10,6 +10,8 @@ public enum ButtonStyleType: Equatable {
     case bordered
     /// Filled/prominent background.
     case borderedProminent
+    /// Compact accessory/action button chrome used in toolbars and inspector bars.
+    case accessoryBarAction
     /// QuillPaint macOS default button chrome.
     case quillPaintMacDefault
     /// QuillPaint macOS bordered button chrome.
@@ -90,12 +92,57 @@ public enum ToggleStyleType: Equatable {
     case automatic
     /// Checkbox appearance.
     case checkbox
+    /// Button-like toggle appearance.
+    case button
     /// Switch appearance.
     case `switch`
 }
 
+public final class ToggleStyleConfiguration {
+    public let label: AnyView
+    private let isOnBinding: Binding<Bool>
+
+    public var isOn: Bool {
+        get { isOnBinding.wrappedValue }
+        set { isOnBinding.wrappedValue = newValue }
+    }
+
+    public init(label: AnyView, isOn: Binding<Bool>) {
+        self.label = label
+        self.isOnBinding = isOn
+    }
+}
+
+@MainActor @preconcurrency
+public protocol ToggleStyle {
+    associatedtype Body: View
+    typealias Configuration = ToggleStyleConfiguration
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> Body
+}
+
+public struct AnyToggleStyle {
+    private let makeBodyClosure: @MainActor (ToggleStyleConfiguration) -> AnyView
+
+    public init<S: ToggleStyle>(_ style: S) {
+        self.makeBodyClosure = { configuration in
+            AnyView(style.makeBody(configuration: configuration))
+        }
+    }
+
+    @MainActor
+    public func makeBody(configuration: ToggleStyleConfiguration) -> AnyView {
+        makeBodyClosure(configuration)
+    }
+}
+
 struct ToggleStyleKey: EnvironmentKey {
     static let defaultValue: ToggleStyleType = .automatic
+}
+
+struct CustomToggleStyleKey: EnvironmentKey {
+    static let defaultValue: AnyToggleStyle? = nil
 }
 
 extension EnvironmentValues {
@@ -103,6 +150,30 @@ extension EnvironmentValues {
         get { self[ToggleStyleKey.self] }
         set { self[ToggleStyleKey.self] = newValue }
     }
+
+    public var customToggleStyle: AnyToggleStyle? {
+        get { self[CustomToggleStyleKey.self] }
+        set { self[CustomToggleStyleKey.self] = newValue }
+    }
+}
+
+// MARK: - Control Group Style
+
+public struct ControlGroupStyleConfiguration {
+    public let content: AnyView
+
+    public init(content: AnyView) {
+        self.content = content
+    }
+}
+
+@MainActor @preconcurrency
+public protocol ControlGroupStyle {
+    associatedtype Body: View
+    typealias Configuration = ControlGroupStyleConfiguration
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> Body
 }
 
 // MARK: - TextField Style
@@ -154,6 +225,22 @@ public struct ToggleStyleModifier<Content: View>: View, PrimitiveView {
     public var body: Never { fatalError() }
 }
 
+/// Sets a custom SwiftUI-style toggle style for descendant toggles.
+public struct CustomToggleStyleModifier<Content: View>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let style: AnyToggleStyle
+    public var body: Never { fatalError() }
+}
+
+/// Sets a custom SwiftUI-style control group style for descendant controls.
+public struct ControlGroupStyleModifier<Content: View, Style: ControlGroupStyle>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let style: Style
+    public var body: Never { fatalError() }
+}
+
 /// Sets the text field style for descendant text fields.
 public struct TextFieldStyleModifier<Content: View>: View, PrimitiveView {
     public typealias Body = Never
@@ -178,6 +265,18 @@ extension View {
     /// Sets the style for toggles within this view.
     public func toggleStyle(_ style: ToggleStyleType) -> ToggleStyleModifier<Self> {
         ToggleStyleModifier(content: self, style: style)
+    }
+
+    /// Sets a custom style for toggles within this view.
+    public func toggleStyle<S: ToggleStyle>(_ style: S) -> CustomToggleStyleModifier<Self> {
+        CustomToggleStyleModifier(content: self, style: AnyToggleStyle(style))
+    }
+
+    /// Accept custom control group styles. SwiftOpenUI has no native
+    /// ControlGroup primitive yet, so this modifier preserves the source shape
+    /// and renders the original content unchanged.
+    public func controlGroupStyle<S: ControlGroupStyle>(_ style: S) -> ControlGroupStyleModifier<Self, S> {
+        ControlGroupStyleModifier(content: self, style: style)
     }
 
     /// Sets the style for text fields within this view.

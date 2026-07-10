@@ -182,7 +182,7 @@ open class TSInfoMessage: TSMessage, OWSReadTracking {
         if let customMessage, !customMessage.isEmpty {
             return customMessage
         }
-        return String(describing: messageType)
+        return _infoMessagePreviewText(tx: transaction)
     }
 
     // MARK: OWSReadTracking

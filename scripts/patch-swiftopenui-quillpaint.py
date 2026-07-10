@@ -47,6 +47,337 @@ def patch_renderer(renderer_path: str) -> None:
             1,
         )
 
+    if "private func gtkFontCSS(_ font: Font)" not in text:
+        font_helper_marker = '''private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\\(red), \\(green), \\(blue), \\(color.alpha))"
+}
+
+// MARK: - GTK rendering protocol
+'''
+        font_helper_addition = '''let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \\(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \\(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \\(gtkFontSizeCSS(size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+    }
+}
+
+'''
+        font_helper = '''private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\\(red), \\(green), \\(blue), \\(color.alpha))"
+}
+
+let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \\(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \\(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \\(gtkFontSizeCSS(size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+    }
+}
+
+// MARK: - GTK rendering protocol
+'''
+        if font_helper_marker in text:
+            text = text.replace(font_helper_marker, font_helper, 1)
+        else:
+            protocol_marker = "// MARK: - GTK rendering protocol\n"
+            if protocol_marker not in text:
+                raise SystemExit("SwiftOpenUI font CSS helper insertion marker was not recognized")
+            text = text.replace(protocol_marker, font_helper_addition + protocol_marker, 1)
+
+    font_modified_index = text.find("extension FontModifiedView: GTKRenderable")
+    font_modified_end = text.find("\nextension ", font_modified_index + 1) if font_modified_index != -1 else -1
+    if font_modified_index != -1:
+        if font_modified_end == -1:
+            font_modified_end = len(text)
+        font_modified_section = text[font_modified_index:font_modified_end]
+        if "descendantSelectors: gtkFontDescendantSelectors" not in font_modified_section:
+            old_font_body = '''        let css: String
+        switch font {
+        case .largeTitle:  css = "font-size: 28px;"
+        case .title:       css = "font-size: 24px;"
+        case .title2:      css = "font-size: 20px; font-weight: bold;"
+        case .title3:      css = "font-size: 18px;"
+        case .headline:    css = "font-weight: bold;"
+        case .subheadline: css = "font-size: 12px; font-weight: bold;"
+        case .body:        css = "font-size: 14px;"
+        case .callout:     css = "font-size: 12px;"
+        case .footnote:    css = "font-size: 10px;"
+        case .caption:     css = "font-size: 12px;"
+        case .caption2:    css = "font-size: 10px; font-weight: bold;"
+        case .custom(let size, _, _): css = "font-size: \\(Int(size))px;"
+        }
+        applyCSSToWidget(widget, properties: css)
+'''
+            new_font_body = '''        let css = gtkFontCSS(font)
+        applyCSSToWidget(
+            widget,
+            properties: css.properties,
+            descendantSelectors: gtkFontDescendantSelectors
+        )
+        if let designMarker = css.designMarker {
+            gtk_widget_add_css_class(widget, designMarker)
+        }
+'''
+            if old_font_body not in font_modified_section:
+                raise SystemExit("SwiftOpenUI FontModifiedView font CSS shape was not recognized")
+            font_modified_section = font_modified_section.replace(old_font_body, new_font_body, 1)
+            text = text[:font_modified_index] + font_modified_section + text[font_modified_end:]
+
+    old_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    if (
+        "gtkFlushPendingTextBindingUpdate" in text
+        and "func bindActionToCurrentEnvironment(_ action:" in text
+        and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    ):
+        if old_bound_action_flush not in text:
+            raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
+        text = text.replace(old_bound_action_flush, new_bound_action_flush, 1)
+
+    old_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+    if (
+        "gtkFlushPendingTextBindingUpdate" in text
+        and "func bindActionToCurrentEnvironment<T>" in text
+        and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    ):
+        if old_bound_value_action_flush not in text:
+            raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
+        text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
+
     if "case .quillPaintMacDefault:" not in text:
         extension_index = text.find("extension Button: GTKRenderable")
         if extension_index == -1:
@@ -272,6 +603,45 @@ def patch_renderer(renderer_path: str) -> None:
     text_editor_end = text.find("\nextension ", text_editor_index + 1) if text_editor_index != -1 else -1
     if text_editor_end == -1:
         text_editor_end = len(text)
+    text_editor_section = text[text_editor_index:text_editor_end]
+    direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            if newText != binding.wrappedValue {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+    idle_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+    if "gtkScheduleTextBindingUpdate" in text and direct_text_editor_update in text_editor_section:
+        text = (
+            text[:text_editor_index]
+            + text_editor_section.replace(direct_text_editor_update, idle_text_editor_update, 1)
+            + text[text_editor_end:]
+        )
+        text_editor_end = text.find("\nextension ", text_editor_index + 1)
+        if text_editor_end == -1:
+            text_editor_end = len(text)
+        text_editor_section = text[text_editor_index:text_editor_end]
+    old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+'''
+    if (
+        "gtk_text_view_set_accepts_tab(textViewPtr, 1)" not in text_editor_section
+        and old_text_editor_options in text_editor_section
+    ):
+        new_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+        gtk_text_view_set_accepts_tab(textViewPtr, 1)
+'''
+        text = (
+            text[:text_editor_index]
+            + text_editor_section.replace(old_text_editor_options, new_text_editor_options, 1)
+            + text[text_editor_end:]
+        )
+        text_editor_end = text.find("\nextension ", text_editor_index + 1)
+        if text_editor_end == -1:
+            text_editor_end = len(text)
+        text_editor_section = text[text_editor_index:text_editor_end]
     if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
         old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
         return opaqueFromWidget(scrolled)

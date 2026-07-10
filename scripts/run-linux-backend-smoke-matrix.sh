@@ -37,6 +37,9 @@ MSG
 
 DRY_RUN=0
 SKIP_REPEATED_PRODUCTS=0
+SMOKE_ROW_TIMEOUT="${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-10m}"
+SMOKE_ROW_KILL_AFTER="${QUILLUI_BACKEND_SMOKE_ROW_KILL_AFTER:-15s}"
+SMOKE_TIMEOUT_COMMAND=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -161,6 +164,17 @@ fi
 
 if [[ "$DRY_RUN" != "1" ]]; then
   "$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}"
+  timeout_command="${QUILLUI_BACKEND_SMOKE_TIMEOUT_COMMAND:-}"
+  if [[ -z "$timeout_command" ]]; then
+    if command -v timeout >/dev/null 2>&1; then
+      timeout_command="timeout"
+    elif command -v gtimeout >/dev/null 2>&1; then
+      timeout_command="gtimeout"
+    fi
+  fi
+  if [[ -n "$timeout_command" ]]; then
+    SMOKE_TIMEOUT_COMMAND=("$timeout_command" "--kill-after=$SMOKE_ROW_KILL_AFTER" "$SMOKE_ROW_TIMEOUT")
+  fi
 fi
 
 BUILT_PRODUCTS_LIST=$'\n'
@@ -257,6 +271,7 @@ quillui_run_smoke_row() {
   local build_cache_key
   local verify_product=""
   local smoke_environment=()
+  local smoke_command=()
 
   output_path="$(quillui_smoke_output_path "$product" "$requested_backend" "$mode")"
   build_cache_key="$(quillui_smoke_build_cache_key "$product" "$requested_backend" "$runtime_backend")"
@@ -291,7 +306,12 @@ quillui_run_smoke_row() {
     else
       echo "==> Backend $KIND smoke: $product ($requested_backend requested, $runtime_backend runtime, $runtime_mode mode)"
     fi
-    env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$requested_backend"
+    smoke_command=(env "${smoke_environment[@]}" "$CHECK_SCRIPT" "$output_path" "$product" "$requested_backend")
+    if (( ${#SMOKE_TIMEOUT_COMMAND[@]} > 0 )); then
+      "${SMOKE_TIMEOUT_COMMAND[@]}" "${smoke_command[@]}"
+    else
+      "${smoke_command[@]}"
+    fi
   fi
 
   if [[ "$SKIP_REPEATED_PRODUCTS" == "1" ]] && ! quillui_smoke_product_was_built "$build_cache_key"; then

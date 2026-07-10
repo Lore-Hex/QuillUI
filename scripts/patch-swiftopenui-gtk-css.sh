@@ -26,7 +26,11 @@ SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swif
 SYMBOL_CODEPOINTS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
 SCROLL_VIEW="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollView.swift"
 SCROLL_VIEW_READER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
+
 LOCALIZATION="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Localization.swift"
+
+MENU_VIEW="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/Menu.swift"
+
 SWIFT_DEPENDENCIES_MAIN_QUEUE="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainQueue.swift"
 SWIFT_DEPENDENCIES_MAIN_RUN_LOOP="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies/DependencyValues/MainRunLoop.swift"
 SWIFT_DEPENDENCIES_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-dependencies/Sources/Dependencies"
@@ -39,6 +43,7 @@ CUSTOM_DUMP_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-custom-dump/Sources/Custom
 SWIFT_PERCEPTION_SOURCE_DIR="$SCRATCH_PATH/checkouts/swift-perception/Sources"
 XCTEST_DYNAMIC_OVERLAY_SOURCE_DIR="$SCRATCH_PATH/checkouts/xctest-dynamic-overlay/Sources/IssueReporting"
 GRDB_SOURCE_DIR="$SCRATCH_PATH/checkouts/GRDB.swift/GRDB"
+VENDORED_GRDB_SOURCE_DIR="$PACKAGE_PATH/third_party/GRDB.swift/GRDB"
 SQLITE_DATA_SOURCE_DIR="$SCRATCH_PATH/checkouts/sqlite-data/Sources/SQLiteData"
 
 # Resolve unconditionally so $SCRATCH_PATH/checkouts/ is populated BEFORE the
@@ -109,6 +114,7 @@ if [[ ! -f "$SCROLL_VIEW_READER" ]]; then
   exit 1
 fi
 
+
 if [[ ! -f "$SCROLL_VIEW" ]]; then
   echo "SwiftOpenUI ScrollView source was not found at $SCROLL_VIEW" >&2
   exit 1
@@ -120,6 +126,12 @@ if [[ ! -f "$LOCALIZATION" ]]; then
 fi
 
 chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$NAVIGATION_DESTINATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW" "$SCROLL_VIEW_READER" "$LOCALIZATION"
+
+chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
+if [[ -f "$MENU_VIEW" ]]; then
+  chmod u+w "$MENU_VIEW"
+fi
+
 if [[ -f "$GTK_SHIM" ]]; then
   chmod u+w "$GTK_SHIM"
 fi
@@ -462,23 +474,7 @@ let swiftOpenUIGTKLinkerFlags: [String] = []
 if "func swiftOpenUIPkgConfigArguments(" not in text:
     text = text.replace("import Foundation\n", "import Foundation\n\n" + helpers, 1)
 
-if 'pkgConfig: "gtk4"' not in text:
-    cgtk_system_library = """    .systemLibrary(
-        name: "CGTK",
-        path: "Sources/Backend/GTK4/CGTK",
-        providers: [.apt(["libgtk-4-dev"])]
-    ),
-"""
-    cgtk_system_library_patched = """    .systemLibrary(
-        name: "CGTK",
-        path: "Sources/Backend/GTK4/CGTK",
-        pkgConfig: "gtk4",
-        providers: [.apt(["libgtk-4-dev"])]
-    ),
-"""
-    if cgtk_system_library not in text:
-        raise SystemExit("SwiftOpenUI manifest CGTK system library shape was not recognized")
-    text = text.replace(cgtk_system_library, cgtk_system_library_patched, 1)
+text = text.replace('        pkgConfig: "gtk4",\n', '')
 
 replacements = [
     (
@@ -550,8 +546,8 @@ for old, new in replacements:
     if old in text:
         text = text.replace(old, new, 1)
 
-if 'pkgConfig: "gtk4"' not in text:
-    raise SystemExit("SwiftOpenUI manifest CGTK pkgConfig patch did not apply")
+if 'pkgConfig: "gtk4"' in text:
+    raise SystemExit("SwiftOpenUI manifest CGTK pkgConfig removal did not apply")
 if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
     raise SystemExit("SwiftOpenUI manifest GTK importer flag patch did not apply")
 if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
@@ -559,6 +555,61 @@ if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
 
 path.write_text(text)
 PY
+
+if [[ -f "$MENU_VIEW" ]]; then
+  python3 - "$MENU_VIEW" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+old_menu = """public struct Menu: View {
+    public typealias Body = Never
+
+    public let title: String
+    public let elements: [MenuElement]
+
+    public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.title = quillResolveLocalizedString(title)
+        self.elements = content()
+    }
+
+    public var body: Never { fatalError("Menu is a primitive view") }
+}
+"""
+new_menu = """public struct Menu: View {
+    public typealias Body = Never
+
+    public let title: String
+    public let elements: [MenuElement]
+    public let labelView: AnyView?
+
+    public init(_ title: String, @MenuBuilder content: () -> [MenuElement]) {
+        self.init(title, elements: content())
+    }
+
+    public init(_ title: String, elements: [MenuElement], labelView: AnyView? = nil) {
+        self.title = quillResolveLocalizedString(title)
+        self.elements = elements
+        self.labelView = labelView
+    }
+
+    public var body: Never { fatalError("Menu is a primitive view") }
+}
+"""
+
+if "public let labelView: AnyView?" not in text:
+    if old_menu not in text:
+        raise SystemExit("SwiftOpenUI Menu shape was not recognized")
+    text = text.replace(old_menu, new_menu, 1)
+
+if "public let labelView: AnyView?" not in text or "labelView: AnyView? = nil" not in text:
+    raise SystemExit("SwiftOpenUI Menu label storage patch did not apply")
+
+path.write_text(text)
+PY
+fi
 
 if [[ -f "$CONTROL_STYLE_MODIFIERS" ]]; then
   python3 - "$CONTROL_STYLE_MODIFIERS" <<'PY'
@@ -2515,8 +2566,10 @@ for path in root.rglob("*.swift"):
 PY
 fi
 
-if [[ -d "$GRDB_SOURCE_DIR" ]]; then
-  python3 - "$GRDB_SOURCE_DIR" <<'PY'
+for candidate_grdb_source_dir in "$GRDB_SOURCE_DIR" "$VENDORED_GRDB_SOURCE_DIR"; do
+  [[ -d "$candidate_grdb_source_dir" ]] || continue
+
+  python3 - "$candidate_grdb_source_dir" <<'PY'
 import sys
 import re
 from pathlib import Path
@@ -2554,7 +2607,7 @@ import CoreGraphics
             + "\n#endif\n"
         )
 PY
-fi
+done
 
 if [[ -d "$SQLITE_DATA_SOURCE_DIR" ]]; then
   python3 - "$SQLITE_DATA_SOURCE_DIR" <<'PY'
@@ -3613,7 +3666,7 @@ if "let buttonRootEventContext = Unmanaged.passRetained" not in text:
         raise SystemExit("SwiftOpenUI Button action box insertion point was not recognized")
     text = text.replace(action_box_line, root_context_activation, 1)
 
-if 'gtkScheduleButtonAction(box, source: "legacy")' not in text:
+if 'gtkScheduleButtonAction(box, source: "legacy"' not in text:
     button_legacy_marker = (
         "        gtk_swift_add_capture_gesture(button, gesture)\n"
         "        g_signal_connect_data(\n"
@@ -4767,12 +4820,14 @@ private func gtkFocusSheetEditable(
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
     guard gtk_swift_is_widget(widget) != 0 else { return }
     gtk_widget_set_can_target(widget, 1)
+    gtk_widget_set_can_focus(widget, 1)
     gtk_widget_set_focusable(widget, 1)
     let grabbed = gtk_swift_root_grab_focus(widget)
     gtkDebugLog("sheet focus widget grab=\\(grabbed) target=\\(gtkButtonDebugSource("editable", widget: widget))")
     if let delegate = gtk_editable_get_delegate(OpaquePointer(widget)) {
         let delegateWidget = UnsafeMutableRawPointer(delegate).assumingMemoryBound(to: GtkWidget.self)
         gtk_widget_set_can_target(delegateWidget, 1)
+        gtk_widget_set_can_focus(delegateWidget, 1)
         gtk_widget_set_focusable(delegateWidget, 1)
         _ = gtk_swift_root_grab_focus(delegateWidget)
         gtkScheduleSheetEditableFocus(delegateWidget)
@@ -4790,6 +4845,7 @@ private func gtkScheduleSheetEditableFocus(_ widget: UnsafeMutablePointer<GtkWid
         defer { g_object_unref(gpointer(target.widget)) }
         guard gtk_swift_is_widget(target.widget) != 0 else { return 0 }
         gtk_widget_set_can_target(target.widget, 1)
+        gtk_widget_set_can_focus(target.widget, 1)
         gtk_widget_set_focusable(target.widget, 1)
         let grabbed = gtk_swift_root_grab_focus(target.widget)
         gtkDebugLog("sheet focus idle grab=\\(grabbed) target=\\(gtkButtonDebugSource("editable", widget: target.widget))")
@@ -4920,7 +4976,7 @@ text = text.replace(
 """,
 )
 
-bool_sheet_overlay = '''        if gtkShouldRenderSheetInWindow() {
+bool_sheet_overlay = r'''        if gtkShouldRenderSheetInWindow() {
             let sheetView = sheetContent
             let binding = isPresented
             let userOnDismiss = onDismiss
@@ -7352,6 +7408,108 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
 path.write_text(text)
 PY
 
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+menu_helper = '''private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
+    let className = "gtk-swift-plain-menu-button"
+    let css = """
+    .\\(className),
+    menubutton.\\(className),
+    menubutton.\\(className) > button,
+    menubutton.\\(className) button {
+        background: transparent;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        outline: none;
+        padding: 0;
+        min-height: 0;
+        min-width: 0;
+        -gtk-icon-shadow: none;
+        text-shadow: none;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(button) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(button, "flat")
+    gtk_widget_add_css_class(button, className)
+    g_object_unref(gpointer(provider))
+}
+
+'''
+
+menu_marker = "extension Menu: GTKRenderable"
+if menu_marker in text:
+    if "private func gtkApplyPlainMenuButtonChrome" not in text:
+        text = text.replace(menu_marker, menu_helper + menu_marker, 1)
+
+    old_menu_renderer = '''extension Menu: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_menu_button_new()!
+        gtk_swift_menu_button_set_label(button, title)
+
+        let actionGroup = g_simple_action_group_new()!
+'''
+    new_menu_renderer = '''extension Menu: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_menu_button_new()!
+
+        let buttonStyleType = getCurrentEnvironment().buttonStyle
+        if let labelView {
+            let childWidget = widgetFromOpaque(gtkRenderView(labelView))
+            gtkDisableButtonChildTargeting(childWidget)
+            gtk_swift_menu_button_set_always_show_arrow(button, 0)
+            gtk_swift_menu_button_set_child(button, childWidget)
+            gtkApplyPlainMenuButtonChrome(to: button)
+        } else {
+            gtk_swift_menu_button_set_label(button, title)
+            if buttonStyleType == .plain {
+                gtk_swift_menu_button_set_always_show_arrow(button, 0)
+                gtkApplyPlainMenuButtonChrome(to: button)
+            }
+        }
+
+        let actionGroup = g_simple_action_group_new()!
+'''
+
+    if "gtkApplyPlainMenuButtonChrome(to: button)" not in text[text.find(menu_marker):]:
+        if old_menu_renderer not in text:
+            raise SystemExit("SwiftOpenUI Menu GTK renderer shape was not recognized")
+        text = text.replace(old_menu_renderer, new_menu_renderer, 1)
+
+    menu_start = text.find(menu_marker)
+    menu_end = text.find("\nprivate func gtkBuildMenuModel", menu_start)
+    if menu_start == -1 or menu_end == -1:
+        raise SystemExit("SwiftOpenUI Menu GTK renderer bounds were not recognized")
+    menu_renderer = text[menu_start:menu_end]
+    for required in [
+        "if let labelView {",
+        "gtkDisableButtonChildTargeting(childWidget)",
+        "gtk_swift_menu_button_set_always_show_arrow(button, 0)",
+        "gtk_swift_menu_button_set_child(button, childWidget)",
+        "gtkApplyPlainMenuButtonChrome(to: button)",
+    ]:
+        if required not in menu_renderer:
+            raise SystemExit(f"SwiftOpenUI Menu GTK renderer patch missing: {required}")
+
+path.write_text(text)
+PY
+
 python3 - "$DESCRIPTOR_TREE" <<'PY'
 import sys
 from pathlib import Path
@@ -7939,6 +8097,21 @@ if start != -1:
     if end == -1:
         raise SystemExit("SwiftOpenUI GTK application lifecycle shape was not recognized")
     text = text[:start] + plain_lifecycle + text[end:]
+group_scene_rendering = '''
+/// GTK4 rendering for Group<Scene> — transparent scene grouping.
+extension Group: GTKWindowRenderable where Content: Scene {
+    func gtkRender(app: OpaquePointer?) {
+        gtkRenderScene(content, app: app)
+    }
+}
+
+'''
+if "extension Group: GTKWindowRenderable where Content: Scene" not in text:
+    marker = "/// Registry for single-instance Window scenes. Tracks factories and live\n"
+    if marker in text:
+        text = text.replace(marker, group_scene_rendering + marker, 1)
+    else:
+        text = text.rstrip() + "\n\n" + group_scene_rendering
 path.write_text(text)
 PY
 
@@ -9236,6 +9409,7 @@ if "quill_gtk_list_row_paint_hook" not in text:
         1,
     )
 
+
 if "private func gtkDisplayTextContent" not in text:
     view_marker = "// MARK: - View GTK extensions\n\n"
     display_text_helper = '''private func gtkDisplayTextContent(_ text: String) -> String {
@@ -9382,10 +9556,130 @@ if "private func gtkMaterialSymbolGlyphPointSize(for scale: ImageScale) -> Int" 
         return scale.pointSize
     case .medium, .large:
         return max(1, Int((Double(scale.pointSize) * 0.8).rounded()))
+
+if "private func gtkFontCSS(_ font: Font)" not in text:
+    font_helper_marker = '''private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\\(red), \\(green), \\(blue), \\(color.alpha))"
+}
+
+// MARK: - GTK rendering protocol
+'''
+    font_helper_addition = '''let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \\(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \\(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \\(gtkFontSizeCSS(size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+
     }
 }
 
 '''
+
     if material_family_marker not in text:
         raise SystemExit("SwiftOpenUI Material Symbols family marker was not recognized")
     text = text.replace(material_family_marker, material_glyph_size_helper + material_family_marker, 1)
@@ -9418,6 +9712,173 @@ if "if gtkTabViewShouldShowSwitcher(tabs)" not in text:
     if old_tab_switcher not in text:
         raise SystemExit("SwiftOpenUI TabView GTK switcher shape was not recognized")
     text = text.replace(old_tab_switcher, new_tab_switcher, 1)
+
+    font_helper = '''private func gtkCSSRGBA(_ color: Color) -> String {
+    let red = Int((color.red * 255).rounded())
+    let green = Int((color.green * 255).rounded())
+    let blue = Int((color.blue * 255).rounded())
+    return "rgba(\\(red), \\(green), \\(blue), \\(color.alpha))"
+}
+
+let gtkSwiftFontMonospacedMarker = "gtk-swift-font-monospaced"
+let gtkSwiftFontRoundedMarker = "gtk-swift-font-rounded"
+let gtkSwiftFontSerifMarker = "gtk-swift-font-serif"
+
+private let gtkFontDescendantSelectors = [
+    "entry",
+    "entry text",
+    "passwordentry",
+    "passwordentry text",
+    "textview",
+    "textview text"
+]
+
+private func gtkFontCSS(_ font: Font) -> (properties: String, designMarker: String?) {
+    var declarations: [String] = []
+    var designMarker: String?
+
+    func appendWeight(_ weight: FontWeight) {
+        declarations.append("font-weight: \\(gtkFontWeightCSS(weight));")
+    }
+
+    func appendDesign(_ design: FontDesign) {
+        guard let family = gtkFontFamilyCSS(design) else { return }
+        declarations.append("font-family: \\(family);")
+        designMarker = gtkFontDesignMarker(design)
+    }
+
+    switch font {
+    case .largeTitle:
+        declarations.append("font-size: 28px;")
+    case .title:
+        declarations.append("font-size: 24px;")
+    case .title2:
+        declarations.append("font-size: 20px;")
+        declarations.append("font-weight: bold;")
+    case .title3:
+        declarations.append("font-size: 18px;")
+    case .headline:
+        declarations.append("font-weight: bold;")
+    case .subheadline:
+        declarations.append("font-size: 12px;")
+        declarations.append("font-weight: bold;")
+    case .body:
+        declarations.append("font-size: 14px;")
+    case .callout:
+        declarations.append("font-size: 12px;")
+    case .footnote:
+        declarations.append("font-size: 10px;")
+    case .caption:
+        declarations.append("font-size: 12px;")
+    case .caption2:
+        declarations.append("font-size: 10px;")
+        declarations.append("font-weight: bold;")
+    case .custom(let size, let weight, let design):
+        declarations.append("font-size: \\(gtkFontSizeCSS(size))px;")
+        appendWeight(weight)
+        appendDesign(design)
+    }
+
+    return (declarations.joined(separator: " "), designMarker)
+}
+
+private func gtkFontSizeCSS(_ size: Double) -> String {
+    let rounded = size.rounded()
+    if abs(size - rounded) < 0.001 {
+        return "\\(Int(rounded))"
+    }
+    return String(format: "%.2f", size)
+}
+
+private func gtkFontWeightCSS(_ weight: FontWeight) -> Int {
+    switch weight {
+    case .ultraLight: return 100
+    case .thin: return 200
+    case .light: return 300
+    case .regular: return 400
+    case .medium: return 500
+    case .semibold: return 600
+    case .bold: return 700
+    case .heavy: return 800
+    case .black: return 900
+    }
+}
+
+private func gtkFontFamilyCSS(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return #""SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", monospace"#
+    case .rounded:
+        return #""SF Pro Rounded", "Nunito", Cantarell, sans-serif"#
+    case .serif:
+        return #"Georgia, "Times New Roman", serif"#
+    }
+}
+
+private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
+    switch design {
+    case .default:
+        return nil
+    case .monospaced:
+        return gtkSwiftFontMonospacedMarker
+    case .rounded:
+        return gtkSwiftFontRoundedMarker
+    case .serif:
+        return gtkSwiftFontSerifMarker
+    }
+}
+
+// MARK: - GTK rendering protocol
+'''
+    if font_helper_marker in text:
+        text = text.replace(font_helper_marker, font_helper, 1)
+    else:
+        protocol_marker = "// MARK: - GTK rendering protocol\n"
+        if protocol_marker not in text:
+            raise SystemExit("SwiftOpenUI font CSS helper insertion marker was not recognized")
+        text = text.replace(protocol_marker, font_helper_addition + protocol_marker, 1)
+
+font_modified_index = text.find("extension FontModifiedView: GTKRenderable")
+font_modified_end = text.find("\nextension ", font_modified_index + 1) if font_modified_index != -1 else -1
+if font_modified_index != -1:
+    if font_modified_end == -1:
+        font_modified_end = len(text)
+    font_modified_section = text[font_modified_index:font_modified_end]
+    if "descendantSelectors: gtkFontDescendantSelectors" not in font_modified_section:
+        old_font_body = '''        let css: String
+        switch font {
+        case .largeTitle:  css = "font-size: 28px;"
+        case .title:       css = "font-size: 24px;"
+        case .title2:      css = "font-size: 20px; font-weight: bold;"
+        case .title3:      css = "font-size: 18px;"
+        case .headline:    css = "font-weight: bold;"
+        case .subheadline: css = "font-size: 12px; font-weight: bold;"
+        case .body:        css = "font-size: 14px;"
+        case .callout:     css = "font-size: 12px;"
+        case .footnote:    css = "font-size: 10px;"
+        case .caption:     css = "font-size: 12px;"
+        case .caption2:    css = "font-size: 10px; font-weight: bold;"
+        case .custom(let size, _, _): css = "font-size: \\(Int(size))px;"
+        }
+        applyCSSToWidget(widget, properties: css)
+'''
+        new_font_body = '''        let css = gtkFontCSS(font)
+        applyCSSToWidget(
+            widget,
+            properties: css.properties,
+            descendantSelectors: gtkFontDescendantSelectors
+        )
+        if let designMarker = css.designMarker {
+            gtk_widget_add_css_class(widget, designMarker)
+        }
+'''
+        if old_font_body not in font_modified_section:
+            raise SystemExit("SwiftOpenUI FontModifiedView font CSS shape was not recognized")
+        font_modified_section = font_modified_section.replace(old_font_body, new_font_body, 1)
+        text = text[:font_modified_index] + font_modified_section + text[font_modified_end:]
+
 
 if "private final class GTKTextBindingIdleUpdate" not in text:
     text_binding_helper = '''private final class GTKTextBindingIdleUpdate {
@@ -9454,9 +9915,10 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action runs (actions read the model, never
-/// the entry). Same-field edits always keep a prefix relation between
-/// successive values; unrelated values mean a different field, so the
+/// or eagerly before any app action, keyboard shortcut, or submit runs
+/// (actions read the model, never the entry). Same-field edits always keep a
+/// prefix relation between successive values; unrelated values mean a
+/// different field, so the
 /// previous field's pending write flushes first and is never lost.
 private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
     if let pending = gtkPendingTextBindingUpdate,
@@ -9517,9 +9979,10 @@ func gtkFlushPendingTextBindingUpdate() {
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
 /// One pending write replaces the previous and flushes after a typing pause,
-/// or eagerly before any button action runs (actions read the model, never
-/// the entry). Same-field edits always keep a prefix relation between
-/// successive values; unrelated values mean a different field, so the
+/// or eagerly before any app action, keyboard shortcut, or submit runs
+/// (actions read the model, never the entry). Same-field edits always keep a
+/// prefix relation between successive values; unrelated values mean a
+/// different field, so the
 /// previous field's pending write flushes first and is never lost.
 private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
     if let pending = gtkPendingTextBindingUpdate,
@@ -9556,6 +10019,52 @@ if "gtkFlushPendingTextBindingUpdate()\n    let now" not in text:
     if old_schedule_action_entry not in text:
         raise SystemExit("SwiftOpenUI Button action flush insertion shape was not recognized")
     text = text.replace(old_schedule_action_entry, new_schedule_action_entry, 1)
+
+# All deferred UI actions read Swift model state, not GTK entry buffers. Flush
+# the debounced text write in the central action-environment wrapper so custom
+# labels, gestures, menus, toggles, and file-import controls see the same typed
+# value as Button/submit paths. (No-op once applied.)
+old_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        let previousEnvironment = getCurrentEnvironment()
+'''
+new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+if (
+    "func bindActionToCurrentEnvironment(_ action:" in text
+    and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+):
+    if old_bound_action_flush not in text:
+        raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
+    text = text.replace(old_bound_action_flush, new_bound_action_flush, 1)
+
+old_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        let previousEnvironment = getCurrentEnvironment()
+'''
+new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+'''
+if (
+    "func bindActionToCurrentEnvironment<T>" in text
+    and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+):
+    if old_bound_value_action_flush not in text:
+        raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
+    text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
 
 text = text.replace(
     "includeValueWhenUnidentified: Bool = true",
@@ -9621,15 +10130,21 @@ if "case .quillPaintMacDefault:" not in text:
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
             gtkDisableButtonChildTargeting(childWidget)
-            if !(label is Text) {
+            if styleContext != nil || !(label is Text) {
                 // Remove GTK default button border/padding so custom-styled
                 // labels (with .background/.frame) render cleanly.
                 applyCSSToWidget(button, properties: """
+                    background: transparent;
+                    background-color: transparent;
+                    background-image: none;
                     border: none;
+                    border-radius: 0;
+                    box-shadow: none;
                     outline: none;
                     padding: 0;
                     min-height: 0;
                     min-width: 0;
+                    text-shadow: none;
                     """)
             }
 
@@ -9891,6 +10406,45 @@ text_editor_index = text.find("extension TextEditor: GTKRenderable")
 text_editor_end = text.find("\nextension ", text_editor_index + 1) if text_editor_index != -1 else -1
 if text_editor_end == -1:
     text_editor_end = len(text)
+text_editor_section = text[text_editor_index:text_editor_end]
+direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            if newText != binding.wrappedValue {
+                binding.wrappedValue = newText
+            }
+        }).toOpaque()
+'''
+idle_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in
+            gtkScheduleTextBindingUpdate(binding, value: newText)
+        }).toOpaque()
+'''
+if direct_text_editor_update in text_editor_section:
+    text = (
+        text[:text_editor_index]
+        + text_editor_section.replace(direct_text_editor_update, idle_text_editor_update, 1)
+        + text[text_editor_end:]
+    )
+    text_editor_end = text.find("\nextension ", text_editor_index + 1)
+    if text_editor_end == -1:
+        text_editor_end = len(text)
+    text_editor_section = text[text_editor_index:text_editor_end]
+old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+'''
+if (
+    "gtk_text_view_set_accepts_tab(textViewPtr, 1)" not in text_editor_section
+    and old_text_editor_options in text_editor_section
+):
+    new_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)
+        gtk_text_view_set_accepts_tab(textViewPtr, 1)
+'''
+    text = (
+        text[:text_editor_index]
+        + text_editor_section.replace(old_text_editor_options, new_text_editor_options, 1)
+        + text[text_editor_end:]
+    )
+    text_editor_end = text.find("\nextension ", text_editor_index + 1)
+    if text_editor_end == -1:
+        text_editor_end = len(text)
+    text_editor_section = text[text_editor_index:text_editor_end]
 if "quill_gtk_text_editor_paint_hook?" not in text[text_editor_index:text_editor_end]:
     old_text_editor_return = '''        gtkApplyEnabledState(to: textView)
         return opaqueFromWidget(scrolled)

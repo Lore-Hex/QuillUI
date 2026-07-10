@@ -66,6 +66,11 @@ public extension QuillTableMappable where Self: PersistentModel {
     }
 }
 
+public enum AttributeOption { case unique, externalStorage }
+public enum RelationshipOption { case nullify, cascade }
+public extension RelationshipOption { static func deleteRule(_ rule: RelationshipOption) -> RelationshipOption { rule } }
+
+#if !QUILLDATA_NO_MACROS
 @attached(peer)
 public macro Attribute(_ options: AttributeOption...) = #externalMacro(module: "QuillDataMacros", type: "QuillAttributeMacro")
 
@@ -76,16 +81,13 @@ public macro Relationship(
     inverse: AnyKeyPath? = nil
 ) = #externalMacro(module: "QuillDataMacros", type: "QuillRelationshipMacro")
 
-public enum AttributeOption { case unique, externalStorage }
-public enum RelationshipOption { case nullify, cascade }
-public extension RelationshipOption { static func deleteRule(_ rule: RelationshipOption) -> RelationshipOption { rule } }
-
 @attached(member, names: named(TableStruct), named(createTableSQL), named(tableName), named(fromTableStruct), arbitrary)
 @attached(extension, conformances: PersistentModel, QuillTableMappable)
 public macro QuillModel() = #externalMacro(module: "QuillDataMacros", type: "QuillModelMacro")
 
 @freestanding(expression)
 public macro QuillPredicate<Model: PersistentModel>(_ closure: (Model) -> Bool) -> Predicate<Model> = #externalMacro(module: "QuillDataMacros", type: "QuillPredicateMacro")
+#endif
 
 public struct Schema {
     public var models: [any PersistentModel.Type]

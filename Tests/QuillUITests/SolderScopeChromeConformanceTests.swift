@@ -160,6 +160,43 @@ private struct SolderScopeCommandProbe: Commands {
     }
 }
 
+private extension View {
+    @ViewBuilder
+    func conditionalCommandShortcut(_ shortcut: KeyboardShortcut?) -> some View {
+        if let shortcut {
+            keyboardShortcut(shortcut)
+        } else {
+            self
+        }
+    }
+}
+
+private struct ConditionalShortcutCommandProbe: Commands {
+    var body: some Commands {
+        CommandMenu("QuillCode") {
+            Button("New Chat") { }
+                .conditionalCommandShortcut(KeyboardShortcut("n", modifiers: .command))
+
+            Button("Open Project") { }
+                .conditionalCommandShortcut(nil)
+
+            Button("Retry Last Turn") { }
+        }
+    }
+}
+
+private struct AppInfoCommandPlacementProbe: Commands {
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            Button("About QuillCode") { }
+        }
+
+        CommandGroup(before: .appSettings) {
+            Button("QuillCode Settings") { }
+        }
+    }
+}
+
 /// Mirrors CalibrationOverlay.swift's `CalibrationCanvasNSView` (and
 /// MicroscopeView's `MicroscopeNSView`): a custom NSView that installs a
 /// cursor rect inside `resetCursorRects()`.
@@ -526,6 +563,25 @@ struct SolderScopeChromeConformanceTests {
         helpItems[1].action()
         #expect(state.helpCount == 1)
         #expect(state.shortcutHelpCount == 1)
+    }
+
+    @Test func commandMenuExtractsViewBuilderWrappedShortcutButtons() {
+        let groups = extractCommandGroups(from: ConditionalShortcutCommandProbe())
+        let items = groups[.menu("QuillCode")] ?? []
+
+        #expect(items.map(\.label) == ["New Chat", "Open Project", "Retry Last Turn"])
+        #expect(items.map(\.shortcut) == [
+            KeyboardShortcut("n", modifiers: .command),
+            nil,
+            nil
+        ])
+    }
+
+    @Test func commandGroupSupportsAppInfoAndRelativePlacementSpelling() {
+        let groups = extractCommandGroups(from: AppInfoCommandPlacementProbe())
+
+        #expect(groups[.help]?.map(\.label) == ["About QuillCode"])
+        #expect(groups[.appSettings]?.map(\.label) == ["QuillCode Settings"])
     }
 
     @Test func keyEquivalentSpaceExists() {

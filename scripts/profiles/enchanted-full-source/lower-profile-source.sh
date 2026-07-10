@@ -23,14 +23,6 @@ fi
 "$TOOLING_DIR/install-profile-templates.sh" "$PROFILE_DIR/templates" "$LOWERED_COPY"
 "$TOOLING_DIR/apply-profile-rewrites.sh" "$LOWERED_COPY" "$PROFILE_DIR/rewrite-rules"
 
-input_fields="$LOWERED_COPY/UI/macOS/Chat/Components/InputFields_macOS.swift"
-if [[ -f "$input_fields" ]]; then
-  perl -0pi -e '
-    s/import QuillShims/import QuillShims\nimport QuillUI/;
-    s~    var body: some View \{[\s\S]*?\n    \}\n\}\n\n#endif~    var body: some View {\n        QuillChatComposer(\n            message: \$message,\n            isLoading: conversationState == .loading,\n            supportsImages: selectedModel?.supportsImages ?? false,\n            selectedImage: \$selectedImage,\n            onStop: onStopGenerateTap,\n            onSend: sendMessage\n        )\n    }\n}\n\n#endif~s;
-  ' "$input_fields"
-fi
-
 clipboard_file="$LOWERED_COPY/Services/Clipboard.swift"
 if [[ -f "$clipboard_file" ]]; then
   perl -0pi -e '

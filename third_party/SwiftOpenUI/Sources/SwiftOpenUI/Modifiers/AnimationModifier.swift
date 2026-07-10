@@ -112,6 +112,11 @@ extension View {
         ScaleEffectView(content: self, scaleX: x, scaleY: y)
     }
 
+    public func scaleEffect(x: Double = 1, y: Double = 1, anchor: UnitPoint) -> ScaleEffectView<Self> {
+        _ = anchor
+        return ScaleEffectView(content: self, scaleX: x, scaleY: y)
+    }
+
     /// Associate an animation with this view. Changes to the view's properties
     /// will be animated with the given timing curve.
     public func animation(_ animation: Animation?, value: some Equatable) -> AnimatedView<Self> {
@@ -279,6 +284,15 @@ public func withAnimation(_ animation: Animation = .default, _ body: () -> Void)
     // Note: pendingAnimation is NOT cleared here — it persists until
     // the next rebuild consumes it, because the rebuild is deferred
     // via PostMessage/g_idle_add and runs after withAnimation returns.
+}
+
+public func withAnimation(
+    _ animation: Animation = .default,
+    _ body: () -> Void,
+    completion: () -> Void
+) {
+    withAnimation(animation, body)
+    completion()
 }
 
 /// Consume the pending animation (called by backends during rebuild).

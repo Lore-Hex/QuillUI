@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test
+        run: swift test
+      - name: Enforce no app-level Linux conditionals
+        run: |
+          if grep -R "#if os(Linux)\\|#if linux" Sources/QuillCodeApp; then
+            echo "Platform conditionals belong in adapter libraries, not QuillCodeApp."
+            exit 1
+          fi
+
+  linux-swift:
+    runs-on: ubuntu-latest
+    container: swift:6.2-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build CLI
+        run: swift build --product quill-code
+
+  playwright:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: E2E/playwright
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: E2E/playwright/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test
+        run: npm test
+
+  smoke:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: E2E/playwright/package-lock.json
+      - name: Install Playwright dependencies
+        working-directory: E2E/playwright
+        run: |
+          npm ci
+          npx playwright install chromium
+      - name: Smoke
+        run: ./scripts/smoke.sh

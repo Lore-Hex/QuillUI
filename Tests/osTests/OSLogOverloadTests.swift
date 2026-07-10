@@ -31,5 +31,9 @@ struct OSLogOverloadTests {
     func osLogTypeLabels() {
         #expect(OSLogType.error.label == "ERROR")
         #expect(OSLogType.info.label == "INFO")
+        #expect(OSLogType.error.rawValue == 0x10)
+        #expect(OSLogType(0x01) == .info)
+        #expect(OSLogType(rawValue: 0x11) == .fault)
+        #expect(OSLogType(label: "debug") == .debug)
     }
 }

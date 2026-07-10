@@ -121,15 +121,28 @@ extension UIFontDescriptor {
     /// (cascade lists, trait dictionaries) are inert on Linux.
     public convenience init(fontAttributes: [AttributeName: Any] = [:]) {
         self.init(name: fontAttributes[.name] as? String ?? ".AppleSystemUIFont")
+        if let size = fontAttributes[.size] as? CGFloat {
+            pointSize = size
+        } else if let size = fontAttributes[.size] as? Double {
+            pointSize = CGFloat(size)
+        }
     }
 
     /// Returns a descriptor with `attributes` layered on. `.name` replaces the
     /// font name; symbolic traits already on this descriptor are preserved.
     public func addingAttributes(_ attributes: [AttributeName: Any] = [:]) -> UIFontDescriptor {
-        UIFontDescriptor(
+        let descriptor = UIFontDescriptor(
             name: attributes[.name] as? String ?? name,
             symbolicTraits: symbolicTraits
         )
+        if let size = attributes[.size] as? CGFloat {
+            descriptor.pointSize = size
+        } else if let size = attributes[.size] as? Double {
+            descriptor.pointSize = CGFloat(size)
+        } else {
+            descriptor.pointSize = pointSize
+        }
+        return descriptor
     }
 
     /// The descriptor behind UIFont.preferredFont(forTextStyle:) — the system

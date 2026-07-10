@@ -1,5 +1,12 @@
 import Foundation
-@_exported import QuillKit
+import CoreFoundation
+import QuillKit
+@_exported import typealias QuillKit.CFAllocator
+@_exported import typealias QuillKit.CFArray
+@_exported import typealias QuillKit.CFData
+@_exported import typealias QuillKit.CFDictionary
+@_exported import typealias QuillKit.CFString
+@_exported import typealias QuillKit.CFTypeRef
 
 public final class SecCertificate: @unchecked Sendable {
     public var data: Data
@@ -110,6 +117,7 @@ public struct SecAccessControlCreateFlags: OptionSet, Sendable {
 public typealias OSStatus = Int32
 public typealias SecRandomRef = SecRandom
 public let errSecSuccess: OSStatus = 0
+public let noErr: OSStatus = errSecSuccess
 public let errSecUnimplemented: OSStatus = -4
 public let errSecParam: OSStatus = -50
 public let errSecAllocate: OSStatus = -108
@@ -177,8 +185,21 @@ public let kSecKeyAlgorithmECDSASignatureDigestX962SHA256: CFString = "algid:sig
 public let kSecKeyAlgorithmECDHKeyExchangeStandard: CFString = "algid:keyexchange:ECDH:standard" as CFString
 public let kSecKeyAlgorithmECDHKeyExchangeStandardX963SHA256: CFString = "algid:keyexchange:ECDH:standard-X963:SHA256" as CFString
 public let kSecKeyAlgorithmRSAEncryptionPKCS1: CFString = "algid:encrypt:RSA:PKCS1" as CFString
+public let kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256: CFString = "algid:sign:RSA:message-PKCS1v15:SHA256" as CFString
 public let kSecKeyKeyExchangeParameterRequestedSize: CFString = "requestedSize" as CFString
 public let kSecKeyKeyExchangeParameterSharedInfo: CFString = "sharedInfo" as CFString
+
+public extension SecKeyAlgorithm {
+    static var rsaSignatureMessagePKCS1v15SHA256: SecKeyAlgorithm {
+        kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256
+    }
+}
+
+public extension CoreFoundation.CFError {
+    var localizedDescription: String {
+        String(describing: self)
+    }
+}
 
 public let kSecAttrProtocolFTP: CFString = "ftp " as CFString
 public let kSecAttrProtocolFTPAccount: CFString = "ftpa" as CFString
@@ -251,9 +272,10 @@ public func SecAccessControlCreateWithFlags(
     _ allocator: CFAllocator?,
     _ protection: Any,
     _ flags: SecAccessControlCreateFlags,
-    _ error: UnsafeMutablePointer<CFError?>?
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
 ) -> SecAccessControl? {
-    SecAccessControl(protection: protection, flags: flags)
+    error?.pointee = nil
+    return SecAccessControl(protection: protection, flags: flags)
 }
 
 @discardableResult
@@ -273,26 +295,36 @@ public func SecRandomCopyBytes(_ _: SecRandomRef?, _ count: Int, _ bytes: Unsafe
     return errSecSuccess
 }
 
-public func SecKeyCreateWithData(_ keyData: CFData, _ attributes: CFDictionary, _ error: UnsafeMutablePointer<CFError?>?) -> SecKey? {
+public func SecKeyCreateWithData(
+    _ keyData: CFData,
+    _ attributes: CFDictionary,
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
+) -> SecKey? {
     let data = keyData as NSData as Data
     guard !data.isEmpty else {
         error?.pointee = nil
         return nil
     }
     error?.pointee = nil
-    return SecKey(data: data, attributes: secDictionary(attributes))
+    return SecKey(data: data, attributes: importedKeyAttributes(from: secDictionary(attributes)))
 }
 
 public func SecKeyCopyAttributes(_ key: SecKey) -> CFDictionary? {
     key.copyAttributes()
 }
 
-public func SecKeyCopyExternalRepresentation(_ key: SecKey, _ error: UnsafeMutablePointer<CFError?>?) -> CFData? {
+public func SecKeyCopyExternalRepresentation(
+    _ key: SecKey,
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
+) -> CFData? {
     error?.pointee = nil
     return key.copyExternalRepresentation() as NSData as CFData
 }
 
-public func SecKeyCreateRandomKey(_ parameters: CFDictionary, _ error: UnsafeMutablePointer<CFError?>?) -> SecKey? {
+public func SecKeyCreateRandomKey(
+    _ parameters: CFDictionary,
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
+) -> SecKey? {
     let parameterValues = secDictionary(parameters)
     guard let key = makeGeneratedSecKey(from: parameterValues, keyClass: kSecAttrKeyClassPrivate) else {
         error?.pointee = nil
@@ -378,7 +410,7 @@ public func SecKeyCreateSignature(
     _ key: SecKey,
     _ algorithm: SecKeyAlgorithm,
     _ dataToSign: CFData,
-    _ error: UnsafeMutablePointer<CFError?>?
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
 ) -> CFData? {
     error?.pointee = nil
     guard SecKeyIsAlgorithmSupported(key, .sign, algorithm) else {
@@ -394,7 +426,7 @@ public func SecKeyVerifySignature(
     _ algorithm: SecKeyAlgorithm,
     _ signedData: CFData,
     _ signature: CFData,
-    _ error: UnsafeMutablePointer<CFError?>?
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
 ) -> Bool {
     error?.pointee = nil
     guard SecKeyIsAlgorithmSupported(key, .verify, algorithm) else {
@@ -411,7 +443,7 @@ public func SecKeyCopyKeyExchangeResult(
     _ algorithm: SecKeyAlgorithm,
     _ publicKey: SecKey,
     _ parameters: CFDictionary,
-    _ error: UnsafeMutablePointer<CFError?>?
+    _ error: UnsafeMutablePointer<Unmanaged<CoreFoundation.CFError>?>?
 ) -> CFData? {
     error?.pointee = nil
     guard SecKeyIsAlgorithmSupported(privateKey, .keyExchange, algorithm),
@@ -440,6 +472,8 @@ public func SecKeyIsAlgorithmSupported(_ key: SecKey, _ operation: SecKeyOperati
         return secKeySupportsECDH(attributes, operation: operation)
     case secString(kSecKeyAlgorithmRSAEncryptionPKCS1):
         return secKeySupportsRSAEncryption(attributes, operation: operation)
+    case secString(kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256):
+        return secKeySupportsRSASignature(attributes, operation: operation)
     default:
         return false
     }
@@ -491,7 +525,8 @@ public func SecAccessCreate(_ descriptor: CFString, _ trustedlist: CFArray?, _ a
 
 public func SecTrustSetAnchorCertificatesOnly(_ trust: SecTrust, _ anchorCertificatesOnly: Bool) {}
 
-public func SecTrustEvaluateWithError(_ trust: SecTrust, _ error: UnsafeMutablePointer<CFError?>?) -> Bool {
+public func SecTrustEvaluateWithError(_ trust: SecTrust, _ error: UnsafeMutablePointer<CoreFoundation.CFError?>?) -> Bool {
+    error?.pointee = nil
     QuillCompatibilityDiagnostics.shared.record(
         subsystem: "Security",
         operation: "trustEvaluation",
@@ -565,6 +600,23 @@ private func secKeySupportsRSAEncryption(_ attributes: [String: Any], operation:
     case .decrypt:
         return secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
             && boolValue(attributes[secKey(kSecAttrCanDecrypt)])
+    default:
+        return false
+    }
+}
+
+private func secKeySupportsRSASignature(_ attributes: [String: Any], operation: SecKeyOperationType) -> Bool {
+    guard secKeyType(attributes) == secString(kSecAttrKeyTypeRSA) else {
+        return false
+    }
+
+    switch operation {
+    case .sign:
+        return secKeyClass(attributes) == secString(kSecAttrKeyClassPrivate)
+            && boolValue(attributes[secKey(kSecAttrCanSign)])
+    case .verify:
+        return secKeyClass(attributes) != secString(kSecAttrKeyClassSymmetric)
+            && boolValue(attributes[secKey(kSecAttrCanVerify)])
     default:
         return false
     }
@@ -965,6 +1017,26 @@ private func makeGeneratedSecKey(from parameters: [String: Any], keyClass: CFStr
         attributes[secKey(kSecAttrApplicationLabel)] = generatedKeyLabel(from: keyData, keyClass: keyClass) as NSData
     }
     return SecKey(data: keyData, attributes: attributes)
+}
+
+private func importedKeyAttributes(from attributes: [String: Any]) -> [String: Any] {
+    var normalized = attributes
+    let keyClass = stringValue(normalized[secKey(kSecAttrKeyClass)]) ?? secString(kSecAttrKeyClassPublic)
+    let keyType = stringValue(normalized[secKey(kSecAttrKeyType)]) ?? secString(kSecAttrKeyTypeECSECPrimeRandom)
+
+    normalized[secKey(kSecClass)] = normalized[secKey(kSecClass)] ?? secString(kSecClassKey)
+    normalized[secKey(kSecAttrKeyClass)] = keyClass
+    normalized[secKey(kSecAttrKeyType)] = keyType
+
+    if keyClass == secString(kSecAttrKeyClassPublic) {
+        normalized[secKey(kSecAttrCanVerify)] = normalized[secKey(kSecAttrCanVerify)] ?? true
+        normalized[secKey(kSecAttrCanEncrypt)] = normalized[secKey(kSecAttrCanEncrypt)] ?? true
+    } else if keyClass == secString(kSecAttrKeyClassPrivate) {
+        normalized[secKey(kSecAttrCanSign)] = normalized[secKey(kSecAttrCanSign)] ?? true
+        normalized[secKey(kSecAttrCanDecrypt)] = normalized[secKey(kSecAttrCanDecrypt)] ?? true
+    }
+
+    return normalized
 }
 
 private func generatedKeyAttributes(from parameters: [String: Any], keyClass: CFString, keySizeInBits: Int) -> [String: Any] {

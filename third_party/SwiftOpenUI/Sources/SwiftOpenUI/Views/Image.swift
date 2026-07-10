@@ -16,6 +16,7 @@ public enum ImageScale {
 /// A view that displays an image from an icon name or file path.
 public struct Image {
     public typealias Body = Never
+    public typealias Scale = ImageScale
 
     public enum Source {
         case systemName(String)

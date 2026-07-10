@@ -8,6 +8,8 @@ quillui_alias_backend_profile_env
 PROFILE_SCRIPT="${QUILLUI_BACKEND_PROFILE_COMMAND:-$ROOT_DIR/scripts/linux-backend-profile.sh}"
 SETTLE_SECONDS="${QUILLUI_BACKEND_PROFILE_SETTLE:-5}"
 STEADY_DELAY_SECONDS="${QUILLUI_BACKEND_PROFILE_STEADY:-20}"
+PROFILE_ROW_TIMEOUT="${QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT:-20m}"
+PROFILE_ROW_KILL_AFTER="${QUILLUI_BACKEND_PROFILE_ROW_KILL_AFTER:-30s}"
 CSV_PATH=""
 MATRIX_COMMAND=""
 ROWS=()
@@ -102,6 +104,21 @@ fi
 if [[ ! -x "$PROFILE_SCRIPT" ]]; then
   echo "Backend profile command is not executable: $PROFILE_SCRIPT" >&2
   exit 66
+fi
+
+profile_timeout_command=()
+if [[ "${QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT_DISABLE:-0}" != "1" ]]; then
+  timeout_command="${QUILLUI_BACKEND_PROFILE_TIMEOUT_COMMAND:-}"
+  if [[ -z "$timeout_command" ]]; then
+    if command -v timeout >/dev/null 2>&1; then
+      timeout_command="timeout"
+    elif command -v gtimeout >/dev/null 2>&1; then
+      timeout_command="gtimeout"
+    fi
+  fi
+  if [[ -n "$timeout_command" ]]; then
+    profile_timeout_command=("$timeout_command" "--kill-after=$PROFILE_ROW_KILL_AFTER" "$PROFILE_ROW_TIMEOUT")
+  fi
 fi
 
 if ! resource_guard_output="$("$ROOT_DIR/scripts/quillui-resource-guard.sh" "$ROOT_DIR" "${TMPDIR:-/tmp}" 2>&1)"; then
@@ -224,7 +241,11 @@ quillui_profile_build_cache_key() {
       profile_command+=("${profiler_environment[@]}")
     fi
     status=0
-    "${profile_command[@]}" "$PROFILE_SCRIPT" "${profiler_arguments[@]}" >"$row_path" || status=$?
+    if (( ${#profile_timeout_command[@]} > 0 )); then
+      "${profile_timeout_command[@]}" "${profile_command[@]}" "$PROFILE_SCRIPT" "${profiler_arguments[@]}" >"$row_path" || status=$?
+    else
+      "${profile_command[@]}" "$PROFILE_SCRIPT" "${profiler_arguments[@]}" >"$row_path" || status=$?
+    fi
     if [[ "$status" -eq 0 ]] && ! quillui_profile_product_was_built "$build_cache_key"; then
       BUILT_PROFILE_PRODUCTS_LIST="${BUILT_PROFILE_PRODUCTS_LIST}${build_cache_key}"$'\n'
     fi

@@ -1,0 +1,17 @@
+quillui-app-source-vendor/v1
+app=codeedit
+source=tree:e6678717e960d0488fe7ca91322d324315217e2db2ac72fa9af646d968bd633c
+exclude=--exclude
+exclude=.git
+exclude=--exclude
+exclude=.build
+exclude=--exclude
+exclude=.build-*
+exclude=--exclude
+exclude=.swiftpm
+exclude=--exclude
+exclude=DerivedData
+exclude=--exclude
+exclude=xcuserdata
+exclude=--exclude
+exclude=.DS_Store

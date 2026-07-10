@@ -1,0 +1,15 @@
+name: Tests
+on:
+  workflow_dispatch:
+  workflow_call:
+jobs:
+  test:
+    name: Testing CodeEdit
+    runs-on: [self-hosted, macOS]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Check Version Number exists
+        run: exec ./.github/scripts/test_version_number.sh
+      - name: Testing App
+        run: exec ./.github/scripts/test_app.sh arm

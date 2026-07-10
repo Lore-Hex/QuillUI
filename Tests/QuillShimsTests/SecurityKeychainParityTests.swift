@@ -2,6 +2,7 @@ import XCTest
 
 #if os(Linux)
 import Foundation
+import CoreFoundation
 import Security
 
 final class SecurityKeychainParityTests: XCTestCase {
@@ -920,6 +921,10 @@ final class SecurityKeychainParityTests: XCTestCase {
         XCTAssertTrue(SecKeyIsAlgorithmSupported(publicKey, .encrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
         XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .decrypt, kSecKeyAlgorithmRSAEncryptionPKCS1))
         XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .sign, kSecKeyAlgorithmRSAEncryptionPKCS1))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(privateKey, .sign, kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(privateKey, .verify, kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256))
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(publicKey, .verify, kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(publicKey, .sign, kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256))
 
         var privateDataResult: CFTypeRef?
         XCTAssertEqual(SecItemCopyMatching(cfDictionary([
@@ -936,6 +941,39 @@ final class SecurityKeychainParityTests: XCTestCase {
             kSecReturnRef: true
         ]), &publicRefResult), errSecSuccess)
         XCTAssertTrue(publicRefResult is SecKey)
+    }
+
+    func testRSAImportedPublicKeyAcceptsUnmanagedCFErrorAndStaticSignatureAlgorithm() {
+        let keyData = Data([0x30, 0x0A, 0x02, 0x01, 0x03, 0x02, 0x01, 0x05])
+        let keyAttributes: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass: kSecAttrKeyClassPublic
+        ]
+        var error: Unmanaged<CFError>?
+
+        guard let key = SecKeyCreateWithData(keyData as NSData as CFData, cfDictionary(keyAttributes), &error) else {
+            XCTFail("SecKeyCreateWithData should accept RSA public key bytes and Unmanaged<CFError>")
+            return
+        }
+
+        XCTAssertNil(error)
+        XCTAssertEqual(
+            SecKeyAlgorithm.rsaSignatureMessagePKCS1v15SHA256,
+            kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256
+        )
+        XCTAssertTrue(SecKeyIsAlgorithmSupported(key, .verify, .rsaSignatureMessagePKCS1v15SHA256))
+        XCTAssertFalse(SecKeyIsAlgorithmSupported(key, .sign, .rsaSignatureMessagePKCS1v15SHA256))
+
+        let payload = Data("payload".utf8)
+        let signature = Data("signature".utf8)
+        XCTAssertFalse(SecKeyVerifySignature(
+            key,
+            .rsaSignatureMessagePKCS1v15SHA256,
+            payload as NSData as CFData,
+            signature as NSData as CFData,
+            &error
+        ))
+        XCTAssertNil(error)
     }
 
     func testInternetPasswordNamespacesByEndpointAttributes() {

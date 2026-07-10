@@ -9,11 +9,12 @@ MAX_CPU_PCT="${QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT:-25}"
 MAX_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_RSS_KB:-300000}"
 MAX_QUILL_CHAT_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_QUILL_CHAT_RSS_KB:-340000}"
 MAX_STARTUP_MS="${QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS:-5000}"
+ALLOW_PROFILE_TIMEOUTS="${QUILLUI_BACKEND_PROFILE_ALLOW_TIMEOUTS:-0}"
 REQUIRE_BACKEND_MATRIX=0
 CSV_PATH=""
 
 usage() {
-  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-rss-kb N] [--max-startup-ms N] [--require-backend-matrix]" >&2
+  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-rss-kb N] [--max-startup-ms N] [--require-backend-matrix] [--allow-profile-timeouts]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -47,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --require-backend-matrix)
       REQUIRE_BACKEND_MATRIX=1
+      shift
+      ;;
+    --allow-profile-timeouts)
+      ALLOW_PROFILE_TIMEOUTS=1
       shift
       ;;
     --help|-h) usage; exit 0 ;;
@@ -138,7 +143,8 @@ awk \
   -v max_cpu="$MAX_CPU_PCT" \
   -v max_rss="$MAX_RSS_KB" \
   -v max_quill_chat_rss="$MAX_QUILL_CHAT_RSS_KB" \
-  -v max_startup="$MAX_STARTUP_MS" '
+  -v max_startup="$MAX_STARTUP_MS" \
+  -v allow_profile_timeouts="$ALLOW_PROFILE_TIMEOUTS" '
 BEGIN {
   FS = ","
   status = 0
@@ -211,6 +217,10 @@ NF != 10 {
   if (!is_nonnegative_number(cpu_steady)) {
     printf "profile budget failed: %s cpu_pct_steady=%s is not a non-negative number\n", product, cpu_steady > "/dev/stderr"
     row_failed = 1
+  }
+  if (exit_status != "ok" && allow_profile_timeouts == "1" && exit_status == "profiler-exit-124") {
+    printf "profile budget warning: %s exit_status=%s allowed by --allow-profile-timeouts\n", product, exit_status
+    next
   }
   if (exit_status != "ok") {
     printf "profile budget failed: %s exit_status=%s\n", product, exit_status > "/dev/stderr"

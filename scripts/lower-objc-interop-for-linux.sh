@@ -138,10 +138,20 @@ def lower_known_kvc_descriptors(src: str) -> str:
     )
 
 def lower_known_optional_delegate_calls(src: str) -> str:
-    return src.replace(
+    lowered = src.replace(
         "textView.delegate?.textViewDidChange?(textView)",
         "textView.delegate?.textViewDidChange(textView)",
     )
+    return re.sub(r"(\b[A-Za-z_][A-Za-z0-9_]*\s*)\.textStorage\?\(", r"\1.textStorage(", lowered)
+
+def lower_objc_nsvalue_range_casts(src: str) -> str:
+    lowered = re.sub(
+        r"([A-Za-z_][A-Za-z0-9_.()]+\(for:\s*[^)\n]+\))\s+as\s+NSValue",
+        r"NSValue(range: \1)",
+        src,
+    )
+    lowered = lowered.replace("$0 as? NSRange", "$0.rangeValue")
+    return lowered
 
 def lower_swiftui_list_builders(src: str) -> str:
     return re.sub(r"(?<![.\w])List\s*\{", "SwiftUI.List {", src)
@@ -164,6 +174,7 @@ for root, dirs, files in os.walk(source_dir):
         lowered = lower_sequence_first_shorthand(lowered)
         lowered = lower_known_kvc_descriptors(lowered)
         lowered = lower_known_optional_delegate_calls(lowered)
+        lowered = lower_objc_nsvalue_range_casts(lowered)
         lowered = lower_swiftui_list_builders(lowered)
         count += 1
         if lowered != src:

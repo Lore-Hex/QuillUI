@@ -49,12 +49,22 @@ public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
     public init(descriptor: UIFontDescriptor, size: CGFloat) {
-        self.pointSize = size; self.fontName = descriptor.name; self.fontDescriptor = descriptor
+        let resolvedSize = size == 0 ? descriptor.pointSize : size
+        let resolvedDescriptor = UIFontDescriptor(
+            name: descriptor.name,
+            symbolicTraits: descriptor.symbolicTraits
+        )
+        resolvedDescriptor.pointSize = resolvedSize
+        self.pointSize = resolvedSize
+        self.fontName = resolvedDescriptor.name
+        self.fontDescriptor = resolvedDescriptor
         super.init()
     }
     init(pointSize: CGFloat, fontName: String) {
         self.pointSize = pointSize; self.fontName = fontName
-        self.fontDescriptor = UIFontDescriptor(name: fontName)
+        let descriptor = UIFontDescriptor(name: fontName)
+        descriptor.pointSize = pointSize
+        self.fontDescriptor = descriptor
         super.init()
     }
     public required init?(coder: NSCoder) {
@@ -137,10 +147,12 @@ public final class UIFontDescriptor: @unchecked Sendable {
     }
     public enum SystemDesign: Equatable, Sendable { case `default`, rounded, serif, monospaced }
     public func withDesign(_ design: SystemDesign) -> UIFontDescriptor? {
-        UIFontDescriptor(
+        let descriptor = UIFontDescriptor(
             name: design == .rounded ? ".AppleSystemUIFontRounded-Regular" : name,
             symbolicTraits: symbolicTraits
         )
+        descriptor.pointSize = pointSize
+        return descriptor
     }
     // Mirror of UIKit's UIFontDescriptor.SymbolicTraits. Bit values match the
     // platform constants so any compared/persisted raw values stay stable.
@@ -158,7 +170,9 @@ public final class UIFontDescriptor: @unchecked Sendable {
         public static let traitLooseLeading = SymbolicTraits(rawValue: 1 << 16)
     }
     public func withSymbolicTraits(_ traits: SymbolicTraits) -> UIFontDescriptor? {
-        UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
+        let descriptor = UIFontDescriptor(name: name, symbolicTraits: symbolicTraits.union(traits))
+        descriptor.pointSize = pointSize
+        return descriptor
     }
 }
 public final class UIFontMetrics: @unchecked Sendable {
@@ -175,10 +189,9 @@ public final class UIFontMetrics: @unchecked Sendable {
 // QuillUIKit (re-exported above) — declaring twins here made `UIApplication.shared`
 // ambiguous once SwiftUI re-exported AppKit (whose QuillUIKit re-export exposes
 // the other copy). Shared text-layout types (NSTextAlignment/NSParagraphStyle/
-// NSUnderlineStyle/NSStringDrawing*/NSAttributedString.Key additions) live in
-// QuillFoundation (NSTextLayoutShared.swift) for the same reason.
-// NSTextAttachment/NSTextStorage stay here: their members are UIKit-flavored
-// (UIImage) and cannot share a declaration with AppKit's NSImage flavor yet.
+// NSUnderlineStyle/NSStringDrawing*/NSAttributedString.Key additions) and
+// NSTextAttachment live in QuillFoundation for the same reason. NSTextStorage
+// stays per-flavor for now because editing/storage APIs still diverge.
 
 
 
@@ -193,21 +206,6 @@ public final class UIFontMetrics: @unchecked Sendable {
 
 
 
-
-// NSTextAttachment: an inline image/data attachment in an attributed string.
-// swift-corelibs Foundation has no NSTextAttachment; SSK (String+SSK) builds one
-// to embed a templated image. Inert holder of image/bounds; rendering deferred.
-open class NSTextAttachment: NSObject {
-    public var image: UIImage?
-    public var bounds: CGRect
-    public var contents: Data?
-    public override init() {
-        self.image = nil
-        self.bounds = .zero
-        self.contents = nil
-        super.init()
-    }
-}
 
 public extension UIImage {
     enum RenderingMode: Int, Sendable {
@@ -258,15 +256,6 @@ public extension Optional where Wrapped == UIImage {
 // Mirror of UIKit's NSUnderlineStyle. Modeled as an OptionSet (matching the
 // platform, where line styles and patterns combine) with the standard raw
 // values; SSK uses `.single.rawValue` for strikethrough/underline attributes.
-
-public extension NSAttributedString {
-    /// NSAttributedString(attachment:) -- wraps a text attachment in an attributed
-    /// string with the attachment attribute under the U+FFFC object-replacement
-    /// character (matches Apple). Image rendering is inert; the attribute is set.
-    convenience init(attachment: NSTextAttachment) {
-        self.init(string: "\u{FFFC}", attributes: [.attachment: attachment])
-    }
-}
 
 public extension UIScene {
     enum ActivationState: Sendable {
@@ -509,12 +498,12 @@ public final class UITextPasteItem {
     public weak var inputDelegate: UITextInputDelegate?
 
     open var text: String! {
-        get { attributedText?.string ?? "" }
+        get { textStorage.string }
         set { attributedText = NSAttributedString(string: newValue ?? "") }
     }
 
     open var attributedText: NSAttributedString! {
-        get { NSAttributedString(attributedString: textStorage) }
+        get { quillAttributedTextSnapshot() }
         set {
             let oldText = textStorage.string
             textStorage.setAttributedString(newValue ?? NSAttributedString(string: ""))
@@ -604,13 +593,33 @@ public final class UITextPasteItem {
         guard changed else { return }
         invalidateIntrinsicContentSize()
         quillNotifyViewMutation()
-        superview?.quillNotifySubviewMutation()
+    }
+
+    private func quillAttributedTextSnapshot() -> NSAttributedString {
+        let storage = textStorage
+        let utf16Length = storage.string.utf16.count
+        guard utf16Length > 0 else { return NSAttributedString(string: "") }
+
+        let snapshot = NSMutableAttributedString(string: storage.string)
+        var cursor = 0
+        while cursor < utf16Length {
+            var effectiveRange = NSRange(location: cursor, length: 1)
+            let attributes = storage.attributes(at: cursor, effectiveRange: &effectiveRange)
+            let clampedRange = quillNormalizedRange(effectiveRange, utf16Length: utf16Length)
+            if clampedRange.length > 0 {
+                snapshot.setAttributes(attributes, range: clampedRange)
+                cursor = max(cursor + 1, clampedRange.location + clampedRange.length)
+            } else {
+                cursor += 1
+            }
+        }
+        return snapshot
     }
 
     open override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = max(size.width, 1)
         let lineHeight = font?.pointSize ?? 17
-        let lines = max(1, ceil(Double((attributedText?.string ?? text ?? "").count) * 8.5 / width))
+        let lines = max(1, ceil(Double(textStorage.string.count) * 8.5 / width))
         return CGSize(width: width, height: CGFloat(lines) * lineHeight * 1.35)
     }
 
@@ -674,7 +683,7 @@ public final class UITextPasteItem {
 
     @discardableResult
     open func quillReplaceCharacters(in range: NSRange, with replacementText: String) -> Bool {
-        let currentText = text ?? ""
+        let currentText = textStorage.string
         let normalizedRange = quillNormalizedRange(range, utf16Length: currentText.utf16.count)
         guard quillTextViewDelegate?.textView(self, shouldChangeTextIn: normalizedRange, replacementText: replacementText) ?? true else {
             return false
@@ -683,10 +692,9 @@ public final class UITextPasteItem {
         inputDelegate?.textWillChange(self)
         inputDelegate?.selectionWillChange(self)
 
-        let lower = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location)
-        let upper = quillStringIndex(in: currentText, utf16Offset: normalizedRange.location + normalizedRange.length)
-        let nextText = currentText.replacingCharacters(in: lower..<upper, with: replacementText)
-        text = nextText
+        textStorage.replaceCharacters(in: normalizedRange, with: replacementText)
+        let nextText = textStorage.string
+        quillNotifyTextViewMutation(currentText != nextText)
 
         let caret = min(
             normalizedRange.location + replacementText.utf16.count,
@@ -1328,16 +1336,16 @@ public func UIGraphicsPopContext() {
 // open) here. Backed by NSMutableAttributedString; editing notifications are
 // inert on Linux.
 
-public struct NSTextStorageEditActions: OptionSet, Sendable {
+public struct UIKitNSTextStorageEditActions: OptionSet, Sendable {
     public let rawValue: UInt
     public init(rawValue: UInt) { self.rawValue = rawValue }
-    public static let editedAttributes = NSTextStorageEditActions(rawValue: 1 << 0)
-    public static let editedCharacters = NSTextStorageEditActions(rawValue: 1 << 1)
+    public static let editedAttributes = UIKitNSTextStorageEditActions(rawValue: 1 << 0)
+    public static let editedCharacters = UIKitNSTextStorageEditActions(rawValue: 1 << 1)
 }
 
 open class NSTextStorage: NSMutableAttributedString {
     /// NSTextStorage.EditActions is the nested spelling used by callers.
-    public typealias EditActions = NSTextStorageEditActions
+    public typealias EditActions = UIKitNSTextStorageEditActions
 
     public weak var delegate: AnyObject?
     public private(set) var layoutManagers: [NSLayoutManager] = []
@@ -1379,7 +1387,7 @@ open class NSTextStorage: NSMutableAttributedString {
 
     open func processEditing() {}
 
-    open func edited(_ editedMask: NSTextStorageEditActions, range editedRange: NSRange, changeInLength delta: Int) {}
+    open func edited(_ editedMask: EditActions, range editedRange: NSRange, changeInLength delta: Int) {}
 
     // beginEditing()/endEditing() are inherited from NSMutableAttributedString.
     // fixAttributes(in:) is not exposed there, so declare it for the subclass.

@@ -84,15 +84,49 @@ quillui_backend_reference_window_defaults() {
 quillui_find_visible_window_by_name() {
   local display_id="$1"
   local name="$2"
+  local candidate width height key value area best_window="" best_area=-1
 
-  DISPLAY="$display_id" xdotool search --onlyvisible --name "$name" 2>/dev/null | head -n 1 || true
+  while read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    width=0
+    height=0
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+    area=$((width * height))
+    if (( area > best_area )); then
+      best_area="$area"
+      best_window="$candidate"
+    fi
+  done < <(DISPLAY="$display_id" xdotool search --onlyvisible --name "$name" 2>/dev/null)
+  printf '%s\n' "$best_window"
 }
 
 quillui_find_visible_window_for_pid() {
   local display_id="$1"
   local pid="$2"
+  local candidate width height key value area best_window="" best_area=-1
 
-  DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1 || true
+  while read -r candidate; do
+    [[ -n "$candidate" ]] || continue
+    width=0
+    height=0
+    while IFS='=' read -r key value; do
+      case "$key" in
+        WIDTH) width="$value" ;;
+        HEIGHT) height="$value" ;;
+      esac
+    done < <(DISPLAY="$display_id" xdotool getwindowgeometry --shell "$candidate" 2>/dev/null)
+    area=$((width * height))
+    if (( area > best_area )); then
+      best_area="$area"
+      best_window="$candidate"
+    fi
+  done < <(DISPLAY="$display_id" xdotool search --onlyvisible --pid "$pid" 2>/dev/null)
+  printf '%s\n' "$best_window"
 }
 
 # Poll until the app's main window is visible AND plausibly window-sized.
@@ -320,15 +354,15 @@ quillui_backend_interaction_verify_product() {
 }
 
 quillui_assign_output() {
-  local output_var="$1"
-  local value="$2"
+  local __quillui_output_var="$1"
+  local __quillui_output_value="$2"
 
-  if [[ ! "$output_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
-    echo "Invalid output variable name: $output_var" >&2
+  if [[ ! "$__quillui_output_var" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+    echo "Invalid output variable name: $__quillui_output_var" >&2
     return 64
   fi
 
-  printf -v "$output_var" "%s" "$value"
+  printf -v "$__quillui_output_var" "%s" "$__quillui_output_value"
 }
 
 quillui_append_environment_assignment() {
@@ -589,6 +623,127 @@ quillui_is_generated_enchanted_linux_product() {
   esac
 }
 
+quillui_generated_app_work_root() {
+  local product="$1"
+  local backend_facade="$2"
+  local workdir_env_names="$3"
+  local output_var="$4"
+  local default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/$product"
+  local selected_work_root=""
+  local env_name
+
+  if [[ -n "$backend_facade" ]]; then
+    default_work_root="$default_work_root-$backend_facade"
+  fi
+
+  IFS=',' read -ra workdir_env_name_array <<< "$workdir_env_names"
+  for env_name in "${workdir_env_name_array[@]}"; do
+    [[ -n "$env_name" ]] || continue
+    if [[ ! "$env_name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+      echo "Invalid generated app workdir env name for $product: $env_name" >&2
+      return 65
+    fi
+    if [[ -n "${!env_name:-}" ]]; then
+      selected_work_root="${!env_name}"
+      break
+    fi
+  done
+
+  if [[ -z "$selected_work_root" ]]; then
+    selected_work_root="$default_work_root"
+  fi
+
+  quillui_assign_output "$output_var" "$selected_work_root"
+}
+
+quillui_find_cached_generated_app_executable() {
+  local product="$1"
+  local work_root="$2"
+  local artifact_path_file="$3"
+  local output_var="$4"
+  local cached_executable=""
+
+  if quillui_artifact_path_from_file "$artifact_path_file" cached_executable; then
+    quillui_assign_output "$output_var" "$cached_executable" || return $?
+    return
+  elif [[ -s "$artifact_path_file" ]]; then
+    exit 66
+  fi
+
+  local cache_search_roots=()
+  [[ -d "$work_root/.build-check" ]] \
+    && cache_search_roots+=("$work_root/.build-check")
+  [[ -d "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quillui-generated-app-build-cache" ]] \
+    && cache_search_roots+=("$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/quillui-generated-app-build-cache")
+  if (( ${#cache_search_roots[@]} > 0 )); then
+    cached_executable="$(
+      find "${cache_search_roots[@]}" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
+    )"
+  fi
+  if [[ -z "$cached_executable" ]]; then
+    echo "No cached executable found for $product; expected $artifact_path_file or a debug executable under generated app build caches" >&2
+    exit 66
+  fi
+  quillui_assign_output "$output_var" "$cached_executable" || return $?
+}
+
+quillui_resolve_generated_app_executable() {
+  local product="$1"
+  local output_var="$2"
+  local spec
+  local spec_product
+  local profile
+  local source_app
+  local source_subdir
+  local app_type
+  local entry_target
+  local workdir_env_names
+  local backend_facade
+  local work_root
+  local artifact_path_file
+  local field_separator=$'\037'
+  local split_spec
+
+  spec="$(quillui_backend_generated_app_build_spec_for_product "$product")" || return 1
+  split_spec="${spec//$'\t'/$field_separator}"
+  IFS="$field_separator" read -r spec_product profile source_app source_subdir app_type entry_target workdir_env_names <<< "$split_spec"
+
+  backend_facade="$(quillui_generated_app_backend_facade)" || return $?
+  quillui_generated_app_work_root "$product" "$backend_facade" "$workdir_env_names" work_root || return $?
+  artifact_path_file="${QUILLUI_BACKEND_APP_ARTIFACT_PATH_FILE:-$work_root/.quillui-artifact-path}"
+
+  if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
+    quillui_find_cached_generated_app_executable "$product" "$work_root" "$artifact_path_file" "$output_var"
+    return
+  fi
+
+  local build_args=(
+    --profile "$profile"
+    --source-app "$source_app"
+    --app-type "$app_type"
+    --product-name "$product"
+    --backend-facade "$backend_facade"
+    --workdir "$work_root"
+  )
+  if [[ -n "$source_subdir" ]]; then
+    build_args+=(--source-subdir "$source_subdir")
+  fi
+  if [[ -n "$entry_target" ]]; then
+    build_args+=(--entry-target "$entry_target")
+  fi
+
+  QUILLUI_APP_ARTIFACT_PATH_FILE="$artifact_path_file" \
+    "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-swiftui-linux-app.sh" \
+      "${build_args[@]}"
+
+  local generated_artifact_path
+  if ! quillui_artifact_path_from_file "$artifact_path_file" generated_artifact_path; then
+    echo "Generated app build did not write a usable artifact path for $product: $artifact_path_file" >&2
+    exit 66
+  fi
+  quillui_assign_output "$output_var" "$generated_artifact_path" || return $?
+}
+
 quillui_append_enchanted_profile_fixture_environment_if_needed() {
   local output_array="$1"
   local product="$2"
@@ -810,6 +965,23 @@ quillui_append_backend_selection_start_environment() {
   return 0
 }
 
+quillui_linux_backend_apt_get() {
+  local apt_options=(
+    -o Acquire::Retries="${QUILLUI_APT_RETRIES:-5}"
+    -o Acquire::http::Timeout="${QUILLUI_APT_HTTP_TIMEOUT:-30}"
+    -o Acquire::https::Timeout="${QUILLUI_APT_HTTPS_TIMEOUT:-30}"
+  )
+
+  if command -v sudo >/dev/null 2>&1; then
+    sudo apt-get "${apt_options[@]}" "$@"
+  elif [[ "$(id -u)" == "0" ]]; then
+    apt-get "${apt_options[@]}" "$@"
+  else
+    echo "sudo or root access is required to install Linux backend smoke packages" >&2
+    return 69
+  fi
+}
+
 quillui_install_linux_backend_smoke_packages() {
   if [[ "${QUILLUI_SKIP_APT:-0}" == "1" ]]; then
     return
@@ -823,6 +995,8 @@ quillui_install_linux_backend_smoke_packages() {
     fonts-noto-core
     git
     imagemagick
+    libc++-dev
+    libc++abi-dev
     libgdk-pixbuf-2.0-dev
     libgtk-4-dev
     libsqlite3-dev
@@ -830,6 +1004,7 @@ quillui_install_linux_backend_smoke_packages() {
     pkg-config
     qt6-base-dev
     x11-apps
+    xclip
     xdotool
     xvfb
   )
@@ -842,13 +1017,28 @@ quillui_install_linux_backend_smoke_packages() {
   done
 
   if (( ${#missing[@]} > 0 )); then
-    local apt_prefix=()
-    if command -v sudo >/dev/null 2>&1; then
-      apt_prefix=(sudo)
-    fi
-    "${apt_prefix[@]}" apt-get update
-    "${apt_prefix[@]}" apt-get install -y "${missing[@]}"
+    quillui_linux_backend_apt_get update
+    quillui_linux_backend_apt_get install -y --fix-missing "${missing[@]}"
   fi
+}
+
+quillui_artifact_path_from_file() {
+  local artifact_path_file="$1"
+  local output_var="$2"
+  local resolved_artifact_path=""
+
+  [[ -s "$artifact_path_file" ]] || return 1
+  IFS= read -r resolved_artifact_path < "$artifact_path_file" || true
+  if [[ -z "$resolved_artifact_path" ]]; then
+    echo "Artifact path file is empty: $artifact_path_file" >&2
+    return 66
+  fi
+  if [[ ! -x "$resolved_artifact_path" ]]; then
+    echo "Artifact path is missing or not executable: $artifact_path_file -> $resolved_artifact_path" >&2
+    return 66
+  fi
+
+  quillui_assign_output "$output_var" "$resolved_artifact_path"
 }
 
 quillui_resolve_linux_backend_executable() {
@@ -860,119 +1050,71 @@ quillui_resolve_linux_backend_executable() {
     return
   fi
 
-  if [[ "$product" == "quill-enchanted-linux" || "$product" == "quill-chat-linux" ]]; then
-    local enchanted_app_dir
-    local enchanted_backend_facade
-    local enchanted_default_work_root="$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build/$product"
-    local enchanted_work_root
+  if quillui_backend_generated_app_build_spec_for_product "$product" >/dev/null; then
+    quillui_resolve_generated_app_executable "$product" "$output_var"
+    return $?
+  fi
 
-    enchanted_app_dir="$(quillui_resolve_enchanted_source_dir "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR")"
-    enchanted_backend_facade="$(quillui_generated_app_backend_facade)" || return $?
-    if [[ -n "$enchanted_backend_facade" ]]; then
-      enchanted_default_work_root="$enchanted_default_work_root-$enchanted_backend_facade"
-    fi
-    enchanted_work_root="${QUILLUI_ENCHANTED_BUILD_WORKDIR:-${QUILLUI_QUILL_CHAT_BUILD_WORKDIR:-$enchanted_default_work_root}}"
+  local linux_build_backend
+  linux_build_backend="$(quillui_require_requested_backend_for_product "$product")" || return $?
 
-    if [[ ! -d "$enchanted_app_dir" ]]; then
-      quillui_print_enchanted_source_missing "$enchanted_app_dir"
+  if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
+    local cached_executable
+    quillui_require_backend_product_build_stamp \
+      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
+      "$product" \
+      "$linux_build_backend" || return $?
+    cached_executable="$(
+      find "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
+    )"
+    if [[ -z "$cached_executable" ]]; then
+      echo "No cached executable found for $product under $QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" >&2
       exit 66
     fi
-
-    if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
-      local cached_executable
-      cached_executable="$(
-        find "$enchanted_work_root/.build-check" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
-      )"
-      if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $product under $enchanted_work_root/.build-check" >&2
-        exit 66
-      fi
-      quillui_assign_output "$output_var" "$cached_executable" || return $?
-      return
-    fi
-
-    QUILLUI_ENCHANTED_BUILD_WORKDIR="$enchanted_work_root" \
-      QUILLUI_ENCHANTED_PRODUCT_NAME="$product" \
-      QUILLUI_ENCHANTED_BACKEND_FACADE="$enchanted_backend_facade" \
-      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/build-enchanted-linux.sh"
-
-    local enchanted_bin_path
-    if [[ "$enchanted_backend_facade" == "qt" ]]; then
-      enchanted_bin_path="$(QUILLUI_LINUX_BACKEND=qt "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" swift build \
-        --disable-index-store \
-        --package-path "$enchanted_work_root/package" \
-        --scratch-path "$enchanted_work_root/.build-check" \
-        --show-bin-path)"
-    else
-      enchanted_bin_path="$(swift build \
-        --disable-index-store \
-        --package-path "$enchanted_work_root/package" \
-        --scratch-path "$enchanted_work_root/.build-check" \
-        --show-bin-path)"
-    fi
-    quillui_assign_output "$output_var" "$enchanted_bin_path/$product" || return $?
+    quillui_assign_output "$output_var" "$cached_executable" || return $?
   else
-    local linux_build_backend
-    linux_build_backend="$(quillui_require_requested_backend_for_product "$product")" || return $?
-
-    if [[ "${QUILLUI_BACKEND_SKIP_BUILD:-0}" == "1" ]]; then
-      local cached_executable
-      quillui_require_backend_product_build_stamp \
-        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
-        "$product" \
-        "$linux_build_backend" || return $?
-      cached_executable="$(
-        find "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" -path "*/debug/$product" -type f -perm -111 2>/dev/null | head -n 1 || true
-      )"
-      if [[ -z "$cached_executable" ]]; then
-        echo "No cached executable found for $product under $QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" >&2
-        exit 66
+    "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
+      --backend "$linux_build_backend" \
+      --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
+    # Retry-on-transient-crash: under high parallelism on a memory-constrained CI
+    # runner, a swift compiler frontend can die mid `-parseable-output`, leaving
+    # SwiftPM to read truncated JSON and abort with "Internal Error: dataCorrupted
+    # ... Corrupted JSON ... unexpected end of file". This is intermittent and
+    # main-wide (it has no connection to the product being built); the incremental
+    # rebuild resumes from where it crashed and succeeds. Retry up to 3x ONLY on
+    # that exact signature so genuine build failures still surface immediately.
+    local _qui_build_attempt=0 _qui_build_rc=0 _qui_build_log
+    _qui_build_log="$(mktemp)"
+    while true; do
+      _qui_build_attempt=$((_qui_build_attempt + 1))
+      _qui_build_rc=0
+      QUILLUI_LINUX_BACKEND="$linux_build_backend" \
+        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+        swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product" \
+        > "$_qui_build_log" 2>&1 || _qui_build_rc=$?
+      cat "$_qui_build_log"
+      if [[ $_qui_build_rc -eq 0 ]]; then
+        break
       fi
-      quillui_assign_output "$output_var" "$cached_executable" || return $?
-    else
-      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
-        --backend "$linux_build_backend" \
-        --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux"
-      # Retry-on-transient-crash: under high parallelism on a memory-constrained CI
-      # runner, a swift compiler frontend can die mid `-parseable-output`, leaving
-      # SwiftPM to read truncated JSON and abort with "Internal Error: dataCorrupted
-      # ... Corrupted JSON ... unexpected end of file". This is intermittent and
-      # main-wide (it has no connection to the product being built); the incremental
-      # rebuild resumes from where it crashed and succeeds. Retry up to 3x ONLY on
-      # that exact signature so genuine build failures still surface immediately.
-      local _qui_build_attempt=0 _qui_build_rc=0 _qui_build_log
-      _qui_build_log="$(mktemp)"
-      while true; do
-        _qui_build_attempt=$((_qui_build_attempt + 1))
-        _qui_build_rc=0
-        QUILLUI_LINUX_BACKEND="$linux_build_backend" \
-          "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-          swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --product "$product" \
-          > "$_qui_build_log" 2>&1 || _qui_build_rc=$?
-        cat "$_qui_build_log"
-        if [[ $_qui_build_rc -eq 0 ]]; then
-          break
-        fi
-        if [[ $_qui_build_attempt -lt 3 ]] && grep -q "Corrupted JSON" "$_qui_build_log"; then
-          echo "quillui: transient 'Corrupted JSON' compiler-frontend crash building '$product' (attempt $_qui_build_attempt) — retrying incremental build" >&2
-          continue
-        fi
-        rm -f "$_qui_build_log"
-        return $_qui_build_rc
-      done
+      if [[ $_qui_build_attempt -lt 3 ]] && grep -q "Corrupted JSON" "$_qui_build_log"; then
+        echo "quillui: transient 'Corrupted JSON' compiler-frontend crash building '$product' (attempt $_qui_build_attempt) — retrying incremental build" >&2
+        continue
+      fi
       rm -f "$_qui_build_log"
-      quillui_record_backend_product_build \
-        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
-        "$product" \
-        "$linux_build_backend" || return $?
-      local bin_path
-      bin_path="$(
-        QUILLUI_LINUX_BACKEND="$linux_build_backend" \
-          "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-          swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path
-      )"
-      quillui_assign_output "$output_var" "$bin_path/$product" || return $?
-    fi
+      return $_qui_build_rc
+    done
+    rm -f "$_qui_build_log"
+    quillui_record_backend_product_build \
+      "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" \
+      "$product" \
+      "$linux_build_backend" || return $?
+    local bin_path
+    bin_path="$(
+      QUILLUI_LINUX_BACKEND="$linux_build_backend" \
+        "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
+        swift build --disable-index-store --scratch-path "$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/.build-linux" --show-bin-path
+    )"
+    quillui_assign_output "$output_var" "$bin_path/$product" || return $?
   fi
 }
 

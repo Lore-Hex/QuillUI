@@ -18,6 +18,7 @@
 import CGtk4
 import AppKit
 import QuillFoundation
+import SwiftOpenUI
 import Glibc
 
 // MARK: - GTK lifecycle
@@ -106,6 +107,50 @@ public func _quillAppKitGTKInstallRunHook() {
         NSAlert._runModalHook = { alert in
             MainActor.assumeIsolated {
                 alert.runModalGTK()
+            }
+        }
+        quillInstallSwiftUIWindowLifecycleBridgeIfNeeded()
+    }
+}
+
+private var quillDidInstallSwiftUIWindowLifecycleBridge = false
+private var quillSwiftUIWindowsByNativeHandle: [Int: NSWindow] = [:]
+
+@MainActor
+private func quillInstallSwiftUIWindowLifecycleBridgeIfNeeded() {
+    guard !quillDidInstallSwiftUIWindowLifecycleBridge else { return }
+    quillDidInstallSwiftUIWindowLifecycleBridge = true
+
+    SwiftOpenUIWindowLifecycle.addHandler { event in
+        guard let nativeHandle = event.nativeHandle else { return }
+
+        switch event.kind {
+        case .didOpen:
+            let window = quillSwiftUIWindowsByNativeHandle[nativeHandle] ?? NSWindow()
+            window.title = event.title
+            window.identifier = NSUserInterfaceItemIdentifier(event.id)
+            window.isVisible = true
+            quillSwiftUIWindowsByNativeHandle[nativeHandle] = window
+
+            let app = NSApplication.shared
+            if !app.windows.contains(where: { $0 === window }) {
+                app.windows.append(window)
+            }
+            app.orderedWindows.removeAll { $0 === window }
+            app.orderedWindows.insert(window, at: 0)
+            app.keyWindow = window
+            app.mainWindow = window
+
+        case .didClose:
+            guard let window = quillSwiftUIWindowsByNativeHandle.removeValue(forKey: nativeHandle) else { return }
+            let app = NSApplication.shared
+            app.windows.removeAll { $0 === window }
+            app.orderedWindows.removeAll { $0 === window }
+            if app.keyWindow === window {
+                app.keyWindow = app.orderedWindows.first
+            }
+            if app.mainWindow === window {
+                app.mainWindow = app.keyWindow
             }
         }
     }

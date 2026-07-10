@@ -18,21 +18,142 @@ The command intentionally separates the generic build contract from source
 lowering profiles:
 
 - `--source-dir` points at the app source tree.
+- `--source-app` points at a vendored or upstream app checkout by name. The
+  builder resolves `vendor/apps/<name>` first and `.upstream/<name>` second, so
+  repeated local/CI runs can avoid clone/fetch work once source is vendored.
+- `--source-subdir` selects the Swift source directory inside that checkout,
+  such as `CodeEdit` for the vendored CodeEdit Xcode project.
+- `--package-root` optionally points at the app's SwiftPM package root. When
+  omitted, `generic-swiftui` checks the source directory and its parent for
+  `Package.swift`.
 - `--app-type` is the Swift `App` type launched through the generated
   QuillUI entry.
+- `--entry-target` optionally names the executable SwiftPM target that owns
+  `--app-type`; when omitted, `generic-swiftui` infers it from the package
+  manifest and source declarations.
 - `--product-name` controls the generated executable name.
 - `--workdir` controls where generated source and SwiftPM build state go.
 - `--backend-facade` optionally compiles the generated entry through
   `QuillUIGtk` or the native `QuillGenericQtNativeRuntime` host instead of
   the backend-neutral `QuillUI` launcher.
+- `--target-layout-file` passes a TSV target layout to the generated package
+  helper for multi-target SwiftPM app trees.
+- `--extra-package-dependencies-file` passes SwiftPM `.package(...)` lines
+  required by target-layout dependency tokens.
+- `--prepared-package-cache-dir` sets the shared cache for QuillUI-prepared
+  local SwiftPM dependency sources. The public builder defaults this to
+  `.build/quillui-prepared-packages-cache`, so repeated generated app builds
+  reuse lowered/manifest-patched package copies instead of rebuilding a fresh
+  `prepared-packages` tree inside every workdir. Prepared package keys hash
+  source contents and QuillUI lowering inputs, so rsync/fresh-clone timestamp
+  changes in vendored sources do not invalidate otherwise identical cache
+  entries.
+- `--build-scratch` overrides the SwiftPM scratch directory used for the
+  generated package. When omitted, the public builder uses a content-keyed
+  scratch path under `.build/quillui-generated-app-build-cache`, hashing the
+  lowered app source key, package manifest/lockfile inputs, backend facade,
+  app entry metadata, profile, and package-generation tooling. That lets
+  vendored app builds reuse compiled SwiftPM dependency state even when an
+  agent changes `--workdir`. Pass `--no-reuse-build-scratch` to restore the
+  older `WORKDIR/.build-check` behavior for one-off isolation.
+- Generated package materialization is also content-aware. The Linux package
+  generator stages the package into a temporary directory, then checksum-syncs
+  it into the stable `WORKDIR/package` path. If the generated Swift files,
+  resources, and manifest are unchanged, the final package directory is left
+  untouched so SwiftPM does not rebuild app targets just because the generator
+  ran again.
+- The generic profile also caches copied/lowered app source under
+  `.build/quillui-lowered-source-cache`. The cache key hashes the app source and
+  QuillUI lowering-tool inputs, so repeated vendored-source builds can skip the
+  full source copy plus SwiftUI/AppKit lowering phase while keeping upstream app
+  source read-only. Set `QUILLUI_PROFILE_REUSE_LOWERED_SOURCE=0` for a forced
+  recopy/re-lower pass. CI workflows that use
+  `.github/actions/lowered-source-cache` should pass `source-app: <name>` when
+  they build one vendored app; that scopes the restored cache key to
+  `vendor/apps/<name>` instead of invalidating Enchanted because QuillCode,
+  CodeEdit, or another vendored fixture changed.
+- `--source-app` builds automatically scan `Package.resolved` below the selected
+  checkout and first verify that the pins are already covered by checked-in
+  `third_party/` SwiftPM sources. Only incomplete coverage falls back to copying
+  matching local SwiftPM checkouts into `third_party/` before lowering. The scan
+  uses `--no-resolve` by default, so normal local and CI builds stay no-network
+  while still preferring checked-in source. Pass
+  `--no-vendor-swiftpm-sources` for debugging a raw checkout, or pass
+  `--vendor-swiftpm-sources` to force the scan when an inherited environment
+  disabled auto mode. Set `QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1` only when
+  deliberately hydrating missing checkouts. Vendored package copies record the
+  clean git checkout revision plus the slim/full copy mode, so repeated builds
+  skip large `rsync --delete` passes when the source checkout has not changed.
+  The public builder also writes an app-lockfile stamp under
+  `.build/quillui-vendored-swiftpm-source-stamps`; if the same vendored app
+  checkout and `Package.resolved` inputs are used again, and the checked-in
+  manifests for that app's selected `third_party/` package pins still match, it
+  skips the whole dependency-vendoring pass before lowering. Unrelated vendored
+  package manifest churn does not invalidate another app's stamp. Set
+  `QUILLUI_VENDOR_FORCE=1` to refresh a vendored package tree deliberately.
 - `--profile` selects a source-lowering script from `scripts/profiles/`.
 - `--list-profiles` prints installed profiles.
+
+Use `--profile generic-swiftui` for a first pass against a new app such as
+QuillCode. It copies the supplied source tree into the build work directory,
+runs only the shared SwiftData, SwiftUI, AppKit, ObjC-interop, and import
+lowering helpers, derives multi-target layout and external package dependency
+lines from SwiftPM manifests with `scripts/swiftpm-package-layout-for-linux.py`
+when a package root is available, and then assembles the generated SwiftPM
+package. It must not contain app-specific rewrites; app-specific source-shape
+fixes belong in a named profile only after the missing behavior cannot be moved
+into QuillUI, QuillKit, QuillData, or the shared SwiftSyntax lowerers.
 
 The profile boundary matters. QuillUI should become a broadly reusable
 compatibility library, but source lowering is not universal yet. Different
 apps need different macro, platform, package, and service bridges. The generic
 builder gives those future profiles one stable CLI contract instead of adding a
 new app-specific build script for every target.
+
+For apps whose source is pinned in this repo, prefer the vendored-source form:
+
+```bash
+scripts/build-swiftui-linux-app.sh \
+  --profile generic-swiftui \
+  --source-app codeedit \
+  --source-subdir CodeEdit \
+  --app-type CodeEditApp \
+  --product-name quill-codeedit-upstream-generic
+```
+
+That command reads from `vendor/apps/codeedit/CodeEdit` when present and falls
+back to `.upstream/codeedit/CodeEdit`; it does not fetch network source during
+the build. When the vendored path is selected, the builder prints the vendored
+source fingerprint such as `vendored codeedit source snapshot: git:<commit>`, so
+CI and agent logs show that the fast checked-in source path was used. It also
+reuses the vendored CodeEdit SwiftPM package sources already under
+`third_party/`, only copying from local checkouts when needed. Set
+`QUILLUI_REFRESH_VENDORED_SOURCE=1` only when intentionally testing a freshly
+fetched `.upstream/<name>` checkout.
+
+To pin a fetched app checkout for fast repeat builds, materialize it with:
+
+```bash
+scripts/vendor-app-source.sh codeedit
+```
+
+By default that copies `.upstream/codeedit` to `vendor/apps/codeedit`, strips
+`.git` and SwiftPM build state, and writes `QUILLUI_VENDOR.md` provenance. Pass
+an explicit source path when updating from a checkout outside `.upstream`. The
+helper also records a vendored-source fingerprint: a clean git checkout uses the
+pinned commit, and a materialized source tree falls back to a content hash with
+build/git state excluded. A repeated command skips the large copy when that
+fingerprint has not changed. Set `QUILLUI_VENDOR_FORCE=1` only when
+intentionally refreshing the vendored app tree from the same source snapshot.
+If `vendor/apps/<name>/QUILLUI_VENDOR.md` already exists, the helper preserves
+that note across refreshes so app-specific upstream commit and license metadata
+do not get replaced by generic local cache details.
+When `scripts/fetch-upstream.sh` materializes a vendored app into `.upstream`,
+the shared source helper writes `.quillui-materialized-vendor-source-fingerprint`
+next to the copied checkout. Repeated fetches skip the `rsync --delete` copy when
+that stamp still matches the vendored source fingerprint, which keeps patched
+disposable checkouts such as SolderScope fast while still refreshing when the
+vendored source changes.
 
 Profiles are plugin-style shell entry points. The builder passes them a stable
 environment contract:
@@ -51,6 +172,102 @@ assembly to `scripts/generate-swiftui-linux-package.sh`. That helper owns the
 reusable SwiftPM package shape: copying lowered sources, adding the QuillUI
 compatibility products, optionally generating the backend-selected `@main`,
 patching the pinned SwiftOpenUI checkout, and running `swift build`.
+The generated package links the framework-named compatibility products that
+new desktop apps commonly import, including SwiftUI, AppKit, UniformTypeIdentifiers,
+Network, CryptoKit, ApplicationServices, CoreGraphics, QuillKit, QuillData, and
+QuillShims.
+
+For normal SwiftPM multi-target apps, `generic-swiftui` can derive the target
+layout automatically from `Package.swift` by combining `--package-root`,
+`--source-dir`, and `--app-type`; use `--entry-target` when more than one
+executable target could own the app entry. The derived layout follows only
+reachable non-test target dependencies from the executable app target and emits
+external SwiftPM `.package(...)` lines for product dependency tokens.
+
+Generated app packages require remote SwiftPM dependencies to resolve to local
+vendored sources by default. Put dependency checkouts under `third_party/` (or
+another discoverable local app/vendor root) and run
+`scripts/vendor-swiftpm-sources.sh --app <name>` when the app source is already
+under `vendor/apps/<name>` or `.upstream/<name>`. The vendoring script discovers
+Xcode/SwiftPM `Package.resolved` files below that checkout automatically, so for
+CodeEdit the bootstrap command is:
+
+```bash
+scripts/vendor-swiftpm-sources.sh --app codeedit
+```
+
+For a new app checkout, prefer the one-shot app vendoring wrapper. It copies the
+clean app tree into `vendor/apps/<name>` and then vendors the packages named by
+the app's `Package.resolved` from local SwiftPM checkouts:
+
+```bash
+scripts/vendor-swiftui-app-source.sh quillcode /Users/jperla/claude/QuillCode
+```
+
+The wrapper is still generic. It composes `scripts/vendor-app-source.sh` with
+`scripts/vendor-swiftpm-sources.sh --app <name> --no-resolve`, so repeated
+builds can use `--source-app quillcode` plus the prepared-package and lowered
+source caches without cloning the app or creating fresh remote working copies.
+The build script stamps successful app-lockfile scans, so once the vendored
+source and `third_party/` package trees are in place, identical follow-up builds
+skip the dependency-vendoring pass entirely. Use `--hydrate-missing` only when
+intentionally refreshing missing SwiftPM checkouts from the exact revisions
+pinned in `Package.resolved`; use `--resolve` only when the app checkout itself
+needs SwiftPM to create or update
+those pins.
+
+The vendoring pass also patches known transitive package manifests so their
+runtime dependencies point at sibling `third_party/` checkouts and slimmed test
+targets do not force remote test/doc packages to resolve. This keeps generated
+app builds on the checked-in source graph instead of making SwiftPM recreate
+remote working copies for packages such as Alamofire, NetworkImage, SwiftCMark,
+Sauce, or swift-collections.
+
+`--source-app` is the preferred path for shared agent work. The builder resolves
+`vendor/apps/<name>` before `.upstream/<name>` and prints which tree it selected,
+so a build log that says `using vendored quillcode source` is on the fast,
+checked-in path. The vendored QuillCode fixture is pinned under
+`vendor/apps/quillcode` and should remain source-pristine; Linux fixes belong in
+QuillUI/QuillKit/QuillData, package generation, or lowering.
+
+For a lockfile outside a vendored app checkout, use
+`scripts/vendor-swiftpm-sources.sh --package-resolved <Package.resolved>`.
+App lockfiles often include test and developer-tool packages that the Linux
+runtime package does not build. The vendoring script skips known dev-only pins
+such as SnapshotTesting and SwiftLintPlugin by default; set
+`QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1` only when you intentionally want those
+packages copied too.
+The generator then rewrites URL dependencies to local paths and stores
+QuillUI-prepared package copies in the shared prepared-package cache.
+
+Generated app builds also default `QUILLUI_RUNTIME_ONLY_MACROS=1` for the
+generator's SwiftPM build and the final artifact lookup. The lowering phase
+removes SwiftData/Observation/Preview macro use before compilation, so the
+runtime graph can link QuillData, SwiftUI, Observation, and FoundationModels
+without compiling the SwiftSyntax-backed macro plugin targets. If the generated
+source still contains SwiftData/QuillData macro spellings such as `@Attribute`,
+`@Relationship`, `#Predicate`, or `#QuillPredicate`, the generator automatically
+falls back to `QUILLUI_RUNTIME_ONLY_MACROS=0` for that build so the package stays
+correct. Set `QUILLUI_RUNTIME_ONLY_MACROS=0` when intentionally building an
+unlowered source tree that still expands those macros.
+
+The standard Linux build image and CI dependency sets include both `libc++-dev`
+and `libc++abi-dev`. Some vendored app dependencies, including editor/parser
+packages, ask SwiftPM to link `-lc++`; without the development package the app
+can compile all Swift sources and then fail at the final link step with
+`/usr/bin/ld: cannot find -lc++`.
+
+For unusual package shapes, pass `--target-layout-file` to the generic builder
+(or have a profile pass `QUILLUI_GENERATED_TARGET_LAYOUT_FILE` to the package
+helper) to override manifest-derived layout. The file is TSV with
+`TargetName<TAB>relative/source/dir<TAB>Dependency,product:Name:Package`.
+The row whose target name equals `QUILLUI_GENERATED_TARGET_NAME` receives the
+generated backend `@main`, so the app's original internal `App` type remains
+visible without changing upstream source. Profiles can also pass
+`QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE` with one SwiftPM
+`.package(...)` line per external dependency; target dependency tokens can then
+refer to those products with `product:ProductName:PackageName`. The public
+builder flag for that file is `--extra-package-dependencies-file`.
 
 Profiles can also reuse the generic source-lowering helpers before package
 assembly:
@@ -124,8 +341,9 @@ for reporting, but SwiftPM resolves the Qt-only QuillUI manifest and links only
 copy and compile the lowered source tree with the compatibility products.
 
 Reusable fallback behavior should live in library targets, not in profiles.
-The current `enchanted-full-source` profile keeps only app/source-shape wiring
-for accessibility, hotkeys, updater, panel, and USB launcher names; the Linux
+The `generic-swiftui` profile contains no app/source-shape rewrites. The current
+`enchanted-full-source` profile keeps only app/source-shape wiring for
+accessibility, hotkeys, updater, panel, and USB launcher names; the Linux
 fallback implementations live in `QuillKit` and `QuillUI`.
 
 `scripts/build-quill-chat-linux.sh` is now only a convenience wrapper:
@@ -151,7 +369,8 @@ AppStream metainfo, and an optional tarball:
 ```bash
 scripts/package-swiftui-linux-app.sh \
   --profile enchanted-full-source \
-  --source-dir /path/to/Enchanted \
+  --source-app enchanted \
+  --source-subdir Enchanted \
   --app-type EnchantedApp \
   --product-name quill-chat-linux \
   --artifact-dir .build/releases/quill-chat-linux-gtk \
@@ -526,17 +745,21 @@ separate from the normal test suite because it intentionally maps a temporary
 GTK window to get a real render node:
 
 ```bash
-GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux-offscreen --filter imageRendererOffscreenPipelineProducesRealPNG
+GTK_A11Y=none GSK_RENDERER=cairo QUILLUI_ENABLE_GTK_OFFSCREEN_RENDER=1 xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests
 ```
 
 Use `scripts/linux-swift-test.sh` instead of calling `swift test` directly on
 Linux. The wrapper applies the pinned SwiftOpenUI/OpenCombine checkout patch to
 the selected scratch directory before invoking SwiftPM, which keeps fresh CI
-scratch paths consistent with the backend build scripts:
+scratch paths consistent with the backend build scripts. It also defaults
+`QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS=1` so focused library tests use the
+vendored `third_party/` package graph and do not compile every fetched
+`.upstream/` app checkout just because it exists:
 
 ```bash
 scripts/linux-swift-test.sh --scratch-path .build-linux
 scripts/linux-swift-test.sh --scratch-path .build-linux --filter QuillDataSourceLoweringTests
+QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS=0 scripts/linux-swift-test.sh --scratch-path .build-linux-full-apps
 ```
 
 GitHub Actions runs the public Linux path in `.github/workflows/linux-ci.yml`.

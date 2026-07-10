@@ -104,7 +104,17 @@ extension View {
 /// SwiftUI's `MenuStyle` protocol. Styles are accepted for source
 /// compatibility; the GTK menu button renders with its platform chrome either
 /// way, which is visually closest to `.borderlessButton` already.
-public protocol MenuStyle {}
+public struct MenuStyleConfiguration {
+    public var label: AnyView?
+
+    public init(label: AnyView? = nil) {
+        self.label = label
+    }
+}
+
+public protocol MenuStyle {
+    typealias Configuration = MenuStyleConfiguration
+}
 
 /// The default menu style.
 public struct DefaultMenuStyle: MenuStyle {
@@ -128,6 +138,12 @@ extension View {
     /// Sets the style for menus within this view. Compile-surface: returns
     /// `self` unchanged (see `MenuStyle`).
     public func menuStyle<S: MenuStyle>(_ style: S) -> some View { self }
+}
+
+public extension Menu {
+    init(_ configuration: MenuStyleConfiguration) {
+        self.init("", elements: [], labelView: configuration.label)
+    }
 }
 
 // MARK: - View-tree walkers (private)

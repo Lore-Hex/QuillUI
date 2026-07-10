@@ -1,5 +1,7 @@
 import AuthenticationServices
 import CoreTransferable
+import Foundation
+import AppKit
 import QuillSwiftUICompatibility
 import SwiftOpenUI
 import UIKit
@@ -12,6 +14,17 @@ public extension UIColor {
             green: CGFloat(color.green),
             blue: CGFloat(color.blue),
             alpha: CGFloat(color.alpha)
+        )
+    }
+}
+
+public extension Color {
+    init(_ color: NSColor) {
+        self.init(
+            red: Double(color._red),
+            green: Double(color._green),
+            blue: Double(color._blue),
+            opacity: Double(color._alpha)
         )
     }
 }
@@ -84,10 +97,68 @@ public extension EnvironmentValues {
     }
 }
 
+private final class SwiftUIShimImageDataCache: @unchecked Sendable {
+    static let shared = SwiftUIShimImageDataCache()
+
+    private let lock = NSLock()
+    private var urlsByContent: [Data: URL] = [:]
+
+    func fileURL(for data: Data) -> URL {
+        lock.withLock {
+            if let existing = urlsByContent[data],
+               FileManager.default.fileExists(atPath: existing.path) {
+                return existing
+            }
+
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("QuillUIImages", isDirectory: true)
+            try? FileManager.default.createDirectory(
+                at: directory,
+                withIntermediateDirectories: true
+            )
+
+            let url = directory
+                .appendingPathComponent(UUID().uuidString)
+                .appendingPathExtension("png")
+            try? data.write(to: url, options: [.atomic])
+            urlsByContent[data] = url
+            return url
+        }
+    }
+}
+
 public extension Image {
+    @_disfavoredOverload
+    init(_ name: String, bundle: Bundle? = nil) {
+        if let path = QuillResourceLookup.path(
+            forResource: name,
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) {
+            self.init(filePath: path)
+        } else {
+            self.init(resource: name)
+        }
+    }
+
+    init(_ resource: ImageResource) {
+        self.init(resource.name)
+    }
+
+    init(nsImage: NSImage) {
+        if let data = nsImage.data, !data.isEmpty {
+            self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
+        } else {
+            self.init(systemName: "photo")
+        }
+    }
+
     init(uiImage: UIImage) {
-        _ = uiImage
-        self.init(systemName: "photo")
+        if let data = uiImage.data, !data.isEmpty {
+            self.init(filePath: SwiftUIShimImageDataCache.shared.fileURL(for: data).path)
+        } else {
+            self.init(systemName: "photo")
+        }
     }
 }
 
@@ -150,5 +221,51 @@ public extension View {
         return self
     }
 
+    @_disfavoredOverload
+    func onDrop(
+        of supportedContentTypes: [UTType],
+        isTargeted: Binding<Bool>? = nil,
+        perform action: @escaping ([NSItemProvider]) -> Bool
+    ) -> Self {
+        _ = supportedContentTypes
+        _ = isTargeted
+        _ = action
+        return self
+    }
+
+    func contextMenu<SelectionValue: Hashable>(
+        forSelectionType selectionType: SelectionValue.Type,
+        @MenuBuilder menu: @escaping (Set<SelectionValue>) -> [MenuElement],
+        primaryAction: ((Set<SelectionValue>) -> Void)? = nil
+    ) -> ContextMenuView<Self> {
+        _ = selectionType
+        _ = primaryAction
+        return contextMenu {
+            menu([])
+        }
+    }
+
+    func onCopyCommand(_ action: @escaping () -> [NSItemProvider]) -> Self {
+        _ = action
+        return self
+    }
+
+    func onDeleteCommand(perform action: @escaping () -> Void) -> Self {
+        _ = action
+        return self
+    }
+
+    func fileImporter(
+        isPresented: Binding<Bool>,
+        allowedContentTypes: [UTType],
+        allowsMultipleSelection: Bool = false,
+        onCompletion: @escaping (Result<[URL], Error>) -> Void
+    ) -> Self {
+        _ = isPresented
+        _ = allowedContentTypes
+        _ = allowsMultipleSelection
+        _ = onCompletion
+        return self
+    }
 }
 #endif

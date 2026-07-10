@@ -15,6 +15,9 @@ struct SourceHygieneTests {
             URL(fileURLWithPath: "/usr/bin/env"),
             arguments: ["git", "-c", "safe.directory=*", "-C", root.path, "ls-files"]
         )
+        if result.status == 128 && result.output.contains("not a git repository") {
+            return
+        }
         #expect(result.status == 0, Comment(rawValue: result.output))
 
         let forbiddenSuffixes = [".bak", ".log", ".orig", ".tmp", "~"]
@@ -50,6 +53,29 @@ struct SourceHygieneTests {
         ))
     }
 
+    @Test("Package manifest can disable upstream app graphs without disabling vendored packages")
+    func packageManifestCanDisableUpstreamAppGraphsWithoutDisablingVendoredPackages() throws {
+        let manifest = try packageSource("Package.swift")
+        let linuxCI = try packageSource(".github/workflows/linux-ci.yml")
+
+        #expect(manifest.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
+        #expect(manifest.contains("func pathPresent(_ relativePath: String) -> Bool"))
+        #expect(manifest.contains("func upstreamPresent(_ relativePath: String) -> Bool"))
+        #expect(manifest.contains("guard !quillUIDisableUpstreamAppGraphs else"))
+        #expect(manifest.contains("return pathPresent(relativePath)"))
+        #expect(manifest.contains("if pathPresent(path)"))
+        #expect(!manifest.contains("if upstreamPresent(path)"))
+        #expect(manifest.contains("QUILLUI_CODEEDIT_UPSTREAM"))
+        #expect(manifest.contains("let codeEditUpstreamEnabled: Bool = codeEditSourceUpstreamPresent"))
+        #expect(manifest.contains("if codeEditUpstreamEnabled {"))
+
+        #expect(linuxCI.contains("Swift tests\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("Build QuillUIGtk facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("Build QuillUIQt facade\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+        #expect(linuxCI.contains("GTK offscreen ImageRenderer smoke\n        timeout-minutes: 15\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\"\n          QUILLUI_LINUX_BACKEND: \"gtk\"\n          TEST_RUN_TIMEOUT: \"180\""))
+        #expect(linuxCI.contains("Generic SwiftUI to Qt backend smoke\n        env:\n          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
+    }
+
     @Test("Package manifest uses frontend-compatible default isolation flags")
     func packageManifestUsesFrontendCompatibleDefaultIsolationFlags() throws {
         let root = try packageRoot()
@@ -61,6 +87,30 @@ struct SourceHygieneTests {
         #expect(manifest.contains("#else\nlet quillMainActorDefaultIsolationSwiftSettings: [SwiftSetting] = []\n#endif"))
         #expect(manifest.contains("let quillMinimalConcurrencyMainActorSwiftSettings: [SwiftSetting] = ["))
         #expect(!manifest.contains("\"-default-isolation\", \"MainActor\""))
+    }
+
+    @Test("GTK FrameView preserves minimum size for flexible content")
+    func gtkFrameViewPreservesMinimumSizeForFlexibleContent() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("let requestWidth = widthMayGrowWithParent"))
+        #expect(renderer.contains("? minWidth.map(gtkPixelSize) ?? -1"))
+        #expect(renderer.contains("let requestHeight = heightMayGrowWithParent"))
+        #expect(renderer.contains("? minHeight.map(gtkPixelSize) ?? -1"))
+    }
+
+    @Test("Vendored LogStream C header is portable for Linux module builds")
+    func vendoredLogStreamCHeaderIsPortableForLinuxModuleBuilds() throws {
+        let header = try packageSource("third_party/LogStream/Sources/Headers/include/Header.h")
+
+        #expect(header.contains("#include <stdbool.h>"))
+        #expect(header.contains("#include <stddef.h>"))
+        #expect(header.contains("#include <stdint.h>"))
+        #expect(header.contains("#include <limits.h>"))
+        #expect(header.contains("#include <sys/types.h>"))
+        #expect(header.contains("typedef void *xpc_object_t;"))
+        #expect(header.contains("#define __unsafe_unretained"))
+        #expect(header.contains("#if defined(__APPLE__) && defined(__OBJC__)"))
     }
 
     @Test("Image click target helper detects adaptive action pixels")
@@ -76,6 +126,2546 @@ struct SourceHygieneTests {
         )
 
         #expect(result.status == 0, Comment(rawValue: result.output))
+    }
+
+    @Test("Local SwiftPM import discovery emits package and target deps")
+    func localSwiftPMImportDiscoveryEmitsPackageAndTargetDeps() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-local-imports-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent(".upstream/localsymbols")
+        let collectionsPackageDir = sandbox.appendingPathComponent("third_party/LocalCollections")
+        let grdbPackageDir = sandbox.appendingPathComponent("third_party/GRDB.swift")
+        let trustedRouterPackageDir = sandbox.appendingPathComponent("third_party/trusted-router-swift")
+        let swiftUIIntrospectPackageDir = sandbox.appendingPathComponent("third_party/SwiftUIIntrospect")
+        let sourceDir = sandbox.appendingPathComponent("source")
+        let packageDependencies = sandbox.appendingPathComponent("package-dependencies.swift")
+        let targetDependencies = sandbox.appendingPathComponent("target-dependencies.txt")
+
+        try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: collectionsPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: grdbPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: trustedRouterPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: swiftUIIntrospectPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LocalSymbols",
+            products: [
+                .library(name: "LocalSymbols", targets: ["LocalSymbols"])
+            ],
+            targets: [
+                .target(name: "LocalSymbols")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        enum LocalTargetKind { case exported }
+
+        struct LocalTarget {
+            let kind: LocalTargetKind
+            let name: String
+
+            static func target(kind: LocalTargetKind, name: String) -> LocalTarget {
+                LocalTarget(kind: kind, name: name)
+            }
+        }
+
+        let targets: [LocalTarget] = [
+            .target(kind: .exported, name: "OrderedCollections")
+        ]
+
+        let package = Package(
+            name: "LocalCollections",
+            products: targets.map { .library(name: $0.name, targets: [$0.name]) },
+            targets: [.target(name: "OrderedCollections")]
+        )
+        """.write(to: collectionsPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "GRDB",
+            products: [.library(name: "GRDB", targets: ["GRDB"])],
+            targets: [.target(name: "GRDB")]
+        )
+        """.write(to: grdbPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "TrustedRouter",
+            products: [.library(name: "TrustedRouter", targets: ["TrustedRouter"])],
+            targets: [.target(name: "TrustedRouter")]
+        )
+        """.write(to: trustedRouterPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "swiftui-introspect",
+            products: [.library(name: "SwiftUIIntrospect", targets: ["SwiftUIIntrospect"])],
+            targets: [.target(name: "SwiftUIIntrospect")]
+        )
+        """.write(to: swiftUIIntrospectPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import Foundation
+        import GRDB
+        import ExtensionFoundation
+        import ExtensionKit
+        import LocalSymbols
+        import OrderedCollections
+        import PDFKit.PDFView
+        import QuickLookUI
+        import SwiftUIIntrospect
+        import TrustedRouter
+
+        struct UsesLocalSymbols {}
+        """.write(to: sourceDir.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/discover-local-swiftpm-import-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--source-dir", sourceDir.path,
+                "--package-dependencies-out", packageDependencies.path,
+                "--target-dependencies-out", targetDependencies.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let packageOutput = try String(contentsOf: packageDependencies, encoding: .utf8)
+        let targetOutput = try String(contentsOf: targetDependencies, encoding: .utf8)
+
+        #expect(packageOutput.contains(".package(name: \"LocalSymbols\", path:"))
+        #expect(packageOutput.contains(packageDir.path))
+        #expect(packageOutput.contains(".package(name: \"LocalCollections\", path:"))
+        #expect(packageOutput.contains(collectionsPackageDir.path))
+        #expect(packageOutput.contains(".package(name: \"GRDB.swift\", path:"))
+        #expect(packageOutput.contains(grdbPackageDir.path))
+        #expect(packageOutput.contains(".package(name: \"trusted-router-swift\", path:"))
+        #expect(packageOutput.contains(trustedRouterPackageDir.path))
+        #expect(!packageOutput.contains("SwiftUIIntrospect"))
+        #expect(targetOutput.contains("product:LocalSymbols:LocalSymbols"))
+        #expect(targetOutput.contains("product:OrderedCollections:LocalCollections"))
+        #expect(targetOutput.contains("product:GRDB:GRDB.swift"))
+        #expect(targetOutput.contains("product:TrustedRouter:trusted-router-swift"))
+        #expect(!targetOutput.contains("ExtensionFoundation"))
+        #expect(!targetOutput.contains("ExtensionKit"))
+        #expect(!targetOutput.contains("PDFKit"))
+        #expect(!targetOutput.contains("QuickLookUI"))
+        #expect(!targetOutput.contains("SwiftUIIntrospect"))
+        #expect(!targetOutput.contains("Foundation"))
+    }
+
+    @Test("Local SwiftPM import discovery excludes copied app package root")
+    func localSwiftPMImportDiscoveryExcludesCopiedAppPackageRoot() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-local-imports-exclude-app-\(UUID().uuidString)")
+        let appPackageDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let helperPackageDir = sandbox.appendingPathComponent("third_party/HelperPackage")
+        let sourceDir = sandbox.appendingPathComponent("source")
+        let packageDependencies = sandbox.appendingPathComponent("package-dependencies.swift")
+        let targetDependencies = sandbox.appendingPathComponent("target-dependencies.txt")
+
+        try fileManager.createDirectory(at: appPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: helperPackageDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "DemoApp",
+            products: [.library(name: "DemoCore", targets: ["DemoCore"])],
+            targets: [.target(name: "DemoCore")]
+        )
+        """.write(to: appPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "HelperPackage",
+            products: [.library(name: "HelperKit", targets: ["HelperKit"])],
+            targets: [.target(name: "HelperKit")]
+        )
+        """.write(to: helperPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import DemoCore
+        import HelperKit
+
+        struct UsesGeneratedTargets {}
+        """.write(to: sourceDir.appendingPathComponent("App.swift"), atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/discover-local-swiftpm-import-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--source-dir", sourceDir.path,
+                "--exclude-package-root", appPackageDir.path,
+                "--package-dependencies-out", packageDependencies.path,
+                "--target-dependencies-out", targetDependencies.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let packageOutput = try String(contentsOf: packageDependencies, encoding: .utf8)
+        let targetOutput = try String(contentsOf: targetDependencies, encoding: .utf8)
+
+        #expect(!packageOutput.contains("DemoApp"), Comment(rawValue: packageOutput))
+        #expect(!targetOutput.contains("DemoCore"), Comment(rawValue: targetOutput))
+        #expect(packageOutput.contains(".package(name: \"HelperPackage\", path:"))
+        #expect(targetOutput.contains("product:HelperKit:HelperPackage"))
+    }
+
+    @Test("Generated app builder prepares SwiftUI-importing local package dependencies")
+    func generatedAppBuilderPreparesSwiftUIImportingLocalPackageDependencies() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-local-package-prep-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent(".upstream/localsymbols")
+        let packageSources = packageDir.appendingPathComponent("Sources/LocalSymbols")
+        let pureDependencyDir = sandbox.appendingPathComponent("third_party/PureDependency")
+        let pureDependencySources = pureDependencyDir.appendingPathComponent("Sources/PureDependency")
+        let logOnlyPackageDir = sandbox.appendingPathComponent("third_party/LogOnly")
+        let logOnlyPackageSources = logOnlyPackageDir.appendingPathComponent("Sources/LogOnly")
+        let inactiveImportPackageDir = sandbox.appendingPathComponent("third_party/InactiveImport")
+        let inactiveImportPackageSources = inactiveImportPackageDir.appendingPathComponent("Sources/InactiveImport")
+        let conditionalAppKitPackageDir = sandbox.appendingPathComponent("third_party/ConditionalAppKit")
+        let conditionalAppKitPackageSources = conditionalAppKitPackageDir.appendingPathComponent("Sources/ConditionalAppKit")
+        let conditionalAppKitHelperSources = conditionalAppKitPackageDir.appendingPathComponent("Sources/ConditionalAppKitHelper")
+        let conditionalExcludedSources = conditionalAppKitPackageDir.appendingPathComponent("Sources/ConditionalExcluded")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: pureDependencySources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: logOnlyPackageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: inactiveImportPackageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: conditionalAppKitPackageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: conditionalAppKitHelperSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: conditionalExcludedSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LocalSymbols",
+            products: [
+                .library(name: "LocalSymbols", targets: ["LocalSymbols"])
+            ],
+            dependencies: [
+                .package(path: "\(pureDependencyDir.path)")
+            ],
+            targets: [
+                .target(
+                    name: "LocalSymbols",
+                    dependencies: ["PureDependency"]
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+        import PureDependency
+
+        public extension Image {
+            static let localSymbol = Image(systemName: "star")
+        }
+        """.write(to: packageSources.appendingPathComponent("Symbols.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "PureDependency",
+            products: [
+                .library(name: "PureDependency", targets: ["PureDependency"])
+            ],
+            targets: [
+                .target(name: "PureDependency")
+            ]
+        )
+        """.write(to: pureDependencyDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public struct PureDependency {}
+        """.write(to: pureDependencySources.appendingPathComponent("PureDependency.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LogOnly",
+            products: [
+                .library(name: "LogOnly", targets: ["LogOnly"])
+            ],
+            targets: [
+                .target(name: "LogOnly")
+            ]
+        )
+        """.write(to: logOnlyPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if canImport(os)
+        import os
+        #endif
+
+        public struct LogOnly {}
+        """.write(to: logOnlyPackageSources.appendingPathComponent("LogOnly.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "InactiveImport",
+            products: [
+                .library(name: "InactiveImport", targets: ["InactiveImport"])
+            ],
+            targets: [
+                .target(name: "InactiveImport")
+            ]
+        )
+        """.write(to: inactiveImportPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if false
+        import Combine
+        #endif
+
+        #if os(iOS)
+        import UIKit
+        #endif
+
+        public struct InactiveImport {}
+        """.write(to: inactiveImportPackageSources.appendingPathComponent("InactiveImport.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        var dependencies: [PackageDescription.Package.Dependency] = []
+
+        let package = Package(
+            name: "ConditionalAppKit",
+            products: [
+                .library(name: "ConditionalAppKit", targets: ["ConditionalAppKit", "ConditionalExcluded"])
+            ],
+            dependencies: dependencies,
+            targets: [
+                .target(name: "ConditionalAppKitHelper"),
+                .target(name: "ConditionalExcluded", exclude: ["Ignored.swift"]),
+                .target(
+                    name: "ConditionalAppKit",
+                    dependencies: [
+                        "ConditionalAppKitHelper",
+                        //.target(name: "CommentedDependency"),
+                    ]
+                )
+            ]
+        )
+        """.write(to: conditionalAppKitPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public struct ConditionalAppKitHelper {}
+        """.write(to: conditionalAppKitHelperSources.appendingPathComponent("ConditionalAppKitHelper.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if os(macOS)
+        import AppKit
+        #endif
+
+        public struct ConditionalExcluded {}
+        """.write(to: conditionalExcludedSources.appendingPathComponent("ConditionalExcluded.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if os(macOS)
+        import AppKit
+        #endif
+
+        public struct ConditionalAppKit {}
+        """.write(to: conditionalAppKitPackageSources.appendingPathComponent("ConditionalAppKit.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "LocalSymbols", path: "\(packageDir.path)")
+        .package(name: "LogOnly", path: "\(logOnlyPackageDir.path)")
+        .package(name: "InactiveImport", path: "\(inactiveImportPackageDir.path)")
+        .package(name: "ConditionalAppKit", path: "\(conditionalAppKitPackageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", root.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedWorkRoot = workRoot.resolvingSymlinksInPath()
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/LocalSymbols/Package.swift"),
+            encoding: .utf8
+        )
+        let conditionalAppKitPreparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/ConditionalAppKit/Package.swift"),
+            encoding: .utf8
+        )
+        let originalManifest = try String(contentsOf: packageDir.appendingPathComponent("Package.swift"), encoding: .utf8)
+
+        #expect(rewrittenDependencies.contains(".package(name: \"LocalSymbols\", path:"))
+        #expect(rewrittenDependencies.contains("prepared-packages/LocalSymbols"))
+        #expect(rewrittenDependencies.contains(".package(name: \"LogOnly\", path: \"\(logOnlyPackageDir.path)\""))
+        #expect(rewrittenDependencies.contains(".package(name: \"InactiveImport\", path: \"\(inactiveImportPackageDir.path)\""))
+        #expect(rewrittenDependencies.contains("prepared-packages/ConditionalAppKit"))
+        #expect(!rewrittenDependencies.contains("prepared-packages/LogOnly"))
+        #expect(!rewrittenDependencies.contains("prepared-packages/InactiveImport"))
+        #expect(preparedManifest.contains(".package(name: \"QuillUI\", path: \"\(root.path)\""))
+        #expect(conditionalAppKitPreparedManifest.contains("dependencies.append(.package(name: \"QuillUI\", path: \"\(root.path)\""))
+        #expect(conditionalAppKitPreparedManifest.contains(".product(name: \"AppKit\", package: \"QuillUI\")"))
+        #expect(!conditionalAppKitPreparedManifest.contains("CommentedDependency\"),\n            ,"))
+        #expect(!conditionalAppKitPreparedManifest.contains("],, exclude"))
+        let pureDependencyPreparedPath = resolvedWorkRoot
+            .appendingPathComponent("prepared-packages/PureDependency")
+            .path
+        #expect(
+            preparedManifest.contains(".package(name: \"PureDependency\", path: \"\(pureDependencyPreparedPath)\"")
+                || preparedManifest.contains(".package(name: \"PureDependency\", path: \"/private\(pureDependencyPreparedPath)\"")
+        )
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".swiftLanguageMode(.v5)"))
+        #expect(!preparedManifest.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
+        #expect(conditionalAppKitPreparedManifest.contains(".swiftLanguageMode(.v5)"))
+        #expect(!conditionalAppKitPreparedManifest.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
+        #expect(fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/PureDependency/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/ConditionalAppKit/Package.swift").path))
+        #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LogOnly").path))
+        #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/InactiveImport").path))
+        #expect(!originalManifest.contains("QuillUI"))
+    }
+
+    @Test("Generated app builder prepares root-declared packages that import SwiftUI")
+    func generatedAppBuilderPreparesRootDeclaredPackagesThatImportSwiftUI() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-root-declared-package-prep-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/RootDeclaredSwiftUI")
+        let packageSources = packageDir.appendingPathComponent("Sources/RootDeclaredSwiftUI")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FakeRoot",
+            dependencies: [
+                .package(name: "RootDeclaredSwiftUI", path: "\(packageDir.path)")
+            ],
+            targets: []
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "RootDeclaredSwiftUI",
+            products: [
+                .library(name: "RootDeclaredSwiftUI", targets: ["RootDeclaredSwiftUI"])
+            ],
+            targets: [
+                .target(name: "RootDeclaredSwiftUI")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct RootDeclaredLabel: View {
+            public var body: some View {
+                Text("Root declared")
+            }
+        }
+        """.write(to: packageSources.appendingPathComponent("RootDeclaredLabel.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "RootDeclaredSwiftUI", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/RootDeclaredSwiftUI/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(rewrittenDependencies.contains("prepared-packages/RootDeclaredSwiftUI"))
+        #expect(
+            preparedManifest.contains(".package(name: \"QuillUI\", path: \"\(sandbox.path)\"")
+                || preparedManifest.contains(".package(name: \"QuillUI\", path: \"/private\(sandbox.path)\"")
+        )
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".swiftLanguageMode(.v5)"))
+        #expect(!preparedManifest.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
+    }
+
+    @Test("Generated app builder reuses Linux-ready vendored package dependencies")
+    func generatedAppBuilderReusesLinuxReadyVendoredPackageDependencies() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-linux-ready-vendor-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/LinuxReadySDK")
+        let packageSources = packageDir.appendingPathComponent("Sources/LinuxReadySDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LinuxReadySDK",
+            products: [.library(name: "LinuxReadySDK", targets: ["LinuxReadySDK"])],
+            dependencies: [
+                .package(name: "QuillUI", path: "\(sandbox.path)")
+            ],
+            targets: [
+                .target(
+                    name: "LinuxReadySDK",
+                    dependencies: [
+                        .product(name: "AuthenticationServices", package: "QuillUI"),
+                        .product(name: "CryptoKit", package: "QuillUI"),
+                        .product(name: "QuillShims", package: "QuillUI"),
+                        .product(name: "Security", package: "QuillUI"),
+                    ]
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        #if canImport(AuthenticationServices)
+        import AuthenticationServices
+        #endif
+        #if canImport(CryptoKit)
+        import CryptoKit
+        #endif
+        #if canImport(Security)
+        import Security
+        #endif
+
+        public struct LinuxReadySDKClient {}
+        """.write(to: packageSources.appendingPathComponent("LinuxReadySDKClient.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "LinuxReadySDK", url: "https://example.com/LinuxReadySDK.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedPackagePath = packageDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"LinuxReadySDK\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedPackagePath)
+                || rewrittenDependencies.contains("/private\(resolvedPackagePath)")
+        )
+        #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
+        #expect(!rewrittenDependencies.contains("prepared-packages/LinuxReadySDK"))
+        #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
+    }
+
+    @Test("Generated app builder does not prepare the QuillUI root dependency")
+    func generatedAppBuilderDoesNotPrepareTheQuillUIRootDependency() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-root-dependency-prep-\(UUID().uuidString)")
+        let rendererDir = sandbox.appendingPathComponent("third_party/Renderer")
+        let rendererSources = rendererDir.appendingPathComponent("Sources/Renderer")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: rendererSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Renderer",
+            products: [.library(name: "Renderer", targets: ["Renderer"])],
+            dependencies: [
+                .package(name: "QuillUI", path: "../..")
+            ],
+            targets: [
+                .target(name: "Renderer")
+            ]
+        )
+        """.write(to: rendererDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct RendererView: View {
+            public var body: some View { Text("renderer") }
+        }
+        """.write(to: rendererSources.appendingPathComponent("RendererView.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "Renderer", path: "\(rendererDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        let preparedRenderer = try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("Renderer-") })
+        let preparedManifest = try String(
+            contentsOf: preparedRenderer.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let resolvedRoot = sandbox.resolvingSymlinksInPath().path
+
+        #expect(preparedManifest.contains(".package(name: \"QuillUI\", path:"))
+        #expect(preparedManifest.contains(resolvedRoot) || preparedManifest.contains("/private\(resolvedRoot)"))
+        #expect(!preparedManifest.contains("prepared-cache/QuillUI-"))
+        #expect(cacheEntries.allSatisfy { !$0.lastPathComponent.hasPrefix("QuillUI-") })
+    }
+
+    @Test("Generated app builder keeps prepared local dependency graphs internally consistent")
+    func generatedAppBuilderKeepsPreparedLocalDependencyGraphsInternallyConsistent() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-prepared-graph-package-prep-\(UUID().uuidString)")
+        let rendererDir = sandbox.appendingPathComponent("third_party/Renderer")
+        let rendererSources = rendererDir.appendingPathComponent("Sources/Renderer")
+        let modelDir = sandbox.appendingPathComponent("third_party/Model")
+        let modelSources = modelDir.appendingPathComponent("Sources/Model")
+        let utilityDir = sandbox.appendingPathComponent("third_party/Utility")
+        let utilitySources = utilityDir.appendingPathComponent("Sources/Utility")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: rendererSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: modelSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: utilitySources, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            dependencies: [
+                .package(path: "third_party/Renderer"),
+                .package(path: "third_party/Model"),
+                .package(path: "third_party/Utility"),
+            ],
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Renderer",
+            products: [.library(name: "Renderer", targets: ["Renderer"])],
+            dependencies: [
+                .package(path: "../Model"),
+                .package(path: "../Utility"),
+            ],
+            targets: [
+                .target(name: "Renderer", dependencies: ["Model", "Utility"])
+            ]
+        )
+        """.write(to: rendererDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct RendererView: View {
+            public var body: some View { Text("Renderer") }
+        }
+        """.write(to: rendererSources.appendingPathComponent("Renderer.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Model",
+            products: [.library(name: "Model", targets: ["Model"])],
+            dependencies: [
+                .package(path: "../Utility"),
+            ],
+            targets: [
+                .target(name: "Model", dependencies: ["Utility"])
+            ]
+        )
+        """.write(to: modelDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public struct ModelValue {}
+        """.write(to: modelSources.appendingPathComponent("Model.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Utility",
+            products: [.library(name: "Utility", targets: ["Utility"])],
+            targets: [.target(name: "Utility")]
+        )
+        """.write(to: utilityDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import Combine
+
+        public final class UtilityObject: ObservableObject {}
+        """.write(to: utilitySources.appendingPathComponent("Utility.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "Renderer", path: "\(rendererDir.path)")
+        .package(name: "Model", path: "\(modelDir.path)")
+        .package(name: "Utility", path: "\(utilityDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        func preparedCacheEntry(named name: String) throws -> URL {
+            try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("\(name)-") })
+        }
+        let preparedRendererManifest = try String(
+            contentsOf: try preparedCacheEntry(named: "Renderer").appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+        let preparedModelManifest = try String(
+            contentsOf: try preparedCacheEntry(named: "Model").appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(rewrittenDependencies.contains("prepared-cache/Renderer-"))
+        #expect(rewrittenDependencies.contains("prepared-cache/Model-"))
+        #expect(rewrittenDependencies.contains("prepared-cache/Utility-"))
+        #expect(preparedRendererManifest.contains(".package(name: \"Model\", path:"))
+        #expect(preparedRendererManifest.contains(".package(name: \"Utility\", path:"))
+        #expect(preparedRendererManifest.contains("prepared-cache/Model-"))
+        #expect(preparedRendererManifest.contains("prepared-cache/Utility-"))
+        #expect(preparedModelManifest.contains(".package(name: \"Utility\", path:"))
+        #expect(preparedModelManifest.contains("prepared-cache/Utility-"))
+        #expect(!preparedModelManifest.contains("../Utility"))
+    }
+
+    @Test("Generated app builder keeps root-declared pure vendored dependencies canonical")
+    func generatedAppBuilderKeepsRootDeclaredPureVendoredDependenciesCanonical() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-prepared-root-pure-dep-\(UUID().uuidString)")
+        let rendererDir = sandbox.appendingPathComponent("third_party/Renderer")
+        let rendererSources = rendererDir.appendingPathComponent("Sources/Renderer")
+        let rootPureDir = sandbox.appendingPathComponent("third_party/RootPure")
+        let rootPureSources = rootPureDir.appendingPathComponent("Sources/RootPure")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: rendererSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: rootPureSources, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            dependencies: [
+                .package(path: "third_party/RootPure"),
+            ],
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Renderer",
+            products: [.library(name: "Renderer", targets: ["Renderer"])],
+            dependencies: [
+                .package(path: "../RootPure"),
+            ],
+            targets: [
+                .target(name: "Renderer", dependencies: ["RootPure"])
+            ]
+        )
+        """.write(to: rendererDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct RendererView: View {
+            public var body: some View { Text(RootPureValue.text) }
+        }
+        """.write(to: rendererSources.appendingPathComponent("Renderer.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "RootPure",
+            products: [.library(name: "RootPure", targets: ["RootPure"])],
+            targets: [.target(name: "RootPure")]
+        )
+        """.write(to: rootPureDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum RootPureValue {
+            public static let text = "root"
+        }
+        """.write(to: rootPureSources.appendingPathComponent("RootPure.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "Renderer", path: "\(rendererDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        let preparedRenderer = try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("Renderer-") })
+        let preparedManifest = try String(
+            contentsOf: preparedRenderer.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(preparedManifest.contains(".package(name: \"RootPure\", path:"))
+        #expect(
+            preparedManifest.contains(rootPureDir.path)
+                || preparedManifest.contains("/private\(rootPureDir.path)")
+        )
+        #expect(!preparedManifest.contains("prepared-cache/RootPure-"))
+        #expect(cacheEntries.allSatisfy { !$0.lastPathComponent.hasPrefix("RootPure-") })
+    }
+
+    @Test("Generated app builder revisits earlier pure dependencies after later preparation")
+    func generatedAppBuilderRevisitsEarlierPureDependenciesAfterLaterPreparation() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-prepared-fixed-point-\(UUID().uuidString)")
+        let featureADir = sandbox.appendingPathComponent("third_party/FeatureA")
+        let featureASources = featureADir.appendingPathComponent("Sources/FeatureA")
+        let featureCDir = sandbox.appendingPathComponent("third_party/FeatureC")
+        let featureCSources = featureCDir.appendingPathComponent("Sources/FeatureC")
+        let sharedDir = sandbox.appendingPathComponent("third_party/SharedPure")
+        let sharedSources = sharedDir.appendingPathComponent("Sources/SharedPure")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: featureASources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: featureCSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sharedSources, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        for (dir, name, importsSwiftUI) in [
+            (featureADir, "FeatureA", false),
+            (featureCDir, "FeatureC", true),
+        ] {
+            try """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "\(name)",
+                products: [.library(name: "\(name)", targets: ["\(name)"])],
+                dependencies: [
+                    .package(path: "../SharedPure"),
+                ],
+                targets: [
+                    .target(name: "\(name)", dependencies: ["SharedPure"])
+                ]
+            )
+            """.write(to: dir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+            let sourceDir = importsSwiftUI ? featureCSources : featureASources
+            try """
+            \(importsSwiftUI ? "import SwiftUI" : "import Foundation")
+
+            public struct \(name)Value {
+                public static let text = SharedPureValue.text
+            }
+            """.write(to: sourceDir.appendingPathComponent("\(name).swift"), atomically: true, encoding: .utf8)
+        }
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "SharedPure",
+            products: [.library(name: "SharedPure", targets: ["SharedPure"])],
+            targets: [.target(name: "SharedPure")]
+        )
+        """.write(to: sharedDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum SharedPureValue {
+            public static let text = "shared"
+        }
+        """.write(to: sharedSources.appendingPathComponent("SharedPure.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "FeatureA", path: "\(featureADir.path)")
+        .package(name: "FeatureC", path: "\(featureCDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        let preparedFeatureA = try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("FeatureA-") })
+        let preparedFeatureAManifest = try String(
+            contentsOf: preparedFeatureA.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(rewrittenDependencies.contains("prepared-cache/FeatureA-"))
+        #expect(rewrittenDependencies.contains("prepared-cache/FeatureC-"))
+        #expect(preparedFeatureAManifest.contains("prepared-cache/SharedPure-"))
+        #expect(!preparedFeatureAManifest.contains("../SharedPure"))
+    }
+
+    @Test("Generated app builder recovers prepared transitive dependencies from cache reuse")
+    func generatedAppBuilderRecoversPreparedTransitiveDependenciesFromCacheReuse() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-prepared-cache-reuse-\(UUID().uuidString)")
+        let featureADir = sandbox.appendingPathComponent("third_party/FeatureA")
+        let featureASources = featureADir.appendingPathComponent("Sources/FeatureA")
+        let featureCDir = sandbox.appendingPathComponent("third_party/FeatureC")
+        let featureCSources = featureCDir.appendingPathComponent("Sources/FeatureC")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("prepared-cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: featureASources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: featureCSources, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FeatureA",
+            products: [.library(name: "FeatureA", targets: ["FeatureA"])],
+            targets: [.target(name: "FeatureA")]
+        )
+        """.write(to: featureADir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import Foundation
+
+        public enum FeatureAValue {
+            public static let text = "a"
+        }
+        """.write(to: featureASources.appendingPathComponent("FeatureA.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FeatureC",
+            products: [.library(name: "FeatureC", targets: ["FeatureC"])],
+            dependencies: [
+                .package(path: "../FeatureA"),
+            ],
+            targets: [
+                .target(name: "FeatureC", dependencies: ["FeatureA"])
+            ]
+        )
+        """.write(to: featureCDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+        import FeatureA
+
+        public struct FeatureCView: View {
+            public var body: some View { Text(FeatureAValue.text) }
+        }
+        """.write(to: featureCSources.appendingPathComponent("FeatureC.swift"), atomically: true, encoding: .utf8)
+
+        try """
+        .package(name: "FeatureC", path: "\(featureCDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+        var result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        try """
+        .package(name: "FeatureA", path: "\(featureADir.path)")
+        .package(name: "FeatureC", path: "\(featureCDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+        result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--prepared-cache-dir", cacheRoot.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        #expect(rewrittenDependencies.contains("prepared-cache/FeatureA-"))
+        #expect(rewrittenDependencies.contains("prepared-cache/FeatureC-"))
+        #expect(!rewrittenDependencies.contains("path: \"\(featureADir.path)\""))
+    }
+
+    @Test("Generated app builder rewrites vendored transitive URL package dependencies")
+    func generatedAppBuilderRewritesVendoredTransitiveURLPackageDependencies() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-transitive-url-package-prep-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/RootPackage")
+        let packageSources = packageDir.appendingPathComponent("Sources/RootPackage")
+        let supportPackageDir = sandbox.appendingPathComponent("third_party/remote-support-swift")
+        let supportSources = supportPackageDir.appendingPathComponent("Sources/RemoteSupport")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: supportSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FakeRoot",
+            targets: []
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "RootPackage",
+            products: [
+                .library(name: "RootPackage", targets: ["RootPackage"])
+            ],
+            dependencies: [
+                .package(url: "https://github.com/example/remote-support-swift.git", from: "1.0.0")
+            ],
+            targets: [
+                .target(
+                    name: "RootPackage",
+                    dependencies: [
+                        .product(name: "RemoteSupport", package: "remote-support-swift")
+                    ]
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import RemoteSupport
+        import SwiftUI
+
+        public struct RootPackageLabel: View {
+            public var body: some View {
+                Text(RemoteSupport.value)
+            }
+        }
+        """.write(to: packageSources.appendingPathComponent("RootPackageLabel.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "RemoteSupport",
+            products: [
+                .library(name: "RemoteSupport", targets: ["RemoteSupport"])
+            ],
+            targets: [
+                .target(name: "RemoteSupport")
+            ]
+        )
+        """.write(to: supportPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum RemoteSupport {
+            public static let value = "vendored"
+        }
+        """.write(to: supportSources.appendingPathComponent("RemoteSupport.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "RootPackage", path: "\(packageDir.path)")
+        .package(url: "https://github.com/example/remote-support-swift.git", from: "1.0.0")
+        .package(name: "remote-support-swift", path: "\(supportPackageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/RootPackage/Package.swift"),
+            encoding: .utf8
+        )
+        let supportPreparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/remote-support-swift/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(rewrittenDependencies.contains("prepared-packages/RootPackage"))
+        #expect(preparedManifest.contains(".package(name: \"remote-support-swift\", path:"))
+        #expect(preparedManifest.contains("prepared-packages/remote-support-swift"))
+        #expect(!preparedManifest.contains("https://github.com/example/remote-support-swift.git"))
+        #expect(preparedManifest.contains(#".product(name: "RemoteSupport", package: "remote-support-swift")"#))
+        let remoteSupportDependencyLines = rewrittenDependencies
+            .split(separator: "\n")
+            .filter { $0.contains(#".package(name: "remote-support-swift", path:"#) }
+        #expect(remoteSupportDependencyLines.count == 1, Comment(rawValue: rewrittenDependencies))
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains("// swift-tools-version: 6.0"))
+        #expect(preparedManifest.contains(".swiftLanguageMode(.v5)"))
+        #expect(!preparedManifest.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
+        #expect(fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/remote-support-swift").path))
+        #expect(!supportPreparedManifest.contains("QuillUI"))
+    }
+
+    @Test("Generated app builder resolves vendored URL aliases case-insensitively")
+    func generatedAppBuilderResolvesVendoredURLAliasesCaseInsensitively() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-url-alias-package-prep-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/RootAliasPackage")
+        let packageSources = packageDir.appendingPathComponent("Sources/RootAliasPackage")
+        let asyncAlgorithmsDir = sandbox.appendingPathComponent("third_party/AsyncAlgorithms")
+        let asyncAlgorithmsSources = asyncAlgorithmsDir.appendingPathComponent("Sources/AsyncAlgorithms")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: asyncAlgorithmsSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FakeRoot",
+            targets: []
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 5.9
+        import PackageDescription
+
+        let package = Package(
+            name: "RootAliasPackage",
+            products: [
+                .library(name: "RootAliasPackage", targets: ["RootAliasPackage"])
+            ],
+            dependencies: [
+                .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0")
+            ],
+            targets: [
+                .target(
+                    name: "RootAliasPackage",
+                    dependencies: [
+                        .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
+                    ]
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+        import AsyncAlgorithms
+
+        public struct RootAliasLabel: View {
+            public var body: some View {
+                Text("vendored alias")
+            }
+        }
+        """.write(to: packageSources.appendingPathComponent("RootAliasLabel.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "swift-async-algorithms",
+            products: [
+                .library(name: "AsyncAlgorithms", targets: ["AsyncAlgorithms"])
+            ],
+            targets: [
+                .target(name: "AsyncAlgorithms")
+            ]
+        )
+        """.write(to: asyncAlgorithmsDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum AsyncAlgorithmsShim {
+            public static let value = "vendored"
+        }
+        """.write(to: asyncAlgorithmsSources.appendingPathComponent("AsyncAlgorithms.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "RootAliasPackage", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/RootAliasPackage/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(preparedManifest.contains(".package(name: \"swift-async-algorithms\", path:"))
+        #expect(preparedManifest.contains("prepared-packages/swift-async-algorithms"))
+        #expect(!preparedManifest.contains("https://github.com/apple/swift-async-algorithms.git"))
+        #expect(fileManager.fileExists(
+            atPath: workRoot.appendingPathComponent("prepared-packages/swift-async-algorithms/Package.swift").path
+        ))
+    }
+
+    @Test("Generated app builder resolves vendored URLs from package manifest names")
+    func generatedAppBuilderResolvesVendoredURLsFromPackageManifestNames() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-manifest-name-vendor-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/RenamedCheckout")
+        let packageSources = packageDir.appendingPathComponent("Sources/RemoteSupportKit")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "FixtureRoot",
+            targets: [.target(name: "FixtureRoot")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "RemoteSupportKit",
+            products: [
+                .library(name: "RemoteSupportKit", targets: ["RemoteSupportKit"])
+            ],
+            targets: [
+                .target(name: "RemoteSupportKit")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        public enum RemoteSupportKit {
+            public static let value = "vendored"
+        }
+        """.write(to: packageSources.appendingPathComponent("RemoteSupportKit.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(url: "https://example.com/remote-support-kit.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedPackagePath = packageDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"remote-support-kit\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedPackagePath)
+                || rewrittenDependencies.contains("/private\(resolvedPackagePath)")
+        )
+        #expect(!rewrittenDependencies.contains("https://example.com/remote-support-kit.git"))
+    }
+
+    @Test("Generated app dependency preparation can reuse a shared prepared package cache")
+    func generatedAppDependencyPreparationCanReuseSharedPreparedPackageCache() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-prepared-cache-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/SharedWidget")
+        let packageSources = packageDir.appendingPathComponent("Sources/SharedWidget")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let cacheRoot = sandbox.appendingPathComponent("cache")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+        let secondDependenciesOut = sandbox.appendingPathComponent("dependencies-out-second.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "SharedWidget",
+            products: [
+                .library(name: "SharedWidget", targets: ["SharedWidget"])
+            ],
+            targets: [
+                .target(name: "SharedWidget")
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct SharedWidgetView: View {
+            public var body: some View { Text("Cached") }
+        }
+        """.write(to: packageSources.appendingPathComponent("SharedWidget.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "SharedWidget", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let arguments = [
+            "python3",
+            root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+            "--root-dir", root.path,
+            "--work-root", workRoot.path,
+            "--dependencies-in", dependenciesIn.path,
+            "--dependencies-out", dependenciesOut.path,
+            "--prepared-cache-dir", cacheRoot.path,
+            "--skip-source-lowering",
+        ]
+
+        let first = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: arguments
+        )
+        #expect(first.status == 0, Comment(rawValue: first.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let cacheEntries = try fileManager.contentsOfDirectory(
+            at: cacheRoot,
+            includingPropertiesForKeys: nil
+        )
+        let preparedPackage = try #require(cacheEntries.first { $0.lastPathComponent.hasPrefix("SharedWidget-") })
+        let preparedManifest = try String(
+            contentsOf: preparedPackage.appendingPathComponent("Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(rewrittenDependencies.contains("quillui-prepared-cache"))
+        #expect(rewrittenDependencies.contains("cache/SharedWidget-"))
+        #expect(!rewrittenDependencies.contains("work/prepared-packages"))
+        #expect(preparedManifest.contains(".package(name: \"QuillUI\", path:"))
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+
+        let futureDate = Date(timeIntervalSince1970: 2_000_000_000)
+        try fileManager.setAttributes(
+            [.modificationDate: futureDate],
+            ofItemAtPath: packageDir.appendingPathComponent("Package.swift").path
+        )
+        try fileManager.setAttributes(
+            [.modificationDate: futureDate],
+            ofItemAtPath: packageSources.appendingPathComponent("SharedWidget.swift").path
+        )
+
+        var secondArguments = arguments
+        if let outIndex = secondArguments.firstIndex(of: dependenciesOut.path) {
+            secondArguments[outIndex] = secondDependenciesOut.path
+        }
+        let second = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: secondArguments
+        )
+        #expect(second.status == 0, Comment(rawValue: second.output))
+        #expect(second.output.contains("reused prepared local SwiftPM dependency"))
+    }
+
+    @Test("Vendored app source helper materializes local source under upstream cache")
+    func vendoredAppSourceHelperMaterializesLocalSourceUnderUpstreamCache() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendored-app-source-\(UUID().uuidString)")
+        let sourceDir = sandbox.appendingPathComponent("vendor/apps/demo/App")
+        let destination = sandbox.appendingPathComponent(".upstream/demo")
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "vendored"
+        }
+        """.write(to: sourceDir.appendingPathComponent("Demo.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:1234567890abcdef
+        """.write(
+            to: sourceDir.deletingLastPathComponent().appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let resolveVendoredResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_resolve_app_source_dir \"$1\" demo App",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+            ]
+        )
+        #expect(resolveVendoredResult.status == 0, Comment(rawValue: resolveVendoredResult.output))
+        #expect(
+            resolveVendoredResult.output.trimmingCharacters(in: .whitespacesAndNewlines) == sourceDir.path,
+            Comment(rawValue: resolveVendoredResult.output)
+        )
+
+        let summaryResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_print_vendored_app_source_summary \"$1\" demo",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+            ]
+        )
+        #expect(summaryResult.status == 0, Comment(rawValue: summaryResult.output))
+        #expect(
+            summaryResult.output.contains("vendored demo source snapshot: git:1234567890abcdef"),
+            Comment(rawValue: summaryResult.output)
+        )
+
+        let materializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$2\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+                destination.path,
+            ]
+        )
+
+        #expect(materializeResult.status == 0, Comment(rawValue: materializeResult.output))
+        #expect(materializeResult.output.contains("vendored demo source"))
+        #expect(materializeResult.output.contains("vendor/apps/demo"))
+        #expect(fileManager.fileExists(atPath: destination.appendingPathComponent("App/Demo.swift").path))
+        #expect(fileManager.fileExists(atPath: destination.appendingPathComponent(".quillui-materialized-vendor-source-fingerprint").path))
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "patched"
+        }
+        """.write(to: destination.appendingPathComponent("App/Demo.swift"), atomically: true, encoding: .utf8)
+
+        let reusedMaterializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$2\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+                destination.path,
+            ]
+        )
+        #expect(reusedMaterializeResult.status == 0, Comment(rawValue: reusedMaterializeResult.output))
+        #expect(reusedMaterializeResult.output.contains("reused materialized vendored demo source"))
+        let reusedDestinationSource = try String(contentsOf: destination.appendingPathComponent("App/Demo.swift"), encoding: .utf8)
+        #expect(reusedDestinationSource.contains("\"patched\""))
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "updated"
+        }
+        """.write(to: sourceDir.appendingPathComponent("Demo.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:fedcba0987654321
+        """.write(
+            to: sourceDir.deletingLastPathComponent().appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let refreshedMaterializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$2\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+                destination.path,
+            ]
+        )
+        #expect(refreshedMaterializeResult.status == 0, Comment(rawValue: refreshedMaterializeResult.output))
+        #expect(refreshedMaterializeResult.output.contains("refreshing materialized vendored demo source"))
+        #expect(refreshedMaterializeResult.output.contains("vendored demo source"))
+        let refreshedDestinationSource = try String(contentsOf: destination.appendingPathComponent("App/Demo.swift"), encoding: .utf8)
+        #expect(refreshedDestinationSource.contains("\"updated\""))
+
+        let resolveRefreshResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_resolve_app_source_dir \"$1\" demo App",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+            ],
+            environment: ["QUILLUI_REFRESH_VENDORED_SOURCE": "1"]
+        )
+        #expect(resolveRefreshResult.status == 0, Comment(rawValue: resolveRefreshResult.output))
+        #expect(
+            resolveRefreshResult.output.trimmingCharacters(in: .whitespacesAndNewlines)
+                == destination.appendingPathComponent("App").path,
+            Comment(rawValue: resolveRefreshResult.output)
+        )
+
+        let unsafeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "bash",
+                "-lc",
+                "source \"$0\"; quillui_materialize_vendored_app_source \"$1\" demo \"$1/not-upstream/demo\"",
+                root.appendingPathComponent("scripts/quillui-vendored-source.sh").path,
+                sandbox.path,
+            ]
+        )
+
+        #expect(unsafeResult.status == 2, Comment(rawValue: unsafeResult.output))
+        #expect(unsafeResult.output.contains("refusing to materialize vendored demo outside .upstream"))
+    }
+
+    @Test("Lowered source cache key trusts vendored app source fingerprint")
+    func loweredSourceCacheKeyTrustsVendoredAppSourceFingerprint() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-source-cache-key-\(UUID().uuidString)")
+        let vendoredAppDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let vendoredSourceDir = vendoredAppDir.appendingPathComponent("App")
+        let vendoredSourceFile = vendoredSourceDir.appendingPathComponent("Demo.swift")
+        let vendoredFingerprint = vendoredAppDir.appendingPathComponent(".quillui-vendor-source-fingerprint")
+        let plainSourceDir = sandbox.appendingPathComponent("PlainApp")
+        let plainSourceFile = plainSourceDir.appendingPathComponent("Plain.swift")
+
+        try fileManager.createDirectory(at: vendoredSourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: plainSourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        public struct DemoAppSource {
+            public static let value = "one"
+        }
+        """.write(to: vendoredSourceFile, atomically: true, encoding: .utf8)
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:1111111111111111
+        """.write(to: vendoredFingerprint, atomically: true, encoding: .utf8)
+        try """
+        public struct PlainAppSource {
+            public static let value = "one"
+        }
+        """.write(to: plainSourceFile, atomically: true, encoding: .utf8)
+
+        func cacheKey(sourceDir: URL) throws -> String {
+            let result = try runSourceHygieneProcess(
+                URL(fileURLWithPath: "/usr/bin/env"),
+                arguments: [
+                    "python3",
+                    root.appendingPathComponent("scripts/quillui-source-cache-key.py").path,
+                    "--root-dir",
+                    sandbox.path,
+                    "--source-dir",
+                    sourceDir.path,
+                ]
+            )
+            #expect(result.status == 0, Comment(rawValue: result.output))
+            return result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        let originalVendoredKey = try cacheKey(sourceDir: vendoredSourceDir)
+        try """
+        public struct DemoAppSource {
+            public static let value = "locally-mutated"
+        }
+        """.write(to: vendoredSourceFile, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: vendoredSourceDir) == originalVendoredKey)
+
+        try """
+        quillui-app-source-vendor/v1
+        app=demo
+        source=git:2222222222222222
+        """.write(to: vendoredFingerprint, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: vendoredSourceDir) != originalVendoredKey)
+
+        let originalPlainKey = try cacheKey(sourceDir: plainSourceDir)
+        try """
+        public struct PlainAppSource {
+            public static let value = "two"
+        }
+        """.write(to: plainSourceFile, atomically: true, encoding: .utf8)
+        #expect(try cacheKey(sourceDir: plainSourceDir) != originalPlainKey)
+    }
+
+    @Test("Vendor app source script pins upstream checkout without git or build state")
+    func vendorAppSourceScriptPinsUpstreamCheckoutWithoutGitOrBuildState() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-app-source-command-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let upstreamDir = sandbox.appendingPathComponent(".upstream/demo")
+        let vendorScript = scriptsDir.appendingPathComponent("vendor-app-source.sh")
+        let vendoredDir = sandbox.appendingPathComponent("vendor/apps/demo")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: upstreamDir.appendingPathComponent("App"),
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(at: upstreamDir.appendingPathComponent(".build"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: upstreamDir.appendingPathComponent(".swiftpm"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: upstreamDir.appendingPathComponent(".artifacts"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: upstreamDir.appendingPathComponent(".qa"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: upstreamDir.appendingPathComponent("E2E/playwright/node_modules/pkg"),
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: upstreamDir.appendingPathComponent("E2E/playwright/test-results"),
+            withIntermediateDirectories: true
+        )
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/vendor-app-source.sh"),
+            to: vendorScript
+        )
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: vendorScript.path)
+        try "public struct Demo {}\n".write(
+            to: upstreamDir.appendingPathComponent("App/Demo.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let gitInit = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["git", "-C", upstreamDir.path, "init"]
+        )
+        #expect(gitInit.status == 0, Comment(rawValue: gitInit.output))
+        let gitAdd = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["git", "-C", upstreamDir.path, "add", "App/Demo.swift"]
+        )
+        #expect(gitAdd.status == 0, Comment(rawValue: gitAdd.output))
+        let gitCommit = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "git",
+                "-C", upstreamDir.path,
+                "-c", "user.name=QuillUI Test",
+                "-c", "user.email=quillui@example.invalid",
+                "commit",
+                "-m", "Initial demo source"
+            ]
+        )
+        #expect(gitCommit.status == 0, Comment(rawValue: gitCommit.output))
+        try "build state\n".write(
+            to: upstreamDir.appendingPathComponent(".build/state.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "swiftpm state\n".write(
+            to: upstreamDir.appendingPathComponent(".swiftpm/config"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "artifact state\n".write(
+            to: upstreamDir.appendingPathComponent(".artifacts/screenshot.png"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "qa state\n".write(
+            to: upstreamDir.appendingPathComponent(".qa/render.log"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "node state\n".write(
+            to: upstreamDir.appendingPathComponent("E2E/playwright/node_modules/pkg/index.js"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "playwright state\n".write(
+            to: upstreamDir.appendingPathComponent("E2E/playwright/test-results/.last-run.json"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let dryRun = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--dry-run", "demo"]
+        )
+        #expect(dryRun.status == 0, Comment(rawValue: dryRun.output))
+        #expect(dryRun.output.contains("would vendor demo source"), Comment(rawValue: dryRun.output))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.path))
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "demo"]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("vendored demo source -> vendor/apps/demo"), Comment(rawValue: result.output))
+        #expect(fileManager.fileExists(atPath: vendoredDir.appendingPathComponent("App/Demo.swift").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent(".git").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent(".build").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent(".swiftpm").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent(".artifacts").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent(".qa").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent("E2E/playwright/node_modules").path))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent("E2E/playwright/test-results").path))
+        #expect(fileManager.fileExists(
+            atPath: vendoredDir.appendingPathComponent(".quillui-vendor-source-fingerprint").path
+        ))
+
+        let vendorNote = try String(
+            contentsOf: vendoredDir.appendingPathComponent("QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        #expect(vendorNote.contains("Vendored demo Source"))
+        #expect(vendorNote.contains("Upstream: unknown"))
+        #expect(vendorNote.contains("Keep the app source pristine"))
+
+        try fileManager.createDirectory(
+            at: vendoredDir.appendingPathComponent("E2E/playwright/node_modules/stale"),
+            withIntermediateDirectories: true
+        )
+        try "stale\n".write(
+            to: vendoredDir.appendingPathComponent("E2E/playwright/node_modules/stale/index.js"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let forcedRefresh = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "demo"],
+            environment: ["QUILLUI_VENDOR_FORCE": "1"]
+        )
+        #expect(forcedRefresh.status == 0, Comment(rawValue: forcedRefresh.output))
+        #expect(!fileManager.fileExists(atPath: vendoredDir.appendingPathComponent("E2E/playwright/node_modules").path))
+
+        let second = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "demo"]
+        )
+        #expect(second.status == 0, Comment(rawValue: second.output))
+        #expect(
+            second.output.contains("already vendored demo source -> vendor/apps/demo"),
+            Comment(rawValue: second.output)
+        )
+
+        let plainUpstreamDir = sandbox.appendingPathComponent(".upstream/plain")
+        let plainVendoredDir = sandbox.appendingPathComponent("vendor/apps/plain")
+        try fileManager.createDirectory(
+            at: plainUpstreamDir.appendingPathComponent("App"),
+            withIntermediateDirectories: true
+        )
+        try "public struct Plain {}\n".write(
+            to: plainUpstreamDir.appendingPathComponent("App/Plain.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let plainFirst = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "plain"]
+        )
+        #expect(plainFirst.status == 0, Comment(rawValue: plainFirst.output))
+        #expect(fileManager.fileExists(
+            atPath: plainVendoredDir.appendingPathComponent(".quillui-vendor-source-fingerprint").path
+        ))
+        let plainFingerprint = try String(
+            contentsOf: plainVendoredDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            encoding: .utf8
+        )
+        #expect(plainFingerprint.contains("source=tree:"), Comment(rawValue: plainFingerprint))
+
+        let plainSecond = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "plain"]
+        )
+        #expect(plainSecond.status == 0, Comment(rawValue: plainSecond.output))
+        #expect(
+            plainSecond.output.contains("already vendored plain source -> vendor/apps/plain"),
+            Comment(rawValue: plainSecond.output)
+        )
+
+        try "Custom provenance\n".write(
+            to: plainVendoredDir.appendingPathComponent("QUILLUI_VENDOR.md"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try "public struct Plain { public let value = 1 }\n".write(
+            to: plainUpstreamDir.appendingPathComponent("App/Plain.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        let plainRefresh = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "plain"]
+        )
+        #expect(plainRefresh.status == 0, Comment(rawValue: plainRefresh.output))
+        #expect(plainRefresh.output.contains("vendored plain source -> vendor/apps/plain"))
+        let preservedPlainNote = try String(
+            contentsOf: plainVendoredDir.appendingPathComponent("QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        #expect(preservedPlainNote == "Custom provenance\n", Comment(rawValue: preservedPlainNote))
+    }
+
+    @Test("SwiftUI app vendor wrapper pins app source and SwiftPM pins")
+    func swiftUIAppVendorWrapperPinsAppSourceAndSwiftPMPins() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-swiftui-app-source-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let sourceDir = sandbox.appendingPathComponent("checkout/demo")
+        let checkoutDir = sandbox.appendingPathComponent(".build/checkouts/trusted-router-swift")
+        let vendoredAppDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let vendoredPackageDir = sandbox.appendingPathComponent("third_party/trusted-router-swift")
+        let wrapperScript = scriptsDir.appendingPathComponent("vendor-swiftui-app-source.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sourceDir.appendingPathComponent("Sources/Demo"), withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: checkoutDir.appendingPathComponent("Sources/TrustedRouter"),
+            withIntermediateDirectories: true
+        )
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        for script in [
+            "vendor-swiftui-app-source.sh",
+            "vendor-app-source.sh",
+            "vendor-swiftpm-sources.sh",
+            "quillui-vendored-source.sh",
+        ] {
+            let destination = scriptsDir.appendingPathComponent(script)
+            try fileManager.copyItem(
+                at: root.appendingPathComponent("scripts/\(script)"),
+                to: destination
+            )
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
+        }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "Demo",
+            dependencies: [
+                .package(url: "https://github.com/jperla/trusted-router-swift.git", from: "0.4.1")
+            ],
+            targets: [
+                .target(
+                    name: "Demo",
+                    dependencies: [.product(name: "TrustedRouter", package: "trusted-router-swift")]
+                )
+            ]
+        )
+        """.write(to: sourceDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        {
+          "pins" : [
+            {
+              "identity" : "trusted-router-swift",
+              "kind" : "remoteSourceControl",
+              "location" : "https://github.com/jperla/trusted-router-swift.git",
+              "state" : {
+                "revision" : "410cb034ce5a20b62f209d03d46a256cafe7b54f",
+                "version" : "0.4.1"
+              }
+            }
+          ],
+          "version" : 3
+        }
+        """.write(to: sourceDir.appendingPathComponent("Package.resolved"), atomically: true, encoding: .utf8)
+        try "import TrustedRouter\npublic struct DemoApp {}\n".write(
+            to: sourceDir.appendingPathComponent("Sources/Demo/Demo.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "TrustedRouter",
+            products: [.library(name: "TrustedRouter", targets: ["TrustedRouter"])],
+            targets: [.target(name: "TrustedRouter")]
+        )
+        """.write(to: checkoutDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "public struct TrustedRouterClient {}\n".write(
+            to: checkoutDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                wrapperScript.path,
+                "--source", sourceDir.path,
+                "--scratch-path", sandbox.appendingPathComponent(".build").path,
+                "demo",
+            ]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("vendored demo source -> vendor/apps/demo"), Comment(rawValue: result.output))
+        #expect(result.output.contains("vendored trusted-router-swift -> third_party/trusted-router-swift"), Comment(rawValue: result.output))
+        #expect(fileManager.fileExists(atPath: vendoredAppDir.appendingPathComponent("Package.swift").path))
+        #expect(fileManager.fileExists(atPath: vendoredAppDir.appendingPathComponent("Package.resolved").path))
+        #expect(fileManager.fileExists(atPath: vendoredPackageDir.appendingPathComponent("Package.swift").path))
+        #expect(fileManager.fileExists(
+            atPath: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift").path
+        ))
+
+        let dryRun = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                wrapperScript.path,
+                "--dry-run",
+                "--source", sourceDir.path,
+                "--scratch-path", sandbox.appendingPathComponent(".build").path,
+                "dry-demo",
+            ]
+        )
+        #expect(dryRun.status == 0, Comment(rawValue: dryRun.output))
+        #expect(dryRun.output.contains("would vendor dry-demo source"), Comment(rawValue: dryRun.output))
+        #expect(dryRun.output.contains("would vendor trusted-router-swift -> third_party/trusted-router-swift"), Comment(rawValue: dryRun.output))
+        #expect(!fileManager.fileExists(atPath: sandbox.appendingPathComponent("vendor/apps/dry-demo").path))
+    }
+
+    @Test("Linux lowering folds AppKit extension overrides into owning class")
+    func linuxLoweringFoldsAppKitExtensionOverridesIntoOwningClass() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-extension-override-lowering-\(UUID().uuidString)")
+        let sourceDir = sandbox.appendingPathComponent("Sources/Editor")
+        let classFile = sourceDir.appendingPathComponent("EditorView.swift")
+        let extensionFile = sourceDir.appendingPathComponent("EditorView+Input.swift")
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        import AppKit
+
+        open class EditorView: NSView {
+            public func refreshEditor() {}
+        }
+        """.write(to: classFile, atomically: true, encoding: .utf8)
+
+        try """
+        import Foundation
+        import QuillShims
+
+        extension EditorView: NSTextInputClient {
+            open override func keyDown(with event: NSEvent) {
+                refreshEditor()
+            }
+
+            private func keepPrivateHelpersWithTheOverride() {}
+        }
+        """.write(to: extensionFile, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-extension-overrides-for-linux.py").path,
+                sourceDir.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let loweredClass = try String(contentsOf: classFile, encoding: .utf8)
+        let loweredExtension = try String(contentsOf: extensionFile, encoding: .utf8)
+
+        #expect(loweredClass.contains("import Foundation"))
+        #expect(loweredClass.contains("import QuillShims"))
+        #expect(loweredClass.contains("open class EditorView: NSView, NSTextInputClient {"))
+        #expect(loweredClass.contains("QuillUI folded extension: EditorView+Input.swift"))
+        #expect(loweredClass.contains("open override func keyDown(with event: NSEvent)"))
+        #expect(loweredClass.contains("private func keepPrivateHelpersWithTheOverride()"))
+        #expect(!loweredExtension.contains("extension EditorView"))
+    }
+
+    @Test("Linux lowering removes impossible framework extension overrides")
+    func linuxLoweringRemovesFrameworkExtensionOverrides() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-framework-extension-override-lowering-\(UUID().uuidString)")
+        let sourceDir = sandbox.appendingPathComponent("Sources/Editor")
+        let sourceFile = sourceDir.appendingPathComponent("NSTableView+Background.swift")
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        import AppKit
+
+        extension NSTableView {
+            override open func viewDidMoveToWindow() {
+                super.viewDidMoveToWindow()
+                backgroundColor = NSColor.clear
+            }
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-extension-overrides-for-linux.py").path,
+                sourceDir.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let lowered = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(lowered.contains("import AppKit"))
+        #expect(!lowered.contains("extension NSTableView"))
+        #expect(!lowered.contains("override open func viewDidMoveToWindow"))
+    }
+
+    @Test("Linux main-actor controller lowering wraps assignments but not comparisons")
+    func linuxMainActorControllerLoweringSkipsComparisons() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-mainactor-assignment-lowering-\(UUID().uuidString)")
+        let sourceDir = sandbox.appendingPathComponent("Sources/Editor")
+        let sourceFile = sourceDir.appendingPathComponent("EditorController.swift")
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        import AppKit
+
+        func configure(controller: NSViewController, configuration: AnyObject, model: AnyObject) -> Bool {
+            controller.representedObject = model
+            controller.items = children.map { child in
+                Item(child: child)
+            }
+            controller.configuration == configuration &&
+            controller.model === model
+        }
+
+        func install(child: Child) {
+            item = NSSplitViewItem(viewController: NSHostingController(rootView: child))
+        }
+
+        func linesInRange(controller: EditorController) -> Int {
+            guard let scrollView = controller.view as? NSScrollView else {
+                return 0
+            }
+            return scrollView.hash
+        }
+
+        func setPosition(of index: Int, position: CGFloat) {
+            viewController()?.splitView.setPosition(position, ofDividerAt: index)
+        }
+
+        func collapseView(with id: AnyHashable, _ enabled: Bool) {
+            viewController()?.collapse(for: id, enabled: enabled)
+        }
+
+        func moveLines(controller: EditorController) {
+            controller.moveLinesUp()
+            controller.moveLinesDown()
+        }
+
+        func stopMonitoring(model: SettingsViewModel) {
+            model.removeKeyDownMonitor()
+            removeKeyDownMonitor()
+        }
+
+        func observe(workspace: Workspace, cancellables: inout Set<AnyCancellable>) {
+            workspace.$highlightedFileItem
+                .sink { [weak self] fileItem in
+                    self?.controller?.reveal(fileItem)
+                }
+                .store(in: &cancellables)
+            workspace.$searchResult
+                .sink(receiveValue: { [weak self] results in
+                    self?.controller?.updateNewSearchResults(results)
+                })
+        }
+
+        func fileManagerUpdated(updatedItems: Set<FileItem>) {
+            guard let outlineView = controller?.outlineView else { return }
+            controller?.shouldReloadAfterDoneEditing = true
+            controller?.shouldSendSelectionUpdate = false
+            outlineView.selectRowIndexes(IndexSet(), byExtendingSelection: false)
+            controller?.shouldSendSelectionUpdate = true
+        }
+
+        func updateToolbarItem() {
+            if shouldShow {
+                toolbar.insertItem(withItemIdentifier: .space, at: 1)
+            } else {
+                toolbar.removeItem(at: 1)
+            }
+        }
+
+        @MainActor
+        final class DesktopController {
+            static let defaultDelay: UInt64 = 1_500_000_000
+
+            private let presenter: any DesktopPresenter
+            private let delay: UInt64
+            private let optionalPresenter: (any DesktopPresenter)?
+
+            init(
+                presenter: any DesktopPresenter = DesktopPresenterImpl(),
+                delay: UInt64 = Self.defaultDelay,
+                optionalPresenter: (any DesktopPresenter)? = DesktopPresenterImpl()
+            ) {
+                self.presenter = presenter
+                self.delay = delay
+                self.optionalPresenter = optionalPresenter
+            }
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-mainactor-assignments-for-linux.py").path,
+                sourceDir.path,
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let lowered = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(lowered.contains("MainActor.assumeIsolated { [model] in\n        controller.representedObject = model\n    }"))
+        #expect(lowered.contains("controller.items = children.map { child in\n        Item(child: child)\n    }"))
+        #expect(!lowered.contains("MainActor.assumeIsolated {\n        controller.items = children.map { child in\n    }"))
+        #expect(lowered.contains("controller.configuration == configuration &&"))
+        #expect(lowered.contains("controller.model === model"))
+        #expect(!lowered.contains("controller.configuration == configuration &&\n    }"))
+        #expect(!lowered.contains("controller.model === model\n    }"))
+        #expect(lowered.contains("NSSplitViewItem(viewController: MainActor.assumeIsolated { NSHostingController(rootView: child) })"))
+        #expect(lowered.contains("let scrollView = MainActor.assumeIsolated { controller.view } as? NSScrollView"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        viewController()?.splitView.setPosition(position, ofDividerAt: index)\n    }"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        viewController()?.collapse(for: id, enabled: enabled)\n    }"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        controller.moveLinesUp()\n    }"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        controller.moveLinesDown()\n    }"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        model.removeKeyDownMonitor()\n    }"))
+        #expect(lowered.contains("MainActor.assumeIsolated {\n        removeKeyDownMonitor()\n    }"))
+        #expect(lowered.contains(".sink { [weak self] fileItem in\n            MainActor.assumeIsolated {\n                self?.controller?.reveal(fileItem)\n            }\n        }"))
+        #expect(lowered.contains(".sink(receiveValue: { [weak self] results in\n            MainActor.assumeIsolated {\n                self?.controller?.updateNewSearchResults(results)\n            }\n        })"))
+        #expect(lowered.contains("func fileManagerUpdated(updatedItems: Set<FileItem>) {\n    MainActor.assumeIsolated {\n        guard let outlineView = controller?.outlineView else { return }"))
+        #expect(lowered.contains("func updateToolbarItem() {\n    MainActor.assumeIsolated {\n        if shouldShow {\n            toolbar.insertItem(withItemIdentifier: .space, at: 1)"))
+        #expect(lowered.contains("@MainActor\n    init("))
+        #expect(lowered.contains("presenter: (any DesktopPresenter)? = nil,"))
+        #expect(lowered.contains("delay: UInt64? = nil,"))
+        #expect(lowered.contains("optionalPresenter: (any DesktopPresenter)? = DesktopPresenterImpl()"))
+        #expect(lowered.contains("let presenter = presenter ?? DesktopPresenterImpl()\n        let delay = delay ?? Self.defaultDelay\n        self.presenter = presenter"))
+
+        let secondPass = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-mainactor-assignments-for-linux.py").path,
+                sourceDir.path,
+            ]
+        )
+        #expect(secondPass.status == 0, Comment(rawValue: secondPass.output))
+        let loweredAgain = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(loweredAgain == lowered)
+    }
+
+    @Test("Linux conditional lowering resolves platform-only branches")
+    func linuxConditionalLoweringResolvesPlatformOnlyBranches() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-linux-conditions-\(UUID().uuidString)", isDirectory: true)
+        let sourceDir = sandbox.appendingPathComponent("Sources", isDirectory: true)
+        let sourceFile = sourceDir.appendingPathComponent("ConditionalView.swift")
+        let inactiveIOSDir = sourceDir.appendingPathComponent("UI/iOS", isDirectory: true)
+        let inactiveWatchDir = sourceDir.appendingPathComponent("UI/watchOS", isDirectory: true)
+        let desktopDir = sourceDir.appendingPathComponent("UI/macOS", isDirectory: true)
+
+        try fileManager.createDirectory(at: sourceDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: inactiveIOSDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: inactiveWatchDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: desktopDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try #"struct DeadIOSView {}"#.write(
+            to: inactiveIOSDir.appendingPathComponent("DeadIOSView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try #"struct DeadWatchView {}"#.write(
+            to: inactiveWatchDir.appendingPathComponent("DeadWatchView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try #"struct DesktopView {}"#.write(
+            to: desktopDir.appendingPathComponent("DesktopView.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        try """
+        import SwiftUI
+
+        struct ConditionalView: View {
+            var body: some View {
+                Text("Hello")
+                    .padding()
+        #if os(iOS)
+                    .showIf(false)
+        #endif
+            }
+
+            var platform: String {
+        #if os(iOS)
+                "ios"
+        #elseif os(macOS) || os(Linux)
+                "linuxish"
+        #else
+                "other"
+        #endif
+            }
+
+        #if canImport(UIKit)
+            let unresolved = true
+        #endif
+        }
+        """.write(to: sourceFile, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-linux-conditional-compilation.py").path,
+                sourceDir.path,
+            ]
+        )
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("Pruned 2 inactive platform source directories"))
+        #expect(!fileManager.fileExists(atPath: inactiveIOSDir.path))
+        #expect(!fileManager.fileExists(atPath: inactiveWatchDir.path))
+        #expect(fileManager.fileExists(atPath: desktopDir.appendingPathComponent("DesktopView.swift").path))
+
+        let lowered = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(lowered.contains("Text(\"Hello\")\n            .padding()"))
+        #expect(!lowered.contains(".showIf(false)"))
+        #expect(!lowered.contains("#if os(iOS)"))
+        #expect(lowered.contains("\"linuxish\""))
+        #expect(!lowered.contains("\"ios\""))
+        #expect(!lowered.contains("\"other\""))
+        #expect(lowered.contains("#if canImport(UIKit)"))
+
+        let secondPass = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/lower-linux-conditional-compilation.py").path,
+                sourceDir.path,
+            ]
+        )
+        #expect(secondPass.status == 0, Comment(rawValue: secondPass.output))
+        #expect(secondPass.output.contains("Pruned 0 inactive platform source directories"))
+        let loweredAgain = try String(contentsOf: sourceFile, encoding: .utf8)
+        #expect(loweredAgain == lowered)
     }
 
     @Test("MarkdownUI table rows render backend-stable full-width dividers")
@@ -109,9 +2699,19 @@ struct SourceHygieneTests {
     func signalUIKitRendererMapsEditableTextViewThroughGtkEntryBridge() throws {
         let manifest = try packageSource("Package.swift")
         let renderer = try packageSource("Sources/SignalUIRenderCore/Renderer.swift")
+        let host = try packageSource("Sources/SignalUIRender/main.swift")
         let mapper = try packageSource("Sources/SignalUIRenderCore/Mappers/LabelImageMappers.swift")
         let bridge = try packageSource("Sources/SignalUIRenderCore/Mappers/TextViewEntryBridge.swift")
         let gtkShim = try packageSource("Sources/CGtk4/shim.h")
+        let captureScript = try packageSource("scripts/signal-render-capture.sh")
+        let pendingSmokeScript = try packageSource("scripts/signal-render-pending-smoke.sh")
+        let pendingContinueSmokeScript = try packageSource("scripts/signal-render-pending-continue-smoke.sh")
+        let sendSmokeScript = try packageSource("scripts/signal-render-send-smoke.sh")
+        let receiveSmokeScript = try packageSource("scripts/signal-render-receive-smoke.sh")
+        let signalChatSmokeScript = try packageSource("scripts/signal-chat-stub-smoke.sh")
+        let signalChatStub = try packageSource("scripts/signal-chat-stub-bridge.py")
+        let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
+        let signalDockerfile = try packageSource("docker/quillui-signal-build.Dockerfile")
 
         #expect(manifest.contains("name: \"SignalUIRenderCore\""))
         #expect(manifest.contains("name: \"signal-ui-render-core-smoke\""))
@@ -119,6 +2719,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("path: \"Sources/SignalUIRenderCore\""))
         #expect(manifest.contains("path: \"Sources/SignalUIRenderCoreSmoke\""))
         #expect(manifest.contains("\"QuillUIKit\", \"UIKit\", \"QuillFoundation\", \"QuartzCore\", \"CGtk4\""))
+        #expect(manifest.contains("\"Fonts\",\n                \"Views/BodyRanges/SpoilerRendering/SpoilerParticleShader.metal\""))
         #expect(!renderer.contains("import SignalUI"))
         #expect(!renderer.contains("as? ColorOrGradientValue"))
         #expect(renderer.contains("ReflectedSignalColorOrGradient"))
@@ -129,10 +2730,144 @@ struct SourceHygieneTests {
         #expect(mapper.contains("quillSignalConnectTextViewEntrySignals"))
         #expect(bridge.contains("textView.quillReplaceCharacters("))
         #expect(bridge.contains("context.activateReturnKey()"))
+        #expect(bridge.contains("quillSignalRenderSetFirstTextEntry"))
+        #expect(bridge.contains("quillSignalRenderClickButton"))
+        #expect(bridge.contains("labelText: String"))
+        #expect(bridge.contains("quill_widget_is_label"))
+        #expect(bridge.contains("quill_label_get_text"))
+        #expect(bridge.contains("quill_widget_is_editable"))
+        #expect(bridge.contains("quill_widget_is_button"))
+        #expect(bridge.contains("quill_signal_emit_clicked"))
         #expect(bridge.contains("quill_editable_get_text"))
         #expect(bridge.contains("quill_entry_set_placeholder_text"))
         #expect(bridge.contains("notify::has-focus"))
+        #expect(host.contains("SIGNAL_UI_RENDER_TYPE_TEXT"))
+        #expect(host.contains("SIGNAL_UI_RENDER_CLICK_SEND"))
+        #expect(host.contains("SIGNAL_UI_RENDER_CLICK_SEND_DELAY_MS"))
+        #expect(host.contains("SIGNAL_UI_RENDER_LOG_INTERACTIONS"))
+        #expect(host.contains("SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE"))
+        #expect(host.contains("SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"))
+        #expect(host.contains("SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL"))
+        #expect(host.contains("SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL_DELAY_MS"))
+        #expect(host.contains("SIGNAL_UI_RENDER_RERENDER_DELAY_MS"))
+        #expect(host.contains("pending request continuation settled"))
+        #expect(host.contains("rerendered UIKit tree after"))
+        #expect(host.contains("QuillSignalRealConversationProbe.injectAcceptedIncomingMessage"))
+        #expect(host.contains("QuillSignalRealConversationProbe.settlePendingRequestContinuation"))
+        #expect(host.contains("ThreadUtil.enqueueSendQueue.enqueue(operation: {})"))
+        #expect(host.contains("runGtkMainLoopCooperatively()"))
+        #expect(host.contains("while g_main_context_iteration(nil, 0) != 0 {}"))
+        #expect(host.contains("g_timeout_add"))
+        #expect(host.contains("scheduled send button click"))
+        #expect(host.contains("quillSignalRenderSetFirstTextEntry"))
+        #expect(host.contains("signal-uikit-button-send"))
+        #expect(gtkShim.contains("static inline int quill_widget_is_editable"))
+        #expect(gtkShim.contains("static inline int quill_widget_is_button"))
+        #expect(gtkShim.contains("static inline int quill_widget_is_label"))
+        #expect(gtkShim.contains("static inline const char *quill_label_get_text"))
+        #expect(gtkShim.contains("static inline int quill_widget_has_css_class"))
         #expect(gtkShim.contains("static inline gulong quill_signal_connect_data"))
+        #expect(captureScript.contains("conversation|real-conversation|real-conversation-accepted)"))
+        #expect(captureScript.contains("swift build --show-bin-path"))
+        #expect(!captureScript.contains(".build/aarch64-unknown-linux-gnu"))
+        #expect(captureScript.contains("prepend_env_path QUILLUI_LOCALIZATION_DIRS \"$ROOT/.upstream/signal-ios/Signal\""))
+        #expect(captureScript.contains("prepend_env_path QUILLUI_RESOURCE_DIRS \"$ROOT/.upstream/signal-ios/SignalUI\""))
+        #expect(captureScript.contains("width=\"${SIGNAL_RENDER_CAPTURE_WIDTH:-$default_width}\""))
+        #expect(captureScript.contains("GSK_RENDERER=\"${GSK_RENDERER:-cairo}\""))
+        #expect(pendingSmokeScript.contains("swift build --show-bin-path"))
+        #expect(pendingSmokeScript.contains("\"$ROOT/scripts/signal-render-capture.sh\" real-conversation"))
+        #expect(pendingSmokeScript.contains("MessageRequestView"))
+        #expect(pendingSmokeScript.contains("Name not verified"))
+        #expect(pendingSmokeScript.contains("signal-real-conversation-pending"))
+        #expect(pendingContinueSmokeScript.contains("SIGNAL_UI_RENDER_CLICK_BUTTON_LABEL=Continue"))
+        #expect(pendingContinueSmokeScript.contains("SIGNAL_UI_RENDER_AUTO_CONFIRM_ACTION_SHEETS=1"))
+        #expect(pendingContinueSmokeScript.contains("pending request continuation settled dbPending=false viewModelPending=false bottomViewType=inputToolbar hasInputToolbar=true"))
+        #expect(pendingContinueSmokeScript.contains("systemRows=[info:acceptedMessageRequest:cell=543x80:collapse=false:button=184x31]"))
+        #expect(pendingContinueSmokeScript.contains("ConversationInputToolbar"))
+        #expect(pendingContinueSmokeScript.contains("You accepted Maya Rivera's message request."))
+        #expect(pendingContinueSmokeScript.contains("CVCell frame=(0,444,760x80)"))
+        #expect(pendingContinueSmokeScript.contains("UIButton frame=(152,37,184x31)"))
+        #expect(pendingContinueSmokeScript.contains("require_log_absent_after_rerender \"acceptedMessageRequest\""))
+        #expect(pendingContinueSmokeScript.contains("require_log_absent_after_rerender \"MessageRequestView\""))
+        #expect(pendingContinueSmokeScript.contains("signal-real-conversation-accepted-request"))
+        #expect(sendSmokeScript.contains("swift build --show-bin-path"))
+        #expect(sendSmokeScript.contains("SIGNAL_UI_RENDER_DRAIN_SEND_QUEUE=1"))
+        #expect(sendSmokeScript.contains(#"require_log_line 'signal-ui-render: after send click body=""'"#))
+        #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions send queue drained"))
+        #expect(sendSmokeScript.contains("signal-ui-render: after send click interactions count=3 bodies="))
+        #expect(sendSmokeScript.contains("verify-backend-screenshot.py"))
+        #expect(sendSmokeScript.contains("signal-real-conversation-send"))
+        #expect(receiveSmokeScript.contains("SIGNAL_UI_RENDER_INJECT_INCOMING_TEXT"))
+        #expect(receiveSmokeScript.contains("signal-ui-render: scheduled incoming injection"))
+        #expect(receiveSmokeScript.contains("signal-ui-render: injected incoming message summary count=3 bodies="))
+        #expect(receiveSmokeScript.contains("verify-backend-screenshot.py"))
+        #expect(receiveSmokeScript.contains("signal-real-conversation-receive"))
+        #expect(signalChatSmokeScript.contains("swift build --disable-index-store"))
+        #expect(signalChatSmokeScript.contains("--product signal-chat"))
+        #expect(signalChatSmokeScript.contains("scripts/signal-chat-stub-bridge.py"))
+        #expect(signalChatSmokeScript.contains("QSIGNAL_SOCK=\"$socket_path\""))
+        #expect(signalChatSmokeScript.contains("verify-backend-screenshot.py"))
+        #expect(signalChatSmokeScript.contains("signal-chat-stub"))
+        #expect(signalChatStub.contains("just saw the window. this is the real deal"))
+        #expect(!signalChatStub.contains("🔥"))
+        #expect(signalDockerfile.contains("fonts-noto-color-emoji"))
+        #expect(signalDockerfile.contains("libc++-dev"))
+        #expect(signalDockerfile.contains("libc++abi-dev"))
+        #expect(signalDockerfile.contains("--fix-missing"))
+        #expect(signalDockerfile.contains("for i in 1 2 3 4 5; do"))
+        #expect(!signalDockerfile.contains("\n        clang \\"))
+        #expect(signalDockerfile.contains("Do not apt-install Ubuntu's clang"))
+        #expect(signalDockerfile.contains("apt-get install -y --no-install-recommends --fix-broken || true"))
+        #expect(signalDockerfile.contains("dpkg --configure -a || true"))
+        #expect(screenshotVerifier.contains("def validate_signal_real_conversation"))
+        #expect(screenshotVerifier.contains("def validate_signal_chat_stub"))
+        #expect(screenshotVerifier.contains("signal-chat-stub"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-pending"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-accepted-request"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-send"))
+        #expect(screenshotVerifier.contains("signal-real-conversation-receive"))
+        #expect(screenshotVerifier.contains("request_warning_pixels >= 120"))
+        #expect(screenshotVerifier.contains("request_action_pixels >= 80"))
+        #expect(screenshotVerifier.contains("request_continue_pixels >= 120"))
+        #expect(screenshotVerifier.contains("bottom_outgoing_pixels >= 2_500"))
+        #expect(screenshotVerifier.contains("bottom_incoming_pixels >= 2_500"))
+    }
+
+    @Test("Signal upstream patches keep the real send pipeline database-backed")
+    func signalUpstreamPatchesKeepRealSendPipelineDatabaseBacked() throws {
+        let upstreamFetch = try packageSource("scripts/fetch-upstream.sh")
+        let signalPortLink = try packageSource("scripts/quill-signal-link-ports.sh")
+        let probe = try packageSource("Sources/SignalAppPort/QuillRealConversationProbe.swift")
+        let infoMessagePort = try packageSource("Sources/SignalServiceKitObjCPort/QuillTSInfoMessage.swift")
+        let summaryStart = try #require(probe.range(of: "acceptedInteractionDebugSummary()"))
+        let summaryEnd = try #require(probe[summaryStart.upperBound...].range(of: "private static func makeViewController"))
+        let summaryQuery = String(probe[summaryStart.lowerBound..<summaryEnd.lowerBound])
+
+        #expect(upstreamFetch.contains("patching signal-ios SDSRecord.swift insert row-id propagation"))
+        #expect(upstreamFetch.contains("delegate?.updateRowId(transaction.database.lastInsertedRowID)"))
+        #expect(upstreamFetch.contains("SDSRecord.sdsInsert shape changed"))
+        #expect(probe.contains("acceptedInteractionDebugSummary()"))
+        #expect(probe.contains("injectAcceptedIncomingMessage"))
+        #expect(probe.contains("profileManagerRef.localProfileKey(tx: tx) == nil"))
+        #expect(probe.contains("setLocalProfileKey("))
+        #expect(probe.contains("Aes256Key.keyByteLength"))
+        #expect(probe.contains("settlePendingRequestContinuation"))
+        #expect(probe.contains("pendingRequestDebugSummary"))
+        #expect(probe.contains("systemMessageLayoutDebugSummary"))
+        #expect(probe.contains("reloadConversationCollection(cvc)"))
+        #expect(probe.contains("cvc.layout.invalidateLayout()"))
+        #expect(probe.contains("cvc.collectionView.reloadData()"))
+        #expect(probe.contains("SUIEnvironment.shared.quillInstallRenderLinkPreviewFetcher(QuillSignalRenderLinkPreviewFetcher())"))
+        #expect(probe.contains("TSIncomingMessageBuilder.withDefaultValues"))
+        #expect(probe.contains("CVScrollAction(action: .bottomForNewMessage, isAnimated: false)"))
+        #expect(signalPortLink.contains("quillSignalCorelibsSafeAttributes"))
+        #expect(signalPortLink.contains("SIGNAL_UI_RENDER_AUTO_CONFIRM_ACTION_SHEETS"))
+        #expect(signalPortLink.contains("auto-confirmed action sheet"))
+        #expect(infoMessagePort.contains("return _infoMessagePreviewText(tx: transaction)"))
+        #expect(!infoMessagePort.contains("return String(describing: messageType)"))
+        #expect(summaryQuery.contains("WHERE uniqueThreadId = ?"))
+        #expect(!summaryQuery.contains("WHERE threadUniqueId = ?"))
+        #expect(summaryQuery.contains("ORDER BY timestamp ASC, id ASC"))
     }
 
     @Test("Signal UIKit renderer maps UIButtons through GTK button actions")
@@ -146,8 +2881,17 @@ struct SourceHygieneTests {
         #expect(controls.contains("gtk_button_new()!"))
         #expect(controls.contains("gtk_button_set_child"))
         #expect(controls.contains("installButtonContentMutationBridge(on: widget, button: button, ctx: ctx)"))
+        #expect(controls.contains("applyButtonRoleClasses(widget, button: button)"))
+        #expect(controls.contains("applyConfigurationStyle(widget, button: button)"))
+        #expect(controls.contains("button.configuration?.baseBackgroundColor ?? button.configuration?.background.backgroundColor"))
+        #expect(controls.contains("button.configuration?.quillStyle == \"gray\""))
+        #expect(controls.contains("button.layer.cornerRadius"))
+        #expect(controls.contains("signal-uikit-button-\\(role)"))
+        #expect(controls.contains("name.contains(\"arrow-up\") || name.contains(\"send\") || name.contains(\"paperplane\")"))
         #expect(controls.contains("button.quillSetSubviewMutationHandler(\"SignalUIRender.buttonContent\")"))
         #expect(controls.contains("gtk_button_set_child(buttonPointer(widget), child)"))
+        #expect(controls.contains("gtk_widget_set_overflow(fixed, GTK_OVERFLOW_HIDDEN)"))
+        #expect(controls.contains("clippedButtonChildFrame(subview.frame, in: button)"))
         #expect(controls.contains("sendActions(for: [.primaryActionTriggered, .touchUpInside])"))
         #expect(controls.contains("\"clicked\""))
         #expect(controls.contains("g_signal_connect_data("))
@@ -162,10 +2906,12 @@ struct SourceHygieneTests {
     func signalUIKitRendererBindsLiveViewMutationsOntoGtkWidgets() throws {
         let renderer = try packageSource("Sources/SignalUIRenderCore/Renderer.swift")
         let containers = try packageSource("Sources/SignalUIRenderCore/Mappers/ContainerMappers.swift")
+        let collections = try packageSource("Sources/SignalUIRenderCore/Mappers/CollectionMappers.swift")
         let tables = try packageSource("Sources/SignalUIRenderCore/Mappers/TableMappers.swift")
         let labels = try packageSource("Sources/SignalUIRenderCore/Mappers/LabelImageMappers.swift")
         let textViewBridge = try packageSource("Sources/SignalUIRenderCore/Mappers/TextViewEntryBridge.swift")
         let quillUIKit = try packageSource("Sources/QuillUIKit/QuillUIKit.swift")
+        let collectionExtras = try packageSource("Sources/QuillUIKit/UICollectionViewExtras.swift")
         let stackView = try packageSource("Sources/QuillUIKit/UIStackView.swift")
         let uiKitShim = try packageSource("Sources/UIKitShim/UIKit.swift")
 
@@ -198,7 +2944,11 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtk_widget_set_opacity(widget, gdouble(max(0, min(1, updatedView.alpha))))"))
         #expect(renderer.contains("updatedView.isUserInteractionEnabled && control.isEnabled"))
         #expect(renderer.contains("gtk_widget_set_size_request("))
+        #expect(renderer.contains("static func gtkSizeRequestValue(_ value: CGFloat) -> gint"))
+        #expect(renderer.contains("static func gtkCoordinateValue(_ value: CGFloat) -> gdouble"))
         #expect(renderer.contains("view.quillNotifyViewMutation()"))
+        #expect(containers.contains("UIKitGtkRenderer.gtkCoordinateValue(frame.origin.x)"))
+        #expect(containers.contains("UIKitGtkRenderer.gtkSizeRequestValue(frame.width)"))
         #expect(containers.contains("installStackMutationBridge(on: box, stack: stack, ctx: ctx)"))
         #expect(containers.contains("stack.quillSetSubviewMutationHandler(\"SignalUIRender.stackChildren\")"))
         #expect(containers.contains("shouldHonorArrangedSubviewFixedFrame(child)"))
@@ -221,11 +2971,29 @@ struct SourceHygieneTests {
         #expect(containers.contains("installGenericBoxMutationBridge(on: box, view: view, isBadge: isBadge, ctx: ctx)"))
         #expect(containers.contains("view.quillSetSubviewMutationHandler(\"SignalUIRender.genericBoxChildren\")"))
         #expect(containers.contains("clearBoxChildren(box)"))
+        #expect(collections.contains("installCollectionMutationBridge(on: stack, collectionView: collectionView, ctx: ctx)"))
+        #expect(collectionExtras.contains("open func invalidateLayout()"))
+        #expect(collectionExtras.contains("quillScheduleReloadAfterLayoutInvalidation()"))
+        #expect(collectionExtras.contains("hasScheduledReloadAfterLayoutInvalidation"))
+        #expect(collectionExtras.contains("Task { @MainActor [weak self] in"))
+        #expect(collections.contains("UIKitGtkRenderer.gtkSizeRequestValue(frame.width)"))
+        #expect(collections.contains("collectionView.quillSetSubviewMutationHandler(\"SignalUIRender.collectionChildren\")"))
+        #expect(collections.contains("appendCollectionChildren(to: stack, collectionView: updatedCollectionView, ctx: ctx)"))
+        #expect(collections.contains("clearCollectionBoxChildren(stack)"))
+        #expect(collectionExtras.contains("func quillReloadDataAndNotify()"))
+        #expect(collectionExtras.contains("QuillUIKitMutationNotifications.withoutNotifications"))
+        #expect(collectionExtras.contains("quillNotifySubviewMutation()"))
+        #expect(collectionExtras.contains("quillPrefetchedLayoutAttributesByIndexPath()"))
+        #expect(collectionExtras.contains("layoutAttributesForElements(in: scanRect)"))
+        #expect(collectionExtras.contains("prefetchedAttributes.isEmpty"))
         #expect(tables.contains("prepareCellGeometry(cell, in: tv, at: indexPath, width: rowContentWidth)"))
         #expect(tables.contains("cell.contentView.frame = cell.bounds"))
         #expect(tables.contains("delegate.tableView(tableView, heightForRowAt: indexPath)"))
         #expect(tables.contains("let cardInsets = CGFloat(cardHorizontalMargin * 2)"))
         #expect(labels.contains("installLabelMutationBridge(widget, label: label)"))
+        #expect(labels.contains("UIKitGtkRenderer.gtkSizeRequestValue(size.width)"))
+        #expect(labels.contains("gtk_label_set_single_line_mode(labelPtr, 1)"))
+        #expect(labels.contains("gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_END)"))
         #expect(labels.contains("label.quillSetViewMutationHandler(\"SignalUIRender.labelContent\")"))
         #expect(labels.contains("installTextViewLabelMutationBridge(widget, textView: textView)"))
         #expect(labels.contains("installEditableTextViewMutationBridge(widget, textView: textView)"))
@@ -260,7 +3028,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {\n    products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk && signalUpstreamPresent && libsignalUpstreamPresent {"))
         #expect(manifest.contains("products.append(.executable(name: \"signal-ui-render\", targets: [\"SignalUIRender\"]))"))
-        #expect(manifest.contains("#if compiler(>=6.2)\nlet quillLegacyMainActorConcurrencySettings: [SwiftSetting] = ["))
+        #expect(manifest.contains("let quillLegacyMainActorConcurrencySettings: [SwiftSetting] =\n    quillMinimalConcurrencyMainActorSwiftSettings"))
         #expect(manifest.contains("let quillLegacyMainActorSwiftSettings: [SwiftSetting] = [\n    .swiftLanguageMode(.v5)\n] + quillLegacyMainActorConcurrencySettings"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .qt {"))
         #expect(manifest.contains("enum QuillCanonicalLinuxAppQtRuntime"))
@@ -323,11 +3091,25 @@ struct SourceHygieneTests {
 
     @Test("SwiftUI Linux source lowering runs reusable Objective-C and shorthand cleanup")
     func swiftUILinuxSourceLoweringRunsReusableObjectiveCAndShorthandCleanup() throws {
+        let manifest = try packageSource("Package.swift")
         let lowering = try packageSource("scripts/lower-swiftui-source-for-linux.sh")
         let objcLowering = try packageSource("scripts/lower-objc-interop-for-linux.sh")
+        let preparedPackageDependencyScript = try packageSource("scripts/prepare-swiftui-linux-package-dependencies.py")
+        let sourceLoweringRunner = try packageSource("scripts/run-quill-source-lower.sh")
+        let swiftUILoweringRunner = try packageSource("scripts/run-quill-swiftui-lower.sh")
+        let appKitLoweringRunner = try packageSource("scripts/run-quill-appkit-lower.sh")
+        let mainActorAssignmentLowering = try packageSource("scripts/lower-mainactor-assignments-for-linux.py")
+        let linuxConditionalLowering = try packageSource("scripts/lower-linux-conditional-compilation.py")
+        let quillData = try packageSource("Sources/QuillData/QuillData.swift")
+        let swiftUICompatibility = try packageSource("Sources/QuillSwiftUICompatibility/QuillSwiftUICompatibility.swift")
+        let observation = try packageSource("Sources/Observation/Observation.swift")
+        let foundationModels = try packageSource("Sources/FoundationModels/FoundationModels.swift")
+        let mainActorAssignmentLoweringCall = "python3 \"$(dirname \"$0\")/lower-mainactor-assignments-for-linux.py\" \"$SOURCE_DIR\""
+        let linuxConditionalLoweringCall = "python3 \"$(dirname \"$0\")/lower-linux-conditional-compilation.py\" \"$SOURCE_DIR\""
         let appKitLoweringCall = "\"$(dirname \"$0\")/run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""
         let objcLoweringCall = "\"$(dirname \"$0\")/lower-objc-interop-for-linux.sh\" \"$SOURCE_DIR\""
         let signalUILowering = try packageSource("scripts/quill-signal-lower-ui.sh")
+        let compatibilityModule = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
 
         // No keyboardType(.URL) rewrite. The shim exposes a single canonical
         // keyboardType(_ type: UIKeyboardType), so upstream `.keyboardType(.URL)`
@@ -335,16 +3117,130 @@ struct SourceHygieneTests {
         // requalify it to the removed DSSC `KeyboardType.URL`. (textContentType,
         // whose TextContentType type still exists, is still rewritten below.)
         #expect(!lowering.contains(".keyboardType(KeyboardType.URL)"))
+        #expect(manifest.contains("QUILLUI_RUNTIME_ONLY_MACROS"))
+        #expect(manifest.contains("let quillDataMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : [\"QuillDataMacros\"]"))
+        #expect(manifest.contains("let quillSwiftUICompatibilityMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : [\"QuillDataMacros\"]"))
+        #expect(manifest.contains("let quillObservationMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : [\"QuillDataMacros\"]"))
+        #expect(manifest.contains("let quillFoundationModelsMacroDependencies: [Target.Dependency] = quillUIRuntimeOnlyMacros ? [] : [\"QuillDataMacros\"]"))
+        #expect(quillData.contains("#if !QUILLDATA_NO_MACROS"))
+        #expect(swiftUICompatibility.contains("#if !QUILLUI_NO_COMPAT_MACROS"))
+        #expect(observation.contains("#if !QUILLUI_NO_OBSERVATION_MACROS"))
+        #expect(foundationModels.contains("#if !QUILLUI_NO_FOUNDATION_MODELS_MACROS"))
+        #expect(lowering.contains("import[ \\t]+Carbon\\.[A-Za-z0-9_]+"))
+        #expect(lowering.contains("@preconcurrency import $2"))
         #expect(lowering.contains("s/\\.textContentType\\([ \\t]*\\.URL[ \\t]*\\)/.textContentType(TextContentType.URL)/g;"))
+        #expect(lowering.contains("NSMutableAttributedString(string: \"\")"))
+        #expect(lowering.contains("NSAttributedString(string: \"\")"))
+        #expect(lowering.contains("Corners\\.RawValue"))
+        #expect(lowering.contains("s/\\.selectedRange\\(\\)/.selectedRange/g;"))
+        #expect(lowering.contains("Swift.abs($1)"))
+        #expect(lowering.contains("as\\?[ \\t]+NSURL"))
+        #expect(lowering.contains("let $5 = $3.absoluteString"))
+        #expect(lowering.contains("DispatchQueue\\.dispatchMainIfNot[ \\t]*\\{/Task { \\@MainActor in"))
+        #expect(lowering.contains("Task { \\@MainActor in completion(.success(result)) }"))
+        #expect(lowering.contains("CGFloat($2)"))
+        #expect(lowering.contains("NSImage.SymbolConfiguration"))
+        #expect(lowering.contains(#"(?:pointSize|weight|scale|textStyle|paletteColors)"#))
+        #expect(!lowering.contains(#"s/(\.applying\(\s*)\.init\(/$1NSImage.SymbolConfiguration(/g;"#))
+        #expect(lowering.contains("TextViewController\\b"))
+        #expect(lowering.contains("@MainActor[ \\t]*\\n\\1\\@MainActor"))
+        #expect(lowering.contains("*ViewModel[ \\t]*:[^\\n{]*\\bObservableObject\\b"))
+        #expect(lowering.contains("@Sendable () -> Void"))
+        #expect(lowering.contains("nonisolated(unsafe)"))
+        #expect(!lowering.contains("(?!public[ \\t]+static[ \\t]+func[ \\t]+buildBlock\\b)"))
+        #expect(lowering.contains("(class[[:space:]]+)?AppKit"))
+        #expect(lowering.contains("NSTextStorage(?![A-Za-z0-9_])/AppKit.NSTextStorage"))
+        #expect(lowering.contains("@Invalidating"))
+        #expect(lowering.contains("SwiftTreeSitter.Node"))
+        #expect(lowering.contains("(?=public[ \\t]+(?:protocol|class|struct|enum|actor|extension|func|var|let|typealias)\\b)"))
+        #expect(lowering.contains("! -name 'Package.swift'"))
+        #expect(lowering.contains(mainActorAssignmentLoweringCall))
+        #expect(lowering.contains(linuxConditionalLoweringCall))
+        #expect(mainActorAssignmentLowering.contains("MainActor.assumeIsolated"))
+        #expect(linuxConditionalLowering.contains("evaluate_platform_expression"))
+        #expect(linuxConditionalLowering.contains("match.group(1) == \"Linux\""))
+        #expect(linuxConditionalLowering.contains("targetEnvironment"))
+        #expect(mainActorAssignmentLowering.contains("NSWindowController"))
+        #expect(mainActorAssignmentLowering.contains("controller."))
         #expect(lowering.contains(appKitLoweringCall))
         #expect(lowering.contains(objcLoweringCall))
+        #expect((lowering.range(of: mainActorAssignmentLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect((lowering.range(of: mainActorAssignmentLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: linuxConditionalLoweringCall)?.lowerBound ?? lowering.startIndex))
+        #expect((lowering.range(of: linuxConditionalLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.startIndex))
         #expect((lowering.range(of: appKitLoweringCall)?.lowerBound ?? lowering.endIndex) < (lowering.range(of: objcLoweringCall)?.lowerBound ?? lowering.startIndex))
         #expect(objcLowering.contains("lower_foundation_bridge_casts"))
         #expect(objcLowering.contains("for cf_type in (\"CFDictionary\", \"CFString\", \"CFURL\", \"CFData\", \"CFMutableData\", \"CFArray\")"))
         #expect(objcLowering.contains("lowered = re.sub(rf\"\\bnil\\s+as\\s+{cf_type}\\?\", \"nil\", lowered)"))
         #expect(objcLowering.contains("lowered = lowered.replace(f\" as {cf_type}\", \"\")"))
+        #expect(preparedPackageDependencyScript.contains("\"Cocoa\""))
+        #expect(preparedPackageDependencyScript.contains("\"CoreSpotlight\""))
+        #expect(preparedPackageDependencyScript.contains("\"ExtensionFoundation\""))
+        #expect(preparedPackageDependencyScript.contains("\"ExtensionKit\""))
+        #expect(preparedPackageDependencyScript.contains("\"AuthenticationServices\""))
+        #expect(preparedPackageDependencyScript.contains("PREPARED_SWIFT_SETTINGS"))
+        #expect(preparedPackageDependencyScript.contains("PREPARED_FINGERPRINT_FILE"))
+        #expect(preparedPackageDependencyScript.contains("--prepared-cache-dir"))
+        #expect(preparedPackageDependencyScript.contains("def prepared_package_directory("))
+        #expect(preparedPackageDependencyScript.contains("reused prepared local SwiftPM dependency"))
+        #expect(preparedPackageDependencyScript.contains("VENDORED_PACKAGE_ALIASES"))
+        #expect(preparedPackageDependencyScript.contains("package_declares_quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("is_quillui_root_dependency"))
+        #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents"))
+        #expect(preparedPackageDependencyScript.contains("update_digest_with_tool_input"))
+        #expect(preparedPackageDependencyScript.contains("read_bytes()"))
+        #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents(digest, path, package_dir)"))
+        #expect(!preparedPackageDependencyScript.contains("st_mtime_ns"))
+        #expect(preparedPackageDependencyScript.contains("scripts/lower-observable-for-swiftopenui.py"))
+        #expect(preparedPackageDependencyScript.contains("scripts/ensure-swift-imports.sh"))
+        #expect(preparedPackageDependencyScript.contains("scripts/lower-mainactor-assignments-for-linux.py"))
+        #expect(preparedPackageDependencyScript.contains("scripts/lower-linux-conditional-compilation.py"))
+        #expect(preparedPackageDependencyScript.contains("scripts/lower-extension-overrides-for-linux.py"))
+        #expect(preparedPackageDependencyScript.contains("Sources/QuillSourceLowering"))
+        #expect(preparedPackageDependencyScript.contains(#""swift-async-algorithms": ["AsyncAlgorithms"]"#))
+        #expect(preparedPackageDependencyScript.contains("normalized_package_component"))
+        #expect(preparedPackageDependencyScript.contains(#".swiftLanguageMode(.v5)"#))
+        #expect(preparedPackageDependencyScript.contains(#".unsafeFlags(["-strict-concurrency=minimal"])"#))
+        #expect(!preparedPackageDependencyScript.contains(#".unsafeFlags(["-Xfrontend", "-default-isolation", "-Xfrontend", "MainActor"])"#))
+        #expect(preparedPackageDependencyScript.contains("SWIFT_TOOLS_VERSION_RE"))
+        #expect(preparedPackageDependencyScript.contains("def patch_manifest_tools_version(manifest: str) -> str:"))
+        #expect(preparedPackageDependencyScript.contains("manifest = patch_manifest_tools_version(manifest)"))
+        #expect(preparedPackageDependencyScript.contains("patch_target_swift_settings"))
         #expect(signalUILowering.contains("Sources/SignalUIObjCPort"))
         #expect(signalUILowering.contains("QuillPort"))
+        #expect(sourceLoweringRunner.contains("third_party/swift-syntax/Package.swift"))
+        #expect(sourceLoweringRunner.contains(#".package(name: \"swift-syntax\", path: \"$ROOT_DIR/third_party/swift-syntax\")"#))
+        #expect(swiftUILoweringRunner.contains("third_party/swift-syntax/Package.swift"))
+        #expect(swiftUILoweringRunner.contains(#".package(name: \"swift-syntax\", path: \"$ROOT_DIR/third_party/swift-syntax\")"#))
+        #expect(swiftUILoweringRunner.contains("TOOL_CACHE_KEY=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
+        #expect(swiftUILoweringRunner.contains(".build/quill-swiftui-lower-package-$TOOL_CACHE_KEY"))
+        #expect(swiftUILoweringRunner.contains(".build/quill-swiftui-lower-tool-$TOOL_CACHE_KEY"))
+        #expect(appKitLoweringRunner.contains("third_party/swift-syntax/Package.swift"))
+        #expect(appKitLoweringRunner.contains(#".package(name: \"swift-syntax\", path: \"$ROOT_DIR/third_party/swift-syntax\")"#))
+        #expect(appKitLoweringRunner.contains("TOOL_CACHE_KEY=\"$(printf '%s' \"$ROOT_DIR\" | cksum | awk '{print $1}')\""))
+        #expect(appKitLoweringRunner.contains(".build/quill-appkit-lower-package-$TOOL_CACHE_KEY"))
+        #expect(appKitLoweringRunner.contains(".build/quill-appkit-lower-tool-$TOOL_CACHE_KEY"))
+
+        let viewBuilder = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/ViewBuilder.swift")
+        #expect(viewBuilder.contains("public static func buildBlock<each Content: View>(_ content: repeat each Content) -> ViewList"))
+        #expect(viewBuilder.contains("repeat children.append(contentsOf: childViews(from: each content))"))
+
+        let viewThatFitsBuilder = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/ViewThatFits.swift")
+        #expect(viewThatFitsBuilder.contains("public init<Content: View>(@ViewBuilder content: () -> Content)"))
+        #expect(viewThatFitsBuilder.contains("Self.flatten(content()).map { AnyView(erasing: $0) }"))
+        #expect(viewThatFitsBuilder.contains("public init(children: [AnyView])"))
+        #expect(viewThatFitsBuilder.contains("if let multi = view as? any TransparentMultiChildView"))
+        #expect(viewThatFitsBuilder.contains("New ViewThatFits call sites use standard ViewBuilder lowering."))
+        #expect(viewThatFitsBuilder.contains("public static func buildPartialBlock(first component: [AnyView]) -> [AnyView]"))
+        #expect(viewThatFitsBuilder.contains("public static func buildPartialBlock(accumulated: [AnyView], next: [AnyView]) -> [AnyView]"))
+
+        let anyView = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/AnyView.swift")
+        #expect(anyView.contains("public init(erasing view: any View)"))
+        #expect(compatibilityModule.contains("self.init(children: content())"))
+
+        let actionsBuilder = try packageSource("third_party/WelcomeWindow/Sources/WelcomeWindow/Model/ActionsBuilder.swift")
+        #expect(actionsBuilder.contains("@MainActor public static func buildBlock<V1: View>(_ view1: V1) -> WelcomeActions"))
+        #expect(actionsBuilder.contains("@MainActor public static func buildBlock<V1: View, V2: View>(_ view1: V1, _ view2: V2) -> WelcomeActions"))
+        #expect(actionsBuilder.contains("@MainActor public static func buildBlock<V1: View, V2: View, V3: View>"))
     }
 
     @Test("Objective-C interop lowering removes CoreFoundation bridge casts without nil question marks")
@@ -396,6 +3292,14 @@ struct SourceHygieneTests {
     func gtkManifestFiltersPkgConfigProhibitedFlagWarnings() throws {
         let root = try packageRoot()
         let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let swiftOpenUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
+            encoding: .utf8
+        )
+        let swiftOpenUIPatcher = try String(
+            contentsOf: root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh"),
+            encoding: .utf8
+        )
         let gtkModuleMap = try String(
             contentsOf: root.appendingPathComponent("Sources/CGtk4/module.modulemap"),
             encoding: .utf8
@@ -417,6 +3321,13 @@ struct SourceHygieneTests {
         #expect(manifest.contains("dependencies: quillUIDependencies,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
         #expect(manifest.contains(".unsafeFlags(gtk4SwiftImporterFlags)"))
         #expect(manifest.contains(".unsafeFlags(gtk4LinkerFlags)"))
+        #expect(swiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
+        #expect(swiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
+        #expect(swiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
+        #expect(swiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
+        #expect(!swiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
+        #expect(swiftOpenUIPatcher.contains("pkgConfig removal did not apply"))
+        #expect(!swiftOpenUIPatcher.contains("pkgConfig patch did not apply"))
         #expect(gdkPixbufModuleMap.contains("module CGdkPixbuf [system]"))
         #expect(gtkModuleMap.contains("module CGtk4 [system]"))
     }
@@ -438,28 +3349,61 @@ struct SourceHygieneTests {
     @Test("Linux SwiftUI compatibility exposes accessibility modifiers")
     func linuxSwiftUICompatibilityExposesAccessibilityModifiers() throws {
         let compatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
+        let desktopInteraction = try packageSource("Sources/QuillSwiftUICompatibility/DesktopInteractionCompat.swift")
+        let designSystemCompatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let compatibilityModifiers = try packageSource("Sources/QuillSwiftUICompatibility/IceCubesDesignSystemModifiers.swift")
         let gtkAccessibility = try packageSource("Sources/QuillUI/GTKAccessibilityModifiers.swift")
         let gtkHover = try packageSource("Sources/QuillUI/GTKHoverModifiers.swift")
+        let gtkHitTesting = try packageSource("Sources/QuillUI/GTKHitTestingModifiers.swift")
+        let gtkTextSelection = try packageSource("Sources/QuillUI/GTKTextSelectionModifiers.swift")
+        let qtBackend = try packageSource("Sources/BackendQt/QtBackend.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
         let gtkPatchScript = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
-        #expect(compatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
-        #expect(compatibility.contains("public static let combine = AccessibilityChildBehavior(\"combine\")"))
-        #expect(compatibility.contains("public struct AccessibilityLabelView<Content: View>: View"))
-        #expect(compatibility.contains("public struct AccessibilityValueView<Content: View>: View"))
-        #expect(compatibility.contains("public struct AccessibilityElementView<Content: View>: View"))
+        #expect(!compatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
+        #expect(designSystemCompatibility.contains("public struct AccessibilityChildBehavior: Hashable, Sendable"))
+        #expect(designSystemCompatibility.contains("public static let combine = AccessibilityChildBehavior(\"combine\")"))
+        #expect(desktopInteraction.contains("public struct AccessibilityLabelView<Content: View>: View"))
+        #expect(desktopInteraction.contains("public struct AccessibilityValueView<Content: View>: View"))
+        #expect(desktopInteraction.contains("public struct AccessibilityHintView<Content: View>: View"))
+        #expect(desktopInteraction.contains("public struct AccessibilityElementView<Content: View>: View"))
+        #expect(designSystemCompatibility.contains("func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self>"))
+        #expect(designSystemCompatibility.contains("func accessibilityValue(_ value: String) -> AccessibilityValueView<Self>"))
+        #expect(designSystemCompatibility.contains("func accessibilityHint(_ hint: String) -> AccessibilityHintView<Self>"))
+        #expect(designSystemCompatibility.contains("func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self>"))
+        #expect(!designSystemCompatibility.contains("func accessibilityLabel(_ label: String) -> Self"))
+        #expect(!designSystemCompatibility.contains("func accessibilityValue(_ value: String) -> Self"))
+        #expect(!designSystemCompatibility.contains("func accessibilityHint(_ hint: String) -> Self"))
         #expect(compatibility.contains("func accessibilityLabel(_ label: String) -> AccessibilityLabelView<Self>"))
         #expect(compatibility.contains("func accessibilityValue(_ value: String) -> AccessibilityValueView<Self>"))
+        #expect(compatibility.contains("func accessibilityHint(_ hint: String) -> AccessibilityHintView<Self>"))
         #expect(compatibility.contains("func accessibilityElement(children: AccessibilityChildBehavior) -> AccessibilityElementView<Self>"))
         #expect(compatibility.contains("\"accessibilityLabel\""))
         #expect(compatibility.contains("\"accessibilityValue\""))
+        #expect(compatibility.contains("\"accessibilityHint\""))
         #expect(compatibility.contains("\"accessibilityElement(children:)\""))
+        #expect(compatibilityModifiers.contains("public struct QuillCompatibilityOnHoverView<Content: View>: View"))
+        #expect(compatibilityModifiers.contains("func onHover(perform action: @escaping (Bool) -> Void) -> QuillCompatibilityOnHoverView<Self>"))
+        #expect(compatibilityModifiers.contains("public struct QuillCompatibilityAllowsHitTestingView<Content: View>: View"))
+        #expect(compatibilityModifiers.contains("func allowsHitTesting(_ enabled: Bool) -> QuillCompatibilityAllowsHitTestingView<Self>"))
+        #expect(compatibilityModifiers.contains("public struct QuillCompatibilityContentShapeView<Content: View, ShapeValue: Shape>: View"))
+        #expect(compatibilityModifiers.contains("func contentShape<S: Shape>(_ shape: S) -> QuillCompatibilityContentShapeView<Self, S>"))
+        #expect(compatibilityModifiers.contains("public struct QuillCompatibilityTextSelectionView<Content: View>: View"))
+        #expect(compatibilityModifiers.contains("func textSelection(_ selectability: TextSelectability) -> QuillCompatibilityTextSelectionView<Self>"))
         #expect(!compatibility.contains("View accessibility labels are currently a source-compatibility fallback on Linux."))
         #expect(!compatibility.contains("View accessibility values are currently a source-compatibility fallback on Linux."))
         #expect(gtkAccessibility.contains("extension AccessibilityLabelView: GTKRenderable"))
         #expect(gtkAccessibility.contains("extension AccessibilityValueView: GTKRenderable"))
+        #expect(gtkAccessibility.contains("extension AccessibilityHintView: GTKRenderable"))
         #expect(gtkAccessibility.contains("gtk_swift_accessible_update_label"))
         #expect(gtkAccessibility.contains("gtk_swift_accessible_update_description"))
+        #expect(gtkAccessibility.contains("extension AccessibilityIdentifierView: GTKRenderable"))
+        #expect(gtkAccessibility.contains("gtk_widget_set_name(widget, identifierPointer)"))
         #expect(gtkHover.contains("extension OnHoverView: GTKRenderable"))
+        #expect(gtkHover.contains("extension QuillCompatibilityOnHoverView: GTKRenderable"))
+        #expect(gtkHover.contains("private func quillGTKCreateHoverWidget<Content: View>"))
         #expect(gtkHover.contains("let container = gtk_overlay_new()!"))
         #expect(gtkHover.contains("gtk_widget_set_hexpand(container, 1)"))
         #expect(gtkHover.contains("gtk_widget_set_halign(container, GTK_ALIGN_FILL)"))
@@ -473,6 +3417,132 @@ struct SourceHygieneTests {
         #expect(gtkHover.contains("\"enter\""))
         #expect(gtkHover.contains("\"leave\""))
         #expect(gtkHover.contains("gtk_widget_add_controller(widget, controller)"))
+        #expect(gtkHitTesting.contains("extension AllowsHitTestingView: GTKRenderable"))
+        #expect(gtkHitTesting.contains("extension QuillCompatibilityAllowsHitTestingView: GTKRenderable"))
+        #expect(gtkHitTesting.contains("extension ContentShapeView: GTKRenderable"))
+        #expect(gtkHitTesting.contains("extension QuillCompatibilityContentShapeView: GTKRenderable"))
+        #expect(gtkHitTesting.contains("private func quillGTKCreateContentShapeWidget<Content: View>(content: Content) -> OpaquePointer"))
+        #expect(gtkHitTesting.contains("let container = gtk_overlay_new()!"))
+        #expect(gtkHitTesting.contains("gtk_widget_set_can_target(container, 1)"))
+        #expect(gtkHitTesting.contains("gtk_overlay_set_child(OpaquePointer(container), widget)"))
+        #expect(gtkHitTesting.contains("gtk_widget_set_can_target(widget, 0)"))
+        #expect(gtkHitTesting.contains("gtk_widget_set_can_focus(widget, 0)"))
+        #expect(gtkTextSelection.contains("extension TextSelectionView: GTKRenderable"))
+        #expect(gtkTextSelection.contains("extension QuillCompatibilityTextSelectionView: GTKRenderable"))
+        #expect(gtkTextSelection.contains("gtk_label_set_selectable"))
+        #expect(gtkTextSelection.contains("quillGTKSetLabelsSelectable(in: current, selectable: selectable)"))
+        #expect(qtRenderer.contains("extension QuillCompatibilityOnHoverView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_install_hover_recursive(qtHandle(widget), callback, box, destroy)"))
+        #expect(qtRenderer.contains("extension QuillCompatibilityAllowsHitTestingView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_allows_hit_testing_recursive(qtHandle(widget), 0)"))
+        #expect(qtRenderer.contains("extension QuillCompatibilityContentShapeView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_bridge_widget_set_fixed_size(qtHandle(container), naturalW, naturalH)"))
+        #expect(qtRenderer.contains("quill_qt_bridge_widget_add_child(qtHandle(container), qtHandle(child))"))
+        #expect(qtRenderer.contains("extension HelpView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_tooltip_recursive(qtHandle(widget), text)"))
+        #expect(qtRenderer.contains("extension DisabledView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)"))
+        #expect(qtRenderer.contains("extension FocusedView: QtRenderable"))
+        #expect(qtRenderer.contains("extension FocusedEqualsView: QtRenderable"))
+        #expect(qtRenderer.contains("state.storage.addPlatformFocusCallback(key: callbackKey)"))
+        #expect(qtRenderer.contains("quill_qt_widget_request_focus_recursive(qtHandle(widget))"))
+        #expect(qtRenderer.contains("quill_qt_widget_clear_focus_recursive(qtHandle(widget))"))
+        #expect(qtRenderer.contains("state.storage.removePlatformFocusCallback(key: callbackKey)"))
+        #expect(qtRenderer.contains("quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)"))
+        #expect(qtRenderer.contains("extension AccessibilityIdentifierView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_bridge_widget_set_object_name(qtHandle(widget), identifier)"))
+        #expect(qtRenderer.contains("extension AccessibilityLabelView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_accessible_name_recursive(qtHandle(widget), label)"))
+        #expect(qtRenderer.contains("extension AccessibilityValueView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_accessible_description_recursive(qtHandle(widget), value)"))
+        #expect(qtRenderer.contains("extension AccessibilityHintView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_accessible_description_recursive(qtHandle(widget), hint)"))
+        #expect(qtRenderer.contains("extension AccessibilityElementView: QtRenderable"))
+        #expect(qtRenderer.contains("extension SheetModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("extension ItemSheetModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("extension PopoverView: QtRenderable"))
+        #expect(qtRenderer.contains("private func qtRenderPresentedView<V: View>"))
+        #expect(qtRenderer.contains("environment.dismiss = DismissAction(handler: dismiss)"))
+        #expect(qtRenderer.contains("environment.isPresentedInSheet = true"))
+        #expect(qtRenderer.contains("swiftOpenUIWithPresentationDismissAction(dismiss)"))
+        #expect(qtRenderer.contains("private func qtRenderPresentationOverlay("))
+        #expect(qtRenderer.contains("quill_qt_overlay_container_add_child("))
+        #expect(qtRenderer.contains("extension QuillCompatibilityTextSelectionView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_widget_set_text_selectable_recursive(qtHandle(widget), 1)"))
+        #expect(qtRenderer.contains("extension OnSubmitView: QtRenderable"))
+        #expect(qtRenderer.contains("environment.submitAction = SubmitAction(handler: action)"))
+        #expect(qtRenderer.contains("if let submitAction = environment.submitAction"))
+        #expect(qtRenderer.contains("quill_qt_line_edit_connect_return_pressed("))
+        #expect(qtRenderer.contains("extension OnKeyPressView: QtRenderable"))
+        #expect(qtRenderer.contains("environment.keyPressActions.append(KeyPressAction(key: key, handler: action))"))
+        #expect(qtRenderer.contains("qtInstallKeyPressActions("))
+        #expect(qtRenderer.contains("quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)"))
+        #expect(qtRenderer.contains("QtKeyPressActionBox"))
+        #expect(qtRenderer.contains("extension KeyboardShortcutView: QtRenderable"))
+        #expect(qtRenderer.contains("environment.keyboardShortcut = shortcut"))
+        #expect(qtRenderer.contains("QtShortcutDispatchBox"))
+        #expect(qtRenderer.contains("KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)"))
+        #expect(qtRenderer.contains("KeyboardShortcutRegistry.shared.register("))
+        #expect(qtRenderer.contains("KeyboardShortcutRegistry.shared.unregister(id: registrationID)"))
+        #expect(qtRenderer.contains("if let shortcut = environment.keyboardShortcut"))
+        #expect(qtRenderer.contains("qtRegisterKeyboardShortcut("))
+        #expect(qtRenderer.contains("quill_qt_widget_connect_destroyed(qtHandle(widget), destroyed, box, destroy)"))
+        #expect(qtRenderer.contains("quill_qt_widget_install_shortcut_dispatcher(qtHandle(window), callback, box, destroy)"))
+        #expect(qtBackend.contains("windowEnvironment.windowID = windowID"))
+        #expect(qtBackend.contains("defer { setCurrentEnvironment(previousEnvironment) }"))
+        #expect(qtBackend.contains("qtInstallKeyboardShortcutDispatcher(on: window, windowID: windowID)"))
+        #expect(cqtHeader.contains("quill_qt_bridge_hover_callback"))
+        #expect(cqtHeader.contains("quill_qt_bridge_focus_callback"))
+        #expect(cqtHeader.contains("quill_qt_bridge_key_callback"))
+        #expect(cqtHeader.contains("quill_qt_bridge_shortcut_callback"))
+        #expect(cqtHeader.contains("quill_qt_widget_install_hover_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_install_focus_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_install_key_press_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_install_shortcut_dispatcher"))
+        #expect(cqtHeader.contains("quill_qt_widget_connect_destroyed"))
+        #expect(cqtHeader.contains("quill_qt_widget_request_focus_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_clear_focus_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_allows_hit_testing_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_enabled_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_tooltip_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_accessible_name_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_accessible_description_recursive"))
+        #expect(cqtHeader.contains("quill_qt_line_edit_connect_return_pressed"))
+        #expect(cqtBridge.contains("class QuillQtHoverFilter final : public QObject"))
+        #expect(cqtBridge.contains("class QuillQtFocusFilter final : public QObject"))
+        #expect(cqtBridge.contains("class QuillQtKeyPressFilter final : public QObject"))
+        #expect(cqtBridge.contains("class QuillQtShortcutFilter final : public QObject"))
+        #expect(cqtBridge.contains("target->installEventFilter(new QuillQtHoverFilter(state, target))"))
+        #expect(cqtBridge.contains("target->installEventFilter(new QuillQtFocusFilter(state, target))"))
+        #expect(cqtBridge.contains("target->installEventFilter(new QuillQtKeyPressFilter(state, target))"))
+        #expect(cqtBridge.contains("qApp->installEventFilter(filter)"))
+        #expect(cqtBridge.contains("qApp->removeEventFilter(this)"))
+        #expect(cqtBridge.contains("widgetContains(window_, target)"))
+        #expect(cqtBridge.contains("quillQtKeyEquivalent(QKeyEvent *event)"))
+        #expect(cqtBridge.contains("quillQtEventModifiers(QKeyEvent *event)"))
+        #expect(cqtBridge.contains("case Qt::Key_Return:"))
+        #expect(cqtBridge.contains("case Qt::Key_Tab:"))
+        #expect(cqtBridge.contains("case Qt::Key_Up:"))
+        #expect(cqtBridge.contains("Qt::ControlModifier"))
+        #expect(cqtBridge.contains("Qt::MetaModifier"))
+        #expect(cqtBridge.contains("modifiers |= command"))
+        #expect(cqtBridge.contains("focusable->setFocus(Qt::OtherFocusReason)"))
+        #expect(cqtBridge.contains("QApplication::focusWidget()"))
+        #expect(cqtBridge.contains("std::make_shared<QuillQtHoverState>(callback, user_data, destroy)"))
+        #expect(cqtBridge.contains("std::make_shared<QuillQtFocusState>(callback, user_data, destroy)"))
+        #expect(cqtBridge.contains("std::make_shared<QuillQtKeyPressState>(callback, user_data, destroy)"))
+        #expect(cqtBridge.contains("std::make_shared<QuillQtShortcutState>(callback, user_data, destroy)"))
+        #expect(cqtBridge.contains("Qt::WA_TransparentForMouseEvents"))
+        #expect(cqtBridge.contains("target->setFocusPolicy(Qt::NoFocus)"))
+        #expect(cqtBridge.contains("target->setEnabled(enabled != 0)"))
+        #expect(cqtBridge.contains("target->setToolTip(tooltip)"))
+        #expect(cqtBridge.contains("target->setAccessibleDescription(tooltip)"))
+        #expect(cqtBridge.contains("target->setAccessibleName(name)"))
+        #expect(cqtBridge.contains("target->setAccessibleDescription(description)"))
+        #expect(cqtHeader.contains("quill_qt_widget_set_text_selectable_recursive"))
+        #expect(cqtBridge.contains("QLabel *label = qobject_cast<QLabel *>(target)"))
+        #expect(cqtBridge.contains("Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard"))
+        #expect(cqtBridge.contains("QObject::connect(lineEdit, &QLineEdit::returnPressed"))
         #expect(gtkPatchScript.contains("gtk_swift_accessible_update_label"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_LABEL"))
         #expect(gtkPatchScript.contains("GTK_ACCESSIBLE_PROPERTY_DESCRIPTION"))
@@ -497,6 +3567,12 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/linux-swift-test.sh"),
             encoding: .utf8
         )
+        let quillFoundationRuntimeProbeURL = root
+            .appendingPathComponent("scripts/linux-quillfoundation-runtime-probe.sh")
+        let quillFoundationRuntimeProbe = try String(
+            contentsOf: quillFoundationRuntimeProbeURL,
+            encoding: .utf8
+        )
         let gtkPatchScript = try String(
             contentsOf: root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh"),
             encoding: .utf8
@@ -512,11 +3588,14 @@ struct SourceHygieneTests {
 
         #expect(fileManager.isExecutableFile(atPath: preparationScriptURL.path))
         #expect(fileManager.isExecutableFile(atPath: preserveScriptURL.path))
+        #expect(fileManager.isExecutableFile(atPath: quillFoundationRuntimeProbeURL.path))
         #expect(preparationScript.contains("source \"$ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"${QUILLUI_LINUX_BACKEND:-gtk}\""))
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
         #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
         #expect(preparationScript.contains("qt)\n    ;;"))
+        #expect(linuxSwiftTest.contains(": \"${QUILLUI_LINUX_BACKEND:=gtk}\""))
+        #expect(linuxSwiftTest.contains("export QUILLUI_LINUX_BACKEND"))
         #expect(preserveScript.contains("PACKAGE_RESOLVED=\"$PACKAGE_DIR/Package.resolved\""))
         #expect(preserveScript.contains("cp -p \"$PACKAGE_RESOLVED\" \"$TEMP_RESOLVED\""))
         #expect(preserveScript.contains("restore_package_resolved"))
@@ -526,7 +3605,18 @@ struct SourceHygieneTests {
         #expect(linuxSwiftTest.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(linuxSwiftTest.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(!linuxSwiftTest.contains("patch-swiftopenui-gtk-css.sh"))
+        #expect(linuxSwiftTest.contains(": \"${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}\""))
+        #expect(linuxSwiftTest.contains("export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS"))
+        #expect(linuxSwiftTest.contains("swift build --build-tests --scratch-path \"$SCRATCH_PATH\""))
+        #expect(!linuxSwiftTest.contains("swift build --build-tests --disable-index-store"))
+        #expect(linuxSwiftTest.contains("swift test --skip-build --disable-index-store --scratch-path \"$SCRATCH_PATH\""))
+        #expect(quillFoundationRuntimeProbe.contains(".product(name: \"QuillFoundation\", package: \"$PACKAGE_IDENTITY\")"))
+        #expect(quillFoundationRuntimeProbe.contains("class_getInstanceMethod(ObjCRuntimeProbe.self"))
+        #expect(quillFoundationRuntimeProbe.contains("method_exchangeImplementations(original!, replacement!)"))
+        #expect(quillFoundationRuntimeProbe.contains("objc-runtime-probe ok"))
         #expect(gtkPatchScript.contains("GRDB_SOURCE_DIR=\"$SCRATCH_PATH/checkouts/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("VENDORED_GRDB_SOURCE_DIR=\"$PACKAGE_PATH/third_party/GRDB.swift/GRDB\""))
+        #expect(gtkPatchScript.contains("for candidate_grdb_source_dir in \"$GRDB_SOURCE_DIR\" \"$VENDORED_GRDB_SOURCE_DIR\"; do"))
         #expect(gtkPatchScript.contains("new = disable_can_import(text, \"Combine\")"))
         #expect(gtkPatchScript.contains("QUILLUI_GRDB_SKIP_CGFLOAT_ON_LINUX"))
         #expect(gtkPatchScript.contains("missing required module 'COpenCombineHelpers'"))
@@ -540,6 +3630,530 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("scripts/swiftpm-preserve-package-resolved.sh"))
         #expect(smokeLib.contains("--backend \"$linux_build_backend\""))
         #expect(!smokeLib.contains("scripts/patch-swiftopenui-gtk-css.sh"))
+    }
+
+    @Test("SwiftPM package sources can be vendored by path")
+    func swiftPMPackageSourcesCanBeVendoredByPath() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let vendorScriptURL = root.appendingPathComponent("scripts/vendor-swiftpm-sources.sh")
+        let vendorScript = try String(contentsOf: vendorScriptURL, encoding: .utf8)
+        let hydrateScriptURL = root.appendingPathComponent("scripts/hydrate-swiftpm-checkouts-from-resolved.py")
+        let hydrateScript = try String(contentsOf: hydrateScriptURL, encoding: .utf8)
+        let linuxWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
+        let macOSWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/macos-ci.yml"),
+            encoding: .utf8
+        )
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
+        let swiftOpenUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Package.swift"),
+            encoding: .utf8
+        )
+        let openCombineURLSession = try String(
+            contentsOf: root.appendingPathComponent("third_party/OpenCombine/Sources/OpenCombineFoundation/URLSession.swift"),
+            encoding: .utf8
+        )
+        let grdbManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/GRDB.swift/Package.swift"),
+            encoding: .utf8
+        )
+        let swiftCryptoManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/swift-crypto/Package.swift"),
+            encoding: .utf8
+        )
+        let swiftTreeSitterManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftTreeSitter/Package.swift"),
+            encoding: .utf8
+        )
+        let trustedRouterManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/trusted-router-swift/Package.swift"),
+            encoding: .utf8
+        )
+        let ollamaKitManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/OllamaKit/Package.swift"),
+            encoding: .utf8
+        )
+        let markdownUIManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/MarkdownUI/Package.swift"),
+            encoding: .utf8
+        )
+        let magnetManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/Magnet/Package.swift"),
+            encoding: .utf8
+        )
+        let asyncAlgorithmsManifest = try String(
+            contentsOf: root.appendingPathComponent("third_party/AsyncAlgorithms/Package.swift"),
+            encoding: .utf8
+        )
+        let zipFoundationLegacyManifests = try [
+            "Package@swift-4.0.swift",
+            "Package@swift-4.1.swift",
+            "Package@swift-4.2.swift",
+        ].map { manifestName in
+            try String(
+                contentsOf: root.appendingPathComponent("third_party/ZIPFoundation/\(manifestName)"),
+                encoding: .utf8
+            )
+        }
+        let dependencyPrepScript = try String(
+            contentsOf: root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py"),
+            encoding: .utf8
+        )
+
+        #expect(fileManager.isExecutableFile(atPath: vendorScriptURL.path))
+        #expect(fileManager.fileExists(atPath: hydrateScriptURL.path))
+        #expect(linuxWorkflow.contains("Audit vendored SwiftPM sources"))
+        #expect(linuxWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
+        #expect(macOSWorkflow.contains("Audit vendored SwiftPM sources"))
+        #expect(macOSWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
+        #expect(openCombineURLSession.contains("@unchecked Sendable"))
+        #expect(openCombineURLSession.contains("let responseHandler: @Sendable (Data?, URLResponse?, Error?) -> Void"))
+        #expect(openCombineURLSession.contains("completionHandler: responseHandler"))
+        #expect(!openCombineURLSession.contains("completionHandler: handleResponse"))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/GRDB.swift/LICENSE").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-syntax/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-syntax/LICENSE.txt").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-crypto/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-crypto/LICENSE.txt").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-asn1/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-asn1/LICENSE.txt").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-protobuf/LICENSE.txt").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/LICENSE").path))
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/.git").path))
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftSoup/Package.resolved").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/Alamofire/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/NetworkImage/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftCMark/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/Sauce/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/swift-collections/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftUIIntrospect/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/AsyncAlgorithms/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/SwiftTreeSitter/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/CodeEditLanguages/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/CodeEditTextView/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/trusted-router-swift/Package.swift").path))
+        #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/trusted-router-swift/README.md").path))
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("third_party/trusted-router-swift/.git").path))
+        // Vendored path packages keep the default graph offline; a root lockfile
+        // full of remote pins makes SwiftPM hydrate repositories we do not use.
+        #expect(!fileManager.fileExists(atPath: root.appendingPathComponent("Package.resolved").path))
+        #expect(manifest.contains("func locatePackageRoot() -> String"))
+        #expect(manifest.contains("URL(fileURLWithPath: #filePath, isDirectory: false)"))
+        #expect(manifest.contains("fileManager.currentDirectoryPath"))
+        #expect(manifest.contains("candidate.appendingPathComponent(\"Package.swift\")"))
+        #expect(manifest.contains("candidate.appendingPathComponent(\"Sources\")"))
+        #expect(manifest.contains("let packageRoot: String = locatePackageRoot()"))
+        #expect(manifest.contains("func vendoredPackage("))
+        #expect(manifest.contains("func vendoredExactPackage("))
+        #expect(manifest.contains("func vendoredBranchPackage("))
+        #expect(manifest.contains("return .package(name: name, path: path)"))
+        #expect(manifest.contains("path: \"third_party/OpenCombine\""))
+        #expect(manifest.contains("path: \"third_party/GRDB.swift\""))
+        #expect(manifest.contains("path: \"third_party/swift-syntax\""))
+        #expect(manifest.contains("path: \"third_party/swift-crypto\""))
+        #expect(manifest.contains("path: \"third_party/swift-protobuf\""))
+        #expect(manifest.contains("path: \"third_party/SwiftSoup\""))
+        #expect(manifest.contains("path: \"third_party/CodeEditSourceEditor\""))
+        #expect(manifest.contains("path: \"third_party/SwiftTerm\""))
+        #expect(manifest.contains(".library(name: \"AuthenticationServices\", targets: [\"AuthenticationServices\"])"))
+        #expect(manifest.contains("\"SwiftUIIntrospect\""))
+        #expect(manifest.contains("\"AsyncAlgorithms\""))
+        #expect(vendorScript.contains("trusted-router-swift"))
+        #expect(vendorScript.contains("--app NAME"))
+        #expect(vendorScript.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
+        #expect(vendorScript.contains("quillui_resolve_app_checkout_dir \"$ROOT_DIR\" \"$app_name\""))
+        #expect(vendorScript.contains("-name Package.resolved -type f -print"))
+        #expect(vendorScript.contains("--all-vendored-apps"))
+        #expect(vendorScript.contains("add_package_resolved_files_for_all_vendored_apps()"))
+        #expect(vendorScript.contains("--package-resolved PATH"))
+        #expect(vendorScript.contains("--hydrate-missing"))
+        #expect(vendorScript.contains("--check-vendored"))
+        #expect(vendorScript.contains("hydrate_missing_package_checkouts()"))
+        #expect(vendorScript.contains("check_vendored_packages()"))
+        #expect(vendorScript.contains("audit_vendored_package_manifests()"))
+        #expect(vendorScript.contains("remote package dependency remains in"))
+        #expect(vendorScript.contains("scripts/hydrate-swiftpm-checkouts-from-resolved.py"))
+        #expect(vendorScript.contains("QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1"))
+        #expect(vendorScript.contains("dev_only = {"))
+        #expect(vendorScript.contains("shim_only = {"))
+        #expect(vendorScript.contains("\"sparkle\""))
+        #expect(vendorScript.contains("\"swift-snapshot-testing\""))
+        #expect(vendorScript.contains("\"swiftlintplugin\""))
+        #expect(vendorScript.contains("read_package_resolved_names()"))
+        #expect(vendorScript.contains("\"codeedittextview\": \"CodeEditTextView\""))
+        #expect(vendorScript.contains("\"swift-markdown-ui\": \"MarkdownUI\""))
+        #expect(swiftOpenUIManifest.contains("func swiftOpenUIVendoredPackage("))
+        #expect(swiftOpenUIManifest.contains("URL(fileURLWithPath: #filePath, isDirectory: false)"))
+        #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: localPackage)"))
+        #expect(swiftOpenUIManifest.contains("fileManager.fileExists(atPath: nestedVendorPackage)"))
+        #expect(swiftOpenUIManifest.contains("path: \"../OpenCombine\""))
+        #expect(grdbManifest.contains("QuillUI vendors GRDB for offline Linux runtime builds"))
+        #expect(!grdbManifest.contains("swift-docc-plugin"))
+        #expect(swiftCryptoManifest.contains("// QuillUI vendors swift-crypto next to swift-asn1"))
+        #expect(swiftCryptoManifest.contains(".package(path: \"../swift-asn1\")"))
+        #expect(swiftTreeSitterManifest.contains(".package(name: \"TreeSitter\", path: \"../tree-sitter\")"))
+        #expect(trustedRouterManifest.contains("// swift-tools-version: 6.0"))
+        #expect(trustedRouterManifest.contains(".package(name: \"QuillUI\", path: \"../..\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"AuthenticationServices\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
+        #expect(ollamaKitManifest.contains(".package(path: \"../Alamofire\")"))
+        #expect(!ollamaKitManifest.contains("swift-docc-plugin"))
+        #expect(!ollamaKitManifest.contains("OllamaKitTests"))
+        #expect(markdownUIManifest.contains(".package(path: \"../NetworkImage\")"))
+        #expect(markdownUIManifest.contains(".package(name: \"swift-cmark\", path: \"../SwiftCMark\")"))
+        #expect(!markdownUIManifest.contains("swift-snapshot-testing"))
+        #expect(!markdownUIManifest.contains("MarkdownUITests"))
+        #expect(magnetManifest.contains(".package(path: \"../Sauce\")"))
+        #expect(!magnetManifest.contains("MagnetTests"))
+        #expect(vendorScript.contains("def patch_grdb(text: str) -> str:"))
+        #expect(vendorScript.contains("patch_file(\"third_party/GRDB.swift/Package.swift\", patch_grdb)"))
+        #expect(!vendorScript.contains("package == \"GRDB.swift\" and \"swift-docc-plugin\""))
+        #expect(asyncAlgorithmsManifest.contains(".package(path: \"../swift-collections\")"))
+        #expect(!asyncAlgorithmsManifest.contains("https://github.com/apple/swift-collections.git"))
+        #expect(!asyncAlgorithmsManifest.contains("AsyncAlgorithmsTests"))
+        #expect(!asyncAlgorithmsManifest.contains("AsyncStreamingTests"))
+        #expect(vendorScript.contains("def patch_zipfoundation_legacy(text: str) -> str:"))
+        #expect(vendorScript.contains("patch_file(manifest, patch_zipfoundation_legacy)"))
+        for legacyManifest in zipFoundationLegacyManifests {
+            #expect(legacyManifest.contains(".systemLibrary(name: \"CZLib\", pkgConfig: \"zlib\")"))
+            #expect(legacyManifest.contains("targets: targets"))
+            #expect(!legacyManifest.contains("IBM-Swift/CZlib"))
+            #expect(!legacyManifest.contains(".package(url:"))
+        }
+        #expect(vendorScript.contains("Default package set: OpenCombine, GRDB.swift, swift-syntax, swift-crypto,"))
+        #expect(vendorScript.contains("default_packages()"))
+        #expect(vendorScript.contains("scripts/swiftpm-preserve-package-resolved.sh"))
+        #expect(vendorScript.contains("already vendored $package -> third_party/$package"))
+        #expect(vendorScript.contains("missing vendored $package -> third_party/$package"))
+        #expect(vendorScript.contains("vendored SwiftPM package sources are present"))
+        #expect(vendorScript.contains("QUILLUI_VENDOR_FORCE=1"))
+        #expect(vendorScript.contains("git_source_identity()"))
+        #expect(vendorScript.contains("git -C \"$source\" status --porcelain --untracked-files=no"))
+        #expect(vendorScript.contains("vendored_source_metadata()"))
+        #expect(vendorScript.contains("quillui-swiftpm-vendor/v1"))
+        #expect(vendorScript.contains(".quillui-vendor-source-fingerprint"))
+        #expect(vendorScript.contains("[[ \"$(cat \"$metadata_file\")\" == \"$metadata\" ]]"))
+        #expect(vendorScript.contains("rsync -a --delete --delete-excluded"))
+        #expect(vendorScript.contains("chmod -R u+w \"$destination\""))
+        #expect(vendorScript.contains("--exclude '.git'"))
+        #expect(vendorScript.contains("--exclude '.build'"))
+        #expect(vendorScript.contains("--exclude '.build-*'"))
+        #expect(vendorScript.contains("--exclude '.swiftpm'"))
+        #expect(vendorScript.contains("--exclude 'Tests'"))
+        #expect(vendorScript.contains("--exclude 'test'"))
+        #expect(vendorScript.contains("--exclude '*.docc'"))
+        #expect(vendorScript.contains("--exclude 'Assets'"))
+        #expect(vendorScript.contains("--exclude 'Images'"))
+        #expect(vendorScript.contains("--exclude '*Example*'"))
+        #expect(vendorScript.contains("--exclude 'Demo'"))
+        #expect(vendorScript.contains("--exclude 'Playground'"))
+        #expect(vendorScript.contains("--exclude 'Sandbox'"))
+        #expect(vendorScript.contains("--exclude '*Tests'"))
+        #expect(vendorScript.contains("--exclude 'tools'"))
+        #expect(vendorScript.contains("--exclude 'wrappers'"))
+        #expect(vendorScript.contains("--exclude 'TestApplication'"))
+        #expect(vendorScript.contains("--exclude 'TerminalApp'"))
+        #expect(vendorScript.contains("--exclude '*.xcodeproj'"))
+        #expect(vendorScript.contains("--exclude '*.xcworkspace'"))
+        #expect(vendorScript.contains("--exclude 'Makefile'"))
+        #expect(vendorScript.contains("--exclude 'Documentation'"))
+        #expect(vendorScript.contains("--exclude 'Carthage'"))
+        #expect(vendorScript.contains("--full"))
+        #expect(vendorScript.contains("patch_swift_crypto_manifest()"))
+        #expect(vendorScript.contains("patch_swift_tree_sitter_manifest()"))
+        #expect(vendorScript.contains("patch_vendored_transitive_manifests()"))
+        #expect(vendorScript.contains("def remove_named_call(text: str, call: str, name: str) -> str:"))
+        #expect(vendorScript.contains("chmod u+w \"$manifest\""))
+        #expect(vendorScript.contains(".package(path: \"../swift-asn1\")"))
+        #expect(vendorScript.contains(".package(name: \"TreeSitter\", path: \"../tree-sitter\")"))
+        #expect(vendorScript.contains(".package(path: \"../Alamofire\")"))
+        #expect(vendorScript.contains(".package(name: \"swift-cmark\", path: \"../SwiftCMark\")"))
+        #expect(vendorScript.contains(".package(path: \"../Sauce\")"))
+        #expect(vendorScript.contains(".package(path: \"../swift-collections\")"))
+        #expect(vendorScript.contains("OllamaKit Package.swift still contains remote docs or stale tests"))
+        #expect(vendorScript.contains("MarkdownUI Package.swift still contains remote snapshot tests"))
+        #expect(vendorScript.contains("Magnet Package.swift still contains stale tests"))
+        #expect(vendorScript.contains("AsyncAlgorithms Package.swift still contains unbuildable slim-tree targets"))
+        #expect(vendorScript.contains("GRDB.swift"))
+        #expect(vendorScript.contains("SwiftSoup"))
+        #expect(vendorScript.contains("JavaScriptKit"))
+        #expect(hydrateScript.contains("CANONICAL_PACKAGE_NAMES"))
+        #expect(hydrateScript.contains("\"activityindicatorview\": \"ActivityIndicatorView\""))
+        #expect(hydrateScript.contains("\"swift-markdown-ui\": \"MarkdownUI\""))
+        #expect(hydrateScript.contains("\"sparkle\""))
+        #expect(hydrateScript.contains("Package.resolved pin lacks location or revision"))
+        #expect(hydrateScript.contains("already vendored {pin.package} -> third_party/{pin.package}"))
+        #expect(hydrateScript.contains("would hydrate {pin.package} from {pin.location} @ {pin.revision}"))
+        #expect(hydrateScript.contains("[\"git\", \"clone\", \"--quiet\", pin.location"))
+        #expect(hydrateScript.contains("[\"git\", \"checkout\", \"--quiet\", pin.revision]"))
+        #expect(dependencyPrepScript.contains("def ensure_user_writable_tree(path: Path) -> None:"))
+        #expect(dependencyPrepScript.contains("stat.S_IWUSR"))
+        #expect(dependencyPrepScript.contains("ensure_user_writable_tree(prepared_dir)"))
+        #expect(dependencyPrepScript.contains("PACKAGE_CALL_URL_RE"))
+        #expect(dependencyPrepScript.contains("class LocalPackageDependency"))
+        #expect(dependencyPrepScript.contains("def package_identity_from_url(url: str) -> str:"))
+        #expect(dependencyPrepScript.contains("def dependency_package_name(parsed: PackageLine, package_dir: Path) -> str | None:"))
+        #expect(dependencyPrepScript.contains("return identity"))
+        #expect(dependencyPrepScript.contains("def local_package_dependencies(root_dir: Path, package_dir: Path)"))
+        #expect(dependencyPrepScript.contains("url_package_name = package_name or package_identity_from_url(url)"))
+        #expect(dependencyPrepScript.contains("dependency_dir = local_candidate_for_url(root_dir, url, url_package_name)"))
+        #expect(dependencyPrepScript.contains("def rewrite_package_dependency_calls("))
+        #expect(dependencyPrepScript.contains("url_replacements: dict[str, tuple[Path, str | None]]"))
+        #expect(dependencyPrepScript.contains("dependency_line(package_name, replacement_path)"))
+        #expect(dependencyPrepScript.contains("seen_output_lines: set[str] = set()"))
+        #expect(dependencyPrepScript.contains("if rewritten in seen_output_lines:"))
+        #expect(dependencyPrepScript.contains("if re.search(r\"\\bswiftSettings\\s*:\", block):"))
+        #expect(dependencyPrepScript.contains("return block"))
+    }
+
+    @Test("SwiftPM package source vendoring discovers Package.resolved under vendored app source")
+    func swiftPMPackageSourceVendoringDiscoversPackageResolvedUnderVendoredAppSource() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-app-package-resolved-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let resolvedDir = sandbox
+            .appendingPathComponent("vendor/apps/demo/Demo.xcodeproj/project.xcworkspace/xcshareddata/swiftpm")
+        let vendorScript = scriptsDir.appendingPathComponent("vendor-swiftpm-sources.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resolvedDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/vendor-swiftpm-sources.sh"),
+            to: vendorScript
+        )
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            to: scriptsDir.appendingPathComponent("quillui-vendored-source.sh")
+        )
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/hydrate-swiftpm-checkouts-from-resolved.py"),
+            to: scriptsDir.appendingPathComponent("hydrate-swiftpm-checkouts-from-resolved.py")
+        )
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: vendorScript.path)
+        try """
+        {
+          "pins": [
+            {
+              "identity": "swift-async-algorithms",
+              "kind": "remoteSourceControl",
+              "location": "https://github.com/apple/swift-async-algorithms.git",
+              "state": { "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+            },
+            {
+              "identity": "swift-snapshot-testing",
+              "kind": "remoteSourceControl",
+              "location": "https://github.com/pointfreeco/swift-snapshot-testing.git",
+              "state": { "revision": "cccccccccccccccccccccccccccccccccccccccc" }
+            },
+            {
+              "identity": "swiftlintplugin",
+              "kind": "remoteSourceControl",
+              "location": "https://github.com/lukepistrol/SwiftLintPlugin",
+              "state": { "revision": "dddddddddddddddddddddddddddddddddddddddd" }
+            },
+            {
+              "identity": "codeedittextview",
+              "kind": "remoteSourceControl",
+              "location": "https://github.com/CodeEditApp/CodeEditTextView.git",
+              "state": { "revision": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+            }
+          ],
+          "version": 2
+        }
+        """.write(
+            to: resolvedDir.appendingPathComponent("Package.resolved"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let missingVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(missingVendoredCheck.status == 1, Comment(rawValue: missingVendoredCheck.output))
+        #expect(
+            missingVendoredCheck.output.contains("missing vendored AsyncAlgorithms -> third_party/AsyncAlgorithms"),
+            Comment(rawValue: missingVendoredCheck.output)
+        )
+        #expect(
+            missingVendoredCheck.output.contains("missing vendored CodeEditTextView -> third_party/CodeEditTextView"),
+            Comment(rawValue: missingVendoredCheck.output)
+        )
+
+        let missingAllVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--all-vendored-apps"]
+        )
+
+        #expect(missingAllVendoredCheck.status == 1, Comment(rawValue: missingAllVendoredCheck.output))
+        #expect(
+            missingAllVendoredCheck.output.contains("missing vendored AsyncAlgorithms -> third_party/AsyncAlgorithms"),
+            Comment(rawValue: missingAllVendoredCheck.output)
+        )
+        #expect(
+            missingAllVendoredCheck.output.contains("missing vendored CodeEditTextView -> third_party/CodeEditTextView"),
+            Comment(rawValue: missingAllVendoredCheck.output)
+        )
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--app", "demo"]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output.contains("warning: no checkout found for AsyncAlgorithms"), Comment(rawValue: result.output))
+        #expect(result.output.contains("warning: no checkout found for CodeEditTextView"), Comment(rawValue: result.output))
+        #expect(!result.output.contains("SwiftSnapshotTesting"), Comment(rawValue: result.output))
+        #expect(!result.output.contains("SwiftLintPlugin"), Comment(rawValue: result.output))
+
+        let hydrateResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--dry-run", "--hydrate-missing", "--app", "demo"]
+        )
+
+        #expect(hydrateResult.status == 0, Comment(rawValue: hydrateResult.output))
+        #expect(
+            hydrateResult.output.contains("would hydrate AsyncAlgorithms from https://github.com/apple/swift-async-algorithms.git @ aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            Comment(rawValue: hydrateResult.output)
+        )
+        #expect(
+            hydrateResult.output.contains("would hydrate CodeEditTextView from https://github.com/CodeEditApp/CodeEditTextView.git @ bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+            Comment(rawValue: hydrateResult.output)
+        )
+        #expect(!hydrateResult.output.contains("would hydrate SwiftSnapshotTesting"), Comment(rawValue: hydrateResult.output))
+        #expect(!hydrateResult.output.contains("would hydrate SwiftLintPlugin"), Comment(rawValue: hydrateResult.output))
+
+        let devResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "QUILLUI_VENDOR_INCLUDE_DEV_PACKAGES=1",
+                vendorScript.path,
+                "--no-resolve",
+                "--dry-run",
+                "--app",
+                "demo",
+            ]
+        )
+
+        #expect(devResult.status == 0, Comment(rawValue: devResult.output))
+        #expect(
+            devResult.output.contains("warning: no checkout found for SwiftSnapshotTesting"),
+            Comment(rawValue: devResult.output)
+        )
+        #expect(
+            devResult.output.contains("warning: no checkout found for SwiftLintPlugin"),
+            Comment(rawValue: devResult.output)
+        )
+
+        let packageListResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--print-package-list", "--app", "demo"]
+        )
+
+        #expect(packageListResult.status == 0, Comment(rawValue: packageListResult.output))
+        #expect(packageListResult.output.contains("AsyncAlgorithms"), Comment(rawValue: packageListResult.output))
+        #expect(packageListResult.output.contains("CodeEditTextView"), Comment(rawValue: packageListResult.output))
+        #expect(!packageListResult.output.contains("SwiftSnapshotTesting"), Comment(rawValue: packageListResult.output))
+        #expect(!packageListResult.output.contains("SwiftLintPlugin"), Comment(rawValue: packageListResult.output))
+
+        for package in ["AsyncAlgorithms", "CodeEditTextView"] {
+            let packageDir = sandbox.appendingPathComponent("third_party/\(package)")
+            try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+            try """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(name: "\(package)")
+            """.write(
+                to: packageDir.appendingPathComponent("Package.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+        }
+
+        let presentVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(presentVendoredCheck.status == 0, Comment(rawValue: presentVendoredCheck.output))
+        #expect(
+            presentVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
+            Comment(rawValue: presentVendoredCheck.output)
+        )
+
+        let presentAllVendoredCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--all-vendored-apps"]
+        )
+
+        #expect(presentAllVendoredCheck.status == 0, Comment(rawValue: presentAllVendoredCheck.output))
+        #expect(
+            presentAllVendoredCheck.output.contains("vendored SwiftPM package sources are present"),
+            Comment(rawValue: presentAllVendoredCheck.output)
+        )
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "CodeEditTextView",
+            dependencies: [
+                .package(url: "https://github.com/example/not-vendored.git", from: "1.0.0")
+            ]
+        )
+        """.write(
+            to: sandbox.appendingPathComponent("third_party/CodeEditTextView/Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let remoteDependencyCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(remoteDependencyCheck.status == 1, Comment(rawValue: remoteDependencyCheck.output))
+        #expect(
+            remoteDependencyCheck.output.contains("remote package dependency remains in third_party/CodeEditTextView/Package.swift"),
+            Comment(rawValue: remoteDependencyCheck.output)
+        )
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        // .package(url: "https://github.com/example/commented-example.git", from: "1.0.0")
+        let package = Package(name: "CodeEditTextView")
+        """.write(
+            to: sandbox.appendingPathComponent("third_party/CodeEditTextView/Package.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let commentedRemoteCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--check-vendored", "--app", "demo"]
+        )
+
+        #expect(commentedRemoteCheck.status == 0, Comment(rawValue: commentedRemoteCheck.output))
     }
 
     @Test("Heavy Linux backend runners are resource guarded")
@@ -794,6 +4408,9 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let quillUIKitDependencies: [Target.Dependency] = [\n    \"QuillFoundation\", \"QuillKit\", \"CoreGraphics\", \"QuartzCore\",\n    \"CoreTransferable\", \"UniformTypeIdentifiers\",\n]"))
         #expect(pasteboardAdditions.contains("import CoreGraphics"))
         #expect(uiKitShim.contains("public typealias UIEdgeInsets = QuillEdgeInsets"))
+        #expect(uiKitShim.contains("public struct UIKitNSTextStorageEditActions: OptionSet, Sendable"))
+        #expect(uiKitShim.contains("public typealias EditActions = UIKitNSTextStorageEditActions"))
+        #expect(!uiKitShim.contains("public struct NSTextStorageEditActions: OptionSet"))
         #expect(uiKitShim.contains("public weak var layoutManager: NSLayoutManager?"))
         #expect(uiKitShim.contains("public init(start: UITextPosition, end: UITextPosition)"))
         #expect(!uiKitShim.contains("var safeAreaInsets: UIEdgeInsets { .zero }\n    @MainActor var windowScene"))
@@ -848,7 +4465,26 @@ struct SourceHygieneTests {
         }
 
         #expect(foundation.contains("@_implementationOnly import CGdkPixbuf"))
+        #expect(foundation.contains("public class RSColor: NSObject, NSSecureCoding"))
+        #expect(foundation.contains("public static var supportsSecureCoding: Bool { true }"))
         #expect(uiKit.contains("static let placeholderText = RSColor("))
+    }
+
+    @Test("Text attachments have a single Linux compatibility owner")
+    func textAttachmentsHaveSingleLinuxCompatibilityOwner() throws {
+        let foundation = try packageSource("Sources/QuillFoundation/QuillFoundation.swift")
+        let uiKit = try packageSource("Sources/UIKitShim/UIKit.swift")
+        let appKit = try packageSource("Sources/QuillAppKit/QuillAppKit.swift")
+        let textLayout = try packageSource("Sources/QuillFoundation/NSTextLayoutShared.swift")
+
+        #expect(foundation.occurrences(of: "open class NSTextAttachment: NSObject") == 1)
+        #expect(foundation.contains("public var image: RSImage?"))
+        #expect(foundation.contains("convenience init(attachment: NSTextAttachment)"))
+        #expect(!uiKit.contains("open class NSTextAttachment"))
+        #expect(!appKit.contains("open class NSTextAttachment"))
+        #expect(!uiKit.contains("convenience init(attachment: NSTextAttachment)"))
+        #expect(!appKit.contains("convenience init(attachment: NSTextAttachment)"))
+        #expect(textLayout.contains("NSTextAttachment also lives in QuillFoundation"))
     }
 
     @Test("Linux AppKit shims avoid Swift 6 warning traps")
@@ -866,9 +4502,26 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift"),
             encoding: .utf8
         )
+        let swiftUINSViewRepresentable = try String(
+            contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/NSViewRepresentable.swift"),
+            encoding: .utf8
+        )
+        let appKitSmoke = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitSmoke/Smoke.swift"),
+            encoding: .utf8
+        )
+        let appKitSmokeRunner = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitSmokeRunner/main.swift"),
+            encoding: .utf8
+        )
+        let manifest = try String(contentsOf: root.appendingPathComponent("Package.swift"), encoding: .utf8)
 
         #expect(appKit.contains("@MainActor public protocol NSWindowDelegate"))
         #expect(appKit.contains("@MainActor open class NSViewController"))
+        #expect(appKit.contains("public init(frame: NSRect)"))
+        #expect(!appKit.contains("nonisolated public init(frame: NSRect)"))
+        #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated(unsafe) let representable: R") == 3)
+        #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated init(_ representable: R)") == 3)
         // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
         // @MainActor (its delegate methods are main-thread). `@preconcurrency`
         // downgrades the isolation check to Swift-5 mode, so a nonisolated
@@ -878,7 +4531,27 @@ struct SourceHygieneTests {
         #expect(appKit.contains("@preconcurrency @MainActor public protocol NSApplicationDelegate"))
         #expect(!appKit.contains("\n@MainActor public protocol NSApplicationDelegate"))
         #expect(appKit.contains("@MainActor public protocol NSToolbarDelegate"))
+        #expect(appKit.contains("open var menu: NSMenu?"))
+        #expect(appKit.contains("public func indexOfItem(withTitle title: String) -> Int"))
         #expect(appKitBitmapEncode.contains("@_implementationOnly import CGdkPixbuf"))
+        #expect(appKit.contains("nonisolated(unsafe) public static var current: NSGraphicsContext?"))
+        #expect(appKit.contains("public struct NSXPCServiceContinuation"))
+        #expect(appKit.contains("func withService<Service, Result>"))
+        #expect(appKit.contains("func withContinuation<Service, Result>"))
+        #expect(appKit.contains("static let controlTextColor = NSColor()"))
+        #expect(appKit.contains("func font(\n        withFamily family: String"))
+        #expect(appKit.contains("open class NSPanGestureRecognizer"))
+        #expect(appKit.contains("open func close() { window?.close() }"))
+        #expect(appKit.contains("open class var isCompatibleWithOverlayScrollers"))
+        #expect(appKit.contains("open func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool)"))
+        #expect(appKit.contains("open func drawSelection(in dirtyRect: NSRect)"))
+        #expect(appKit.contains("open class NSHostingView<Content>: NSView"))
+        #expect(appKit.contains("public required init(rootView: Content)"))
+        #expect(appKit.contains("open var currentPoint: NSPoint"))
+        #expect(appKit.contains("public convenience init(rect: NSRect)"))
+        #expect(appKit.contains("open func yank(_ sender: Any?)"))
+        #expect(appKit.contains("open func textInputClientWillStartScrollingOrZooming()"))
+        #expect(appKit.contains("open func textInputClientDidEndScrollingOrZooming()"))
         // The menu/table/outline delegate protocols must stay nonisolated:
         // @MainActor on a protocol infers @MainActor on conforming classes,
         // which breaks upstream Telegram TGUIKit types (TableView, ContextMenu)
@@ -894,11 +4567,30 @@ struct SourceHygieneTests {
         #expect(appKit.contains("MainActor.assumeIsolated { delegate.menuWillOpen(self) }"))
         #expect(appKit.contains("public static let borderless: StyleMask = []"))
         #expect(appKit.contains("open class NSTextStorage: NSMutableAttributedString {"))
+        #expect(appKit.contains("private func quillWireTextSystem()"))
+        #expect(appKit.contains("open override func insertNewline(_ sender: Any?)"))
+        #expect(appKit.contains("textStorage.addLayoutManager(layoutManager)"))
+        #expect(appKit.contains("layoutManager.addTextContainer(textContainer)"))
+        #expect(appKit.contains("public func removeTextContainer(at index: Int)"))
+        #expect(appKit.contains("oldValue.removeTextContainer(at: oldIndex)"))
+        #expect(appKitSmoke.contains("func smokeTextSystemWiring() -> Bool"))
+        #expect(appKitSmoke.contains("replacementStorage.layoutManagers.contains { $0 === layoutManager }"))
+        #expect(appKitSmoke.contains("replacementLayoutManager.textStorage === replacementStorage"))
+        #expect(appKitSmoke.contains("replacementContainer.layoutManager === replacementLayoutManager"))
+        #expect(appKitSmoke.contains("smokeTextSystemWiring() &&"))
+        #expect(appKitSmokeRunner.contains("QuillAppKitSmoke.validate()"))
+        #expect(manifest.contains(".executable(name: \"quill-appkit-smoke\", targets: [\"QuillAppKitSmokeRunner\"])"))
         #expect(appKit.contains("open func performKeyEquivalent(with event: NSEvent) -> Bool"))
         #expect(appKit.contains("open func standardWindowButton(_ button: WindowButton) -> NSButton?"))
         #expect(appKit.contains("open class NSRunningApplication: NSObject"))
         #expect(appKit.contains("public var runningApplications: [NSRunningApplication]"))
-        #expect(appKit.contains("public var fittingSize: NSSize"))
+        #expect(appKit.contains("open var fittingSize: NSSize"))
+        #expect(appKit.contains("open func updateConstraintsForSubtreeIfNeeded()"))
+        #expect(appKit.contains("public var isExcludedFromWindowsMenu: Bool"))
+        #expect(appKit.contains("public var hidesOnDeactivate: Bool"))
+        #expect(appKit.contains("open func scroll(_ clipView: NSClipView, to point: NSPoint)"))
+        #expect(appKit.contains("public convenience init(roundedRect rect: NSRect, xRadius: CGFloat, yRadius: CGFloat)"))
+        #expect(appKit.contains("open func appendArc("))
         #expect(!appKit.contains("public static let borderless = StyleMask(rawValue: 0)"))
         #expect(!appKit.contains("open class NSTextStorage: NSMutableAttributedString, @unchecked Sendable"))
         #expect(!gtk.contains("let ctx = g_main_context_default()"))
@@ -920,7 +4612,7 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
 
-        #expect(manifest.contains("dependencies: [\"AppKit\", \"CGtk4\", .product(name: \"CGTK\", package: \"SwiftOpenUI\")]"))
+        #expect(manifest.contains("dependencies: [\"AppKit\", \"CGtk4\", \"Observation\", .product(name: \"CGTK\", package: \"SwiftOpenUI\"), .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\")]"))
         #expect(host.contains("quillInstallGtkDrawHostInputControllers(on: area, host: box)"))
         #expect(host.contains("gtk_gesture_drag_new()"))
         #expect(host.contains("gtk_gesture_click_new()"))
@@ -1032,6 +4724,12 @@ struct SourceHygieneTests {
         #expect(!osShim.contains("import os"))
         #expect(attributedStringDocument.contains("#if os(Linux)\n// NSAttributedString document-conversion surface"))
         #expect(attributedStringDocument.hasSuffix("#endif\n"))
+        for product in ["WebKit", "CoreImage", "LinkPresentation", "AVKit", "QuickLook", "AppIntents"] {
+            #expect(
+                manifest.occurrences(of: ".library(name: \"\(product)\", targets: [\"\(product)\"])") == 1,
+                Comment(rawValue: "Package.swift declares duplicate product \(product)")
+            )
+        }
     }
 
     @Test("Linux SwiftUI compatibility extensions have one canonical module")
@@ -1064,8 +4762,24 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillUI/UpstreamCompatibility.swift"),
             encoding: .utf8
         )
+        let environmentModifiers = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/EnvironmentModifiers.swift"),
+            encoding: .utf8
+        )
+        let gtkRenderer = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"),
+            encoding: .utf8
+        )
         let swiftOpenUIControlStyles = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"),
+            encoding: .utf8
+        )
+        let swiftOpenUIColor = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Color.swift"),
+            encoding: .utf8
+        )
+        let swiftOpenUIFocusedValue = try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/State/FocusedValue.swift"),
             encoding: .utf8
         )
 
@@ -1083,23 +4797,66 @@ struct SourceHygieneTests {
         #expect(manifest.contains("swiftSettings: wrappingHStackSwiftSettings,\n        linkerSettings: wrappingHStackLinkerSettings"))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
         #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
-        #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"Observation\",\n                    \"CQtBridge\""))
+        #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"QuillSwiftUICompatibility\",\n                    \"Observation\",\n                    \"CQtBridge\""))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))
         #expect(compatibility.contains("static var firstTextBaseline: VerticalAlignment { .top }"))
         #expect(swiftOpenUIControlStyles.contains("public struct PlainButtonStyle: ButtonStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public final class ToggleStyleConfiguration"))
+        #expect(swiftOpenUIControlStyles.contains("private let isOnBinding: Binding<Bool>"))
+        #expect(swiftOpenUIControlStyles.contains("public var isOn: Bool"))
+        #expect(swiftOpenUIControlStyles.contains("public protocol ToggleStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public protocol ControlGroupStyle"))
+        #expect(swiftOpenUIControlStyles.contains("public var customToggleStyle: AnyToggleStyle?"))
         #expect(designCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(designCompatibility.contains("public struct KeyboardTypeView<Content: View, Keyboard>: View"))
         #expect(designCompatibility.contains("func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self>"))
         #expect(!designCompatibility.contains("func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self"))
         #expect(swiftUIPlatformSurface.contains("func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType>"))
+        #expect(designCompatibility.contains("func formStyle(_ style: GroupedFormStyle) -> Self"))
+        #expect(designCompatibility.contains("public static func offset(_ offset: CGSize) -> AnyTransition"))
+        #expect(designCompatibility.contains("public static func offset(x: CGFloat = 0, y: CGFloat = 0) -> AnyTransition"))
         #expect(designCompatibility.contains("@MainActor\n    static var circle: Circle { Circle() }"))
+        #expect(designCompatibility.contains("FocusedKeyPathValuesStore.shared.resolve(keyPath)"))
+        #expect(designCompatibility.contains("public var wrappedValue: Binding<Value>? { resolve() }"))
+        #expect(quillUpstreamCompatibility.contains("OptionalFocusedValueView(content: self, keyPath: keyPath, value: value)"))
+        #expect(!quillUpstreamCompatibility.contains("focusedSceneValue is currently a source-compatibility fallback on Linux."))
+        #expect(swiftOpenUIFocusedValue.contains("public final class FocusedKeyPathValuesStore"))
+        #expect(swiftOpenUIFocusedValue.contains("public init() {}"))
+        #expect(swiftOpenUIFocusedValue.contains("valuesByWindow[windowID, default: [:]][keyPath] = value"))
+        #expect(swiftOpenUIFocusedValue.contains("public struct OptionalFocusedValueView<Content: View, Value>: View"))
+        #expect(swiftOpenUIFocusedValue.contains("public init(content: Content, keyPath: WritableKeyPath<FocusedValues, Value?>, value: Value?)"))
+        #expect(swiftOpenUIFocusedValue.contains("FocusedKeyPathValuesStore.shared.publish(value, for: keyPath)"))
+        #expect(swiftOpenUIFocusedValue.contains("FocusedKeyPathValuesStore.shared.clear(keyPath)"))
         #expect(designCompatibility.contains("@MainActor\n    public init<Content: View>(_ column: TableColumn<RowValue, Content>)"))
+        #expect(designCompatibility.contains("public init<Value>(_ title: String, value: KeyPath<RowValue, Value>) where Content == Text"))
+        #expect(designCompatibility.contains("private var isRowSelected: (@MainActor (RowValue) -> Bool)?"))
+        #expect(designCompatibility.contains("let selection = selection"))
+        #expect(designCompatibility.contains("selection.wrappedValue = [row.id]"))
+        #expect(designCompatibility.contains("public func render(_ row: RowValue) -> Content"))
+        #expect(designCompatibility.contains("public func cell(for row: RowValue) -> AnyView"))
+        #expect(designCompatibility.contains("columns[columnIndex]\n                            .cell(for: rows[rowIndex])"))
+        #expect(designCompatibility.contains(".onTapGesture {\n                    selectRow?(rows[rowIndex])"))
         #expect(designCompatibility.contains("@MainActor public static func buildExpression<Content: View>"))
         #expect(appStorageCompatibility.contains("public struct AppStorage<Value>: AnyStateStorageProvider"))
         #expect(!iceCubesShims.contains("public struct AppStorage<Value>"))
+        #expect(appStorageCompatibility.contains("private enum QuillAppStorageEnvironment"))
+        #expect(appStorageCompatibility.contains("QUILLUI_APP_STORAGE_\\(String(sanitized))"))
+        #expect(appStorageCompatibility.contains("UserDefaults.standard.string(forKey: key)\n            ?? QuillAppStorageEnvironment.seed(forKey: key)"))
+        #expect(appStorageCompatibility.contains("return QuillAppStorageEnvironment.seed(forKey: key).flatMap(Self.init(quillAppStorageSeed:))"))
+        #expect(environmentModifiers.contains("public struct TransformEnvironmentModifierView"))
+        #expect(environmentModifiers.contains("func transformEnvironment<V>("))
+        #expect(gtkRenderer.contains("extension TransformEnvironmentModifierView: GTKRenderable"))
+        #expect(gtkRenderer.contains("environment.customToggleStyle"))
+        #expect(gtkRenderer.contains("extension CustomToggleStyleModifier: GTKRenderable"))
+        #expect(gtkRenderer.contains("extension ControlGroupStyleModifier: GTKRenderable"))
+        #expect(swiftOpenUIColor.contains("public static var tertiary: Color"))
+        #expect(swiftOpenUIColor.contains("public static var quaternary: Color"))
+        #expect(swiftUIPlatformSurface.contains("public extension Color"))
+        #expect(swiftUIPlatformSurface.contains("init(_ color: NSColor)"))
         #expect(!quillUpstreamCompatibility.contains("public struct PlainButtonStyle"))
+        #expect(!quillUpstreamCompatibility.contains("func formStyle(_ style: GroupedFormStyle)"))
         #expect(!designCompatibility.contains("public protocol ButtonStyle"))
         #expect(!designCompatibility.contains("public struct ButtonStyleConfiguration"))
         #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
@@ -1207,24 +4964,82 @@ struct SourceHygieneTests {
         )
         let inputFieldsTemplate = root.appendingPathComponent("scripts/profiles/enchanted-full-source/templates/UI/macOS/Chat/Components/InputFields_macOS.swift")
 
-        #expect(inputFieldsRule.contains("\\n$1.frame(maxWidth: .infinity)\\n$1.overlay("))
-        #expect(inputFieldsRule.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
-        #expect(profileLowering.contains("import QuillUI"))
-        #expect(profileLowering.contains("QuillChatComposer("))
-        #expect(profileLowering.contains("selectedImage: \\$selectedImage"))
+        #expect(inputFieldsRule.contains("import QuillUI"))
+        #expect(inputFieldsRule.contains("var body: AnyView"))
+        #expect(inputFieldsRule.contains("QuillChatComposer("))
+        #expect(inputFieldsRule.contains("selectedImage: \\$selectedImage"))
+        #expect(inputFieldsRule.contains("onStop: { onStopGenerateTap() }"))
+        #expect(inputFieldsRule.contains("onSend: { sendMessage() }"))
+        #expect(!profileLowering.contains("QuillChatComposer("))
         #expect(controls.contains("public struct QuillChatComposer: View"))
         #expect(controls.contains("@Binding public var selectedImage: Image?"))
         #expect(controls.contains("selectedImage: Binding<Image?>"))
         #expect(controls.contains("usesBuiltInImageSelection = true"))
+        #expect(controls.contains(".frame(maxWidth: .infinity)"))
+        #expect(controls.contains("RoundedRectangle(cornerRadius: 28)"))
         #expect(controls.contains(".fileImporter("))
         #expect(controls.contains(".onDrop(of: [.image]"))
         #expect(controls.contains("QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff])"))
+        #expect(controls.contains("importBuiltInImageSelectionIfAvailableForSend()"))
+        #expect(controls.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH"))
         #expect(controls.contains("handleImageImport"))
         #expect(controls.contains("handleImageDrop"))
+        #expect(controls.contains("private var composerTextField: some View"))
+        #expect(controls.contains("#if os(Linux)\n        TextField(\"Message\", text: $message)"))
+        #expect(controls.contains("#else\n        TextField(\"Message\", text: $message, axis: .vertical)"))
         #expect(controls.contains(".onSubmit"))
         #expect(controls.contains("submitIfPossible()"))
         #expect(controls.contains(".keyboardShortcut(.return, modifiers: [])"))
         #expect(!FileManager.default.fileExists(atPath: inputFieldsTemplate.path))
+    }
+
+    @Test("Enchanted composer rewrite replaces post-lowering split body")
+    func enchantedComposerRewriteReplacesPostLoweringSplitBody() throws {
+        let root = try packageRoot()
+        let rule = root.appendingPathComponent("scripts/profiles/enchanted-full-source/rewrite-rules/UI/macOS/Chat/Components/InputFields_macOS.swift.pl")
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillui-input-fields-rule-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let fixture = tempDir.appendingPathComponent("InputFields_macOS.swift")
+        try """
+        @preconcurrency import SwiftUI
+        import QuillShims
+        struct InputFieldsView: View {
+            @Binding var message: String
+            var conversationState: ConversationState
+            var onStopGenerateTap: @MainActor () -> Void
+            var selectedModel: LanguageModelSD?
+            @Binding private var selectedImage: Image?
+
+            var body: some View {
+                HStack {
+                    _quillSplitBody0Part0
+                }
+            }
+
+            @ViewBuilder
+            private var _quillSplitBody0Part0: some View {
+                Text("old composer")
+            }
+        }
+
+        """.write(to: fixture, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: ["perl", "-0pi", rule.path, fixture.path]
+        )
+        #expect(result.status == 0)
+
+        let rewritten = try String(contentsOf: fixture, encoding: .utf8)
+        #expect(rewritten.contains("import QuillShims\nimport QuillUI"))
+        #expect(rewritten.contains("var body: AnyView"))
+        #expect(rewritten.contains("QuillChatComposer("))
+        #expect(rewritten.contains("selectedImage: $selectedImage"))
+        #expect(!rewritten.contains("_quillSplitBody0Part0"))
+        #expect(!rewritten.contains("old composer"))
     }
 
     @Test("Apple service aliases live in reusable compatibility modules")
@@ -1240,6 +5055,10 @@ struct SourceHygieneTests {
         )
         let quillShims = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillShims/QuillShims.swift"),
+            encoding: .utf8
+        )
+        let securityShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/Security/Security.swift"),
             encoding: .utf8
         )
         #expect(quillKit.contains("ProcessInfo.processInfo.environment[\"QUILLUI_ACCESSIBILITY_TRUSTED\"]"))
@@ -1286,10 +5105,18 @@ struct SourceHygieneTests {
         #expect(quillShims.contains("@_exported import CoreGraphics"))
         #expect(quillShims.contains("@_exported import AppKit"))
         #expect(quillShims.contains("@_exported import Combine"))
+        #expect(!securityShim.contains("@_exported import QuillKit"))
+        #expect(securityShim.contains("@_exported import typealias QuillKit.CFString"))
+        #expect(securityShim.contains("Unmanaged<CoreFoundation.CFError>"))
+        #expect(securityShim.contains("kSecKeyAlgorithmRSASignatureMessagePKCS1v15SHA256"))
+        #expect(securityShim.contains("static var rsaSignatureMessagePKCS1v15SHA256"))
+        #expect(securityShim.contains("importedKeyAttributes(from:"))
+        #expect(securityShim.contains("secKeySupportsRSASignature"))
         #expect(swiftUILowering.contains("ensure-swift-imports.sh\" \"$SOURCE_DIR\" QuillShims"))
         #expect(swiftUILowering.contains("run-quill-appkit-lower.sh\" \"$SOURCE_DIR\""))
-        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
-        #expect(swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
+        #expect(!swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+in/Task {/g;"#))
+        #expect(!swiftUILowering.contains(#"s/Task \{[ \t]*\@MainActor[ \t]+(\[[^\]]+\][ \t]+in)/Task { $1/g;"#))
+        #expect(!swiftUILowering.contains(#"s/^[ \t]*\@MainActor[ \t]*\n//gm;"#))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" AppKit"))
         #expect(!enchantedProfileLowering.contains("ensure-swift-imports.sh\" \"$LOWERED_COPY\" SwiftUI"))
         #expect(!enchantedSpeechRecognizerProfile.contains(#"Task \{[ \t]*\@MainActor"#))
@@ -1416,6 +5243,14 @@ struct SourceHygieneTests {
         #expect(linuxBuildTooling.contains("native-product-runtime-overrides"))
         #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux backend-apps"))
         #expect(linuxBuildTooling.contains("scripts/build-linux-backend-products.sh --scratch-path .build-linux all-app-backends"))
+        #expect(linuxBuildTooling.contains("--package-root"))
+        #expect(linuxBuildTooling.contains("--entry-target"))
+        #expect(linuxBuildTooling.contains("--target-layout-file"))
+        #expect(linuxBuildTooling.contains("--extra-package-dependencies-file"))
+        #expect(linuxBuildTooling.contains("scripts/swiftpm-package-layout-for-linux.py"))
+        #expect(linuxBuildTooling.contains("derive the target"))
+        #expect(linuxBuildTooling.contains("layout automatically from `Package.swift`"))
+        #expect(linuxBuildTooling.contains("multi-target SwiftPM app trees"))
         #expect(linuxBuildTooling.contains("PRODUCT<TAB>BUILD_BACKEND"))
         #expect(linuxBuildTooling.contains("backend build stamps"))
         #expect(linuxBuildTooling.contains("stricter Linux build-backend normalizer"))
@@ -1460,6 +5295,7 @@ struct SourceHygieneTests {
         let workflowPaths = [
             ".github/workflows/linux-ci.yml",
             ".github/workflows/macos-ci.yml",
+            ".github/workflows/enchanted-parity.yml",
             ".github/workflows/solderscope-ci.yml"
         ]
 
@@ -1470,15 +5306,52 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/check-shell-syntax.sh"),
             encoding: .utf8
         )
+        let upstreamCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/upstream-cache/action.yml"),
+            encoding: .utf8
+        )
+        let loweredSourceCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/lowered-source-cache/action.yml"),
+            encoding: .utf8
+        )
+        let upstreamFetch = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
 
         #expect(workflows.contains("uses: actions/checkout@v5"))
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
+        #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
+        #expect(workflows.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(workflows.contains("QUILLUI_TRUST_UPSTREAM_CACHE: \"1\""))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
         #expect(shellSyntaxCheck.contains("bash -n \"$script\""))
+        #expect(upstreamCacheAction.contains("uses: actions/cache@v6"))
+        #expect(upstreamCacheAction.contains("path: .upstream"))
+        #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
+        #expect(upstreamCacheAction.contains("restore-keys:"))
+        #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
+        #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
+        #expect(loweredSourceCacheAction.contains("source-app:"))
+        #expect(loweredSourceCacheAction.contains("source_paths=(vendor/apps)"))
+        #expect(loweredSourceCacheAction.contains("source_paths=(\"vendor/apps/$source_app\")"))
+        #expect(loweredSourceCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
+        #expect(loweredSourceCacheAction.contains("quillui-${{ runner.os }}-lowered-source-${{ inputs.cache-name }}-"))
+        #expect(loweredSourceCacheAction.contains("scripts/quillui-source-cache-key.py"))
+        #expect(loweredSourceCacheAction.contains("scripts/swiftpm-profile-lowered-source-cache.sh"))
+        #expect(loweredSourceCacheAction.contains("Sources/QuillSourceLowering"))
+        #expect(loweredSourceCacheAction.contains("vendor/apps"))
+        #expect(loweredSourceCacheAction.contains("restore-keys:"))
+        #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
+        #expect(upstreamFetch.contains("using cached $name"))
+        #expect(upstreamFetch.contains("reset_repo_to_commit"))
+        #expect(upstreamFetch.contains("want=(enchanted netnewswire wireguard icecubes solderscope)"))
         #expect(!workflows.contains("uses: actions/checkout@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v4"))
         #expect(!workflows.contains("uses: actions/upload-artifact@v5"))
+        #expect(!workflows.contains("uses: actions/cache@v4"))
+        #expect(!workflows.contains("uses: actions/cache@v5"))
     }
 
     @Test("App entry points use the shared Quill window scene")
@@ -1946,9 +5819,20 @@ struct SourceHygieneTests {
     @Test("Generic Qt renderer reads SwiftUI bodies through MainActor isolation")
     func genericQtRendererReadsSwiftUIBodiesThroughMainActorIsolation() throws {
         let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let smokeApp = try packageSource("Sources/BackendQt/QtSmokeApp.swift")
+        let smokeScript = try packageSource("scripts/linux-qt-generic-smoke-check.sh")
 
         #expect(renderer.contains("MainActor.assumeIsolated {\n        rendered = qtRenderView(view.body)\n    }"))
         #expect(!renderer.contains("\n    return qtRenderView(view.body)\n    // Stateless composite view"))
+        #expect(smokeApp.contains(".onKeyPress(.tab)"))
+        #expect(smokeApp.contains("textFieldValue = \"Qt onKeyPress tab\""))
+        #expect(smokeApp.contains(".keyboardShortcut(.defaultAction)"))
+        #expect(smokeApp.contains("qtSmokeInteractionLog(\"keyboardShortcut default\")"))
+        #expect(smokeApp.contains("textFieldValue = \"Qt keyboardShortcut default\""))
+        #expect(smokeScript.contains("QUILLUI_QT_GENERIC_VERIFY_SHORTCUT"))
+        #expect(smokeScript.contains("xdotool key --window \"$window_id\" --clearmodifiers Return"))
+        #expect(smokeScript.contains("grep -q \"\\\\[qt-smoke\\\\] keyboardShortcut default\""))
+        #expect(smokeScript.contains("Qt .keyboardShortcut(.defaultAction) did not reach the Swift action."))
     }
 
     @Test("Generic and WireGuard Qt hosts use shared native runtime contracts")
@@ -2387,14 +6271,19 @@ struct SourceHygieneTests {
         let gtkBackend = try packageSource("Sources/QuillUIGtk/QuillUIGtk.swift")
         let qtBackend = try packageSource("Sources/QuillUIQt/QuillUIQt.swift")
         let swiftOpenUICommands = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/App/Commands.swift")
+        let swiftOpenUIButton = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Button.swift")
+        let swiftOpenUIGroup = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Group.swift")
         let swiftOpenUIGTKBackend = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4Backend.swift")
+        let quillUICompatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
         let backendScript = try packageSource("scripts/linux-backend-interaction-check.sh")
+        let backendCheckScript = try packageSource("scripts/linux-backend-check.sh")
         let backendProfileScript = try packageSource("scripts/linux-backend-profile.sh")
         let backendVisualScript = try packageSource("scripts/linux-backend-visual-check.sh")
         let smokeLib = try packageSource("scripts/quillui-linux-backend-smoke-lib.sh")
         let backendProducts = try packageSource("scripts/quillui-backend-products.sh")
         let smokeMatrixRunner = try packageSource("scripts/run-linux-backend-smoke-matrix.sh")
         let interactionModeRunner = try packageSource("scripts/run-linux-backend-interaction-modes.sh")
+        let functionalScript = try packageSource("scripts/quill-chat-functional-check.sh")
         let solderScopeSmoke = try packageSource("scripts/linux-solderscope-smoke-check.sh")
         let screenshotVerifier = try packageSource("scripts/verify-backend-screenshot.py")
         let legacyScreenshotVerifier = try packageSource("scripts/verify-gtk-screenshot.py")
@@ -2447,8 +6336,24 @@ struct SourceHygieneTests {
         #expect(swiftOpenUICommands.contains("public static func buildBlock<C0: Commands, C1: Commands, C2: Commands>"))
         #expect(swiftOpenUICommands.contains("public static func buildBlock<C0: Commands, C1: Commands, C2: Commands, C3: Commands>"))
         #expect(swiftOpenUICommands.contains("@_disfavoredOverload\n\tpublic static func buildBlock(_ components: any Commands...)"))
+        #expect(swiftOpenUICommands.contains("public static func buildOptional<C: Commands>(_ component: C?) -> CommandCollection"))
+        #expect(swiftOpenUICommands.contains("public static func buildEither<C: Commands>(first component: C) -> CommandCollection"))
         #expect(swiftOpenUICommands.contains("commandMenuItems(from: view)"))
+        #expect(swiftOpenUICommands.contains("CommandMenuConditionalRepresentable"))
+        #expect(swiftOpenUICommands.contains("CommandMenuOptionalRepresentable"))
+        #expect(swiftOpenUICommands.contains("return commandMenuItems(from: conditional.commandMenuActiveContent)"))
+        #expect(swiftOpenUICommands.contains("return commandMenuItems(from: content)"))
         #expect(swiftOpenUICommands.contains("commandsDebugLog(\"commands factory invoked type=\\(C.self) placements=\\(groups.count) items=\\(itemCount)\")"))
+        #expect(swiftOpenUICommands.contains("extension Group: TupleCommandsProtocol where Content: Commands"))
+        #expect(swiftOpenUICommands.contains("collectCommandGroups(content, into: &result)"))
+        #expect(quillUICompatibility.contains("QuillConditionalViewRepresentable"))
+        #expect(quillUICompatibility.contains("QuillOptionalViewRepresentable"))
+        #expect(quillUICompatibility.contains("return quillCommandMenuItems(from: conditional.quillActiveContent)"))
+        #expect(quillUICompatibility.contains("return quillCommandMenuItems(from: content)"))
+        #expect(swiftOpenUIButton.contains("public init(_ title: String, systemImage: String, action: @escaping () -> Void)"))
+        #expect(swiftOpenUIButton.contains("SwiftOpenUI.Label(title, systemImage: systemImage)"))
+        #expect(swiftOpenUIGroup.contains("extension Group: Commands where Content: Commands"))
+        #expect(swiftOpenUIGroup.contains("public init(@CommandsBuilder content: () -> Content)"))
         #expect(swiftOpenUIGTKBackend.contains("gtk_event_controller_set_propagation_phase(controller, GTK_PHASE_CAPTURE)"))
         #expect(swiftOpenUIGTKBackend.contains("KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)"))
         #expect(qtBackend.contains("@_exported import QuillUI"))
@@ -2516,6 +6421,10 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-prompt-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-send\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-attachment-send\""))
+        #expect(functionalScript.components(separatedBy: "def message_content_matches").count >= 4)
+        #expect(functionalScript.components(separatedBy: "QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX").count >= 4)
+        #expect(functionalScript.contains("expected.startswith(content)"))
+        #expect(functionalScript.contains("Quill Chat functional relaunch:"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-new-chat\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-copy-chat-json\""))
@@ -2649,7 +6558,7 @@ struct SourceHygieneTests {
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" verify_product"))
         #expect(backendScript.contains("cp -f \"$quill_chat_completions_panel_probe_path\" \"$SCREENSHOT_PATH\""))
         #expect(backendScript.contains("settled_capture_taken=1"))
-        #expect(screenshotVerifier.contains("minimum_row_dividers=1,\n        minimum_row_action_segments=1,\n        minimum_wordmark_pixels=350"))
+        #expect(screenshotVerifier.contains("minimum_row_dividers=2,\n        minimum_wordmark_pixels=350,\n        minimum_row_action_segments=1"))
         #expect(!backendScript.contains("settle_quill_chat_completion_capture_if_verified\n      return 0"))
         #expect(backendScript.contains("save_x=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_X:-$((window_x + 1450))}\""))
         #expect(backendScript.contains("save_y=\"${QUILLUI_BACKEND_COMPLETION_SAVE_CLICK_Y:-$((window_y + 410))}\""))
@@ -2745,6 +6654,8 @@ struct SourceHygieneTests {
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VISUAL_DISPLAY:-"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_SCREEN_SIZE:-"))
         #expect(!backendVisualScript.contains("${QUILLUI_GTK_VERIFY_PRODUCT:-"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_ACTIVE_SHORTCUT_FALLBACK"))
+        #expect(solderScopeSmoke.contains("shortcut $label active key s"))
         #expect(smokeLib.contains("source \"$QUILLUI_LINUX_BACKEND_SMOKE_ROOT_DIR/scripts/quillui-backend-products.sh\""))
         #expect(smokeLib.contains("quillui_export_backend_argument()"))
         #expect(smokeLib.contains("requested_backend=\"$(quillui_require_requested_backend_for_product \"$product\")\""))
@@ -2756,7 +6667,7 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("linux_build_backend=\"$(quillui_require_requested_backend_for_product \"$product\")\""))
         #expect(smokeLib.contains("QUILLUI_LINUX_BACKEND=\"$linux_build_backend\""))
         #expect(smokeLib.contains("quillui_assign_output()"))
-        #expect(smokeLib.contains("printf -v \"$output_var\" \"%s\" \"$value\""))
+        #expect(smokeLib.contains("printf -v \"$__quillui_output_var\" \"%s\" \"$__quillui_output_value\""))
         #expect(smokeLib.contains("quillui_start_xvfb()"))
         #expect(smokeLib.contains("quillui_assign_output \"$output_var\" \"$QUILLUI_BACKEND_APP_EXECUTABLE\""))
         #expect(smokeLib.contains("${QUILLUI_BACKEND_SKIP_BUILD:-0}"))
@@ -2764,16 +6675,24 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_record_backend_product_build"))
         #expect(!smokeLib.contains("quillui_assign_output \"$output_var\" \"$QUILLUI_GTK_APP_EXECUTABLE\""))
         #expect(!smokeLib.contains("${QUILLUI_GTK_SKIP_BUILD:-0}"))
+        #expect(smokeLib.contains("quillui_linux_backend_apt_get()"))
+        #expect(smokeLib.contains("libc++-dev"))
+        #expect(smokeLib.contains("libc++abi-dev"))
+        #expect(smokeLib.contains("sudo apt-get \"${apt_options[@]}\" \"$@\""))
+        #expect(smokeLib.contains("[[ \"$(id -u)\" == \"0\" ]]"))
+        #expect(smokeLib.contains("apt-get \"${apt_options[@]}\" \"$@\""))
+        #expect(smokeLib.contains("sudo or root access is required to install Linux backend smoke packages"))
         #expect(smokeLib.contains("quillui_install_linux_backend_smoke_packages()"))
-        #expect(smokeLib.contains("local apt_prefix=()"))
-        #expect(smokeLib.contains("if command -v sudo >/dev/null 2>&1; then"))
-        #expect(smokeLib.contains("\"${apt_prefix[@]}\" apt-get install -y \"${missing[@]}\""))
+        #expect(smokeLib.contains("quillui_linux_backend_apt_get update"))
+        #expect(smokeLib.contains("quillui_linux_backend_apt_get install -y --fix-missing \"${missing[@]}\""))
         #expect(smokeLib.contains("quillui_normalize_x_display_id()"))
         #expect(smokeLib.contains("quillui_stop_process_if_running()"))
         #expect(!smokeLib.contains("quillui_is_quill_chat_mac_reference_product()"))
         #expect(smokeLib.contains("quillui_backend_reference_window_defaults()"))
         #expect(smokeLib.contains("quillui_find_visible_window_by_name()"))
         #expect(smokeLib.contains("quillui_find_visible_window_for_pid()"))
+        #expect(smokeLib.contains("best_area=-1"))
+        #expect(smokeLib.contains("xdotool getwindowgeometry --shell \"$candidate\""))
         #expect(smokeLib.contains("quillui_find_visible_window_for_pid_except()"))
         #expect(smokeLib.contains("quillui_find_any_visible_window()"))
         #expect(smokeLib.contains("quillui_find_quill_chat_reference_window()"))
@@ -2861,6 +6780,9 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_reference_environment_if_needed()"))
         #expect(smokeLib.contains("quillui_append_quill_chat_profile_fixture_environment_if_needed()"))
+        #expect(smokeLib.contains("Acquire::Retries=\"${QUILLUI_APT_RETRIES:-5}\""))
+        #expect(smokeLib.contains("Acquire::http::Timeout=\"${QUILLUI_APT_HTTP_TIMEOUT:-30}\""))
+        #expect(smokeLib.contains("install -y --fix-missing \"${missing[@]}\""))
         #expect(smokeLib.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_WIDTH=$reference_window_width"))
         #expect(smokeLib.contains("QUILLUI_BACKEND_DEFAULT_WINDOW_HEIGHT=$reference_window_height"))
         #expect(smokeLib.contains("QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"))
@@ -2876,9 +6798,23 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_generated_app_backend_facade()"))
         #expect(smokeLib.contains("QUILLUI_ENCHANTED_BACKEND_FACADE"))
         #expect(smokeLib.contains("QUILLUI_QUILL_CHAT_BACKEND_FACADE"))
-        #expect(smokeLib.contains("enchanted_default_work_root=\"$enchanted_default_work_root-$enchanted_backend_facade\""))
-        #expect(smokeLib.contains("QUILLUI_ENCHANTED_BACKEND_FACADE=\"$enchanted_backend_facade\""))
+        #expect(smokeLib.contains("quillui_generated_app_work_root()"))
+        #expect(smokeLib.contains("default_work_root=\"$default_work_root-$backend_facade\""))
+        #expect(smokeLib.contains("quillui_backend_generated_app_build_spec_for_product \"$product\""))
+        #expect(smokeLib.contains("quillui_artifact_path_from_file()"))
+        #expect(smokeLib.contains("artifact_path_file=\"${QUILLUI_BACKEND_APP_ARTIFACT_PATH_FILE:-$work_root/.quillui-artifact-path}\""))
+        #expect(smokeLib.contains("QUILLUI_APP_ARTIFACT_PATH_FILE=\"$artifact_path_file\""))
+        #expect(smokeLib.contains("Generated app build did not write a usable artifact path for $product: $artifact_path_file"))
+        #expect(smokeLib.contains(".build/quillui-generated-app-build-cache"))
+        #expect(smokeLib.contains("scripts/build-swiftui-linux-app.sh"))
+        #expect(smokeLib.contains("\"${build_args[@]}\""))
+        #expect(smokeLib.contains("generated_artifact_path"))
         #expect(smokeLib.contains("quillui_resolve_linux_backend_executable()"))
+        #expect(backendCheckScript.contains("artifact_path_file=\"$generated_work_root/.quillui-artifact-path\""))
+        #expect(backendCheckScript.contains("QUILLUI_APP_ARTIFACT_PATH_FILE=\"$artifact_path_file\""))
+        #expect(backendCheckScript.contains("quillui_artifact_path_from_file \"$artifact_path_file\" ENCHANTED_ARTIFACT_PATH"))
+        #expect(backendCheckScript.contains("run_executable_smoke \"$product\" \"$ENCHANTED_ARTIFACT_PATH\" \"$backend\""))
+        #expect(!backendCheckScript.contains("ENCHANTED_BIN_DIR"))
         #expect(smokeLib.contains("quillui_seed_quill_chat_reference_data()"))
         #expect(backendScript.contains("quillui_resolve_linux_backend_executable \"$PRODUCT\" APP_EXECUTABLE"))
         #expect(backendScript.contains("quillui_append_backend_runtime_environment"))
@@ -3137,7 +7073,11 @@ struct SourceHygieneTests {
         #expect(smokeMatrixRunner.contains("smoke_environment+=(\"QUILLUI_APP_BACKEND_FACADE=$requested_backend\")"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE=$mode"))
         #expect(smokeMatrixRunner.contains("QUILLUI_BACKEND_SKIP_BUILD=1"))
-        #expect(smokeMatrixRunner.contains("env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\""))
+        #expect(smokeMatrixRunner.contains("SMOKE_ROW_TIMEOUT=\"${QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT:-10m}\""))
+        #expect(smokeMatrixRunner.contains("SMOKE_ROW_KILL_AFTER=\"${QUILLUI_BACKEND_SMOKE_ROW_KILL_AFTER:-15s}\""))
+        #expect(smokeMatrixRunner.contains("SMOKE_TIMEOUT_COMMAND=(\"$timeout_command\" \"--kill-after=$SMOKE_ROW_KILL_AFTER\" \"$SMOKE_ROW_TIMEOUT\")"))
+        #expect(smokeMatrixRunner.contains("smoke_command=(env \"${smoke_environment[@]}\" \"$CHECK_SCRIPT\" \"$output_path\" \"$product\" \"$requested_backend\")"))
+        #expect(smokeMatrixRunner.contains("\"${SMOKE_TIMEOUT_COMMAND[@]}\" \"${smoke_command[@]}\""))
         #expect(smokeMatrixRunner.contains("\"$ROOT_DIR/scripts/quillui-backend-products.sh\" \"$RUNTIME_MATRIX_COMMAND\""))
         #expect(interactionModeRunner.contains("Usage: run-linux-backend-interaction-modes.sh OUTPUT_TEMPLATE PRODUCT BACKEND MODE..."))
         #expect(interactionModeRunner.contains("QUILLUI_BACKEND_INTERACTION_MODE_TIMEOUT"))
@@ -3151,7 +7091,12 @@ struct SourceHygieneTests {
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
+        #expect(workflow.contains("QUILLUI_SOLDERSCOPE: \"1\""))
+        #expect(workflow.contains("QUILLUI_SOLDERSCOPE_REQUIRED: \"1\""))
         #expect(workflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRED"))
+        #expect(solderScopeSmoke.contains("SolderScope smoke requires upstream source"))
+        #expect(solderScopeSmoke.contains("Run scripts/fetch-upstream.sh solderscope before invoking this CI smoke."))
         #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA=\"${QUILL_AVFOUNDATION_SYNTHETIC_CAMERA:-1}\""))
         #expect(solderScopeSmoke.contains("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH=\"${QUILL_AVFOUNDATION_SYNTHETIC_WIDTH:-640}\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_resolve_desktop_dir()"))
@@ -3213,15 +7158,30 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_started_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_saved_log_count()"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_snapshot_saved_log_count()"))
+        #expect(solderScopeSmoke.contains("SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("snapshot_saved_log_count=\"$(quillui_solderscope_snapshot_saved_log_count)\""))
+        #expect(solderScopeSmoke.contains("snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame \"after snapshot\""))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame \"after snapshot\" \"$settled_snapshot_screenshot\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle()"))
+        #expect(solderScopeSmoke.contains("local label=\"${1:-before interaction}\""))
+        #expect(solderScopeSmoke.contains("local settled_screenshot_path=\"${2:-}\""))
+        #expect(solderScopeSmoke.contains("cp -f \"$frame_probe_path\" \"$settled_screenshot_path\""))
+        #expect(solderScopeSmoke.contains("synthetic frame is visible $label"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_visible_frame \"before freeze\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_indicator_red_pixels()"))
         #expect(solderScopeSmoke.contains("indicator_pixels > 500"))
         #expect(solderScopeSmoke.contains("local settled_screenshot_path=\"${1:-}\""))
         #expect(solderScopeSmoke.contains("cp -f \"$idle_probe_path\" \"$settled_screenshot_path\""))
         #expect(solderScopeSmoke.contains("local settled_recording_screenshot=\"${SCREENSHOT_PATH%.png}-recording-idle.png\""))
+        #expect(solderScopeSmoke.contains("local settled_snapshot_screenshot=\"${SCREENSHOT_PATH%.png}-snapshot-settled.png\""))
         #expect(solderScopeSmoke.contains("quillui_solderscope_wait_for_recording_idle \"$settled_recording_screenshot\""))
         #expect(solderScopeSmoke.contains("cp -f \"${SCREENSHOT_PATH%.png}-recording-idle.png\" \"$SCREENSHOT_PATH\""))
+        #expect(solderScopeSmoke.contains("cp -f \"${SCREENSHOT_PATH%.png}-snapshot-settled.png\" \"$SCREENSHOT_PATH\""))
         #expect(solderScopeSmoke.contains("rm -f \"${SCREENSHOT_PATH%.png}-recording-idle.png\""))
+        #expect(solderScopeSmoke.contains("rm -f \"${SCREENSHOT_PATH%.png}-snapshot-settled.png\""))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_IDLE_WAIT_SECONDS:-8"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_IDLE_TICK_SECONDS:-0.5"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_count_recordings"))
@@ -3263,6 +7223,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("frozen_badge_pixels >= 500"))
         #expect(screenshotVerifier.contains("SolderScope FROZEN indicator was not detected after the freeze shortcut"))
         #expect(solderScopeWorkflow.contains("name: SolderScope Linux CI"))
+        #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_REQUIRED: \"1\""))
         #expect(solderScopeWorkflow.contains("SolderScope API and fixture tests"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK launch and interaction"))
         #expect(solderScopeWorkflow.contains("scripts/fetch-upstream.sh solderscope"))
@@ -3274,6 +7235,8 @@ struct SourceHygieneTests {
         #expect(!solderScopeWorkflow.contains(".build-solderscope-v4l2"))
         #expect(!solderScopeWorkflow.contains(".build-solderscope-encode"))
         #expect(solderScopeWorkflow.contains("scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-visual.png visual"))
+        #expect(solderScopeWorkflow.contains("SolderScope GTK snapshot smoke"))
+        #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_DRIVE_RECORDING=0 QUILLUI_SOLDERSCOPE_FREEZE_DRIVER=none scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-snapshot.png interaction"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK freeze smoke"))
         #expect(solderScopeWorkflow.contains("SolderScope GTK recording smoke"))
         #expect(solderScopeWorkflow.contains("QUILLUI_SOLDERSCOPE_SKIP_BUILD=1 QUILLUI_SOLDERSCOPE_SCRATCH_PATH=.build-solderscope-gtk QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT=0 scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-interaction.png interaction"))
@@ -3300,6 +7263,10 @@ struct SourceHygieneTests {
         #expect(!workflow.contains("Qt rows currently exercise the shared launch-plan fallback"))
         #expect(!workflow.contains("With no per-product branch in `verify-backend-screenshot.py`"))
         #expect(workflow.contains("scripts/run-linux-backend-profile-csv.sh --matrix profile-matrix"))
+        #expect(workflow.contains("QUILLUI_BACKEND_PROFILE_SETTLE: \"1\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_PROFILE_STEADY: \"3\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT: \"2m\""))
+        #expect(workflow.contains("QUILLUI_BACKEND_PROFILE_ROW_KILL_AFTER: \"10s\""))
         #expect(!workflow.contains("scripts/quillui-backend-products.sh profile-matrix | scripts/run-linux-backend-profile-csv.sh"))
         #expect(workflow.contains("Backend launch target interaction smokes"))
         #expect(!workflow.contains("while IFS=\"$tab\" read -r product backend; do"))
@@ -3367,6 +7334,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/check-linux-app-runtime-deps.sh"),
             encoding: .utf8
         )
+        let linuxBuildToolingSource = try String(
+            contentsOf: root.appendingPathComponent("docs/linux-build-tooling.md"),
+            encoding: .utf8
+        )
         let legacyQuillChatBuildSource = try String(
             contentsOf: root.appendingPathComponent("scripts/build-quill-chat-linux.sh"),
             encoding: .utf8
@@ -3379,6 +7350,30 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("scripts/quillui-enchanted-source.sh"),
             encoding: .utf8
         )
+        let fetchUpstream = try String(
+            contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
+            encoding: .utf8
+        )
+        let vendoredSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            encoding: .utf8
+        )
+        let solderScopeVendor = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/solderscope/QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        let solderScopeLicense = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/solderscope/LICENSE"),
+            encoding: .utf8
+        )
+        let workflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
+        let enchantedWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/enchanted-parity.yml"),
+            encoding: .utf8
+        )
         let generatedEnchantedChatSource = try String(
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-chat-components-check.sh"),
             encoding: .utf8
@@ -3389,6 +7384,55 @@ struct SourceHygieneTests {
         )
         let generatedEnchantedSource = try String(
             contentsOf: root.appendingPathComponent("scripts/generated-enchanted-full-source-check.sh"),
+            encoding: .utf8
+        )
+        let genericProfileSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/profiles/generic-swiftui.sh"),
+            encoding: .utf8
+        )
+        let genericLoweredSourceCacheSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-lowered-source-cache.sh"),
+            encoding: .utf8
+        )
+        let genericProfileRuntimeSource = genericProfileSource + "\n" + genericLoweredSourceCacheSource
+        let sourceCacheKey = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-source-cache-key.py"),
+            encoding: .utf8
+        )
+        let genericAutoLayoutSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-auto-layout.sh"),
+            encoding: .utf8
+        )
+        let genericLocalImportsSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/swiftpm-profile-local-imports.sh"),
+            encoding: .utf8
+        )
+        let localImportDiscoverySource = try String(
+            contentsOf: root.appendingPathComponent("scripts/discover-local-swiftpm-import-dependencies.py"),
+            encoding: .utf8
+        )
+        let vendorAppSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/vendor-app-source.sh"),
+            encoding: .utf8
+        )
+        let vendorSwiftUIAppSource = try String(
+            contentsOf: root.appendingPathComponent("scripts/vendor-swiftui-app-source.sh"),
+            encoding: .utf8
+        )
+        let vendoredSourceHelper = try String(
+            contentsOf: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            encoding: .utf8
+        )
+        let codeEditVendor = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/codeedit/QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        let quillCodeVendor = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/quillcode/QUILLUI_VENDOR.md"),
+            encoding: .utf8
+        )
+        let quillCodeVendorFingerprint = try String(
+            contentsOf: root.appendingPathComponent("vendor/apps/quillcode/.quillui-vendor-source-fingerprint"),
             encoding: .utf8
         )
 
@@ -3413,21 +7457,129 @@ struct SourceHygieneTests {
         #expect(source.contains("backend_launch_statement=\"${backend_runner}.run(${APP_ENTRY_TYPE}.self)\""))
         #expect(source.contains("copy_source_files=0"))
         #expect(source.contains("if [[ \"$copy_source_files\" == \"1\" ]]"))
+        #expect(source.contains("REQUESTED_PACKAGE_DIR=\"$PACKAGE_DIR\""))
+        #expect(source.contains("PACKAGE_STAGING_DIR=\"$PACKAGE_PARENT_DIR/."))
+        #expect(source.contains("sync_generated_package()"))
+        #expect(source.contains("diff -qr \"$staging_dir\" \"$destination_dir\""))
+        #expect(source.contains("Reused unchanged generated package: $relative_destination"))
+        #expect(source.contains("rsync -a --delete --checksum \"$staging_dir\"/ \"$destination_dir\"/"))
+        #expect(source.contains("Updated generated package: $relative_destination"))
+        #expect(source.contains("PACKAGE_DIR=\"$REQUESTED_PACKAGE_DIR\""))
+        #expect(!genericProfileSource.contains("rm -rf \"$PACKAGE_DIR\""))
         #expect(source.contains("RESOURCE_DIR=\"$TARGET_DIR/Resources\""))
         #expect(source.contains("scripts/copy-swiftui-linux-resources.py"))
-        #expect(source.contains("target_resources='            resources: [.copy(\"Resources\")],"))
+        #expect(source.contains("TARGET_LAYOUT_FILE=\"${QUILLUI_GENERATED_TARGET_LAYOUT_FILE:-}\""))
+        #expect(source.contains("EXTRA_PACKAGE_DEPENDENCIES_FILE=\"${QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE:-}\""))
+        #expect(source.contains("EXTRA_TARGET_DEPENDENCIES_FILE=\"${QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE:-}\""))
+        #expect(source.contains("PREPARED_PACKAGE_CACHE_DIR=\"${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-}\""))
+        #expect(source.contains(".product(name: \"CoreSpotlight\", package: \"QuillUI\")"))
+        #expect(source.contains("validate_relative_path"))
+        #expect(source.contains("swift_dependency_entry()"))
+        #expect(source.contains("product:*"))
+        #expect(source.contains(".product(name: \"%s\", package: \"%s\")"))
+        #expect(source.contains("PREPARED_PACKAGE_DEPENDENCIES_FILE=\"$WORK_ROOT/prepared-package-dependencies.swift\""))
+        #expect(source.contains("scripts/prepare-swiftui-linux-package-dependencies.py"))
+        #expect(source.contains("--dependencies-in \"$EXTRA_PACKAGE_DEPENDENCIES_FILE\""))
+        #expect(source.contains("--dependencies-out \"$PREPARED_PACKAGE_DEPENDENCIES_FILE\""))
+        #expect(source.contains("prepare_dependency_args+=(--prepared-cache-dir \"$PREPARED_PACKAGE_CACHE_DIR\")"))
+        #expect(source.contains("done < \"$PREPARED_PACKAGE_DEPENDENCIES_FILE\""))
+        #expect(!source.contains("vendored_extra_package_dependency()"))
+        #expect(source.contains("copy_swift_sources()"))
+        #expect(source.contains("copy_resources_line()"))
+        #expect(source.contains("append_target_definition"))
+        #expect(source.contains("Target layout must include QUILLUI_GENERATED_TARGET_NAME=$TARGET_NAME"))
+        #expect(source.contains("generated_swift_count_dir=\"$PACKAGE_DIR/Sources\""))
+        #expect(source.contains("extra_package_dependencies+="))
+        #expect(source.contains("extra_target_dependencies"))
+        #expect(source.contains("Extra target dependency file was not found"))
         #expect(source.contains("$target_resources"))
         #expect(source.contains("source_target_dependencies="))
-        #expect(source.contains("target_dependencies=\"$(printf '%s,\\n"))
-        #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")' \"$source_target_dependencies\")\""))
+        #expect(source.contains(".product(name: \"Network\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"ExtensionFoundation\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"ExtensionKit\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"PDFKit\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"QuickLook\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"QuickLookUI\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")' \"$target_dependency_entries\")"))
+        #expect(source.contains("import QuillAppKitGTK"))
+        #expect(source.contains("_ = QuillAppKitGTKAutoInstall.didInstall"))
+        #expect(source.contains(".product(name: \"QuillAppKitGTK\", package: \"QuillUI\")' \"$target_dependency_entries\")"))
         #expect(source.contains("if [[ \"$BACKEND_FACADE\" != \"qt\" ]]"))
-        #expect(source.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
-        #expect(source.contains("QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
+        #expect(source.contains("quillui_generated_source_requires_macro_plugin()"))
+        #expect(source.contains("grep -R -E -q --include='*.swift'"))
+        #expect(source.contains("generated source still contains Swift macro syntax; disabling runtime-only macro stubs"))
+        #expect(source.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
+        #expect(source.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(source.contains("import $backend_import"))
         #expect(source.contains("$backend_launch_statement"))
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")"))
         #expect(source.contains(".product(name: \"QuillGenericQtNativeRuntime\", package: \"QuillUI\")"))
         #expect(buildSource.contains("--backend-facade"))
+        #expect(buildSource.contains("--source-app"))
+        #expect(buildSource.contains("--source-subdir"))
+        #expect(buildSource.contains("QUILLUI_APP_SOURCE_APP"))
+        #expect(buildSource.contains("QUILLUI_APP_SOURCE_SUBDIR"))
+        #expect(buildSource.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
+        #expect(buildSource.contains("validate_source_app_name()"))
+        #expect(buildSource.contains("validate_relative_source_path()"))
+        #expect(buildSource.contains("quillui_resolve_app_checkout_dir \"$ROOT_DIR\" \"$SOURCE_APP\""))
+        #expect(buildSource.contains("SOURCE_DIR=\"$SOURCE_CHECKOUT_DIR/$SOURCE_SUBDIR\""))
+        #expect(buildSource.contains("PACKAGE_ROOT=\"$SOURCE_CHECKOUT_DIR\""))
+        #expect(buildSource.contains("using vendored $SOURCE_APP source at vendor/apps/$SOURCE_APP"))
+        #expect(buildSource.contains("quillui_print_vendored_app_source_summary \"$ROOT_DIR\" \"$SOURCE_APP\""))
+        #expect(buildSource.contains("using upstream $SOURCE_APP source at .upstream/$SOURCE_APP"))
+        #expect(buildSource.contains("--prepared-package-cache-dir"))
+        #expect(buildSource.contains("QUILLUI_APP_PREPARED_PACKAGE_CACHE_DIR"))
+        #expect(buildSource.contains(".build/quillui-prepared-packages-cache"))
+        #expect(buildSource.contains("--build-scratch"))
+        #expect(buildSource.contains("--build-scratch-cache-dir"))
+        #expect(buildSource.contains("--no-reuse-build-scratch"))
+        #expect(buildSource.contains("QUILLUI_APP_BUILD_SCRATCH"))
+        #expect(buildSource.contains("QUILLUI_APP_BUILD_SCRATCH_CACHE_DIR"))
+        #expect(buildSource.contains("QUILLUI_APP_REUSE_BUILD_SCRATCH=1"))
+        #expect(buildSource.contains("generated_app_build_scratch_key()"))
+        #expect(buildSource.contains("default_generated_build_scratch()"))
+        #expect(buildSource.contains(".build/quillui-generated-app-build-cache"))
+        #expect(buildSource.contains("quillui-generated-app-build-scratch/v1"))
+        #expect(buildSource.contains("scripts/generate-swiftui-linux-package.sh"))
+        #expect(buildSource.contains("Package.resolved"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_BUILD_SCRATCH=\"$BUILD_SCRATCH\""))
+        #expect(buildSource.contains("--scratch-path \"$BUILD_SCRATCH\""))
+        #expect(buildSource.contains("==> generated app SwiftPM scratch:"))
+        #expect(buildSource.contains("--vendor-swiftpm-sources"))
+        #expect(buildSource.contains("--no-vendor-swiftpm-sources"))
+        #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_SOURCES"))
+        #expect(buildSource.contains("VENDOR_SWIFTPM_SOURCES=\"${QUILLUI_APP_VENDOR_SWIFTPM_SOURCES:-auto}\""))
+        #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_SOURCES=auto"))
+        #expect(buildSource.contains("validate_vendor_swiftpm_sources_mode()"))
+        #expect(buildSource.contains("vendor_swiftpm_sources_enabled()"))
+        #expect(buildSource.contains("vendor_swiftpm_app_stamp_key()"))
+        #expect(buildSource.contains("vendor_swiftpm_app_packages()"))
+        #expect(buildSource.contains("run_vendor_swiftpm_sources_for_app()"))
+        #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_STAMP_DIR"))
+        #expect(buildSource.contains(".build/quillui-vendored-swiftpm-source-stamps"))
+        #expect(buildSource.contains("quillui-vendored-swiftpm-app/v1"))
+        #expect(buildSource.contains("Reused vendored SwiftPM source scan"))
+        #expect(buildSource.contains("quillui_vendored_swiftpm_app_stamp_is_valid \"$ROOT_DIR\" \"$stamp_file\""))
+        #expect(buildSource.contains("quillui_write_vendored_swiftpm_app_stamp \"$ROOT_DIR\" \"$stamp_file\" \"$app_name\" \"$stamp_key\""))
+        #expect(buildSource.contains("--check-vendored >/dev/null"))
+        #expect(buildSource.contains("Vendored SwiftPM package sources already cover $app_name"))
+        #expect(buildSource.contains("Vendored SwiftPM source scan stamp is stale; refreshing"))
+        #expect(buildSource.contains("Vendored SwiftPM package sources are incomplete for $app_name."))
+        #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh --app $app_name --hydrate-missing"))
+        #expect(buildSource.contains("scripts/vendor-swiftpm-sources.sh\", \"scripts/quillui-vendored-source.sh"))
+        #expect(buildSource.contains("for path in sorted(checkout.rglob(\"Package.resolved\"))"))
+        #expect(buildSource.contains("run_vendor_swiftpm_sources_for_app \"$SOURCE_APP\" \"$SOURCE_CHECKOUT_DIR\""))
+        #expect(buildSource.contains("auto|AUTO|Auto)"))
+        #expect(buildSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE"))
+        #expect(buildSource.contains("--print-package-list"))
+        #expect(buildSource.contains("local vendor_swiftpm_args=(\"$ROOT_DIR/scripts/vendor-swiftpm-sources.sh\" \"--app\" \"$app_name\")"))
+        #expect(buildSource.contains("vendor_swiftpm_args+=(\"--no-resolve\")"))
+        #expect(buildSource.contains("--vendor-swiftpm-sources requires --source-app"))
+        #expect(buildSource.contains("QUILLUI_RUNTIME_ONLY_MACROS=0"))
+        #expect(buildSource.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=qt"))
+        #expect(buildSource.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=gtk"))
         #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
         #expect(buildSource.contains("NORMALIZED_BACKEND_FACADE"))
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
@@ -3435,9 +7587,93 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("quillui_normalize_backend_identifier \"${BACKEND_FACADE:-swiftui}\""))
         #expect(buildSource.contains("QUILLUI_GENERATED_BACKEND_FACADE=\"$NORMALIZED_BACKEND_FACADE\""))
+        #expect(buildSource.contains("QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR=\"$PREPARED_PACKAGE_CACHE_DIR\""))
+        #expect(buildSource.contains("--package-root"))
+        #expect(buildSource.contains("QUILLUI_APP_PACKAGE_ROOT"))
+        #expect(buildSource.contains("--package-root does not contain Package.swift"))
+        #expect(buildSource.contains("QUILLUI_PROFILE_PACKAGE_ROOT=\"$PACKAGE_ROOT\""))
+        #expect(buildSource.contains("--entry-target"))
+        #expect(buildSource.contains("QUILLUI_APP_ENTRY_TARGET"))
+        #expect(buildSource.contains("QUILLUI_PROFILE_ENTRY_TARGET=\"$ENTRY_TARGET\""))
+        #expect(buildSource.contains("--target-layout-file"))
+        #expect(buildSource.contains("QUILLUI_APP_TARGET_LAYOUT_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$TARGET_LAYOUT_FILE\""))
+        #expect(buildSource.contains("--extra-package-dependencies-file"))
+        #expect(buildSource.contains("QUILLUI_APP_EXTRA_PACKAGE_DEPENDENCIES_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$EXTRA_PACKAGE_DEPENDENCIES_FILE\""))
+        #expect(buildSource.contains("--extra-target-dependencies-file"))
+        #expect(buildSource.contains("QUILLUI_APP_EXTRA_TARGET_DEPENDENCIES_FILE"))
+        #expect(buildSource.contains("QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE=\"$EXTRA_TARGET_DEPENDENCIES_FILE\""))
+        #expect(buildSource.contains("QUILLUI_REQUIRE_VENDORED_SOURCES=0"))
+        #expect(buildSource.contains("QUILLUI_REQUIRE_VENDORED_SOURCES=\"${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}\""))
+        #expect(buildSource.contains("GENERATED_APP_RESOURCES_DIR=\"$WORK_ROOT/package/Sources/GeneratedSwiftUILinuxApp/Resources\""))
+        #expect(buildSource.contains("scripts/materialize-swiftui-linux-main-bundle-resources.py"))
+        #expect(linuxBuildToolingSource.contains("--vendor-swiftpm-sources"))
+        #expect(linuxBuildToolingSource.contains("vendor-swiftui-app-source.sh"))
+        #expect(linuxBuildToolingSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1"))
+        #expect(linuxBuildToolingSource.contains(".build/quillui-lowered-source-cache"))
+        #expect(linuxBuildToolingSource.contains("--build-scratch"))
+        #expect(linuxBuildToolingSource.contains(".build/quillui-generated-app-build-cache"))
+        #expect(linuxBuildToolingSource.contains("--no-reuse-build-scratch"))
         #expect(buildSource.contains("--artifact-path-file"))
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_manifest_fingerprint()"))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_app_stamp_is_valid()"))
+        #expect(vendoredSourceHelper.contains("quillui_write_vendored_swiftpm_app_stamp()"))
+        #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-manifests/v1"))
+        #expect(vendoredSourceHelper.contains("swiftpmPackage=%s"))
+        #expect(vendoredSourceHelper.contains("manifestFingerprint=%s"))
+        #expect(genericProfileRuntimeSource.contains("scripts/run-quill-source-lower.sh"))
+        #expect(genericProfileRuntimeSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR"))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_PROFILE_REUSE_LOWERED_SOURCE"))
+        #expect(genericProfileRuntimeSource.contains("scripts/quillui-source-cache-key.py"))
+        #expect(genericProfileRuntimeSource.contains(".build/quillui-lowered-source-cache"))
+        #expect(genericProfileRuntimeSource.contains(".quillui-lowered-source-cache-key"))
+        #expect(genericProfileRuntimeSource.contains("Reused cached generic SwiftUI lowered source"))
+        #expect(sourceCacheKey.contains("quillui-lowered-source-cache-v2"))
+        #expect(sourceCacheKey.contains("vendored_app_source_fingerprint"))
+        #expect(sourceCacheKey.contains("source-vendored-app"))
+        #expect(sourceCacheKey.contains("source-vendor-fingerprint"))
+        #expect(sourceCacheKey.contains("\"vendor/apps\""))
+        #expect(sourceCacheKey.contains(".quillui-vendor-source-fingerprint"))
+        #expect(sourceCacheKey.contains("\"node_modules\""))
+        #expect(genericProfileRuntimeSource.contains("mkdir -p \"$WORK_ROOT\""))
+        #expect(!genericProfileSource.contains("rm -rf \"$PACKAGE_DIR\""))
+        #expect(!genericProfileRuntimeSource.contains("rm -rf \"$WORK_ROOT\""))
+        #expect(genericProfileRuntimeSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-auto-layout.sh\""))
+        #expect(genericProfileRuntimeSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-local-imports.sh\""))
+        #expect(genericProfileRuntimeSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-lowered-source-cache.sh\""))
+        #expect(genericProfileRuntimeSource.contains("PREPARED_PACKAGE_CACHE_DIR=\"${QUILLUI_PROFILE_PREPARED_PACKAGE_CACHE_DIR:-${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-$ROOT_DIR/.build/quillui-prepared-packages-cache}}\""))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR=\"$PREPARED_PACKAGE_CACHE_DIR\""))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_REQUIRE_VENDORED_SOURCES=\"${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}\""))
+        #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_derive_swiftpm_layout"))
+        #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_discover_local_import_dependencies"))
+        #expect(genericAutoLayoutSource.contains("scripts/swiftpm-package-layout-for-linux.py"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_PACKAGE_ROOT"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_ENTRY_TARGET"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_PROFILE_RESOLVED_PACKAGE_ROOT"))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_TARGET_LAYOUT_FILE=\"$auto_layout_file\""))
+        #expect(genericAutoLayoutSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE=\"$auto_dependencies_file\""))
+        #expect(genericLocalImportsSource.contains("scripts/discover-local-swiftpm-import-dependencies.py"))
+        #expect(genericLocalImportsSource.contains("--exclude-package-root"))
+        #expect(genericLocalImportsSource.contains("QUILLUI_PROFILE_RESOLVED_PACKAGE_ROOT"))
+        #expect(genericLocalImportsSource.contains("QUILLUI_GENERATED_EXTRA_PACKAGE_DEPENDENCIES_FILE"))
+        #expect(genericLocalImportsSource.contains("QUILLUI_GENERATED_EXTRA_TARGET_DEPENDENCIES_FILE"))
+        #expect(localImportDiscoverySource.contains("IMPORT_RE"))
+        #expect(localImportDiscoverySource.contains("--exclude-package-root"))
+        #expect(localImportDiscoverySource.contains("\"third_party\", \".upstream\", \"vendor/apps\""))
+        #expect(localImportDiscoverySource.contains("EXPORTED_CUSTOM_TARGET_RE"))
+        #expect(localImportDiscoverySource.contains("QUILL_PROVIDED_IMPORTS"))
+        #expect(localImportDiscoverySource.contains("\"Cocoa\""))
+        #expect(localImportDiscoverySource.contains("\".\" in package_path.name or \"-\" in package_path.name"))
+        #expect(localImportDiscoverySource.contains("product:{product.product_name}:{product.package_name}"))
+        #expect(genericProfileRuntimeSource.contains("scripts/generate-swiftui-linux-package.sh"))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1"))
+        #expect(genericProfileRuntimeSource.contains("generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
+        #expect(!genericProfileRuntimeSource.contains("Enchanted"))
+        #expect(!genericProfileRuntimeSource.contains("QuillCode"))
         #expect(packageSource.contains("scripts/build-swiftui-linux-app.sh"))
         #expect(packageSource.contains("QUILLUI_APP_BACKEND_FACADE:-gtk"))
         #expect(packageSource.contains("QUILLUI_APP_ID"))
@@ -3507,8 +7743,91 @@ struct SourceHygieneTests {
         #expect(enchantedSourceResolver.contains("quillui_resolve_enchanted_source_dir()"))
         #expect(enchantedSourceResolver.contains("QUILLUI_APP_SOURCE_DIR"))
         #expect(enchantedSourceResolver.contains("ENCHANTED_SOURCE_DIR"))
+        #expect(enchantedSourceResolver.contains("quillui_resolve_enchanted_checkout_dir()"))
+        #expect(enchantedSourceResolver.contains("vendor/apps/enchanted/Enchanted"))
         #expect(enchantedSourceResolver.contains("QUILL_CHAT_DIR/Enchanted"))
-        #expect(enchantedSourceResolver.contains(".upstream/enchanted/Enchanted"))
+        #expect(enchantedSourceResolver.contains(".upstream/enchanted"))
+        #expect(fetchUpstream.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
+        #expect(fetchUpstream.contains("quillui_materialize_vendored_app_source \"$ROOT_DIR\" \"$name\" \"$dest\""))
+        #expect(fetchUpstream.contains("fetch_repo enchanted https://github.com/gluonfield/enchanted.git"))
+        #expect(fetchUpstream.contains("fetch_repo codeedit https://github.com/CodeEditApp/CodeEdit.git"))
+        #expect(fetchUpstream.contains("fetch_repo solderscope https://github.com/rjwalters/SolderScope.git"))
+        #expect(fetchUpstream.contains("logger=\"$dir/Utilities/Logger.swift\""))
+        #expect(fetchUpstream.contains("patch_solderscope: lowered import os.log"))
+        #expect(!fetchUpstream.contains("swift run quill-lower-appkit \"$dir\""))
+        #expect(solderScopeVendor.contains("https://github.com/rjwalters/SolderScope"))
+        #expect(solderScopeVendor.contains("54693b618ca11e86b005474246664fe1f5473449"))
+        #expect(solderScopeVendor.contains("QUILLUI_REFRESH_VENDORED_SOURCE=1"))
+        #expect(solderScopeLicense.contains("MIT License"))
+        #expect(codeEditVendor.contains("https://github.com/CodeEditApp/CodeEdit.git"))
+        #expect(codeEditVendor.contains("cec6287a49a0a460cd7cab17f254eebc3ada828e"))
+        #expect(codeEditVendor.contains("License: MIT, preserved in `LICENSE.md`"))
+        #expect(quillCodeVendor.contains("git@github.com:Lore-Hex/QuillCode.git"))
+        #expect(quillCodeVendor.contains("af513673fa03476cc8cb17e2113dad75f2edb76e"))
+        #expect(quillCodeVendor.contains("Keep the app source pristine"))
+        #expect(quillCodeVendorFingerprint.contains("app=quillcode"))
+        #expect(quillCodeVendorFingerprint.contains("source=git:af513673fa03476cc8cb17e2113dad75f2edb76e"))
+        #expect(vendoredSource.contains("quillui_materialize_vendored_app_source()"))
+        #expect(vendoredSource.contains("quillui_resolve_app_checkout_dir()"))
+        #expect(vendoredSource.contains("quillui_resolve_app_source_dir()"))
+        #expect(vendoredSource.contains("quillui_print_vendored_app_source_summary()"))
+        #expect(vendoredSource.contains("vendored %s source snapshot"))
+        #expect(vendoredSource.contains("quillui_upstream_app_source_dir()"))
+        #expect(vendoredSource.contains("vendor/apps/$name"))
+        #expect(vendoredSource.contains("QUILLUI_REFRESH_VENDORED_SOURCE"))
+        #expect(vendoredSource.contains("refusing to materialize vendored $name outside .upstream"))
+        #expect(vendoredSource.contains(".quillui-materialized-vendor-source-fingerprint"))
+        #expect(vendoredSource.contains("cmp -s"))
+        #expect(vendoredSource.contains("reused materialized vendored $name source"))
+        #expect(vendoredSource.contains("refreshing materialized vendored $name source"))
+        #expect(vendoredSource.contains("rsync -a --delete"))
+        #expect(vendoredSource.contains("syncing vendored $name source"))
+        #expect(vendorAppSource.contains("QUILLUI_VENDOR.md"))
+        #expect(vendorAppSource.contains("QUILLUI_VENDOR_FORCE=1"))
+        #expect(vendorAppSource.contains("git_source_identity()"))
+        #expect(vendorAppSource.contains("rev-parse --show-toplevel"))
+        #expect(vendorAppSource.contains("git -C \"$source\" status --porcelain --untracked-files=no"))
+        #expect(vendorAppSource.contains("content_source_identity()"))
+        #expect(vendorAppSource.contains("\".artifacts\""))
+        #expect(vendorAppSource.contains("\".qa\""))
+        #expect(vendorAppSource.contains("--exclude '.artifacts'"))
+        #expect(vendorAppSource.contains("--exclude '.qa'"))
+        #expect(vendorAppSource.contains("\"node_modules\""))
+        #expect(vendorAppSource.contains("--exclude 'node_modules'"))
+        #expect(vendorAppSource.contains("\"test-results\""))
+        #expect(vendorAppSource.contains("--exclude 'test-results'"))
+        #expect(vendorAppSource.contains("rsync -a --delete --delete-excluded"))
+        #expect(vendorAppSource.contains("quillui-app-source-tree/v1"))
+        #expect(vendorAppSource.contains("tree:\" + digest.hexdigest()"))
+        #expect(vendorAppSource.contains("vendored_app_source_metadata()"))
+        #expect(vendorAppSource.contains("quillui-app-source-vendor/v1"))
+        #expect(vendorAppSource.contains(".quillui-vendor-source-fingerprint"))
+        #expect(vendorAppSource.contains("PRESERVED_VENDOR_NOTE"))
+        #expect(vendorAppSource.contains("cp \"$DEST_DIR/QUILLUI_VENDOR.md\" \"$PRESERVED_VENDOR_NOTE\""))
+        #expect(vendorAppSource.contains("cp \"$PRESERVED_VENDOR_NOTE\" \"$DEST_DIR/QUILLUI_VENDOR.md\""))
+        #expect(vendorAppSource.contains("already vendored $APP_NAME source -> vendor/apps/$APP_NAME"))
+        #expect(vendorSwiftUIAppSource.contains("Pin a SwiftUI app checkout for fast QuillUI Linux builds"))
+        #expect(vendorSwiftUIAppSource.contains("vendor-app-source.sh"))
+        #expect(vendorSwiftUIAppSource.contains("vendor-swiftpm-sources.sh"))
+        #expect(vendorSwiftUIAppSource.contains("--no-resolve"))
+        #expect(vendorSwiftUIAppSource.contains("--hydrate-missing"))
+        #expect(vendorSwiftUIAppSource.contains("HYDRATE_DEPENDENCIES=1"))
+        #expect(vendorSwiftUIAppSource.contains("dependency_args+=(\"--hydrate-missing\")"))
+        #expect(vendorSwiftUIAppSource.contains("append_package_resolved_files_from_source"))
+        #expect(enchantedWorkflow.contains("--source-app enchanted"))
+        #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))
+        #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
+        #expect(enchantedWorkflow.contains("Audit vendored Enchanted SwiftPM sources"))
+        #expect(enchantedWorkflow.contains("scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored"))
+        #expect(enchantedWorkflow.contains("Restore lowered source cache"))
+        #expect(enchantedWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(enchantedWorkflow.contains("source-app: enchanted"))
+        #expect(enchantedWorkflow.contains("scripts/audit-upstream-enchanted.sh >/tmp/quillui-enchanted-vendored-audit.md"))
+        #expect(!enchantedWorkflow.contains("Restore upstream source cache"))
+        #expect(!enchantedWorkflow.contains("scripts/fetch-upstream.sh enchanted"))
+        #expect(!enchantedWorkflow.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
+        #expect(!enchantedWorkflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
+        #expect(!workflow.contains("QUILL_CHAT_DIR: ${{ github.workspace }}/.upstream/enchanted"))
         #expect(!source.contains("import BackendGTK4"))
         #expect(!source.contains("GTK4Backend().run($APP_ENTRY_TYPE.self)"))
         #expect(!source.contains("GTK backend generation is enabled"))
@@ -3517,7 +7836,16 @@ struct SourceHygieneTests {
         #expect(generatedEnchantedMacOSChatSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
         #expect(generatedEnchantedMacOSChatSource.contains("UPSTREAM_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
         #expect(generatedEnchantedSource.contains("source \"$ROOT_DIR/scripts/quillui-enchanted-source.sh\""))
+        #expect(generatedEnchantedSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-lowered-source-cache.sh\""))
         #expect(generatedEnchantedSource.contains("UPSTREAM_DIR=\"$(quillui_resolve_enchanted_source_dir \"$ROOT_DIR\")\""))
+        #expect(generatedEnchantedSource.contains("LOWERED_SOURCE_CACHE_DIR=\"${QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR:-$ROOT_DIR/.build/quillui-lowered-source-cache}\""))
+        #expect(generatedEnchantedSource.contains("REUSE_LOWERED_SOURCE=\"${QUILLUI_PROFILE_REUSE_LOWERED_SOURCE:-1}\""))
+        #expect(generatedEnchantedSource.contains("quillui_profile_prepare_lowered_source"))
+        #expect(generatedEnchantedSource.contains("SOURCE_COPY=\"$QUILLUI_PROFILE_SOURCE_COPY\""))
+        #expect(generatedEnchantedSource.contains("LOWERED_COPY=\"$QUILLUI_PROFILE_LOWERED_COPY\""))
+        #expect(generatedEnchantedSource.contains("rm -rf \"$PACKAGE_DIR\""))
+        #expect(!generatedEnchantedSource.contains("rm -rf \"$WORK_ROOT\""))
+        #expect(!generatedEnchantedSource.contains("cp -R \"$UPSTREAM_DIR\"/. \"$SOURCE_COPY\"/"))
         #expect(generatedEnchantedSource.contains("include_backend_entry=0"))
         #expect(generatedEnchantedSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=\"$include_backend_entry\""))
         #expect(!generatedEnchantedSource.contains("include_gtk_backend"))
@@ -3657,6 +7985,14 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/CoreText/CoreText.swift"),
             encoding: .utf8
         )
+        let extensionFoundationShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/ExtensionFoundation/ExtensionFoundation.swift"),
+            encoding: .utf8
+        )
+        let extensionKitShim = try String(
+            contentsOf: root.appendingPathComponent("Sources/AppleFrameworkShims/ExtensionKit/ExtensionKit.swift"),
+            encoding: .utf8
+        )
         let objcJavaScriptCoreHeader = try String(
             contentsOf: root.appendingPathComponent("Sources/QuillObjCCompatibility/include/JavaScriptCore/JavaScriptCore.h"),
             encoding: .utf8
@@ -3671,6 +8007,13 @@ struct SourceHygieneTests {
         #expect(manifest.contains(".library(name: \"CoreVideo\", targets: [\"CoreVideo\"])"))
         #expect(manifest.contains(".library(name: \"Vision\", targets: [\"Vision\"])"))
         #expect(manifest.contains(".library(name: \"StoreKit\", targets: [\"StoreKit\"])"))
+        #expect(manifest.contains(".library(name: \"ExtensionFoundation\", targets: [\"ExtensionFoundation\"])"))
+        #expect(manifest.contains(".library(name: \"ExtensionKit\", targets: [\"ExtensionKit\"])"))
+        #expect(manifest.contains("\"ExtensionFoundation\", \"ExtensionKit\""))
+        #expect(extensionKitShim.contains("import AppKit"))
+        #expect(extensionKitShim.contains("extension Array: AppExtensionScene where Element: AppExtensionScene"))
+        #expect(extensionKitShim.contains("onConnection: (NSXPCConnection) -> Bool"))
+        #expect(extensionFoundationShim.contains("public protocol AppExtensionConfiguration"))
         #expect(manifest.contains("\"AVFAudio\", \"CoreVideo\""))
         #expect(manifest.contains("name: \"QuillObjCCompatibility\""))
         #expect(fetchUpstream.contains("telegram)"))
@@ -3802,6 +8145,13 @@ struct SourceHygieneTests {
         #expect(quillFoundationLinuxClone.contains("typealias CFAbsoluteTime = Double"))
         #expect(quillFoundationLinuxClone.contains("func CFAbsoluteTimeGetCurrent()"))
         #expect(quillFoundationLinuxClone.contains("var threadPriority: Double"))
+        #expect(quillFoundationLinuxClone.contains("static let quillByCaretPositionsRawValue"))
+        #expect(quillFoundationLinuxClone.contains("static let byCaretPositions = NSString.quillByCaretPositionsOption"))
+        #expect(quillFoundationLinuxClone.contains("public let KERN_SUCCESS: kern_return_t = 0"))
+        #expect(quillFoundationLinuxClone.contains("func mach_timebase_info() -> mach_timebase_info_data_t"))
+        #expect(quillFoundationLinuxClone.contains("func mach_absolute_time() -> UInt64"))
+        #expect(quillFoundationLinuxClone.contains("class func unarchivedArrayOfObjects<DecodedObjectType>"))
+        #expect(quillFoundationLinuxClone.contains("class func unarchivedDictionary<DecodedKeyType, DecodedObjectType>"))
         #expect(objcFoundationHeader.contains("@interface NSString : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSDateComponents : NSObject"))
         #expect(objcFoundationHeader.contains("@interface NSCalendar : NSObject"))
@@ -3926,6 +8276,15 @@ struct SourceHygieneTests {
         // shim product (added by the manifest patcher), not the overlay.
         #expect(coreTextSwiftShim.contains("func CTLineCreateWithAttributedString"))
         #expect(coreTextSwiftShim.contains("func CTLineGetGlyphCount"))
+        #expect(coreTextSwiftShim.contains("func CTTypesetterCreateWithAttributedString(_ attributedString: NSAttributedString) -> CTTypesetter"))
+        #expect(coreTextSwiftShim.contains("func CTTypesetterSuggestClusterBreak"))
+        #expect(coreTextSwiftShim.contains("func CTTypesetterCreateLine(_ typesetter: CTTypesetter"))
+        #expect(!coreTextSwiftShim.contains("public func CFRangeMake"))
+        #expect(extensionFoundationShim.contains("public protocol AppExtensionConfiguration"))
+        #expect(extensionFoundationShim.contains("func accept(connection: NSXPCConnection) -> Bool"))
+        #expect(extensionKitShim.contains("public protocol AppExtensionScene"))
+        #expect(extensionKitShim.contains("public struct PrimitiveAppExtensionScene"))
+        #expect(extensionKitShim.contains("@resultBuilder"))
         #expect(stringsOverlay.contains("quillIsTelegramWordCharacter"))
         #expect(telegramSystemOverlay.contains("func sysctlbyname"))
         #expect(telegramSystemOverlay.contains("oldlenp?.pointee = 0"))
@@ -4000,6 +8359,31 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(atPath: output.appendingPathComponent("Shared/info.json").path))
         #expect(!fileManager.fileExists(atPath: output.appendingPathComponent("Ignored.swift").path))
         #expect(!fileManager.fileExists(atPath: output.appendingPathComponent("Assets.xcassets").path))
+
+        let bundle = temporaryDirectory.appendingPathComponent("Bundle", isDirectory: true)
+        try fileManager.createDirectory(at: bundle, withIntermediateDirectories: true)
+        let otherResources = output.appendingPathComponent("Other", isDirectory: true)
+        try fileManager.createDirectory(at: otherResources, withIntermediateDirectories: true)
+        try Data("duplicate".utf8).write(to: otherResources.appendingPathComponent("info.json"))
+
+        let materializeResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/materialize-swiftui-linux-main-bundle-resources.py").path,
+                "--resources-dir",
+                output.path,
+                "--bundle-dir",
+                bundle.path
+            ]
+        )
+
+        #expect(materializeResult.status == 0, Comment(rawValue: materializeResult.output))
+        #expect(materializeResult.output.contains("root aliases"))
+        #expect(fileManager.fileExists(atPath: bundle.appendingPathComponent("Shared/info.json").path))
+        #expect(fileManager.fileExists(atPath: bundle.appendingPathComponent("Other/info.json").path))
+        #expect(fileManager.fileExists(atPath: bundle.appendingPathComponent("logo-nobg.png").path))
+        #expect(!fileManager.fileExists(atPath: bundle.appendingPathComponent("info.json").path))
     }
 
     @Test("QuillPromptGrid uses backend-stable prompt accessories on Linux")
@@ -4506,6 +8890,8 @@ struct SourceHygieneTests {
         let sidebarButton = String(controls[buttonStart.lowerBound..<nextSection.lowerBound])
         #expect(sidebarButton.contains("Image(systemName: sidebarSystemImageName)"))
         #expect(sidebarButton.contains(".frame(width: 24, height: 24, alignment: .leading)"))
+        #expect(sidebarButton.contains(".quillSidebarUtilityButtonStyle()"))
+        #expect(!sidebarButton.contains(".buttonStyle(.plain)"))
         #expect(sidebarButton.contains("if systemImage == \"textformat.abc\""))
         #expect(sidebarButton.contains("Text(\"Abc\")"))
         #expect(sidebarButton.contains("QuillSidebarKeyboardGlyph(color: Color(hex: \"#3A3A3C\"))"))
@@ -4521,11 +8907,14 @@ struct SourceHygieneTests {
         #expect(sidebarButton.contains("\"gearshape\", \"gearshape.fill\", \"gear\""))
         #expect(!sidebarButton.contains("case \"keyboard\", \"keyboard.fill\":"))
         #expect(!sidebarButton.contains("case \"gearshape\", \"gearshape.fill\", \"gear\":"))
+        #expect(controls.contains("func quillSidebarUtilityButtonStyle() -> some View"))
+        #expect(controls.contains("self.buttonStyle(ButtonStyleType.quillPaintMacListRow(\n            isSelected: false,\n            drawsIdleBackground: false\n        ))"))
     }
 
     @Test("GTK QuillPaint hooks cover button and text input chrome")
     func gtkQuillPaintHooksCoverButtonAndTextInputChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let textFieldPrimitive = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/TextField.swift")
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
         let smallPatcher = try packageSource("scripts/patch-swiftopenui-quillpaint.py")
         let gtkBackend = try packageSource("Sources/QuillUIGtk/QuillUIGtk.swift")
@@ -4553,11 +8942,74 @@ struct SourceHygieneTests {
         #expect(renderer.contains("private final class GTKTextBindingIdleUpdate"))
         #expect(renderer.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(renderer.contains("configuration.maxColumns > 1 ? 160 : 0"))
+        #expect(renderer.contains("let gtkSwiftFontMonospacedMarker = \"gtk-swift-font-monospaced\""))
+        #expect(renderer.contains("private let gtkFontDescendantSelectors = ["))
+        #expect(renderer.contains("\"textview text\""))
+        #expect(renderer.contains("private func gtkFontCSS(_ font: Font)"))
+        #expect(renderer.contains("case .custom(let size, let weight, let design):"))
+        #expect(renderer.contains("appendWeight(weight)"))
+        #expect(renderer.contains("appendDesign(design)"))
+        #expect(renderer.contains("descendantSelectors: gtkFontDescendantSelectors"))
         #expect(renderer.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
+        #expect(renderer.contains("gtk_text_view_set_accepts_tab(textViewPtr, 1)"))
+        #expect(textFieldPrimitive.contains("public let axis: Axis"))
+        #expect(textFieldPrimitive.contains("public init(_ title: String, text: Binding<String>, axis: Axis = .horizontal)"))
+        #expect(renderer.contains("props: .text(GTK4TextDescriptor(content: \"\\(content)|axis:\\(axis.rawValue)\"))"))
+        #expect(renderer.contains("if axis.contains(.vertical) {\n            return gtkCreateMultilineTextField(title: title, text: text)\n        }"))
+        #expect(renderer.contains("private final class GTKMultilineTextFieldBindingBox"))
+        #expect(renderer.contains("private final class GTKTextInputFocusTarget"))
+        #expect(renderer.contains("private func gtkInstallTextInputFocusGesture("))
+        #expect(renderer.contains("gtkFocusTextInputWidget(target.widget)"))
+        #expect(renderer.contains("private func gtkScheduleTextInputFocus("))
+        #expect(renderer.contains("gtk_widget_set_can_focus(target.widget, 1)"))
+        #expect(renderer.contains("gtk_widget_set_can_target(overlay, 1)"))
+        #expect(renderer.contains("gtkInstallTextInputFocusGesture(on: renderedWidget, target: textView)"))
+        #expect(renderer.contains("if styleContext != nil || !(label is Text) {\n                // Remove GTK default button border/padding so custom-styled"))
+        #expect(renderer.contains("background: transparent;\n                    background-color: transparent;\n                    background-image: none;\n                    border: none;"))
+        #expect(renderer.contains("border-radius: 0;\n                    box-shadow: none;\n                    outline: none;"))
+        #expect(renderer.contains("min-width: 0;\n                    text-shadow: none;"))
+        #expect(patcher.contains("if styleContext != nil || !(label is Text) {"))
+        #expect(patcher.contains("background: transparent;\n                    background-color: transparent;\n                    background-image: none;\n                    border: none;"))
+        #expect(patcher.contains("border-radius: 0;\n                    box-shadow: none;\n                    outline: none;"))
+        #expect(patcher.contains("min-width: 0;\n                    text-shadow: none;"))
+        #expect(renderer.contains("private let gtkPlainMultilineTextInputCSS"))
+        #expect(renderer.contains("background-image: none;"))
+        #expect(renderer.contains("private func gtkApplyPlainMultilineTextFieldChrome("))
+        #expect(renderer.contains("descendantSelectors: gtkPlainMultilineScrolledDescendants"))
+        #expect(renderer.contains("let textFieldStyleType = environment.textFieldStyle"))
+        #expect(renderer.contains("gtk_widget_set_margin_start(placeholderLabel, textFieldStyleType == .plain ? 0 : 6)"))
+        #expect(renderer.contains("var useQuillPaintTextEditor = false"))
+        #expect(renderer.contains("case .plain:\n        gtkApplyPlainMultilineTextFieldChrome(scrolledWindow: scrolled, textView: textView)"))
+        #expect(renderer.contains("case .automatic, .roundedBorder:\n        useQuillPaintTextEditor = true"))
+        #expect(renderer.contains("if useQuillPaintTextEditor,\n       let paintedEditor = quill_gtk_text_editor_paint_hook?("))
+        #expect(renderer.contains("gtk_text_view_set_accepts_tab(textViewPtr, 0)"))
+        #expect(renderer.contains("gtkInstallTextInputKeyController(\n        on: textView,\n        submitAction: environment.submitAction,\n        keyPressActions: environment.keyPressActions\n    )"))
+        #expect(renderer.contains("gtk_widget_set_hexpand(overlay, gtk_widget_get_hexpand(renderedWidget))"))
+        #expect(renderer.contains("gtk_widget_set_vexpand(overlay, gtk_widget_get_vexpand(renderedWidget))"))
+        #expect(renderer.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)"))
+        #expect(renderer.contains("gtkInstallTextInputFocusGesture(on: overlay, target: textView)"))
+        #expect(renderer.contains("let buffer = gtk_text_view_get_buffer(textViewPtr)!\n        let box = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(binding, value: newText)\n        }).toOpaque()"))
+        #expect(renderer.contains("return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()"))
+        #expect(renderer.contains("return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()"))
         #expect(renderer.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(renderer.contains("gtk_editable_get_text(OpaquePointer(editable))"))
         #expect(patcher.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
         #expect(patcher.contains("SwiftOpenUI TextField idle binding helper insertion marker was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
+        #expect(patcher.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
+        #expect(patcher.contains("idle_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
+        #expect(patcher.contains("old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)"))
+        #expect(patcher.contains("gtk_text_view_set_accepts_tab(textViewPtr, 1)"))
+        #expect(patcher.contains("private func gtkFontCSS(_ font: Font)"))
+        #expect(patcher.contains("descendantSelectors: gtkFontDescendantSelectors"))
+        #expect(smallPatcher.contains("private func gtkFontCSS(_ font: Font)"))
+        #expect(smallPatcher.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
+        #expect(smallPatcher.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
+        #expect(smallPatcher.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
+        #expect(smallPatcher.contains("old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)"))
+        #expect(smallPatcher.contains("gtk_text_view_set_accepts_tab(textViewPtr, 1)"))
+        #expect(smallPatcher.contains("descendantSelectors: gtkFontDescendantSelectors"))
         #expect(patcher.contains("private final class GTKTextBindingIdleUpdate"))
         #expect(patcher.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patcher.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
@@ -4613,6 +9065,27 @@ struct SourceHygieneTests {
         #expect(gtkListRow.contains("quill-paint-list-row"))
     }
 
+    @Test("SwiftUI onKeyPress is real GTK text input behavior, not an inert shim")
+    func swiftUIOnKeyPressRendersThroughGTKTextInputs() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let primitive = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/OnKeyPressModifier.swift")
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(!compatibility.contains("func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> Self"))
+        #expect(primitive.contains("public enum KeyPressResult"))
+        #expect(primitive.contains("public struct OnKeyPressView<Content: View>: View, PrimitiveView"))
+        #expect(primitive.contains("public func onKeyPress(_ key: KeyEquivalent, action: @escaping () -> KeyPressResult) -> OnKeyPressView<Self>"))
+        #expect(primitive.contains("public var keyPressActions: [KeyPressAction]"))
+        #expect(renderer.contains("private func gtkKeyEquivalent(for keyval: guint) -> KeyEquivalent?"))
+        #expect(renderer.contains("private final class GTKTextInputKeyControllerBox"))
+        #expect(renderer.contains("for keyPressAction in keyPressActions.reversed() where keyPressAction.key == key"))
+        #expect(renderer.contains("if keyPressAction.handler() == .handled"))
+        #expect(renderer.contains("extension OnKeyPressView: GTKRenderable, GTKDescribable"))
+        #expect(renderer.contains("env.keyPressActions.append(KeyPressAction(key: key, handler: action))"))
+        #expect(renderer.contains("keyPressActions: environment.keyPressActions"))
+        #expect(renderer.contains("keyPressActions: getCurrentEnvironment().keyPressActions"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(
@@ -4647,6 +9120,8 @@ struct SourceHygieneTests {
             ("photo", "image"),
             ("photo.fill", "image"),
             ("rectangle.stack", "stacks"),
+            ("pin", "push_pin"),
+            ("pin.fill", "push_pin"),
             ("selection.pin.in.out", "select_all"),
             ("server.rack", "dns"),
             ("sidebar.left", "view_sidebar"),
@@ -4702,9 +9177,9 @@ struct SourceHygieneTests {
         }
 
         #expect(renderer.contains("private func gtkMaterialNameForSystemImage(_ sfName: String) -> String"))
-        #expect(renderer.contains("let materialName = gtkMaterialNameForSystemImage(iconName)"))
+        #expect(renderer.contains("let materialName = gtkMaterialSymbolName(forSystemName: iconName)"))
         #expect(renderer.contains("gtkRenderMaterialSymbolLabel(materialName, scale: .small)"))
-        #expect(renderer.contains("let materialName = gtkMaterialNameForSystemImage(sfName)"))
+        #expect(renderer.contains("let materialName = gtkMaterialSymbolName(forSystemName: sfName)"))
         #expect(renderer.contains("MaterialSymbolsCodepoints.codepoint(for: name)"))
         #expect(renderer.contains("let glyphPointSize = gtkMaterialSymbolGlyphPointSize(for: scale)"))
         #expect(renderer.contains("case .medium, .large:"))
@@ -4940,6 +9415,170 @@ struct SourceHygieneTests {
         #expect(patcher.contains("SwiftOpenUI descriptor multi-child shape was not recognized"))
     }
 
+    @Test("QuillCode SF Symbols map to bundled Material glyphs")
+    func quillCodeSFSymbolsMapToMaterialGlyphs() throws {
+        let symbols = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+        )
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+
+        let expectedMappings: [(sf: String, material: String)] = [
+            ("arrow.up.right", "open_in_new"),
+            ("arrow.down.doc", "download"),
+            ("arrow.triangle.merge", "merge_type"),
+            ("arrow.up.doc", "upload_file"),
+            ("arrow.uturn.backward", "undo"),
+            ("arrow.uturn.left.square", "undo"),
+            ("brain.head.profile", "psychology"),
+            ("camera.viewfinder", "photo_camera"),
+            ("clear", "backspace"),
+            ("clock.fill", "schedule"),
+            ("clock.arrow.circlepath", "history"),
+            ("command", "keyboard_command_key"),
+            ("diamond", "diamond"),
+            ("display", "desktop_windows"),
+            ("doc.plaintext", "article"),
+            ("doc.richtext", "article"),
+            ("exclamationmark.circle.fill", "error"),
+            ("hammer", "construction"),
+            ("hand.raised.fill", "front_hand"),
+            ("hand.thumbsdown", "thumb_down"),
+            ("hand.thumbsup", "thumb_up"),
+            ("list.bullet.rectangle", "list_alt"),
+            ("minus.rectangle", "disabled_by_default"),
+            ("network.slash", "wifi_off"),
+            ("person.2.badge.gearshape", "manage_accounts"),
+            ("person.crop.circle.badge.checkmark", "how_to_reg"),
+            ("play.circle.fill", "play_circle"),
+            ("point.3.connected.trianglepath.dotted", "account_tree"),
+            ("plus.bubble", "add_comment"),
+            ("plus.message", "add_comment"),
+            ("plus.rectangle.on.folder", "create_new_folder"),
+            ("plus.square.on.square", "add_box"),
+            ("puzzlepiece.extension", "extension"),
+            ("q.circle.fill", "code"),
+            ("rectangle.on.rectangle", "content_copy"),
+            ("rectangle.stack.badge.questionmark", "unknown_document"),
+            ("slash.circle", "keyboard_command_key"),
+            ("stop.circle", "stop_circle"),
+            ("tablecells", "table"),
+            ("terminal", "terminal"),
+            ("text.bubble", "chat_bubble"),
+            ("text.bubble.badge.exclamationmark", "error"),
+            ("text.bubble.badge.plus", "add_comment"),
+            ("text.cursor", "text_fields"),
+            ("text.magnifyingglass", "find_in_page"),
+            ("trash.slash", "delete_forever"),
+            ("waveform.path.ecg", "ecg_heart"),
+            ("wrench.and.screwdriver", "construction"),
+            ("xmark.octagon", "dangerous"),
+            ("xmark.octagon.fill", "dangerous")
+        ]
+
+        for (sf, material) in expectedMappings {
+            let mappingLineExists = symbols
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(sf)\"") && line.contains("\"\(material)\"")
+                }
+            let codepointLineExists = codepoints
+                .split(separator: "\n")
+                .contains { line in
+                    line.contains("\"\(material)\"")
+                }
+
+            #expect(
+                mappingLineExists,
+                "Expected QuillCode SF Symbol \(sf) to map to Material glyph \(material)"
+            )
+            #expect(
+                codepointLineExists,
+                "Expected Material glyph \(material) to have a direct-render codepoint"
+            )
+        }
+    }
+
+    @Test("SF Symbol compatibility map is covered by direct-render codepoints")
+    func sfSymbolCompatibilityMapIsCoveredByDirectRenderCodepoints() throws {
+        let symbols = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
+        )
+        let codepoints = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
+
+        let materialRegex = try NSRegularExpression(pattern: #""[^"]+"\s*:\s*"([^"]+)""#)
+        let materialMatches = materialRegex.matches(
+            in: symbols,
+            range: NSRange(symbols.startIndex..., in: symbols)
+        )
+        let mappedMaterials = Set(materialMatches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: symbols) else { return nil }
+            return String(symbols[range])
+        })
+
+        let codepointRegex = try NSRegularExpression(pattern: #""([^"]+)"\s*:"#)
+        let codepointMatches = codepointRegex.matches(
+            in: codepoints,
+            range: NSRange(codepoints.startIndex..., in: codepoints)
+        )
+        let directRenderMaterials = Set(codepointMatches.compactMap { match -> String? in
+            guard let range = Range(match.range(at: 1), in: codepoints) else { return nil }
+            return String(codepoints[range])
+        })
+
+        let missing = mappedMaterials.subtracting(directRenderMaterials).sorted()
+        #expect(
+            missing.isEmpty,
+            Comment(rawValue: "Missing Material codepoints:\n" + missing.joined(separator: "\n"))
+        )
+    }
+
+    @Test("GTK labels use SF Symbol compatibility map")
+    func gtkLabelsUseSFSymbolCompatibilityMap() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("gtkMaterialSymbolName(forSystemName: iconName)"))
+        #expect(renderer.contains("gtkRenderMaterialSymbolLabel(materialName, scale: .small)"))
+        #expect(renderer.contains("gtkMaterialSymbolName(forSystemName: sfName)"))
+        #expect(!renderer.contains("gtk_image_new_from_icon_name(iconName)"))
+    }
+
+    @Test("SwiftUI menu label builders preserve custom labels")
+    func swiftUIMenuLabelBuildersPreserveCustomLabels() throws {
+        let menu = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Menu.swift")
+        let compat = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(menu.contains("public let labelView: AnyView?"))
+        #expect(menu.contains("labelView: AnyView? = nil"))
+        #expect(menu.contains("self.init(title, elements: content())"))
+        #expect(menu.contains("self.init(\"\", elements: content(), labelView: AnyView(label()), primaryAction: primaryAction)"))
+        #expect(menu.contains("self.init(\"\", elements: content(), labelView: AnyView(label()))"))
+        #expect(!compat.contains("self.init(\"\", content: content)"))
+
+        for source in [gtkRenderer, patcher] {
+            #expect(source.contains("private func gtkApplyPlainMenuButtonChrome"))
+            #expect(
+                source.contains("menubutton.\\(className) > button")
+                    || source.contains("menubutton.\\\\(className) > button")
+            )
+            #expect(source.contains("if let labelView {"))
+            #expect(source.contains("gtkDisableButtonChildTargeting(childWidget)"))
+            #expect(source.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
+            #expect(source.contains("gtk_swift_menu_button_set_child(button, childWidget)"))
+            #expect(source.contains("gtkApplyPlainMenuButtonChrome(to: button)"))
+        }
+
+        #expect(qtRenderer.contains("if let anyView = view as? AnyView"))
+        #expect(qtRenderer.contains("if let labelView {"))
+        #expect(qtRenderer.contains("let labelText = qtTextLabel(from: labelView.wrapped)"))
+    }
+
     @Test("GTK plain button style suppresses platform chrome")
     func gtkPlainButtonStyleSuppressesPlatformChrome() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
@@ -4956,12 +9595,12 @@ struct SourceHygieneTests {
             #expect(source.contains("private func gtkScheduleSheetDismissal"))
             #expect(source.contains("gtkScheduleSheetDismissal {"))
             #expect(source.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
-            #expect(source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget))"))
+            #expect(source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget)"))
             #expect(source.contains("gtk_swift_add_capture_gesture"))
             #expect(source.contains("gtk_swift_add_capture_gesture(button, gesture)"))
             #expect(source.contains("gtk_swift_legacy_capture_controller"))
             #expect(source.contains("gtk_swift_event_is_primary_button_press"))
-            #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+            #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\""))
             #expect(source.contains("GTKButtonRootEventContext"))
             #expect(source.contains("gtkInstallButtonRootEventFallback"))
             #expect(source.contains("let source = isTopmost ? \"root-legacy\" : \"root-visual\""))
@@ -5014,9 +9653,31 @@ struct SourceHygieneTests {
             #expect(source.contains("factory(nil)"))
             #expect(source.contains("g_main_loop_new(nil, 0)"))
             #expect(source.contains("g_main_loop_run(loop)"))
+            #expect(source.contains("extension Group: GTKWindowRenderable where Content: Scene"))
+            #expect(source.contains("gtkRenderScene(content, app: app)"))
             #expect(!source.contains("g_application_run(applicationPointer(appPtr), 0, nil)"))
         }
         #expect(!backend.contains("g_application_run("))
+    }
+
+    @Test("GTK main-actor body rendering does not return raw pointers through assumeIsolated")
+    func gtkMainActorBodyRenderingDoesNotReturnRawPointersThroughAssumeIsolated() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let navigation = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift")
+
+        #expect(renderer.contains("private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable"))
+        #expect(renderer.contains("func gtkAssumeMainActorIsolated<Value>(_ body: @MainActor () -> Value) -> Value"))
+        #expect(renderer.contains("MainActor.assumeIsolated {\n        result.value = body()\n    }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { renderable.gtkCreateWidget() }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(renderer.contains("return gtkAssumeMainActorIsolated { multi.gtkRenderChildren() }"))
+        #expect(renderer.contains("gtkAssumeMainActorIsolated { gtkRenderView(view.body) }"))
+        #expect(navigation.contains("return gtkAssumeMainActorIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
+
+        #expect(!renderer.contains("return MainActor.assumeIsolated { renderable.gtkCreateWidget() }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { gtkRenderView(view.body) }"))
+        #expect(!renderer.contains("return MainActor.assumeIsolated { multi.gtkRenderChildren() }"))
+        #expect(!navigation.contains("return MainActor.assumeIsolated { gtkRenderToolbarWidgets(from: view.body) }"))
     }
 
     @Test("GTK patcher preserves fixed-frame and list viewport sizing contracts")
@@ -5177,6 +9838,9 @@ struct SourceHygieneTests {
         #expect(patcher.contains("private final class GTKSheetPanelFocusTarget"))
         #expect(patcher.contains("gtk_editable_get_delegate(OpaquePointer(widget))"))
         #expect(patcher.contains("gtkScheduleSheetEditableFocus(delegateWidget)"))
+        #expect(patcher.contains("gtk_widget_set_can_target(widget, 1)\n    gtk_widget_set_can_focus(widget, 1)\n    gtk_widget_set_focusable(widget, 1)"))
+        #expect(patcher.contains("gtk_widget_set_can_target(delegateWidget, 1)\n        gtk_widget_set_can_focus(delegateWidget, 1)\n        gtk_widget_set_focusable(delegateWidget, 1)"))
+        #expect(patcher.contains("gtk_widget_set_can_target(target.widget, 1)\n        gtk_widget_set_can_focus(target.widget, 1)\n        gtk_widget_set_focusable(target.widget, 1)"))
         #expect(patcher.contains("gtkFindFirstSheetEditable(in: target.panel)"))
         #expect(patcher.contains("g_idle_add({ userData -> gboolean in"))
         #expect(patcher.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))

@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Capture the canonical macOS parity reference from the GENUINE upstream
 # Enchanted app (gluonfield / AugustDev "Enchanted by Freysa"), built straight
-# from .upstream/enchanted/Enchanted.xcodeproj.
+# from the vendored or local upstream Enchanted.xcodeproj.
 #
 # IMPORTANT: the reference MUST be the real Mac app, NOT `swift run
 # quill-enchanted` (our own QuillUI port). Screenshotting our own port and
@@ -16,9 +16,12 @@ if [[ "$(uname)" != "Darwin" ]]; then
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+
 FIXTURE_DIR="$ROOT_DIR/Tests/Fixtures/Enchanted"
 FIXTURE_PATH="$FIXTURE_DIR/macos-reference.png"
-UPSTREAM_PROJ="$ROOT_DIR/.upstream/enchanted/Enchanted.xcodeproj"
+UPSTREAM_ROOT="$(quillui_resolve_enchanted_checkout_dir "$ROOT_DIR")"
+UPSTREAM_PROJ="$UPSTREAM_ROOT/Enchanted.xcodeproj"
 DD="${ENCHANTED_DERIVED_DATA:-/tmp/enchanted-mac-reference-dd}"
 
 mkdir -p "$FIXTURE_DIR"

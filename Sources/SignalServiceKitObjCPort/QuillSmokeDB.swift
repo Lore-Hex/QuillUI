@@ -143,6 +143,11 @@ public func quillBootstrapSignalRenderEnvironment() async throws -> QuillSignalR
         )
     )
     let finalContinuation = await dataMigrationContinuation.migrateDatabaseData()
+    await databaseStorage.awaitableWrite { tx in
+        let preferencesStore = KeyValueStore(collection: "SignalPreferences")
+        preferencesStore.setBool(false, key: "NotificationSoundInForeground", transaction: tx)
+        preferencesStore.setBool(false, key: "MessageSentSound", transaction: tx)
+    }
     let tableCount = databaseStorage.read { tx in
         (try? Int.fetchOne(tx.database, sql: "SELECT COUNT(*) FROM sqlite_master WHERE type='table'")) ?? 0
     }

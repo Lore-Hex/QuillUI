@@ -6,7 +6,16 @@
 
 import CGtk4
 import Foundation
+import QuillUIKit
 import UIKit
+
+@MainActor
+private var textViewGTKEntryApplyingWidgets: Set<UInt> = []
+
+@MainActor
+func quillSignalTextViewEntryIsApplyingText(_ widget: UnsafeMutableRawPointer) -> Bool {
+    textViewGTKEntryApplyingWidgets.contains(UInt(bitPattern: widget))
+}
 
 @MainActor
 private final class UITextViewGTKEntryContext {
@@ -23,10 +32,12 @@ private final class UITextViewGTKEntryContext {
         }
         let currentText = textView.text ?? ""
         guard currentText != nextText else { return }
-        _ = textView.quillReplaceCharacters(
-            in: NSRange(location: 0, length: currentText.utf16.count),
-            with: nextText
-        )
+        QuillUIKitMutationNotifications.withoutNotifications {
+            _ = textView.quillReplaceCharacters(
+                in: NSRange(location: 0, length: currentText.utf16.count),
+                with: nextText
+            )
+        }
     }
 
     func activateReturnKey() {
@@ -94,6 +105,9 @@ func quillSignalTextViewEntryGetText(_ widget: UnsafeMutableRawPointer) -> Strin
 
 @MainActor
 func quillSignalTextViewEntrySetText(_ widget: UnsafeMutableRawPointer, _ text: String) {
+    let key = UInt(bitPattern: widget)
+    textViewGTKEntryApplyingWidgets.insert(key)
+    defer { textViewGTKEntryApplyingWidgets.remove(key) }
     text.withCString { quill_editable_set_text(widget, $0) }
 }
 
@@ -127,6 +141,89 @@ func quillSignalConnectTextViewEntrySignals(_ widget: UnsafeMutableRawPointer, t
         callback: unsafeBitCast(textViewGTKEntryFocusTrampoline, to: GCallback.self),
         context: focusContext
     )
+}
+
+/// Test/demo hook: recursively find the first GTK editable in a rendered UIKit
+/// tree and set its text through the same GtkEditable bridge used by real user
+/// typing. `gtk_editable_set_text` emits `changed`, so UITextView delegates and
+/// `quillReplaceCharacters` still run.
+@MainActor
+public func quillSignalRenderSetFirstTextEntry(in widget: UnsafeMutableRawPointer, text: String) -> Bool {
+    if quill_widget_is_editable(widget) != 0 {
+        quillSignalTextViewEntrySetText(widget, text)
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderSetFirstTextEntry(in: UnsafeMutableRawPointer(current), text: text) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
+}
+
+@MainActor
+public func quillSignalRenderClickButton(in widget: UnsafeMutableRawPointer, cssClass: String) -> Bool {
+    if quill_widget_is_button(widget) != 0,
+       cssClass.withCString({ quill_widget_has_css_class(widget, $0) }) != 0 {
+        quill_signal_emit_clicked(widget)
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderClickButton(in: UnsafeMutableRawPointer(current), cssClass: cssClass) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
+}
+
+@MainActor
+public func quillSignalRenderClickButton(in widget: UnsafeMutableRawPointer, labelText: String) -> Bool {
+    if quill_widget_is_button(widget) != 0,
+       quillSignalRenderWidgetContainsLabelText(widget, labelText: labelText) {
+        quill_signal_emit_clicked(widget)
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderClickButton(in: UnsafeMutableRawPointer(current), labelText: labelText) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
+}
+
+@MainActor
+private func quillSignalRenderWidgetContainsLabelText(_ widget: UnsafeMutableRawPointer, labelText: String) -> Bool {
+    if quill_widget_is_label(widget) != 0,
+       let text = quill_label_get_text(widget),
+       String(cString: text).contains(labelText) {
+        return true
+    }
+
+    let gtkWidget = widget.assumingMemoryBound(to: GtkWidget.self)
+    var child = gtk_widget_get_first_child(gtkWidget)
+    while let current = child {
+        if quillSignalRenderWidgetContainsLabelText(UnsafeMutableRawPointer(current), labelText: labelText) {
+            return true
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+
+    return false
 }
 
 private func quillSignalConnectTextViewEntrySignal(

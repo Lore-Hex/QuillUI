@@ -19,6 +19,10 @@ public func AXIsProcessTrustedWithOptions(_ options: CFDictionary?) -> Bool {
     QuillAccessibility.isTrusted
 }
 
+public func AXIsProcessTrusted() -> Bool {
+    AXIsProcessTrustedWithOptions(nil)
+}
+
 public func AXUIElementCreateSystemWide() -> AXUIElement {
     AXUIElement()
 }

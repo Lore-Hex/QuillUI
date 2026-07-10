@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import SwiftOpenUI
 
@@ -127,6 +128,22 @@ final class Phase3ViewTests: XCTestCase {
                 .text(" · Public"),
             ]
         )
+    }
+
+    func testImageRendererReadsFileBackedImageBytes() throws {
+        let bytes = Data("swift-openui-image-\(UUID().uuidString)".utf8)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swift-openui-image-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        try bytes.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let renderer = OpenUIImageRenderer(content: Image(filePath: url.path))
+
+        XCTAssertEqual(renderer.platformImage?.data, bytes)
+        XCTAssertEqual(renderer.nsImage?.data, bytes)
+        XCTAssertEqual(renderer.uiImage?.data, bytes)
+        XCTAssertEqual(renderer.cgImage?.data, bytes)
     }
 
     // MARK: - List

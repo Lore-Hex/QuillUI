@@ -36,6 +36,130 @@ struct CoreGraphicsPathTests {
         ])
     }
 
+    @Test("CGMutablePath transform overloads transform recorded path elements")
+    func mutablePathTransformOverloadsApplyTransform() {
+        let transform = CGAffineTransform(a: 2, b: 0, c: 0, d: 3, tx: 10, ty: -5)
+        let path = CGMutablePath()
+
+        path.move(to: CGPoint(x: 1, y: 1), transform: transform)
+        path.addLine(to: CGPoint(x: 2, y: 1), transform: transform)
+        path.addQuadCurve(
+            to: CGPoint(x: 4, y: 1),
+            control: CGPoint(x: 3, y: 2),
+            transform: transform
+        )
+        path.addCurve(
+            to: CGPoint(x: 7, y: 2),
+            control1: CGPoint(x: 5, y: 3),
+            control2: CGPoint(x: 6, y: 3),
+            transform: transform
+        )
+        path.addLines(between: [
+            CGPoint(x: 0, y: 0),
+            CGPoint(x: 1, y: 0),
+        ], transform: transform)
+
+        #expect(path.quillElements == [
+            PathElementSnapshot(type: .moveToPoint, points: [CGPoint(x: 12, y: -2)]),
+            PathElementSnapshot(type: .addLineToPoint, points: [CGPoint(x: 14, y: -2)]),
+            PathElementSnapshot(type: .addQuadCurveToPoint, points: [
+                CGPoint(x: 16, y: 1),
+                CGPoint(x: 18, y: -2),
+            ]),
+            PathElementSnapshot(type: .addCurveToPoint, points: [
+                CGPoint(x: 20, y: 4),
+                CGPoint(x: 22, y: 4),
+                CGPoint(x: 24, y: 1),
+            ]),
+            PathElementSnapshot(type: .moveToPoint, points: [CGPoint(x: 10, y: -5)]),
+            PathElementSnapshot(type: .addLineToPoint, points: [CGPoint(x: 12, y: -5)]),
+        ])
+    }
+
+    @Test("CGMutablePath transformed arc overloads reuse cubic arc recording")
+    func mutablePathTransformedArcOverloadsRecordCubicArcs() {
+        let transform = CGAffineTransform(translationX: 10, y: -2)
+
+        let absolute = CGMutablePath()
+        absolute.addArc(
+            center: .zero,
+            radius: 2,
+            startAngle: 0,
+            endAngle: .pi / 2,
+            clockwise: false,
+            transform: transform
+        )
+
+        let relative = CGMutablePath()
+        relative.addRelativeArc(
+            center: .zero,
+            radius: 2,
+            startAngle: 0,
+            delta: .pi / 2,
+            transform: transform
+        )
+
+        #expect(absolute.quillElements.map(\.type) == [.moveToPoint, .addCurveToPoint])
+        #expect(relative.quillElements.map(\.type) == absolute.quillElements.map(\.type))
+        #expect(absolute.quillElements[0].points[0].isClose(to: CGPoint(x: 12, y: -2)))
+        #expect(absolute.quillElements[1].points[2].isClose(to: CGPoint(x: 10, y: 0)))
+        #expect(relative.quillElements[1].points[2].isClose(to: CGPoint(x: 10, y: 0)))
+
+        let tangent = CGMutablePath()
+        tangent.move(to: .zero, transform: transform)
+        tangent.addArc(
+            tangent1End: CGPoint(x: 10, y: 0),
+            tangent2End: CGPoint(x: 10, y: 10),
+            radius: 2,
+            transform: transform
+        )
+        #expect(tangent.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+        ])
+        #expect(tangent.quillElements[1].points[0].isClose(to: CGPoint(x: 18, y: -2)))
+        #expect(tangent.quillElements[2].points[2].isClose(to: CGPoint(x: 20, y: 0)))
+    }
+
+    @Test("CGMutablePath rounded rect transform overload transforms corners")
+    func mutablePathRoundedRectTransformOverloadAppliesTransform() {
+        let transform = CGAffineTransform(translationX: 10, y: -2)
+        let path = CGMutablePath()
+        path.addRoundedRect(
+            in: CGRect(x: 0, y: 0, width: 10, height: 8),
+            cornerWidth: 2,
+            cornerHeight: 3,
+            transform: transform
+        )
+
+        #expect(path.quillElements.map(\.type) == [
+            .moveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+            .addLineToPoint,
+            .addCurveToPoint,
+            .closeSubpath,
+        ])
+        #expect(path.quillElements.first?.points.first == CGPoint(x: 12, y: -2))
+        #expect(path.boundingBox == CGRect(x: 10, y: -2, width: 10, height: 8))
+    }
+
+    @Test("CGPath intersects uses recorded path bounds")
+    func pathIntersectsUsesBounds() {
+        let first = CGPath(rect: CGRect(x: 0, y: 0, width: 10, height: 10), transform: nil)
+        let overlapping = CGPath(rect: CGRect(x: 9, y: 9, width: 3, height: 3), transform: nil)
+        let separate = CGPath(rect: CGRect(x: 20, y: 20, width: 3, height: 3), transform: nil)
+
+        #expect(first.intersects(overlapping))
+        #expect(!first.intersects(separate))
+        #expect(!CGPath().intersects(first))
+    }
+
     @Test("CGPath copy(using:) returns a transformed copy without mutating the source")
     func copyUsingTransformDoesNotMutateSource() throws {
         let source = CGMutablePath()
@@ -88,6 +212,17 @@ struct CoreGraphicsPathTests {
         #expect(point.applying(translateThenScale) == CGPoint(x: 22, y: 63))
         #expect(point.applying(CGAffineTransform(translationX: 10, y: 20).scaledBy(x: 2, y: 3)) == CGPoint(x: 12, y: 23))
         #expect(point.applying(CGAffineTransform(scaleX: 2, y: 3).translatedBy(x: 10, y: 20)) == CGPoint(x: 22, y: 63))
+        #expect(point.applying(CGAffineTransform(translationByX: 10, byY: 20)) == CGPoint(x: 11, y: 21))
+    }
+
+    @Test("CGColor copy can replace alpha without mutating components")
+    func colorCopyCanReplaceAlpha() throws {
+        let color = CGColor(red: 0.1, green: 0.2, blue: 0.3, alpha: 0.4)
+        let faded = try #require(color.copy(alpha: 0.75))
+
+        #expect(color.components == [0.1, 0.2, 0.3, 0.4])
+        #expect(faded.components == [0.1, 0.2, 0.3, 0.75])
+        #expect(try #require(CGColor(gray: 0.5, alpha: 1).copy(alpha: 0.25)).components == [0.5, 0.25])
     }
 
     @Test("CGPath roundedRect records cubic corner curves")

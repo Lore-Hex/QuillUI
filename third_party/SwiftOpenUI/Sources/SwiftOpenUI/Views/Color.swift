@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Supports hex strings, RGB/RGBA components, fractional components,
 /// and an `.opacity()` modifier.
-public struct Color: Equatable, Sendable {
+public struct Color: Equatable, Hashable, Sendable {
     public typealias Body = Never
 
     /// Red component (0.0–1.0).
@@ -87,6 +87,14 @@ public struct Color: Equatable, Sendable {
         Color(red: red, green: green, blue: blue, opacity: value)
     }
 
+    public var gradient: LinearGradient {
+        LinearGradient(
+            colors: [opacity(0.82), self],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
     // MARK: - Named colors
 
     public static let red = Color(red: 1.0, green: 0.0, blue: 0.0)
@@ -105,6 +113,9 @@ public struct Color: Equatable, Sendable {
     public static let mint = Color(red: 0.0, green: 0.780, blue: 0.745)
     public static let teal = Color(red: 0.188, green: 0.690, blue: 0.780)
     public static let indigo = Color(red: 0.345, green: 0.337, blue: 0.839)
+    public static let amber = Color(red: 1.000, green: 0.690, blue: 0.180)
+    public static let scarlet = Color(red: 0.930, green: 0.200, blue: 0.230)
+    public static let steel = Color(red: 0.360, green: 0.430, blue: 0.520)
 
     /// Process-wide scheme for semantic colors. QuillOS sets
     /// QUILLUI_COLOR_SCHEME=dark for apps whose macOS appearance is dark
@@ -118,6 +129,15 @@ public struct Color: Equatable, Sendable {
     }
     public static var secondary: Color {
         quillPrefersDarkScheme ? Color(red: 0.682, green: 0.682, blue: 0.698) : .gray
+    }
+    public static var tertiary: Color {
+        quillPrefersDarkScheme ? Color(red: 0.541, green: 0.541, blue: 0.561) : Color(red: 0.72, green: 0.72, blue: 0.74)
+    }
+    public static var quaternary: Color {
+        quillPrefersDarkScheme ? Color(red: 0.431, green: 0.431, blue: 0.451) : Color(red: 0.82, green: 0.82, blue: 0.84)
+    }
+    public static var separator: Color {
+        quillPrefersDarkScheme ? Color(red: 0.275, green: 0.275, blue: 0.290) : Color(red: 0.835, green: 0.835, blue: 0.855)
     }
 
     // MARK: - Helpers

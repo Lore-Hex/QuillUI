@@ -176,7 +176,7 @@ public struct SCNSoftwareRenderer {
     private func projectionContext(width: Int, height: Int) -> ProjectionContext {
         let rootTransform = Matrix4.identity
         var collector = RenderCollector()
-        collector.collect(node: scene.rootNode, parent: rootTransform)
+        collector.collect(node: scene.rootNode, parent: rootTransform, inheritedOpacity: 1)
 
         let bounds = collector.bounds ?? Bounds(min: Vector3(-1, -1, -1), max: Vector3(1, 1, 1))
         let cameraNode = pointOfView ?? collector.cameraNode
@@ -219,18 +219,19 @@ private struct RenderCollector {
     var cameraNode: SCNNode?
     var cameraWorldTransform: Matrix4?
 
-    mutating func collect(node: SCNNode, parent: Matrix4) {
-        guard !node.isHidden, node.opacity > 0 else { return }
+    mutating func collect(node: SCNNode, parent: Matrix4, inheritedOpacity: CGFloat) {
+        let opacity = inheritedOpacity * max(0, min(1, node.opacity))
+        guard !node.isHidden, opacity > 0 else { return }
         let world = parent * Matrix4.localTransform(for: node)
         if node.camera != nil, cameraNode == nil {
             cameraNode = node
             cameraWorldTransform = world
         }
         if let geometry = node.geometry {
-            collect(geometry: geometry, node: node, world: world)
+            collect(geometry: geometry, node: node, world: world, opacity: opacity)
         }
         for child in node.childNodes {
-            collect(node: child, parent: world)
+            collect(node: child, parent: world, inheritedOpacity: opacity)
         }
     }
 
@@ -243,8 +244,7 @@ private struct RenderCollector {
         }
     }
 
-    private mutating func collect(geometry: SCNGeometry, node: SCNNode, world: Matrix4) {
-        let opacity = max(0, min(1, node.opacity))
+    private mutating func collect(geometry: SCNGeometry, node: SCNNode, world: Matrix4, opacity: CGFloat) {
         let baseColor = color(for: geometry, elementIndex: 0).withAlphaMultiplier(opacity)
 
         switch geometry {
@@ -601,6 +601,7 @@ private struct RenderCollector {
         let vertices = vertexSource.quillVector3Values().map(Vector3.init)
         guard !vertices.isEmpty else { return }
         let worldVertices = vertices.map(world.transformPoint)
+        let vertexColors = geometry.sources.first(where: { $0.semantic == .color })?.quillColorValues()
         for vertex in worldVertices { include(vertex) }
 
         for (elementIndex, element) in geometry.elements.enumerated() {
@@ -611,46 +612,63 @@ private struct RenderCollector {
             case .triangles:
                 var i = 0
                 while i + 2 < indices.count {
-                    appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
+                    appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, vertexColors: vertexColors, owner: owner)
                     i += 3
                 }
             case .triangleStrip:
                 guard indices.count >= 3 else { continue }
                 for i in 0..<(indices.count - 2) {
                     if i.isMultiple(of: 2) {
-                        appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
+                        appendTriangle(indices[i], indices[i + 1], indices[i + 2], vertices: worldVertices, color: primitiveColor, vertexColors: vertexColors, owner: owner)
                     } else {
-                        appendTriangle(indices[i + 1], indices[i], indices[i + 2], vertices: worldVertices, color: primitiveColor, owner: owner)
+                        appendTriangle(indices[i + 1], indices[i], indices[i + 2], vertices: worldVertices, color: primitiveColor, vertexColors: vertexColors, owner: owner)
                     }
                 }
             case .line:
                 var i = 0
                 while i + 1 < indices.count {
-                    appendLine(indices[i], indices[i + 1], vertices: worldVertices, color: primitiveColor, owner: owner)
+                    appendLine(indices[i], indices[i + 1], vertices: worldVertices, color: primitiveColor, vertexColors: vertexColors, owner: owner)
                     i += 2
                 }
             case .point:
                 for index in indices where worldVertices.indices.contains(index) {
                     let p = worldVertices[index]
-                    primitives.append(.sphere(center: p, radius: 0.025 * world.approximateScale, color: primitiveColor, owner: owner))
+                    primitives.append(.sphere(center: p, radius: 0.025 * world.approximateScale, color: vertexColor(vertexColors, at: index, fallback: primitiveColor), owner: owner))
                 }
             case .polygon:
-                appendPolygons(from: element, vertices: worldVertices, color: primitiveColor, owner: owner)
+                appendPolygons(from: element, vertices: worldVertices, color: primitiveColor, vertexColors: vertexColors, owner: owner)
             }
         }
     }
 
-    private mutating func appendTriangle(_ i0: Int, _ i1: Int, _ i2: Int, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
+    private mutating func appendTriangle(
+        _ i0: Int,
+        _ i1: Int,
+        _ i2: Int,
+        vertices: [Vector3],
+        color: RGBA,
+        vertexColors: [RGBA]? = nil,
+        owner: PrimitiveOwner
+    ) {
         guard vertices.indices.contains(i0), vertices.indices.contains(i1), vertices.indices.contains(i2) else { return }
-        primitives.append(.triangle(a: vertices[i0], b: vertices[i1], c: vertices[i2], color: color, owner: owner))
+        primitives.append(.triangle(
+            a: WorldVertex(position: vertices[i0], color: vertexColor(vertexColors, at: i0, fallback: color)),
+            b: WorldVertex(position: vertices[i1], color: vertexColor(vertexColors, at: i1, fallback: color)),
+            c: WorldVertex(position: vertices[i2], color: vertexColor(vertexColors, at: i2, fallback: color)),
+            owner: owner
+        ))
     }
 
-    private mutating func appendLine(_ i0: Int, _ i1: Int, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
+    private mutating func appendLine(_ i0: Int, _ i1: Int, vertices: [Vector3], color: RGBA, vertexColors: [RGBA]? = nil, owner: PrimitiveOwner) {
         guard vertices.indices.contains(i0), vertices.indices.contains(i1) else { return }
+        let color = RGBA.average(
+            vertexColor(vertexColors, at: i0, fallback: color),
+            vertexColor(vertexColors, at: i1, fallback: color)
+        )
         primitives.append(.line(a: vertices[i0], b: vertices[i1], radius: 0.012, color: color, owner: owner))
     }
 
-    private mutating func appendPolygons(from element: SCNGeometryElement, vertices: [Vector3], color: RGBA, owner: PrimitiveOwner) {
+    private mutating func appendPolygons(from element: SCNGeometryElement, vertices: [Vector3], color: RGBA, vertexColors: [RGBA]? = nil, owner: PrimitiveOwner) {
         let raw = element.quillIndices()
         guard element.primitiveCount > 0, raw.count >= element.primitiveCount else { return }
         let counts = Array(raw.prefix(element.primitiveCount))
@@ -661,9 +679,16 @@ private struct RenderCollector {
             offset += count
             guard count >= 3 else { continue }
             for index in 1..<(polygon.count - 1) {
-                appendTriangle(polygon[0], polygon[index], polygon[index + 1], vertices: vertices, color: color, owner: owner)
+                appendTriangle(polygon[0], polygon[index], polygon[index + 1], vertices: vertices, color: color, vertexColors: vertexColors, owner: owner)
             }
         }
+    }
+
+    private func vertexColor(_ vertexColors: [RGBA]?, at index: Int, fallback: RGBA) -> RGBA {
+        guard let vertexColors, vertexColors.indices.contains(index) else {
+            return fallback
+        }
+        return vertexColors[index].modulated(by: fallback)
     }
 }
 
@@ -691,10 +716,15 @@ private struct PrimitiveOwner {
     }
 }
 
+private struct WorldVertex {
+    var position: Vector3
+    var color: RGBA
+}
+
 private enum WorldPrimitive {
     case sphere(center: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
     case line(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner)
-    case triangle(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner)
+    case triangle(a: WorldVertex, b: WorldVertex, c: WorldVertex, owner: PrimitiveOwner)
 
     func projected(using camera: CameraProjection) -> [ProjectedPrimitive] {
         switch self {
@@ -704,8 +734,8 @@ private enum WorldPrimitive {
             return [.sphere(center: projectedCenter.point, radius: projectedRadius, depth: projectedCenter.depth, color: color, owner: owner)]
         case let .line(a, b, radius, color, owner):
             return camera.projectedLine(a: a, b: b, radius: radius, color: color, owner: owner)
-        case let .triangle(a, b, c, color, owner):
-            return camera.projectedTriangles(a: a, b: b, c: c, color: color, owner: owner)
+        case let .triangle(a, b, c, owner):
+            return camera.projectedTriangles(a: a, b: b, c: c, owner: owner)
         }
     }
 }
@@ -721,13 +751,15 @@ private enum ProjectedPrimitive {
         depthB: CGFloat,
         depthC: CGFloat,
         depth: CGFloat,
-        color: RGBA,
+        colorA: RGBA,
+        colorB: RGBA,
+        colorC: RGBA,
         owner: PrimitiveOwner
     )
 
     var depth: CGFloat {
         switch self {
-        case let .sphere(_, _, depth, _, _), let .line(_, _, _, depth, _, _), let .triangle(_, _, _, _, _, _, depth, _, _):
+        case let .sphere(_, _, depth, _, _), let .line(_, _, _, depth, _, _), let .triangle(_, _, _, _, _, _, depth, _, _, _, _):
             return depth
         }
     }
@@ -736,7 +768,7 @@ private enum ProjectedPrimitive {
 
     private var owner: PrimitiveOwner {
         switch self {
-        case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, _, _, _, owner):
+        case let .sphere(_, _, _, _, owner), let .line(_, _, _, _, _, owner), let .triangle(_, _, _, _, _, _, _, _, _, _, owner):
             return owner
         }
     }
@@ -753,8 +785,8 @@ private enum ProjectedPrimitive {
             surface.fillCircle(center: center, radius: radius, depth: depth, color: color, owner: owner)
         case let .line(a, b, radius, depth, color, owner):
             surface.strokeCapsule(from: a, to: b, radius: radius, depth: depth, color: color, owner: owner)
-        case let .triangle(a, b, c, depthA, depthB, depthC, _, color, owner):
-            surface.fillTriangle(a, b, c, depths: (depthA, depthB, depthC), color: color, owner: owner)
+        case let .triangle(a, b, c, depthA, depthB, depthC, _, colorA, colorB, colorC, owner):
+            surface.fillTriangle(a, b, c, depths: (depthA, depthB, depthC), colors: (colorA, colorB, colorC), owner: owner)
         }
     }
 
@@ -769,7 +801,7 @@ private enum ProjectedPrimitive {
         case let .line(a, b, radius, _, _, _):
             return squaredDistance(from: point, toSegmentFrom: a, to: b) <= pow(max(4, radius + 2), 2)
 
-        case let .triangle(a, b, c, _, _, _, _, _, _):
+        case let .triangle(a, b, c, _, _, _, _, _, _, _, _):
             let area = edge(a, b, c)
             guard abs(area) > 0.0001 else { return false }
             let w0 = edge(b, c, point)
@@ -855,7 +887,10 @@ private struct CameraProjection {
     }
 
     func project(_ point: Vector3) -> (point: CGPoint, depth: CGFloat)? {
-        project(cameraSpaceVertex(for: point))
+        guard let projected = project(cameraSpaceVertex(for: point)) else {
+            return nil
+        }
+        return (projected.point, projected.depth)
     }
 
     func projectWorldPoint(_ point: Vector3) -> SCNVector3? {
@@ -893,8 +928,8 @@ private struct CameraProjection {
     }
 
     func projectedLine(a: Vector3, b: Vector3, radius: CGFloat, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
-        var start = cameraSpaceVertex(for: a)
-        var end = cameraSpaceVertex(for: b)
+        var start = cameraSpaceVertex(for: a, color: color)
+        var end = cameraSpaceVertex(for: b, color: color)
         guard clipSegment(&start, &end, atDepth: zNear, keeping: { $0.depth >= zNear }) else { return [] }
         if zFar < .greatestFiniteMagnitude / 2 {
             guard clipSegment(&start, &end, atDepth: zFar, keeping: { $0.depth <= zFar }) else { return [] }
@@ -912,11 +947,11 @@ private struct CameraProjection {
         )]
     }
 
-    func projectedTriangles(a: Vector3, b: Vector3, c: Vector3, color: RGBA, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
+    func projectedTriangles(a: WorldVertex, b: WorldVertex, c: WorldVertex, owner: PrimitiveOwner) -> [ProjectedPrimitive] {
         var polygon = [
-            cameraSpaceVertex(for: a),
-            cameraSpaceVertex(for: b),
-            cameraSpaceVertex(for: c),
+            cameraSpaceVertex(for: a.position, color: a.color),
+            cameraSpaceVertex(for: b.position, color: b.color),
+            cameraSpaceVertex(for: c.position, color: c.color),
         ]
         polygon = clipped(polygon, atDepth: zNear, keeping: { $0.depth >= zNear })
         if zFar < .greatestFiniteMagnitude / 2 {
@@ -942,23 +977,26 @@ private struct CameraProjection {
                 depthB: pb.depth,
                 depthC: pc.depth,
                 depth: depth,
-                color: color,
+                colorA: pa.color,
+                colorB: pb.color,
+                colorC: pc.color,
                 owner: owner
             ))
         }
         return triangles
     }
 
-    private func cameraSpaceVertex(for point: Vector3) -> CameraSpaceVertex {
+    private func cameraSpaceVertex(for point: Vector3, color: RGBA = .neutral) -> CameraSpaceVertex {
         let relative = point - position
         return CameraSpaceVertex(
             x: relative.dot(right),
             y: relative.dot(up),
-            depth: relative.dot(forward)
+            depth: relative.dot(forward),
+            color: color
         )
     }
 
-    private func project(_ vertex: CameraSpaceVertex) -> (point: CGPoint, depth: CGFloat)? {
+    private func project(_ vertex: CameraSpaceVertex) -> (point: CGPoint, depth: CGFloat, color: RGBA)? {
         guard vertex.depth >= zNear, vertex.depth <= zFar else { return nil }
         let scale: CGFloat
         if let orthographicScale {
@@ -971,7 +1009,8 @@ private struct CameraProjection {
                 x: CGFloat(width) / 2 + vertex.x * scale,
                 y: CGFloat(height) / 2 - vertex.y * scale
             ),
-            vertex.depth
+            vertex.depth,
+            vertex.color
         )
     }
 
@@ -1050,6 +1089,7 @@ private struct CameraSpaceVertex {
     var x: CGFloat
     var y: CGFloat
     var depth: CGFloat
+    var color: RGBA
 
     func interpolated(to other: CameraSpaceVertex, atDepth targetDepth: CGFloat) -> CameraSpaceVertex {
         let delta = other.depth - depth
@@ -1057,7 +1097,8 @@ private struct CameraSpaceVertex {
         return CameraSpaceVertex(
             x: x + (other.x - x) * t,
             y: y + (other.y - y) * t,
-            depth: targetDepth
+            depth: targetDepth,
+            color: color.interpolated(to: other.color, amount: t)
         )
     }
 }
@@ -1149,7 +1190,7 @@ private struct PixelSurface {
         }
     }
 
-    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, depths: (CGFloat, CGFloat, CGFloat), color: RGBA, owner: PrimitiveOwner) {
+    mutating func fillTriangle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, depths: (CGFloat, CGFloat, CGFloat), colors: (RGBA, RGBA, RGBA), owner: PrimitiveOwner) {
         let minX = max(0, Int(floor(min(a.x, min(b.x, c.x)))))
         let maxX = min(width - 1, Int(ceil(max(a.x, max(b.x, c.x)))))
         let minY = max(0, Int(floor(min(a.y, min(b.y, c.y)))))
@@ -1165,9 +1206,13 @@ private struct PixelSurface {
                 let w2 = edge(a, b, p)
                 if (w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0) {
                     let barycentricScale = 1 / area
+                    let weightA = w0 * barycentricScale
+                    let weightB = w1 * barycentricScale
+                    let weightC = w2 * barycentricScale
                     let depth = depths.0 * w0 * barycentricScale
                         + depths.1 * w1 * barycentricScale
                         + depths.2 * w2 * barycentricScale
+                    let color = RGBA.interpolate(colors.0, colors.1, colors.2, weights: (weightA, weightB, weightC))
                     blend(x: x, y: y, depth: depth, color: color.scaled(0.9), owner: owner)
                 }
             }
@@ -1228,6 +1273,80 @@ private extension SCNGeometryElement {
                     return nil
                 }
             }
+        }
+    }
+}
+
+private extension SCNGeometrySource {
+    func quillColorValues() -> [RGBA] {
+        guard let stride = quillValidatedColorStride() else { return [] }
+        return data.withUnsafeBytes { raw in
+            (0..<vectorCount).compactMap { i in
+                let base = dataOffset + i * stride
+                guard let r = colorComponent(at: base, in: raw) else { return nil }
+                let g = componentsPerVector > 1 ? colorComponent(at: base + bytesPerComponent, in: raw) ?? r : r
+                let b = componentsPerVector > 2 ? colorComponent(at: base + 2 * bytesPerComponent, in: raw) ?? r : r
+                let a = componentsPerVector > 3 ? colorComponent(at: base + 3 * bytesPerComponent, in: raw) ?? 1 : 1
+                return RGBA(normalizedRed: r, green: g, blue: b, alpha: a)
+            }
+        }
+    }
+
+    private func quillValidatedColorStride() -> Int? {
+        guard semantic == .color,
+              vectorCount > 0,
+              componentsPerVector > 0,
+              dataOffset >= 0,
+              [1, 2, 4, 8].contains(bytesPerComponent) else {
+            return nil
+        }
+
+        if usesFloatComponents {
+            guard bytesPerComponent == MemoryLayout<Float>.size || bytesPerComponent == MemoryLayout<Double>.size else {
+                return nil
+            }
+        }
+
+        let requiredBytesResult = componentsPerVector.multipliedReportingOverflow(by: bytesPerComponent)
+        guard !requiredBytesResult.overflow, requiredBytesResult.partialValue > 0 else { return nil }
+        let requiredBytes = requiredBytesResult.partialValue
+        let stride = dataStride > 0 ? dataStride : requiredBytes
+        guard stride >= requiredBytes else { return nil }
+
+        let lastIndex = vectorCount - 1
+        let lastStrideResult = lastIndex.multipliedReportingOverflow(by: stride)
+        guard !lastStrideResult.overflow else { return nil }
+        let lastBaseResult = dataOffset.addingReportingOverflow(lastStrideResult.partialValue)
+        guard !lastBaseResult.overflow else { return nil }
+        let lastEndResult = lastBaseResult.partialValue.addingReportingOverflow(requiredBytes)
+        guard !lastEndResult.overflow, lastEndResult.partialValue <= data.count else { return nil }
+        return stride
+    }
+
+    private func colorComponent(at offset: Int, in raw: UnsafeRawBufferPointer) -> CGFloat? {
+        guard offset >= 0, offset + bytesPerComponent <= raw.count else { return nil }
+        if usesFloatComponents {
+            switch bytesPerComponent {
+            case MemoryLayout<Float>.size:
+                return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Float.self))
+            case MemoryLayout<Double>.size:
+                return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: Double.self))
+            default:
+                return nil
+            }
+        }
+
+        switch bytesPerComponent {
+        case 1:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: UInt8.self)) / CGFloat(UInt8.max)
+        case 2:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: UInt16.self)) / CGFloat(UInt16.max)
+        case 4:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: UInt32.self)) / CGFloat(UInt32.max)
+        case 8:
+            return CGFloat(raw.loadUnaligned(fromByteOffset: offset, as: UInt64.self)) / CGFloat(UInt64.max)
+        default:
+            return nil
         }
     }
 }
@@ -1402,6 +1521,22 @@ private struct RGBA: Equatable {
     static let black = RGBA(r: 0, g: 0, b: 0, a: 255)
     static let neutral = RGBA(r: 185, g: 190, b: 198, a: 255)
 
+    init(r: UInt8, g: UInt8, b: UInt8, a: UInt8) {
+        self.r = r
+        self.g = g
+        self.b = b
+        self.a = a
+    }
+
+    init(normalizedRed r: CGFloat, green g: CGFloat, blue b: CGFloat, alpha a: CGFloat = 1) {
+        self.init(
+            r: UInt8(clamping: Int(max(0, min(1, r)) * 255)),
+            g: UInt8(clamping: Int(max(0, min(1, g)) * 255)),
+            b: UInt8(clamping: Int(max(0, min(1, b)) * 255)),
+            a: UInt8(clamping: Int(max(0, min(1, a)) * 255))
+        )
+    }
+
     func withAlphaMultiplier(_ opacity: CGFloat) -> RGBA {
         RGBA(r: r, g: g, b: b, a: UInt8(clamping: Int(CGFloat(a) * max(0, min(1, opacity)))))
     }
@@ -1414,6 +1549,51 @@ private struct RGBA: Equatable {
             a: a
         )
     }
+
+    func modulated(by other: RGBA) -> RGBA {
+        RGBA(
+            r: UInt8(clamping: Int(CGFloat(r) * CGFloat(other.r) / 255)),
+            g: UInt8(clamping: Int(CGFloat(g) * CGFloat(other.g) / 255)),
+            b: UInt8(clamping: Int(CGFloat(b) * CGFloat(other.b) / 255)),
+            a: UInt8(clamping: Int(CGFloat(a) * CGFloat(other.a) / 255))
+        )
+    }
+
+    func interpolated(to other: RGBA, amount: CGFloat) -> RGBA {
+        let t = max(0, min(1, amount))
+        return RGBA(
+            r: UInt8(clamping: Int(CGFloat(r) + (CGFloat(other.r) - CGFloat(r)) * t)),
+            g: UInt8(clamping: Int(CGFloat(g) + (CGFloat(other.g) - CGFloat(g)) * t)),
+            b: UInt8(clamping: Int(CGFloat(b) + (CGFloat(other.b) - CGFloat(b)) * t)),
+            a: UInt8(clamping: Int(CGFloat(a) + (CGFloat(other.a) - CGFloat(a)) * t))
+        )
+    }
+
+    static func average(_ lhs: RGBA, _ rhs: RGBA) -> RGBA {
+        RGBA(
+            r: UInt8((UInt16(lhs.r) + UInt16(rhs.r)) / 2),
+            g: UInt8((UInt16(lhs.g) + UInt16(rhs.g)) / 2),
+            b: UInt8((UInt16(lhs.b) + UInt16(rhs.b)) / 2),
+            a: UInt8((UInt16(lhs.a) + UInt16(rhs.a)) / 2)
+        )
+    }
+
+    static func interpolate(_ a: RGBA, _ b: RGBA, _ c: RGBA, weights: (CGFloat, CGFloat, CGFloat)) -> RGBA {
+        func component(_ keyPath: KeyPath<RGBA, UInt8>) -> UInt8 {
+            UInt8(clamping: Int(
+                CGFloat(a[keyPath: keyPath]) * weights.0
+                    + CGFloat(b[keyPath: keyPath]) * weights.1
+                    + CGFloat(c[keyPath: keyPath]) * weights.2
+            ))
+        }
+
+        return RGBA(
+            r: component(\.r),
+            g: component(\.g),
+            b: component(\.b),
+            a: component(\.a)
+        )
+    }
 }
 
 private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
@@ -1424,11 +1604,13 @@ private func color(for geometry: SCNGeometry, elementIndex: Int) -> RGBA {
        emission != .black {
         return emission
             .scaled(max(0, material.emission.intensity))
+            .modulatedByMaterialMultiply(material)
             .withAlphaMultiplier(material.opacityMultiplier)
     }
     let diffuse = color(from: material?.diffuse.contents) ?? .neutral
     return diffuse
         .scaled(max(0, material?.diffuse.intensity ?? 1))
+        .modulatedByMaterialMultiply(material)
         .withAlphaMultiplier(material?.opacityMultiplier ?? 1)
 }
 
@@ -1504,5 +1686,26 @@ private extension RGBA {
 
     var luminance: CGFloat {
         (0.2126 * CGFloat(r) + 0.7152 * CGFloat(g) + 0.0722 * CGFloat(b)) / 255
+    }
+
+    func modulatedByMaterialMultiply(_ material: SCNMaterial?) -> RGBA {
+        guard let material,
+              material.multiply.intensity > 0,
+              let multiply = color(from: material.multiply.contents) else {
+            return self
+        }
+
+        let intensity = max(0, min(1, material.multiply.intensity))
+        func modulate(_ component: UInt8, by multiplier: UInt8) -> UInt8 {
+            let factor = (1 - intensity) + CGFloat(multiplier) / 255 * intensity
+            return UInt8(clamping: Int(CGFloat(component) * factor))
+        }
+
+        return RGBA(
+            r: modulate(r, by: multiply.r),
+            g: modulate(g, by: multiply.g),
+            b: modulate(b, by: multiply.b),
+            a: a
+        )
     }
 }

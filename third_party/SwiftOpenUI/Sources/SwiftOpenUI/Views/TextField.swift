@@ -7,16 +7,19 @@ public struct TextField: View {
 
     public let title: String
     public let text: Binding<String>
+    public let axis: Axis
 
-    public init(_ title: String, text: Binding<String>) {
+    public init(_ title: String, text: Binding<String>, axis: Axis = .horizontal) {
         self.title = quillResolveLocalizedString(title)
         self.text = text
+        self.axis = axis
     }
 
     public init(_ title: String, text: Binding<String>, onCommit: @escaping () -> Void) {
         _ = onCommit
         self.title = quillResolveLocalizedString(title)
         self.text = text
+        self.axis = .horizontal
     }
 
     public var body: Never { fatalError("TextField is a primitive view") }

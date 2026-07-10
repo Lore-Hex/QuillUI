@@ -1,15 +1,31 @@
 /// An edge of a rectangle.
-public struct Edge: Hashable {
-    public let rawValue: Int
-    public init(rawValue: Int) { self.rawValue = rawValue }
+public enum Edge: Hashable, Sendable {
+    case top
+    case leading
+    case bottom
+    case trailing
 
-    public static let top = Edge(rawValue: 1)
-    public static let leading = Edge(rawValue: 2)
-    public static let bottom = Edge(rawValue: 4)
-    public static let trailing = Edge(rawValue: 8)
+    public var rawValue: Int {
+        switch self {
+        case .top: 1
+        case .leading: 2
+        case .bottom: 4
+        case .trailing: 8
+        }
+    }
+
+    public init(rawValue: Int) {
+        switch rawValue {
+        case 1: self = .top
+        case 2: self = .leading
+        case 4: self = .bottom
+        case 8: self = .trailing
+        default: self = .top
+        }
+    }
 
     /// A set of edges.
-    public struct Set: OptionSet {
+    public struct Set: OptionSet, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
 

@@ -13,14 +13,16 @@ FROM swift:6.2-noble
 
 RUN set -eux; \
     for i in 1 2 3 4 5; do apt-get update && break || sleep 5; done; \
-    apt-get install -y --no-install-recommends \
+    for i in 1 2 3 4 5; do \
+      if apt-get install -y --no-install-recommends --fix-missing \
         libgtk-4-dev \
         libgdk-pixbuf-2.0-dev \
         libcairo2-dev \
+        libc++-dev \
+        libc++abi-dev \
         libsqlite3-dev \
         libssl-dev \
         pkg-config \
-        clang \
         protobuf-compiler \
         cmake \
         git \
@@ -30,9 +32,22 @@ RUN set -eux; \
         xvfb \
         dbus-x11 \
         fonts-dejavu-core \
+        fonts-noto-color-emoji \
         imagemagick \
         x11-apps \
-        ca-certificates; \
+        ca-certificates; then \
+        break; \
+      fi; \
+      test "$i" != "5"; \
+      apt-get install -y --no-install-recommends --fix-broken || true; \
+      dpkg --configure -a || true; \
+      apt-get update; \
+      sleep 5; \
+    done; \
     test -f /usr/include/sqlite3.h; \
     test -f /usr/include/openssl/evp.h; \
     rm -rf /var/lib/apt/lists/*
+
+# Do not apt-install Ubuntu's clang in this image. The Swift toolchain already
+# provides the compiler frontend SwiftPM expects; Ubuntu clang rejects
+# `-index-store-path` during `swift test` C-target builds.

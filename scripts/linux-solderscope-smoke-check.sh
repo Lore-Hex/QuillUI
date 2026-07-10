@@ -40,7 +40,19 @@ esac
 
 source "$ROOT_DIR/scripts/quillui-linux-backend-smoke-lib.sh"
 
+quillui_solderscope_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [[ ! -d "$UPSTREAM_DIR" ]]; then
+  if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRED:-0}"; then
+    echo "SolderScope smoke requires upstream source at $UPSTREAM_DIR" >&2
+    echo "Run scripts/fetch-upstream.sh solderscope before invoking this CI smoke." >&2
+    exit 66
+  fi
   echo "Skipping SolderScope launch smoke; upstream not found at $UPSTREAM_DIR"
   exit 0
 fi
@@ -145,6 +157,10 @@ quillui_solderscope_recording_started_log_count() {
   grep -c "Recording started:" "$APP_LOG_PATH" 2>/dev/null || true
 }
 
+quillui_solderscope_snapshot_saved_log_count() {
+  grep -c "Snapshot saved:" "$APP_LOG_PATH" 2>/dev/null || true
+}
+
 quillui_solderscope_click_toolbar_button() {
   local window_x="$1"
   local window_y="$2"
@@ -183,6 +199,10 @@ quillui_solderscope_drive_snapshot_action() {
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label key s" >&2
       quillui_solderscope_send_key "$window_id" s
+      if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_SNAPSHOT_ACTIVE_SHORTCUT_FALLBACK:-1}"; then
+        echo "SolderScope interaction smoke: shortcut $label active key s" >&2
+        QUILLUI_SOLDERSCOPE_KEY_DRIVER=active quillui_solderscope_send_key "$window_id" s
+      fi
       ;;
     none)
       ;;
@@ -349,6 +369,8 @@ quillui_solderscope_freeze_fallback_driver() {
 }
 
 quillui_solderscope_wait_for_visible_frame() {
+  local label="${1:-before interaction}"
+  local settled_screenshot_path="${2:-}"
   local wait_mode="${QUILLUI_SOLDERSCOPE_WAIT_FOR_FRAME:-auto}"
   case "$wait_mode" in
     1|true|TRUE|yes|YES|auto|"")
@@ -369,15 +391,18 @@ quillui_solderscope_wait_for_visible_frame() {
   while (( SECONDS <= frame_wait_deadline )); do
     DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
     if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$frame_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-frame-check.log 2>&1; then
+      if [[ -n "$settled_screenshot_path" ]]; then
+        cp -f "$frame_probe_path" "$settled_screenshot_path"
+      fi
       rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
-      echo "SolderScope interaction smoke: synthetic frame is visible before interaction" >&2
+      echo "SolderScope interaction smoke: synthetic frame is visible $label" >&2
       return 0
     fi
     last_error="$(tail -n 1 /tmp/quill-solderscope-frame-check.log 2>/dev/null || true)"
     sleep "${QUILLUI_SOLDERSCOPE_FRAME_WAIT_TICK_SECONDS:-0.5}"
   done
 
-  echo "SolderScope interaction smoke did not observe a visible synthetic frame before interaction: $last_error" >&2
+  echo "SolderScope interaction smoke did not observe a visible synthetic frame $label: $last_error" >&2
   local frame_probe_out="${QUILLUI_SOLDERSCOPE_FRAME_PROBE_OUT:-${SCREENSHOT_PATH%.png}-frame-probe.png}"
   cp "$frame_probe_path" "$frame_probe_out" 2>/dev/null || true
   rm -f "$frame_probe_path" /tmp/quill-solderscope-frame-check.log
@@ -560,6 +585,7 @@ case "${QUILLUI_SOLDERSCOPE_DRIVE_SNAPSHOT:-auto}" in
     ;;
 esac
 SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT=0
+SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT=0
 if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
   if [[ -z "$SOLDERSCOPE_DESKTOP_DIR" ]]; then
     echo "Cannot drive SolderScope snapshot: desktop directory could not be resolved" >&2
@@ -567,6 +593,7 @@ if [[ "$SOLDERSCOPE_DRIVE_SNAPSHOT" == "1" ]]; then
   fi
   mkdir -p "$SOLDERSCOPE_DESKTOP_DIR"
   SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
+  SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT="$(quillui_solderscope_snapshot_saved_log_count)"
 fi
 
 SOLDERSCOPE_DRIVE_RECORDING=0
@@ -611,6 +638,7 @@ fi
 
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 rm -f "${SCREENSHOT_PATH%.png}-recording-idle.png"
+rm -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png"
 
 if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
   "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
@@ -657,6 +685,7 @@ quillui_drive_solderscope_interaction() {
   local drag_end_x=650
   local drag_end_y=420
   local settled_recording_screenshot="${SCREENSHOT_PATH%.png}-recording-idle.png"
+  local settled_snapshot_screenshot="${SCREENSHOT_PATH%.png}-snapshot-settled.png"
 
   window_id="$(quillui_wait_for_app_window_for_pid "$DISPLAY_ID" "$app_pid" "${QUILLUI_SOLDERSCOPE_WINDOW_WAIT_SECONDS:-20}")" || window_id=""
   if [[ -z "$window_id" ]]; then
@@ -707,10 +736,12 @@ quillui_drive_solderscope_interaction() {
     local snapshot_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_SNAPSHOT_FALLBACK_RETRY_INTERVAL_TICKS:-10}"
     quillui_solderscope_drive_snapshot_action "$snapshot_driver" "$window_id" "$window_x" "$window_y" "$window_width" snapshot
     local snapshot_count="$SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT"
+    local snapshot_saved_log_count="$SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT"
     local attempt
     for ((attempt = 1; attempt <= snapshot_attempts; attempt += 1)); do
       snapshot_count="$(quillui_solderscope_count_snapshots "$SOLDERSCOPE_DESKTOP_DIR")"
-      if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+      snapshot_saved_log_count="$(quillui_solderscope_snapshot_saved_log_count)"
+      if (( snapshot_count > SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT || snapshot_saved_log_count > SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT )); then
         echo "SolderScope interaction smoke: snapshot saved to $SOLDERSCOPE_DESKTOP_DIR" >&2
         break
       fi
@@ -727,10 +758,11 @@ quillui_drive_solderscope_interaction() {
       fi
       sleep "$snapshot_tick_seconds"
     done
-    if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT )); then
+    if (( snapshot_count <= SOLDERSCOPE_SNAPSHOT_BEFORE_COUNT && snapshot_saved_log_count <= SOLDERSCOPE_SNAPSHOT_LOG_BEFORE_COUNT )); then
       echo "SolderScope interaction smoke did not observe a snapshot file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
+    quillui_solderscope_wait_for_visible_frame "after snapshot" "$settled_snapshot_screenshot"
   fi
   if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
     local recording_driver="${QUILLUI_SOLDERSCOPE_RECORDING_DRIVER:-toolbar}"
@@ -872,6 +904,9 @@ quillui_drive_solderscope_interaction() {
     quillui_solderscope_wait_for_recording_idle "$settled_recording_screenshot"
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
+  if [[ "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then
+    quillui_solderscope_wait_for_visible_frame "before freeze"
+  fi
   local freeze_driver="$SOLDERSCOPE_FREEZE_DRIVER"
   quillui_solderscope_converge_freeze "$freeze_driver" "$window_id" "$window_x" "$window_y" "$window_width"
   if [[ "${QUILLUI_SOLDERSCOPE_DRIVE_CALIBRATION:-0}" == "1" ]]; then
@@ -930,6 +965,8 @@ if [[ "$SMOKE_MODE" == "interaction" && "$VERIFY_PRODUCT" == "quill-solderscope-
   fi
 elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-recording-idle.png" ]]; then
   cp -f "${SCREENSHOT_PATH%.png}-recording-idle.png" "$SCREENSHOT_PATH"
+elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" ]]; then
+  cp -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" "$SCREENSHOT_PATH"
 else
   DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 fi

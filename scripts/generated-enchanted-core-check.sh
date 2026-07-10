@@ -10,7 +10,9 @@ MSG
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-UPSTREAM_DIR="${ENCHANTED_SOURCE_DIR:-$ROOT_DIR/.upstream/enchanted/Enchanted}"
+source "$ROOT_DIR/scripts/quillui-enchanted-source.sh"
+
+UPSTREAM_DIR="$(quillui_resolve_enchanted_source_dir "$ROOT_DIR")"
 WORK_ROOT="${QUILLUI_GENERATED_ENCHANTED_CORE_WORKDIR:-$ROOT_DIR/.build/generated-enchanted-core-check}"
 SOURCE_COPY="$WORK_ROOT/source/Enchanted"
 LOWERED_COPY="$WORK_ROOT/lowered/Enchanted"

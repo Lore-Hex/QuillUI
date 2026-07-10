@@ -38,6 +38,67 @@ struct FoundationLoweringTests {
         #expect(!lowered.contains("quillKey"))
     }
 
+    @Test("NSError empty initializer lowers to the designated Foundation initializer")
+    func nserrorEmptyInitializerLowers() {
+        let source = """
+        throw NSError()
+        let error = NSError(domain: "Existing", code: 1)
+        """
+
+        let lowered = FoundationLowering().lower(source)
+        #expect(lowered.contains("throw NSError(domain: \"QuillFoundation.NSError\", code: 0, userInfo: nil)"))
+        #expect(lowered.contains("let error = NSError(domain: \"Existing\", code: 1)"))
+        #expect(!lowered.contains("NSError()"))
+    }
+
+    @Test("Formatter edit-validation overrides lower for swift-corelibs Foundation")
+    func formatterEditValidationOverridesLower() {
+        let source = """
+        final class RegexFormatter: Formatter {
+            override func string(for obj: Any?) -> String? { nil }
+            override func getObjectValue(
+                _ obj: AutoreleasingUnsafeMutablePointer<AnyObject?>?,
+                for string: String,
+                errorDescription error: AutoreleasingUnsafeMutablePointer<NSString?>?
+            ) -> Bool { true }
+
+            override open func isPartialStringValid(
+                _ partialString: String,
+                newEditingString: AutoreleasingUnsafeMutablePointer<NSString?>?,
+                errorDescription error: AutoreleasingUnsafeMutablePointer<NSString?>?
+            ) -> Bool { true }
+        }
+        """
+
+        let lowered = FoundationLowering().lower(source)
+        #expect(lowered.contains("override func string(for obj: Any?) -> String? { nil }"))
+        #expect(lowered.contains("func getObjectValue(\n"))
+        #expect(lowered.contains("open func isPartialStringValid(\n"))
+        #expect(!lowered.contains("override func getObjectValue"))
+        #expect(!lowered.contains("override open func isPartialStringValid"))
+    }
+
+    @Test("Linux Foundation compatibility lowers CFURL, qualified networking types, and ProcessEnv imports")
+    func linuxFoundationCompatibilityLowers() {
+        let source = """
+        import Foundation
+
+        let request: Foundation.URLRequest? = nil
+        let response: Foundation.HTTPURLResponse? = nil
+        let urls = UnsafeMutablePointer<Unmanaged<CFURL>?>.allocate(capacity: 1)
+        let parameters: Process.ExecutionParameters? = nil
+        """
+
+        let lowered = FoundationLowering().lower(source)
+        #expect(lowered.contains("import Foundation\nimport ProcessEnv"))
+        #expect(lowered.contains("let request: URLRequest? = nil"))
+        #expect(lowered.contains("let response: HTTPURLResponse? = nil"))
+        #expect(lowered.contains("UnsafeMutablePointer<Unmanaged<NSURL>?>.allocate"))
+        #expect(lowered.contains("let parameters: Process.ExecutionParameters? = nil"))
+        #expect(!lowered.contains("Foundation.URLRequest"))
+        #expect(!lowered.contains("Unmanaged<CFURL>"))
+    }
+
     @Test("NSTextCheckingResult CheckingType static members lower to raw values")
     func textCheckingResultStaticMembersLower() {
         let source = """

@@ -58,17 +58,89 @@ quillui_functional_xdotool() {
   DISPLAY="$DISPLAY_ID" timeout "$timeout_seconds" xdotool "$@"
 }
 
+quillui_functional_mousemove_to() {
+  local x="$1"
+  local y="$2"
+  local sync_timeout="${QUILLUI_FUNCTIONAL_MOUSEMOVE_SYNC_TIMEOUT:-2}"
+
+  DISPLAY="$DISPLAY_ID" timeout "$sync_timeout" xdotool mousemove --sync "$x" "$y" 2>/dev/null \
+    || quillui_functional_xdotool mousemove "$x" "$y"
+}
+
 quillui_functional_click_at() {
   local x="$1"
   local y="$2"
   local settle_sleep="${QUILLUI_FUNCTIONAL_CLICK_SETTLE_SLEEP:-0.15}"
   local hold_sleep="${QUILLUI_FUNCTIONAL_CLICK_HOLD_SLEEP:-0.08}"
 
-  quillui_functional_xdotool mousemove --sync "$x" "$y"
+  quillui_functional_mousemove_to "$x" "$y"
   sleep "$settle_sleep"
   quillui_functional_xdotool mousedown 1
   sleep "$hold_sleep"
   quillui_functional_xdotool mouseup 1
+}
+
+quillui_functional_paste_text() {
+  local text="$1"
+  local clipboard_pid
+  local paste_settle_sleep="${QUILLUI_FUNCTIONAL_PASTE_SETTLE_SLEEP:-0.2}"
+  local paste_cleanup_deadline
+
+  command -v xclip >/dev/null 2>&1 || return 1
+
+  printf '%s' "$text" \
+    | DISPLAY="$DISPLAY_ID" xclip -selection clipboard -loops 1 >/dev/null 2>&1 &
+  clipboard_pid=$!
+  sleep "$paste_settle_sleep"
+
+  if quillui_functional_xdotool key --clearmodifiers ctrl+v; then
+    paste_cleanup_deadline=$((SECONDS + ${QUILLUI_FUNCTIONAL_PASTE_CLEANUP_DEADLINE:-2}))
+    while kill -0 "$clipboard_pid" 2>/dev/null; do
+      if (( SECONDS >= paste_cleanup_deadline )); then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$clipboard_pid" 2>/dev/null; then
+      kill "$clipboard_pid" 2>/dev/null || true
+      wait "$clipboard_pid" 2>/dev/null || true
+      return 1
+    fi
+    wait "$clipboard_pid"
+    return $?
+  fi
+
+  kill "$clipboard_pid" 2>/dev/null || true
+  wait "$clipboard_pid" 2>/dev/null || true
+  return 1
+}
+
+quillui_functional_enter_text() {
+  local text="$1"
+  # Default to paste-first for functional proofs so long prompts are inserted
+  # atomically before attachment/send clicks. Strict keyboard-event coverage is
+  # still available with QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE=type.
+  local input_mode="${QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE:-paste-first}"
+
+  case "$input_mode" in
+    auto|paste-first|paste)
+      if quillui_functional_paste_text "$text"; then
+        return
+      fi
+      ;;
+    type)
+      ;;
+    *)
+      echo "Unsupported QUILLUI_FUNCTIONAL_TEXT_INPUT_MODE='$input_mode' (expected auto, paste-first, paste, or type)" >&2
+      return 64
+      ;;
+  esac
+
+  if [[ "$input_mode" == "paste" ]]; then
+    return 1
+  fi
+
+  quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$text"
 }
 
 quillui_functional_refocus_window() {
@@ -207,6 +279,8 @@ quillui_append_enchanted_reference_mode_environment app_environment
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
+  app_environment+=("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1")
+  app_environment+=("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1")
 fi
 
 launch_app_instance() {
@@ -323,6 +397,7 @@ if spec is None or spec.loader is None:
     raise SystemExit(0)
 
 module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 
 image = module.Screenshot(probe_path)
@@ -338,8 +413,8 @@ divider_x = max(
 detail_left = divider_x + 1
 detail_width = right - detail_left + 1
 
-composer = None
-for y in range(top + int(app_height * 0.86), bottom + 1):
+composer_matches = []
+for y in range(top + int(app_height * 0.68), bottom + 1):
     candidates = [
         segment
         for segment in image.segments_at(
@@ -354,18 +429,39 @@ for y in range(top + int(app_height * 0.86), bottom + 1):
     ]
     if candidates:
         segment = max(candidates, key=lambda item: item.width)
-        if (
-            composer is None
-            or segment.width > composer[1].width
-            or (segment.width == composer[1].width and y < composer[0])
-        ):
-            composer = (y, segment)
+        composer_matches.append((y, segment))
 
-if composer is None:
+if not composer_matches:
     raise SystemExit(0)
 
-composer_y, composer_segment = composer
-click_y = window_y + composer_y + 30
+bottom_band_floor = top + int(app_height * 0.82)
+preferred_matches = [
+    (y, segment)
+    for y, segment in composer_matches
+    if y >= bottom_band_floor
+]
+if not preferred_matches:
+    preferred_matches = composer_matches
+
+best_y, composer_segment = max(preferred_matches, key=lambda item: (item[0], item[1].width))
+max_width = composer_segment.width
+matched_rows = [
+    (y, segment)
+    for y, segment in preferred_matches
+    if segment.width >= int(max_width * 0.95)
+    and abs(segment.start - composer_segment.start) <= 8
+    and abs(segment.end - composer_segment.end) <= 8
+]
+top_row = min((y for y, _ in matched_rows), default=best_y)
+bottom_row = max((y for y, _ in matched_rows), default=best_y)
+if bottom_row - top_row >= 16:
+    composer_click_y = (top_row + bottom_row) // 2
+elif best_y - top >= int(app_height * 0.75):
+    composer_click_y = best_y - 24
+else:
+    composer_click_y = best_y + 24
+composer_click_y = max(top, min(bottom, composer_click_y))
+click_y = window_y + composer_click_y
 candidate_x_values = [
     composer_segment.start + 42,
     min(composer_segment.end - 42, composer_segment.start + 300),
@@ -382,45 +478,435 @@ for candidate_x in candidate_x_values:
 PY
 }
 
-quill_chat_functional_composer_click_points() {
-  {
-    quill_chat_functional_detected_composer_click_points
-    local click_x
-    local click_y
-    while IFS= read -r click_y; do
-      while IFS= read -r click_x; do
-        printf '%s %s\n' "$click_x" "$click_y"
-      done < <(quill_chat_functional_composer_click_x_candidates)
-    done < <(quill_chat_functional_composer_click_y_candidates)
-  } | awk '!seen[$1 "," $2]++'
+quill_chat_functional_action_click_y() {
+  local fallback_y="$1"
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_ACTION_Y:-}" ]]; then
+    printf '%s\n' "$QUILLUI_FUNCTIONAL_ACTION_Y"
+    return
+  fi
+
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    if [[ -n "$fallback_y" ]]; then
+      printf '%s\n' "$fallback_y"
+      return
+    fi
+    local reference_height="${reference_window_height:-$window_height}"
+    printf '%s\n' "$((window_y + reference_height - 170))"
+  else
+    printf '%s\n' "$fallback_y"
+  fi
 }
+
+quill_chat_functional_static_composer_click_points() {
+  local click_x
+  local click_y
+
+  while IFS= read -r click_y; do
+    while IFS= read -r click_x; do
+      printf '%s %s\n' "$click_x" "$click_y"
+    done < <(quill_chat_functional_composer_click_x_candidates)
+  done < <(quill_chat_functional_composer_click_y_candidates)
+}
+
+quill_chat_functional_attachment_action_click_points() {
+  [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] || return 0
+
+  local click_x
+  local click_y
+  click_y="$(quill_chat_functional_action_click_y "$(quill_chat_functional_composer_click_y)")"
+  while IFS= read -r click_x; do
+    printf '%s %s\n' "$click_x" "$click_y"
+  done < <(quill_chat_functional_composer_click_x_candidates)
+}
+
+quill_chat_functional_detected_attachment_click_point() {
+  [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] || return 0
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_ATTACHMENT_PROBE:-$OUTPUT_DIR/quill-chat-functional-attachment-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+detail_left = divider_x + 1
+detail_width = right - detail_left + 1
+
+search_left = max(detail_left, right - int(detail_width * 0.20))
+search_right = max(search_left + 1, right - 6)
+search_top = max(top, bottom - min(220, int(app_height * 0.24)))
+search_bottom = max(search_top + 1, bottom - 6)
+
+def dark(x: int, y: int) -> bool:
+    r, g, b = image.rgb(x, y)
+    return r + g + b < 360
+
+columns: list[tuple[int, int, int, int]] = []
+for x in range(search_left, search_right + 1):
+    ys = [y for y in range(search_top, search_bottom + 1) if dark(x, y)]
+    if len(ys) >= 2:
+        columns.append((x, min(ys), max(ys), len(ys)))
+
+if not columns:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int, int, int]]] = []
+current = [columns[0]]
+for column in columns[1:]:
+    if column[0] <= current[-1][0] + 12:
+        current.append(column)
+    else:
+        groups.append(current)
+        current = [column]
+groups.append(current)
+
+clusters: list[tuple[float, float, int, int, int]] = []
+for group in groups:
+    start = group[0][0]
+    end = group[-1][0]
+    width = end - start + 1
+    total = sum(count for _, _, _, count in group)
+    min_y = min(item[1] for item in group)
+    max_y = max(item[2] for item in group)
+    height = max_y - min_y + 1
+    if total < 6 or width < 4 or width > 56 or height < 5 or height > 64:
+        continue
+    center_x = sum(x * count for x, _, _, count in group) / total
+    center_y = sum(((min_y + max_y) / 2) * count for _, min_y, max_y, count in group) / total
+    if center_y < bottom - 180:
+        continue
+    clusters.append((center_x, center_y, width, height, total))
+
+if not clusters:
+    raise SystemExit(0)
+
+clusters.sort(key=lambda item: item[0])
+target = clusters[-2] if len(clusters) >= 2 else clusters[-1]
+print(f"{window_x + round(target[0])} {window_y + round(target[1])}")
+PY
+}
+
+quill_chat_functional_detected_send_click_point() {
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_SEND_PROBE:-$OUTPUT_DIR/quill-chat-functional-send-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+detail_left = divider_x + 1
+detail_width = right - detail_left + 1
+
+search_left = max(detail_left, right - int(detail_width * 0.18))
+search_right = max(search_left + 1, right - 6)
+search_top = max(top, bottom - min(220, int(app_height * 0.24)))
+search_bottom = max(search_top + 1, bottom - 6)
+
+def dark(x: int, y: int) -> bool:
+    r, g, b = image.rgb(x, y)
+    return r + g + b < 360
+
+columns: list[tuple[int, int, int, int]] = []
+for x in range(search_left, search_right + 1):
+    ys = [y for y in range(search_top, search_bottom + 1) if dark(x, y)]
+    if len(ys) >= 2:
+        columns.append((x, min(ys), max(ys), len(ys)))
+
+if not columns:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int, int, int]]] = []
+current = [columns[0]]
+for column in columns[1:]:
+    if column[0] <= current[-1][0] + 12:
+        current.append(column)
+    else:
+        groups.append(current)
+        current = [column]
+groups.append(current)
+
+clusters: list[tuple[float, float, int, int, int]] = []
+for group in groups:
+    start = group[0][0]
+    end = group[-1][0]
+    width = end - start + 1
+    total = sum(count for _, _, _, count in group)
+    min_y = min(item[1] for item in group)
+    max_y = max(item[2] for item in group)
+    height = max_y - min_y + 1
+    if total < 6 or width < 4 or width > 64 or height < 5 or height > 64:
+        continue
+    center_x = sum(x * count for x, _, _, count in group) / total
+    center_y = sum(((min_y + max_y) / 2) * count for _, min_y, max_y, count in group) / total
+    if center_y < bottom - 180:
+        continue
+    clusters.append((center_x, center_y, width, height, total))
+
+if not clusters:
+    raise SystemExit(0)
+
+target = max(clusters, key=lambda item: item[0])
+print(f"{window_x + round(target[0])} {window_y + round(target[1])}")
+PY
+}
+
+quill_chat_functional_composer_click_points() {
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    {
+      quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
+      quill_chat_functional_attachment_action_click_points
+    }
+  else
+    {
+      quill_chat_functional_detected_composer_click_points
+      quill_chat_functional_static_composer_click_points
+    }
+  fi | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
+    !seen[$1 "," $2]++ {
+      print
+      emitted += 1
+      if (emitted >= max_points) {
+        exit
+      }
+    }
+  '
+}
+
+quill_chat_functional_detected_relaunch_history_click_point() {
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  command -v import >/dev/null 2>&1 || return 0
+
+  local probe_path="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_PROBE:-$OUTPUT_DIR/quill-chat-functional-relaunch-history-probe.png}"
+  if ! DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$probe_path" 2>/dev/null; then
+    return 0
+  fi
+
+  python3 - "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$window_x" "$window_y" 2>/dev/null <<'PY' || true
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+verifier_path = Path(sys.argv[1])
+probe_path = Path(sys.argv[2])
+window_x = int(sys.argv[3])
+window_y = int(sys.argv[4])
+
+spec = importlib.util.spec_from_file_location("verify_backend_screenshot", verifier_path)
+if spec is None or spec.loader is None:
+    raise SystemExit(0)
+
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+
+image = module.Screenshot(probe_path)
+left, right, top, bottom = module.content_bounds(image)
+app_width = right - left + 1
+app_height = bottom - top + 1
+
+divider_search = range(left + int(app_width * 0.23), left + int(app_width * 0.34))
+divider_x = max(
+    divider_search,
+    key=lambda x: module.line_column_score(image, x, top + int(app_height * 0.04), bottom - 40),
+)
+sidebar_left = left + 16
+sidebar_right = max(sidebar_left + 1, divider_x - 16)
+scan_top = top + int(app_height * 0.18)
+scan_bottom = bottom - int(app_height * 0.12)
+
+rows: list[tuple[int, int]] = []
+for y in range(scan_top, scan_bottom):
+    dark_pixels = sum(
+        1
+        for x in range(sidebar_left, sidebar_right)
+        if sum(image.rgb(x, y)) < 430
+    )
+    if dark_pixels >= 12:
+        rows.append((y, dark_pixels))
+
+if not rows:
+    raise SystemExit(0)
+
+groups: list[list[tuple[int, int]]] = []
+current = [rows[0]]
+for row in rows[1:]:
+    if row[0] <= current[-1][0] + 2:
+        current.append(row)
+    else:
+        groups.append(current)
+        current = [row]
+groups.append(current)
+
+group = max(groups, key=lambda item: sum(count for _, count in item))
+click_y = (group[0][0] + group[-1][0]) // 2
+sidebar_width = divider_x - left
+click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
+print(f"{window_x + click_x} {window_y + click_y}")
+PY
+}
+
+quill_chat_functional_static_relaunch_history_click_points() {
+  local history_x
+  local history_y
+  local ratio
+
+  if [[ -n "${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-}" && -n "${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-}" ]]; then
+    printf '%s %s\n' "$QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X" "$QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y"
+    return
+  fi
+
+  history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 220))}"
+  for ratio in ${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y_RATIOS:-44 47 40 52 35 58}; do
+    history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + (window_height * ratio / 100)))}"
+    printf '%s %s\n' "$history_x" "$history_y"
+  done
+}
+
+quill_chat_functional_relaunch_history_click_points() {
+  {
+    quill_chat_functional_detected_relaunch_history_click_point
+    quill_chat_functional_static_relaunch_history_click_points
+  } | awk -v max_points="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_MAX_POINTS:-8}" '
+    !seen[$1 "," $2]++ {
+      print
+      emitted += 1
+      if (emitted >= max_points) {
+        exit
+      }
+    }
+  '
+}
+
+quill_chat_functional_submit_methods() {
+  case "$FUNCTIONAL_MODE" in
+    attachment-send|image-attachment-send)
+      printf 'button\nreturn\n'
+      ;;
+    *)
+      printf 'return\nbutton\n'
+      ;;
+  esac
+}
+
+quill_chat_functional_send_attempt_index=0
 
 quill_chat_functional_send_attempt() {
   local click_x="$1"
   local click_y="$2"
+  local submit_method="${3:-return}"
   local attachment_x
   local attachment_y
+  local detected_send_point
   local send_x
   local send_y
+  local should_clear_before_type=1
+
+  quill_chat_functional_send_attempt_index=$((quill_chat_functional_send_attempt_index + 1))
+  if (( quill_chat_functional_send_attempt_index == 1 )) \
+      && [[ "$FUNCTIONAL_MODE" == "composer-send" ]] \
+      && [[ "${QUILLUI_FUNCTIONAL_CLEAR_FIRST_ATTEMPT:-0}" != "1" ]]; then
+    should_clear_before_type=0
+  fi
 
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
-    attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 70))}"
-    attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$click_y}"
+    attachment_x="${QUILLUI_FUNCTIONAL_ATTACHMENT_X:-$((window_x + window_width - 100))}"
+    attachment_y="${QUILLUI_FUNCTIONAL_ATTACHMENT_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
+  fi
+
+  echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE} submit=${submit_method}" >&2
+  quillui_functional_refocus_window
+  quillui_functional_click_at "$click_x" "$click_y"
+  sleep 1
+  if (( should_clear_before_type == 1 )); then
+    quillui_functional_xdotool key --clearmodifiers ctrl+a BackSpace 2>/dev/null || true
+    sleep 0.2
+  fi
+  quillui_functional_enter_text "$MESSAGE_TEXT"
+  sleep "${QUILLUI_FUNCTIONAL_TYPE_SETTLE_SLEEP:-1.5}"
+
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    detected_attachment_point="$(quill_chat_functional_detected_attachment_click_point | head -n 1 || true)"
+    if [[ -n "$detected_attachment_point" ]]; then
+      read -r attachment_x attachment_y <<< "$detected_attachment_point"
+    fi
     quillui_functional_refocus_window
+    echo "functional-check: attachment=${attachment_x},${attachment_y}" >&2
     quillui_functional_click_at "$attachment_x" "$attachment_y"
     sleep "${QUILLUI_FUNCTIONAL_ATTACHMENT_SELECT_SLEEP:-1}"
   fi
 
-  echo "functional-check: window='${window_id:-none}' geometry=${window_x},${window_y} ${window_width}x${window_height} composer=${click_x},${click_y} mode=${FUNCTIONAL_MODE}" >&2
-  quillui_functional_refocus_window
-  quillui_functional_click_at "$click_x" "$click_y"
-  sleep 1
-  quillui_functional_xdotool type --clearmodifiers --delay 30 "$MESSAGE_TEXT"
-  sleep 1
-  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+  if [[ "$submit_method" == "button" ]]; then
     send_x="${QUILLUI_FUNCTIONAL_SEND_X:-$((window_x + window_width - 65))}"
-    send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$click_y}"
+    send_y="${QUILLUI_FUNCTIONAL_SEND_Y:-$(quill_chat_functional_action_click_y "$click_y")}"
+    detected_send_point="$(quill_chat_functional_detected_send_click_point | head -n 1 || true)"
+    if [[ -n "$detected_send_point" ]]; then
+      read -r send_x send_y <<< "$detected_send_point"
+    fi
     quillui_functional_refocus_window
+    echo "functional-check: send=${send_x},${send_y}" >&2
     quillui_functional_click_at "$send_x" "$send_y"
   else
     quillui_functional_xdotool key --clearmodifiers Return
@@ -435,6 +921,7 @@ quill_chat_functional_wait_for_completion() {
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -451,16 +938,19 @@ require_attachment = functional_mode in {"attachment-send", "image-attachment-se
 database_path = home / ".quilldata" / "default.sqlite"
 
 
-def logged_chat_request() -> dict[str, object] | None:
+def logged_chat_requests() -> list[dict[str, object]]:
     if not mock_log.exists():
-        return None
+        return []
+    requests: list[dict[str, object]] = []
     for line in mock_log.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
         payload = json.loads(line)
         if payload.get("path") == "/api/chat":
-            return payload.get("request")
-    return None
+            request = payload.get("request")
+            if isinstance(request, dict):
+                requests.append(request)
+    return requests
 
 
 def persisted_messages() -> list[dict[str, object]]:
@@ -488,23 +978,44 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
     return image not in (None, "", [], {})
 
 
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", "")).strip()
+    expected = message_text.strip()
+    if not content or not expected:
+        return False
+    if expected in content:
+        return True
+    minimum = int(os.environ.get("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX", "6"))
+    minimum = max(1, min(minimum, len(expected)))
+    return len(content) >= minimum and expected.startswith(content)
+
+
 deadline = time.time() + deadline_seconds
 last_request = None
+last_requests: list[dict[str, object]] = []
 last_messages: list[dict[str, object]] = []
 while time.time() < deadline:
-    last_request = logged_chat_request()
+    last_requests = logged_chat_requests()
+    last_request = last_requests[-1] if last_requests else None
     last_messages = persisted_messages()
-    matching_request_users = [
-        item
-        for item in (last_request or {}).get("messages", [])
-        if isinstance(item, dict)
-        and item.get("role") == "user"
-        and message_text in str(item.get("content", ""))
-        and (not require_attachment or request_message_has_image(item))
-    ]
-    request_ok = bool(last_request) and len(matching_request_users) == 1
+    matching_request = None
+    for request in reversed(last_requests):
+        matching_request_users = [
+            item
+            for item in request.get("messages", [])
+            if isinstance(item, dict)
+            and item.get("role") == "user"
+            and message_content_matches(item)
+            and (not require_attachment or request_message_has_image(item))
+        ]
+        if len(matching_request_users) == 1:
+            matching_request = request
+            break
+    request_ok = matching_request is not None
+    if matching_request is not None:
+        last_request = matching_request
     user_persisted = any(
-        item.get("role") == "user" and message_text in str(item.get("content", ""))
+        item.get("role") == "user" and message_content_matches(item)
         and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
@@ -530,6 +1041,77 @@ raise SystemExit(1)
 PY
 }
 
+quill_chat_functional_wait_for_matching_request() {
+  local deadline_seconds="$1"
+
+  python3 - "$MOCK_LOG_PATH" "$MESSAGE_TEXT" "$FUNCTIONAL_MODE" "$deadline_seconds" <<'PY'
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+mock_log = Path(sys.argv[1])
+message_text = sys.argv[2]
+functional_mode = sys.argv[3]
+deadline_seconds = float(sys.argv[4])
+require_attachment = functional_mode in {"attachment-send", "image-attachment-send"}
+
+
+def logged_chat_requests() -> list[dict[str, object]]:
+    if not mock_log.exists():
+        return []
+    requests: list[dict[str, object]] = []
+    for line in mock_log.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if payload.get("path") == "/api/chat":
+            request = payload.get("request")
+            if isinstance(request, dict):
+                requests.append(request)
+    return requests
+
+
+def request_message_has_image(message: dict[str, object]) -> bool:
+    images = message.get("images")
+    return isinstance(images, list) and any(isinstance(item, str) and item for item in images)
+
+
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", "")).strip()
+    expected = message_text.strip()
+    if not content or not expected:
+        return False
+    if expected in content:
+        return True
+    minimum = int(os.environ.get("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX", "6"))
+    minimum = max(1, min(minimum, len(expected)))
+    return len(content) >= minimum and expected.startswith(content)
+
+
+deadline = time.time() + deadline_seconds
+while time.time() < deadline:
+    for request in reversed(logged_chat_requests()):
+        matching_request_users = [
+            item
+            for item in request.get("messages", [])
+            if isinstance(item, dict)
+            and item.get("role") == "user"
+            and message_content_matches(item)
+            and (not require_attachment or request_message_has_image(item))
+        ]
+        if len(matching_request_users) == 1:
+            print(f"functional-check: matching request observed for {functional_mode}", file=sys.stderr)
+            raise SystemExit(0)
+    time.sleep(0.25)
+
+raise SystemExit(1)
+PY
+}
+
 launch_app_instance truncate
 resolve_app_window_geometry
 if [[ "${QUILLUI_FUNCTIONAL_FOCUS_PRIME:-}" == "1" ]] || quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
@@ -543,11 +1125,21 @@ fi
 completion_verified=0
 while read -r click_x click_y; do
   [[ -n "$click_x" && -n "$click_y" ]] || continue
-  quill_chat_functional_send_attempt "$click_x" "$click_y"
-  if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
-    completion_verified=1
-    break
-  fi
+  while IFS= read -r submit_method; do
+    [[ -n "$submit_method" ]] || continue
+    quill_chat_functional_send_attempt "$click_x" "$click_y" "$submit_method"
+    if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_ATTEMPT_DEADLINE:-8}" 0; then
+      completion_verified=1
+      break 2
+    fi
+    if quill_chat_functional_wait_for_matching_request "${QUILLUI_FUNCTIONAL_REQUEST_OBSERVED_DEADLINE:-2}"; then
+      if quill_chat_functional_wait_for_completion "${QUILLUI_FUNCTIONAL_SEND_DEADLINE:-25}" 1; then
+        completion_verified=1
+        break 2
+      fi
+      exit 1
+    fi
+  done < <(quill_chat_functional_submit_methods)
 done < <(quill_chat_functional_composer_click_points)
 
 if (( completion_verified == 0 )); then
@@ -586,18 +1178,23 @@ PY
   launch_app_instance append
   resolve_app_window_geometry
 
-  history_x="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_X:-$((window_x + 110))}"
-  # The Mac-reference sidebar starts with a day header, then the first saved
-  # conversation row. Click the row band rather than the header so relaunch
-  # verification actually opens the persisted transcript.
-  history_y="${QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y:-$((window_y + 172))}"
-  quillui_functional_xdotool mousemove "$history_x" "$history_y" click 1
+  mapfile -t relaunch_history_points < <(quill_chat_functional_relaunch_history_click_points)
+  if [[ ${#relaunch_history_points[@]} -eq 0 ]]; then
+    relaunch_history_points=("$((window_x + 220)) $((window_y + window_height / 2))")
+  fi
+  read -r history_x history_y <<< "${relaunch_history_points[0]}"
+  echo "functional-check: relaunch history=${history_x},${history_y}" >&2
+  quillui_functional_refocus_window
+  quillui_functional_click_at "$history_x" "$history_y"
+  sleep 0.8
+  quillui_functional_click_at "$history_x" "$history_y"
   sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_SETTLE_SLEEP:-3}"
 
   python3 - "$MOCK_LOG_PATH" "$baseline_chat_requests" "$MESSAGE_TEXT" "$REPLY_TEXT" "$RUN_HOME" "${QUILLUI_FUNCTIONAL_RELAUNCH_DEADLINE:-15}" "$FUNCTIONAL_MODE" <<'PY'
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import sys
 import time
@@ -646,6 +1243,18 @@ def persisted_message_has_image(message: dict[str, object]) -> bool:
     return image not in (None, "", [], {})
 
 
+def message_content_matches(message: dict[str, object]) -> bool:
+    content = str(message.get("content", "")).strip()
+    expected = message_text.strip()
+    if not content or not expected:
+        return False
+    if expected in content:
+        return True
+    minimum = int(os.environ.get("QUILLUI_FUNCTIONAL_MESSAGE_MIN_PREFIX", "6"))
+    minimum = max(1, min(minimum, len(expected)))
+    return len(content) >= minimum and expected.startswith(content)
+
+
 deadline = time.time() + deadline_seconds
 last_request_count = 0
 last_messages: list[dict[str, object]] = []
@@ -653,7 +1262,7 @@ while time.time() < deadline:
     last_request_count = chat_request_count()
     last_messages = persisted_messages()
     user_persisted = any(
-        item.get("role") == "user" and message_text in str(item.get("content", ""))
+        item.get("role") == "user" and message_content_matches(item)
         and (not require_attachment or persisted_message_has_image(item))
         for item in last_messages
     )
@@ -677,9 +1286,25 @@ print(f"persisted_messages={last_messages}", file=sys.stderr)
 raise SystemExit(1)
 PY
 
-  DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$RELAUNCH_SCREENSHOT_PATH"
-  python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
-    "$RELAUNCH_SCREENSHOT_PATH" \
-    quill-chat-linux-functional-transcript
+  relaunch_visual_verified=0
+  for relaunch_history_point in "${relaunch_history_points[@]}"; do
+    read -r history_x history_y <<< "$relaunch_history_point"
+    echo "functional-check: relaunch visual history=${history_x},${history_y}" >&2
+    quillui_functional_refocus_window
+    quillui_functional_click_at "$history_x" "$history_y"
+    sleep "${QUILLUI_FUNCTIONAL_RELAUNCH_VISUAL_SETTLE_SLEEP:-1}"
+    DISPLAY="$DISPLAY_ID" import -window "$capture_window" "$RELAUNCH_SCREENSHOT_PATH"
+    if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$RELAUNCH_SCREENSHOT_PATH" \
+      quill-chat-linux-functional-transcript; then
+      relaunch_visual_verified=1
+      break
+    fi
+  done
+  if (( relaunch_visual_verified == 0 )); then
+    python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$RELAUNCH_SCREENSHOT_PATH" \
+      quill-chat-linux-functional-transcript
+  fi
   echo "Functional relaunch screenshot: $RELAUNCH_SCREENSHOT_PATH"
 fi

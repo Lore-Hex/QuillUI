@@ -29,6 +29,144 @@ public enum QuillSignalRealConversationProbe {
         try await makeViewController(mode: .accepted, width: width, height: height)
     }
 
+    nonisolated public static func acceptedInteractionDebugSummary() throws -> String {
+        try SSKEnvironment.shared.databaseStorageRef.read { tx in
+            let thread = try acceptedThread(transaction: tx)
+            return try interactionDebugSummary(threadUniqueId: thread.uniqueId, database: tx.database)
+        }
+    }
+
+    public static func injectAcceptedIncomingMessage(_ text: String, in viewController: UIViewController) async throws -> String {
+        guard let cvc = viewController as? ConversationViewController else {
+            throw QuillSignalRealConversationProbeError.unexpectedViewController(String(describing: type(of: viewController)))
+        }
+
+        let interactionUniqueId = try await SSKEnvironment.shared.databaseStorageRef.awaitableWrite { tx throws(QuillSignalRealConversationProbeError) in
+            let thread = try acceptedThread(transaction: tx)
+            let now = UInt64(Date().timeIntervalSince1970 * 1000)
+            let message = TSIncomingMessageBuilder.withDefaultValues(
+                thread: thread,
+                timestamp: now,
+                receivedAtTimestamp: now,
+                authorAci: acceptedContactAci,
+                authorE164: acceptedContactE164,
+                messageBody: QuillSignalSeedMessageBody(text),
+                read: false,
+                serverTimestamp: now,
+                serverDeliveryTimestamp: now,
+                serverGuid: "quill-real-conversation-accepted-injected-\(UUID().uuidString)",
+                wasReceivedByUD: false,
+            )
+            .build()
+            message.anyInsert(transaction: tx)
+            return message.uniqueId
+        }
+
+        cvc.loadCoordinator.enqueueReload(
+            scrollAction: CVScrollAction(action: .bottomForNewMessage, isAnimated: false)
+        )
+
+        for _ in 0..<80 {
+            cvc.view.layoutIfNeeded()
+            if cvc.renderItems.contains(where: { $0.interactionUniqueId == interactionUniqueId }) {
+                reloadConversationCollection(cvc)
+                return try acceptedInteractionDebugSummary()
+            }
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        throw QuillSignalRealConversationProbeError.injectedMessageDidNotRender(
+            interactionUniqueId: interactionUniqueId,
+            renderItems: cvc.renderItems.count,
+        )
+    }
+
+    public static func settlePendingRequestContinuation(in viewController: UIViewController) async throws -> String {
+        guard let cvc = viewController as? ConversationViewController else {
+            throw QuillSignalRealConversationProbeError.unexpectedViewController(String(describing: type(of: viewController)))
+        }
+
+        for _ in 0..<100 {
+            if try pendingRequestDebugSummary(cvc: cvc).dbPending == false {
+                SUIEnvironment.shared.quillInstallRenderLinkPreviewFetcher(QuillSignalRenderLinkPreviewFetcher())
+                cvc.isInPreviewPlatter = false
+            }
+            cvc.loadCoordinator.enqueueReload(
+                scrollAction: CVScrollAction(action: .bottomForNewMessage, isAnimated: false)
+            )
+            cvc.view.layoutIfNeeded()
+            reloadConversationCollection(cvc)
+            cvc.ensureBottomViewType()
+            cvc.inputToolbar?.scrollToBottom()
+
+            let summary = try pendingRequestDebugSummary(cvc: cvc)
+            if summary.dbPending == false,
+               summary.viewModelPending == false,
+               summary.bottomViewType == "inputToolbar",
+               summary.hasInputToolbar {
+                return "\(summary.description) \(systemMessageLayoutDebugSummary(cvc: cvc))"
+            }
+
+            try await Task.sleep(nanoseconds: 30_000_000)
+        }
+
+        throw QuillSignalRealConversationProbeError.pendingRequestDidNotSettle(
+            summary: try pendingRequestDebugSummary(cvc: cvc).description,
+        )
+    }
+
+    private nonisolated static func acceptedThread(transaction tx: DBReadTransaction) throws(QuillSignalRealConversationProbeError) -> TSContactThread {
+        let contactAddress = SignalServiceAddress(
+            serviceId: Aci(fromUUID: UUID(uuidString: "44444444-4444-4444-8444-444444444444")!),
+            e164: E164("+15555550112")!
+        )
+        guard let thread = TSContactThread.getWithContactAddress(contactAddress, transaction: tx) else {
+            throw QuillSignalRealConversationProbeError.missingSeedThread
+        }
+        return thread
+    }
+
+    private static func pendingRequestDebugSummary(cvc: ConversationViewController) throws -> PendingRequestDebugSummary {
+        let dbPending = try SSKEnvironment.shared.databaseStorageRef.read { tx throws(QuillSignalRealConversationProbeError) in
+            guard let thread = TSContactThread.getWithContactAddress(SeedMode.pendingRequest.contactAddress, transaction: tx) else {
+                throw .missingSeedThread
+            }
+            return thread.hasPendingMessageRequest(transaction: tx)
+        }
+        return PendingRequestDebugSummary(
+            dbPending: dbPending,
+            viewModelPending: cvc.threadViewModel.hasPendingMessageRequest,
+            bottomViewType: String(describing: cvc.bottomViewType),
+            hasInputToolbar: cvc.inputToolbar != nil,
+        )
+    }
+
+    private static func systemMessageLayoutDebugSummary(cvc: ConversationViewController) -> String {
+        let rows = cvc.renderItems.compactMap { item -> String? in
+            guard let infoMessage = item.interaction as? TSInfoMessage else { return nil }
+            let buttonSize = item.cellMeasurement.size(
+                key: "CVComponentSystemMessage.measurementKey_buttonSize"
+            ) ?? .zero
+            return "info:\(infoMessage.messageType):cell=\(Int(item.cellSize.width))x\(Int(item.cellSize.height)):collapse=\(item.itemViewState.shouldCollapseSystemMessageAction):button=\(Int(buttonSize.width))x\(Int(buttonSize.height))"
+        }
+        return "systemRows=[\(rows.joined(separator: ","))]"
+    }
+
+    private nonisolated static func interactionDebugSummary(threadUniqueId: String, database: Database) throws -> String {
+        let bodies = try String.fetchAll(
+            database,
+            sql: """
+                SELECT COALESCE(body, '')
+                FROM \(InteractionRecord.databaseTableName)
+                WHERE uniqueThreadId = ?
+                ORDER BY timestamp ASC, id ASC
+                """,
+            arguments: [threadUniqueId],
+        )
+        let bodyList = bodies.map { "\"\($0.replacingOccurrences(of: "\"", with: "\\\""))\"" }.joined(separator: ", ")
+        return "count=\(bodies.count) bodies=[\(bodyList)]"
+    }
+
     private static func makeViewController(mode: SeedMode, width: CGFloat, height: CGFloat) async throws -> UIViewController {
         let bootstrap = try await quillBootstrapSignalRenderEnvironment()
         if mode.shouldShowInputToolbar {
@@ -73,15 +211,39 @@ public enum QuillSignalRealConversationProbe {
             )
             bootstrap.dependenciesBridge.tsAccountManager.setRegistrationId(1234, for: .aci, tx: tx)
             bootstrap.dependenciesBridge.tsAccountManager.setRegistrationId(5678, for: .pni, tx: tx)
+            if SSKEnvironment.shared.profileManagerRef.localProfileKey(tx: tx) == nil {
+                let keyData = Data((0..<Int(Aes256Key.keyByteLength)).map { UInt8($0 + 1) })
+                SSKEnvironment.shared.profileManagerRef.setLocalProfileKey(
+                    Aes256Key(data: keyData)!,
+                    userProfileWriter: .localUser,
+                    transaction: tx,
+                )
+            }
 
             let contactAddress = mode.contactAddress
             let thread = TSContactThread.getOrCreateThread(withContactAddress: contactAddress, transaction: tx)
             ThreadAssociatedData.create(for: thread.uniqueId, transaction: tx)
 
+            guard var recipient = bootstrap.dependenciesBridge.recipientFetcher.fetchOrCreate(address: contactAddress, tx: tx) else {
+                throw .missingSeedRecipient
+            }
+            bootstrap.dependenciesBridge.recipientManager.markAsRegisteredAndSave(
+                &recipient,
+                shouldUpdateStorageService: false,
+                tx: tx,
+            )
+            bootstrap.dependenciesBridge.nicknameManager.createOrUpdate(
+                nicknameRecord: NicknameRecord(
+                    recipient: recipient,
+                    givenName: mode.contactGivenName,
+                    familyName: mode.contactFamilyName,
+                    note: nil,
+                ),
+                updateStorageServiceFor: nil,
+                tx: tx,
+            )
+
             if mode.shouldAcceptThread {
-                guard var recipient = bootstrap.dependenciesBridge.recipientFetcher.fetchOrCreate(address: contactAddress, tx: tx) else {
-                    throw .missingSeedRecipient
-                }
                 SSKEnvironment.shared.profileManagerRef.addRecipientToProfileWhitelist(
                     &recipient,
                     userProfileWriter: .localUser,
@@ -164,7 +326,7 @@ public enum QuillSignalRealConversationProbe {
         for _ in 0..<80 {
             cvc.view.layoutIfNeeded()
             if !cvc.renderItems.isEmpty {
-                cvc.collectionView.reloadData()
+                reloadConversationCollection(cvc)
                 if !cvc.collectionView.visibleCells.isEmpty {
                     return
                 }
@@ -178,6 +340,12 @@ public enum QuillSignalRealConversationProbe {
             shouldHideContent: cvc.loadCoordinator.shouldHideCollectionViewContent,
         )
     }
+
+    private static func reloadConversationCollection(_ cvc: ConversationViewController) {
+        cvc.layout.invalidateLayout()
+        cvc.collectionView.reloadData()
+        cvc.view.layoutIfNeeded()
+    }
 }
 
 public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertible {
@@ -185,6 +353,9 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
     case missingSeedRecipient
     case missingSeedThread
     case initialRenderDidNotProduceCells(renderItems: Int, visibleCells: Int, shouldHideContent: Bool)
+    case unexpectedViewController(String)
+    case injectedMessageDidNotRender(interactionUniqueId: String, renderItems: Int)
+    case pendingRequestDidNotSettle(summary: String)
 
     public var description: String {
         switch self {
@@ -196,7 +367,24 @@ public enum QuillSignalRealConversationProbeError: Error, CustomStringConvertibl
             return "Seeded Signal contact thread could not be reloaded."
         case let .initialRenderDidNotProduceCells(renderItems, visibleCells, shouldHideContent):
             return "Real ConversationViewController did not produce visible cells after its initial load (renderItems=\(renderItems), visibleCells=\(visibleCells), shouldHideContent=\(shouldHideContent))."
+        case let .unexpectedViewController(typeName):
+            return "Expected ConversationViewController, received \(typeName)."
+        case let .injectedMessageDidNotRender(interactionUniqueId, renderItems):
+            return "Injected incoming message did not render (interactionUniqueId=\(interactionUniqueId), renderItems=\(renderItems))."
+        case let .pendingRequestDidNotSettle(summary):
+            return "Pending request did not settle after Continue (\(summary))."
         }
+    }
+}
+
+private struct PendingRequestDebugSummary: CustomStringConvertible {
+    let dbPending: Bool
+    let viewModelPending: Bool
+    let bottomViewType: String
+    let hasInputToolbar: Bool
+
+    var description: String {
+        "dbPending=\(dbPending) viewModelPending=\(viewModelPending) bottomViewType=\(bottomViewType) hasInputToolbar=\(hasInputToolbar)"
     }
 }
 
@@ -245,6 +433,24 @@ private enum SeedMode {
         SignalServiceAddress(serviceId: contactAci, e164: contactE164)
     }
 
+    var contactGivenName: String {
+        switch self {
+        case .pendingRequest:
+            return "Maya"
+        case .accepted:
+            return "Nina"
+        }
+    }
+
+    var contactFamilyName: String {
+        switch self {
+        case .pendingRequest:
+            return "Rivera"
+        case .accepted:
+            return "Park"
+        }
+    }
+
     var shouldAcceptThread: Bool {
         switch self {
         case .pendingRequest:
@@ -266,18 +472,18 @@ private enum SeedMode {
     var incomingText: String {
         switch self {
         case .pendingRequest:
-            return "Hey, this is the real ConversationViewController loading from Signal storage."
+            return "Hey, I just sent this from the seeded Signal storage path."
         case .accepted:
-            return "The accepted-thread path should show Signal's real composer instead of message-request actions."
+            return "Hey, can you review the latest Signal render on Linux?"
         }
     }
 
     var outgoingText: String {
         switch self {
         case .pendingRequest:
-            return "And this reply is a real TSOutgoingMessage rendered through CVC."
+            return "It is rendering through the real ConversationViewController."
         case .accepted:
-            return "This reply keeps the same real CVC message pipeline while exercising the input toolbar."
+            return "Yes. The real conversation view, message bubbles, and composer are on screen now."
         }
     }
 

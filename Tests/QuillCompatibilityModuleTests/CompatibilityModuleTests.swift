@@ -333,6 +333,39 @@ private final class CompatibilityLockedValue<Value>: @unchecked Sendable {
     }
 }
 
+private struct CompatibilitySuggestion: Identifiable, Equatable {
+    let id: String
+    let title: String
+}
+
+private struct CompatibilitySuggestionPanel: View {
+    var suggestions: [CompatibilitySuggestion]
+    var selectedIndex: Int
+    var onSelect: (CompatibilitySuggestion) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            suggestionRows
+        }
+    }
+
+    @ViewBuilder
+    private var suggestionRows: some View {
+        ForEach(suggestions) { suggestion in
+            let decoratedTitle = "\(suggestion.title) command"
+            let isSelected = suggestions.firstIndex(of: suggestion) == selectedIndex
+            Button {
+                onSelect(suggestion)
+            } label: {
+                HStack {
+                    Text(decoratedTitle)
+                    Text(isSelected ? "selected" : "idle")
+                }
+            }
+        }
+    }
+}
+
 @MainActor
 private final class CollectionViewProbe: UICollectionViewDataSource, UICollectionViewDelegate {
     var requestedCells: [IndexPath] = []
@@ -403,6 +436,35 @@ private final class MutableCollectionViewProbe: UICollectionViewDataSource, UICo
 }
 
 @MainActor
+private final class InvalidatingCollectionViewLayout: UICollectionViewLayout {
+    var itemHeight: CGFloat = 24
+
+    override var collectionViewContentSize: CGSize {
+        CGSize(width: collectionView?.bounds.width ?? 0, height: itemHeight)
+    }
+
+    override func layoutAttributesForElements(in rect: CGRect) -> [UICollectionViewLayoutAttributes]? {
+        guard let attributes = layoutAttributesForItem(at: IndexPath(item: 0, section: 0)),
+              attributes.frame.intersects(rect) || rect.isEmpty else {
+            return []
+        }
+        return [attributes]
+    }
+
+    override func layoutAttributesForItem(at indexPath: IndexPath) -> UICollectionViewLayoutAttributes? {
+        guard indexPath.section == 0, indexPath.item == 0 else { return nil }
+        let attributes = UICollectionViewLayoutAttributes(forCellWith: indexPath)
+        attributes.frame = CGRect(
+            x: 0,
+            y: 0,
+            width: collectionView?.bounds.width ?? 0,
+            height: itemHeight
+        )
+        return attributes
+    }
+}
+
+@MainActor
 private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
     var allowsChanges = true
     var shouldBeginRequests = 0
@@ -441,6 +503,39 @@ private final class UIKitTextViewDelegateProbe: NSObject, UITextViewDelegate {
     func textViewDidChangeSelection(_ textView: UITextView) {
         _ = textView
         selectionNotifications += 1
+    }
+}
+
+private final class UIKitRecordingTextStorage: UIKit.NSTextStorage {
+    private let backing: NSMutableAttributedString
+    var replacements: [(range: NSRange, string: String)] = []
+
+    init(_ string: String) {
+        self.backing = NSMutableAttributedString(string: string)
+        super.init(string: "")
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var string: String {
+        backing.string
+    }
+
+    override func attributes(at location: Int, effectiveRange range: NSRangePointer?) -> [NSAttributedString.Key: Any] {
+        backing.attributes(at: location, effectiveRange: range)
+    }
+
+    override func replaceCharacters(in range: NSRange, with str: String) {
+        replacements.append((range, str))
+        backing.replaceCharacters(in: range, with: str)
+        edited(.editedCharacters, range: range, changeInLength: (str as NSString).length - range.length)
+    }
+
+    override func setAttributes(_ attrs: [NSAttributedString.Key: Any]?, range: NSRange) {
+        backing.setAttributes(attrs, range: range)
+        edited(.editedAttributes, range: range, changeInLength: 0)
     }
 }
 
@@ -490,6 +585,10 @@ struct CompatibilityModuleTests {
         return (width, height)
     }
 
+    private func referencePNGFixture() -> Data? {
+        Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAAAAAA6fptVAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==")
+    }
+
     private func wavData(sampleRate: UInt32 = 8_000, channels: UInt16 = 2, frames: UInt32 = 8_000) -> Data {
         let bitsPerSample: UInt16 = 16
         let blockAlign = channels * bitsPerSample / 8
@@ -535,11 +634,183 @@ struct CompatibilityModuleTests {
         _ = Text("Quill")
             .foregroundStyle(Color("label"))
             .matchedGeometryEffect(id: "title", in: Namespace().wrappedValue)
+        _ = Text("Shape")
+            .background(AnyShapeStyle(Color.red))
+            .foregroundStyle(LinearGradient(colors: [.red, .blue], startPoint: .leading, endPoint: .trailing))
+        _ = Text("Workspace")
+            .font(.caption.monospaced().weight(.semibold))
+            .onMoveCommand { direction in
+                _ = direction
+            }
+            .accessibilityIdentifier("workspace")
+        _ = Text("Popover")
+            .popover(isPresented: .constant(false), arrowEdge: .bottom) {
+                Text("Details")
+            }
+        _ = Text("Anchored")
+            .popover(isPresented: .constant(false), attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+                Text("Anchored Details")
+            }
+        _ = LazyVGrid(
+            columns: [GridItem(.adaptive(minimum: 104), spacing: 5)],
+            alignment: .leading,
+            spacing: 5
+        ) {
+            Text("Cell")
+        }
+        _ = DisclosureGroup(isExpanded: .constant(true)) {
+            Text("Details")
+        } label: {
+            Text("Summary")
+        }
+        _ = Color.accentColor
+            .hueRotation(.degrees(-5))
+            .saturation(0.5)
+        _ = Font.system(size: 11).italic()
+        _ = Text("Deleted").strikethrough(true, color: .primary)
+        _ = Text("Deleted")
+            .font(.body)
+            .strikethrough(true, color: .primary)
+        _ = TapGesture(count: 2)
+            .onEnded { (_: TapGesture.Value) in }
+        _ = ProgressView("Loading", value: 42, total: 100)
+        _ = ProgressView {
+            Text("Loading")
+        }
+        _ = ProgressView(value: 0.4, total: 1.0) {
+            Text("Indexing")
+        } currentValueLabel: {
+            Text("40%")
+        }
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 4
+        _ = ProgressView(progress)
+        _ = Stepper("Count", value: .constant(1), in: 0...10, step: 1, format: .number)
+        _ = Stepper("Scale", value: .constant(1.0), in: 0.0...10.0, step: 0.5, format: .number)
+        _ = ColorPicker(selection: .constant(.accentColor), supportsOpacity: false) {
+            EmptyView()
+        }
+        _ = Text("Styled")
+            .bold(true)
+            .italic(false)
+        _ = Text("Gray")
+            .grayscale(0.4)
+        _ = Button("Token") {}
+            .buttonStyle(.link)
+        _ = Picker("Icon Style", selection: .constant("color")) {
+            Text("Color").tag("color")
+            Text("Mono").tag("mono")
+        }
+        .pickerStyle(.radioGroup)
+        _ = ZStack(alignment: .leadingLastTextBaseline) {
+            Text("Description")
+        }
+        _ = Rectangle()
+            .inset(by: -2)
+            .fill(.clear)
+            .listItemTint(.accentColor)
+        _ = Text("Alert")
+            .alert(Text("Confirm"), isPresented: .constant(false)) {
+                Button("OK") {}
+            }
+        _ = Menu("Commit") {
+            Button("Commit and Push...") {}
+        } primaryAction: {}
+        _ = Menu("Commit") {
+            Button("Commit and Push...") {}
+        }
+        var completedAnimation = false
+        withAnimation(.default, {}) {
+            completedAnimation = true
+        }
+        #expect(completedAnimation)
+        _ = Text("Payload Alert")
+            .alert("Confirm Step", isPresented: .constant(false), presenting: Optional("Continue?")) { confirmation in
+                Button(confirmation) {}
+            } message: { confirmation in
+                Text(confirmation)
+            }
+        enum SettingsSelection: Hashable {
+            case general
+        }
+        struct RegistryItem {
+            var name: String
+        }
+        _ = List(selection: .constant(SettingsSelection.general)) {
+            Text("General")
+        }
+        _ = List([RegistryItem(name: "swift")], id: \.name) { item in
+            Text(item.name)
+        }
+        #if os(Linux)
+        _ = Image(ImageResource.gitHubIcon)
+        #endif
+        _ = Window("Settings", id: "settings") {
+            Text("Settings")
+        }
+        .windowToolbarStyle(.unified)
+        .windowResizability(.contentSize)
+        #expect(VerticalAlignment.trailing == .center)
+        let verticalTextField = TextField("Message", text: .constant(""), axis: .vertical)
+        #expect(verticalTextField.axis == .vertical)
+        #expect(TextField("Name", text: .constant("")).axis == .horizontal)
+        let keyedTextField = verticalTextField
+            .onKeyPress(.downArrow) { .handled }
+        #expect(keyedTextField.key == .downArrow)
+        _ = keyedTextField
+            .lineLimit(1...5)
+        _ = MenuBarExtra {
+            Button("Open") {}
+        } label: {
+            Label("Quill", systemImage: "q.circle.fill")
+        }
+        let suggestions = [CompatibilitySuggestion(id: "slash", title: "Slash")]
+        let selectedIndex = 0
+        let onSelect: (CompatibilitySuggestion) -> Void = { _ in }
+        _ = ForEach(suggestions) { suggestion in
+            let decoratedTitle = "\(suggestion.title) command"
+            let isSelected = suggestions.firstIndex(of: suggestion) == selectedIndex
+            Button {
+                onSelect(suggestion)
+            } label: {
+                HStack {
+                    Text(decoratedTitle)
+                    Text(isSelected ? "selected" : "idle")
+                }
+            }
+        }
+        _ = ForEach([CompatibilitySuggestion(id: "plain", title: "Plain")]) { suggestion in
+            Text(suggestion.title)
+        }
+        _ = CompatibilitySuggestionPanel(
+            suggestions: suggestions,
+            selectedIndex: selectedIndex,
+            onSelect: onSelect
+        )
+        var environment = EnvironmentValues()
+        #expect(environment.accessibilityReduceMotion == false)
+        environment.accessibilityReduceMotion = true
+        #expect(environment.accessibilityReduceMotion)
         _ = ModelConfiguration(isStoredInMemoryOnly: true)
         _ = FetchDescriptor<CompatibilityModel>()
         _ = Window("Compatibility", id: "compatibility") {
             Text("Compatibility")
         }
+    }
+
+    @Test("UIFont descriptor size zero inherits descriptor point size")
+    func uiFontDescriptorSizeZeroInheritsDescriptorPointSize() {
+        let base = UIFont.preferredFont(forTextStyle: .footnote, compatibleWith: .current)
+        let descriptor = base.fontDescriptor.addingAttributes([:])
+        let inherited = UIFont(descriptor: descriptor, size: 0)
+        let resized = UIFont(descriptor: descriptor, size: 19)
+
+        #expect(base.pointSize == 13)
+        #expect(descriptor.pointSize == base.pointSize)
+        #expect(inherited.pointSize == base.pointSize)
+        #expect(inherited.fontDescriptor.pointSize == base.pointSize)
+        #expect(resized.pointSize == 19)
+        #expect(resized.fontDescriptor.pointSize == 19)
     }
 
     @Test("UITextView replacement helper notifies delegates and updates selection")
@@ -603,6 +874,49 @@ struct CompatibilityModuleTests {
         emojiView.deleteBackward()
         #expect(emojiView.text == "ab")
         #expect(emojiView.selectedRange == NSRange(location: 1, length: 0))
+
+        let parent = UIView()
+        let child = UITextView()
+        child.text = "Subview unstable"
+        parent.addSubview(child)
+        var parentTreeMutations = 0
+        var childContentMutations = 0
+        parent.quillSetSubviewMutationHandler("test.textViewContentDoesNotRebuildParent") { _ in
+            parentTreeMutations += 1
+        }
+        child.quillSetViewMutationHandler("test.textViewContentMutatesChild") { _ in
+            childContentMutations += 1
+        }
+
+        let childReplaced = child.quillReplaceCharacters(
+            in: NSRange(location: 8, length: 8),
+            with: "stable"
+        )
+
+        #expect(childReplaced)
+        #expect(child.text == "Subview stable")
+        #expect(childContentMutations == 1)
+        #expect(parentTreeMutations == 0)
+
+        let recordingStorage = UIKitRecordingTextStorage("Alpha beta")
+        let layoutManager = UIKit.NSLayoutManager()
+        recordingStorage.addLayoutManager(layoutManager)
+        let textContainer = UIKit.NSTextContainer()
+        layoutManager.addTextContainer(textContainer)
+        let storageBackedView = UITextView(frame: .zero, textContainer: textContainer)
+
+        let storageReplaced = storageBackedView.quillReplaceCharacters(
+            in: NSRange(location: 6, length: 4),
+            with: "Signal"
+        )
+
+        #expect(storageReplaced)
+        #expect(recordingStorage.replacements.count == 1)
+        #expect(recordingStorage.replacements.first?.range == NSRange(location: 6, length: 4))
+        #expect(recordingStorage.replacements.first?.string == "Signal")
+        #expect(recordingStorage.string == "Alpha Signal")
+        #expect(storageBackedView.text == "Alpha Signal")
+        #expect(storageBackedView.selectedRange == NSRange(location: 12, length: 0))
     }
 
     @Test("UINavigationController owns child navigation back references")
@@ -657,6 +971,31 @@ struct CompatibilityModuleTests {
 
         collectionView.selectItem(at: last, animated: false, scrollPosition: [])
         #expect(collectionView.indexPathsForSelectedItems == [last])
+    }
+
+    @Test("UICollectionView layout invalidation refreshes realized cell geometry")
+    @MainActor
+    func uiCollectionViewLayoutInvalidationRefreshesRealizedGeometry() async {
+        let layout = InvalidatingCollectionViewLayout()
+        let collectionView = UICollectionView(
+            frame: CGRect(x: 0, y: 0, width: 160, height: 120),
+            collectionViewLayout: layout
+        )
+        let probe = MutableCollectionViewProbe(items: [["A"]])
+        collectionView.dataSource = probe
+
+        collectionView.reloadData()
+
+        let first = IndexPath(item: 0, section: 0)
+        #expect(collectionView.cellForItem(at: first)?.frame.height == 24)
+
+        layout.itemHeight = 72
+        layout.invalidateLayout()
+        await Task.yield()
+        await Task.yield()
+
+        #expect(collectionView.cellForItem(at: first)?.frame.height == 72)
+        #expect(collectionView.contentSize.height == 72)
     }
 
     @Test("UICollectionView batch mutations refresh realized cells and visible geometry")
@@ -978,6 +1317,42 @@ struct CompatibilityModuleTests {
         #expect(button.titleLabel?.frame.minX ?? 0 >= 12)
     }
 
+    @Test("UIButton configuration applies title font transformers before sizing")
+    @MainActor
+    func uiButtonConfigurationAppliesTitleFontTransformersBeforeSizing() {
+        var defaultConfiguration = UIButton.Configuration.gray()
+        defaultConfiguration.title = "Block or Report\u{2026}"
+        defaultConfiguration.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 10, bottom: 5, trailing: 10)
+
+        var transformedConfiguration = defaultConfiguration
+        transformedConfiguration.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
+            var attributes = attributes
+            attributes.font = .systemFont(ofSize: 13)
+            return attributes
+        }
+
+        let defaultButton = UIButton(configuration: defaultConfiguration)
+        let transformedButton = UIButton(configuration: transformedConfiguration)
+
+        let defaultFit = defaultButton.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+        let transformedFit = transformedButton.sizeThatFits(CGSize(
+            width: CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        ))
+
+        #expect(transformedButton.titleLabel?.font.pointSize == 13)
+        #expect(transformedFit.width < defaultFit.width)
+
+        transformedButton.frame = CGRect(x: 0, y: 0, width: 184, height: 31)
+        transformedButton.layoutIfNeeded()
+
+        #expect((transformedButton.titleLabel?.frame.width ?? 0) <= 164)
+        #expect((transformedButton.titleLabel?.frame.height ?? 0) <= 21)
+    }
+
     @Test("UIButton primary action dispatches through UIControl events")
     @MainActor
     func uiButtonPrimaryActionDispatchesThroughControlEvents() {
@@ -997,6 +1372,19 @@ struct CompatibilityModuleTests {
 
         button.sendActions(for: [.primaryActionTriggered, .touchUpInside])
         #expect(firedTitles == ["Send", "Send"])
+
+        var configurationActionCount = 0
+        let configuredButton = UIButton(
+            configuration: .prominentGlass(),
+            primaryAction: UIAction(title: "Configured Send") { _ in
+                configurationActionCount += 1
+            }
+        )
+
+        #expect(configuredButton.currentTitle == "Configured Send")
+        #expect(configuredButton.quillRegisteredActionCount(for: .primaryActionTriggered) == 1)
+        configuredButton.sendActions(for: .primaryActionTriggered)
+        #expect(configurationActionCount == 1)
     }
 
     @Test("UIView mutation hook observes visibility interaction and control enabled changes")
@@ -1435,6 +1823,8 @@ struct CompatibilityModuleTests {
             "listRowInsets",
             "listRowSeparator",
             "minimumScaleFactor",
+            "scrollIndicators",
+            "scrollContentBackground",
             "textSelection",
             "imageScale",
             "symbolRenderingMode",
@@ -1570,6 +1960,11 @@ struct CompatibilityModuleTests {
         #expect(result.flatFormatParsed)
         #expect(result.exponentFormatParsed)
         #expect(result.invalidStringReturnsZero)
+
+        let homeProject = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("QuillProject")
+            .path as NSString
+        #expect(homeProject.abbreviatingWithTildeInPath == "~/QuillProject")
     }
 
     @Test("AppKit appearance smoke covers names and best matches")
@@ -1713,6 +2108,7 @@ struct CompatibilityModuleTests {
         #expect(result.childRemovalClearsParent)
         #expect(result.tabbedWindowsRoundTrip)
         #expect(result.applicationTabIdentifierLookup)
+        #expect(result.applicationIconImageIsConcrete)
         #expect(result.sheetLifecycleRoundTrip)
     }
 
@@ -1807,6 +2203,45 @@ struct CompatibilityModuleTests {
         #expect(result.factoryBehaviorsRoundTrip)
     }
 
+    @Test("AppKit compatibility covers CodeEdit active notification spring split item colors and scrollable text view")
+    @MainActor
+    func appKitCompatibilityCoversCodeEditLatestSurface() {
+        #expect(NSApplication.didBecomeActiveNotification.rawValue == "NSApplicationDidBecomeActiveNotification")
+        #expect(NSColor.controlColor.alphaComponent == 1)
+        #expect(NSColor.disabledControlTextColor.alphaComponent == 1)
+
+        let splitItem = NSSplitViewItem(viewController: NSViewController())
+        splitItem.isSpringLoaded = true
+        #expect(splitItem.isSpringLoaded)
+
+        let scrollView = NSTextView.scrollableTextView()
+        #expect(scrollView.documentView is NSTextView)
+        #expect(scrollView.hasVerticalScroller)
+        #expect(scrollView.verticalScroller != nil)
+
+        let imageURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-codeedit-image-\(UUID().uuidString).bin")
+        try? Data([0, 1, 2, 3]).write(to: imageURL)
+        defer { try? FileManager.default.removeItem(at: imageURL) }
+        #expect(NSImage(contentsOf: imageURL) != nil)
+    }
+
+    @Test("NSXPC continuation optional reply callbacks infer concrete values")
+    func nsXPCContinuationOptionalReplyCallbacksInferConcreteValues() async throws {
+        final class OptionalDataService: NSObject {
+            func load(reply: @escaping (Data?) -> Void) {
+                reply(Data([1, 2, 3]))
+            }
+        }
+
+        let connection = NSXPCConnection(serviceName: "quill.optional-data")
+        connection.exportedObject = OptionalDataService()
+        let data: Data = try await connection.withContinuation { (service: OptionalDataService, continuation) in
+            service.load(reply: continuation.resumingHandler)
+        }
+        #expect(data == Data([1, 2, 3]))
+    }
+
     @Test("AppKit views maintain tracking areas")
     @MainActor
     func appKitViewsMaintainTrackingAreas() {
@@ -1823,6 +2258,10 @@ struct CompatibilityModuleTests {
     func appKitTextViewsApplyEditApisAndNotifyDelegates() {
         let result = AppleCompatibilitySmoke.runAppKitTextViewEditingSmoke()
 
+        #expect(result.defaultTextSystemIsWired)
+        #expect(result.replacementTextStorageRewiresLayoutManager)
+        #expect(result.replacementLayoutManagerRewiresTextSystem)
+        #expect(result.replacementTextContainerRewiresLayoutManager)
         #expect(result.replaceUpdatesStringAndStorage)
         #expect(result.insertUsesSelectedRange)
         #expect(result.attributedInsertUsesStringContents)
@@ -2177,6 +2616,8 @@ struct CompatibilityModuleTests {
         center.setNotificationCategories([])
         center.removeAllDeliveredNotifications()
         center.removeAllPendingNotificationRequests()
+        #expect(!UNNotificationDefaultActionIdentifier.isEmpty)
+        #expect(!UNNotificationDismissActionIdentifier.isEmpty)
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
         let presentedNotifications = CompatibilityLockedValue<[QuillNotificationRequestRecord]>([])
@@ -2201,6 +2642,8 @@ struct CompatibilityModuleTests {
             authorizationStatus = settings.authorizationStatus
         }
         #expect(authorizationStatus == .authorized)
+        let asyncSettings = await center.notificationSettings()
+        #expect(asyncSettings.authorizationStatus == .authorized)
 
         let openURL = URL(string: "https://example.com/quill-chat")!
         let completionResult = CompatibilityLockedValue<Bool?>(nil)
@@ -3029,8 +3472,25 @@ struct CompatibilityModuleTests {
     func asyncAlgorithmsAndCarbonContractsCompile() async {
         var iterator = AsyncTimerSequence(interval: .milliseconds(1), clock: .continuous).makeAsyncIterator()
         let firstTick = await iterator.next()
+        let stream = AsyncStream<Int> { continuation in
+            continuation.yield(1)
+            continuation.finish()
+        }
+        var chunks = stream
+            .chunked(by: .repeating(every: .milliseconds(1), clock: .continuous))
+            .makeAsyncIterator()
+        let debouncedStream = AsyncStream<Int> { continuation in
+            continuation.yield(7)
+            continuation.finish()
+        }
+        var debounced = debouncedStream
+            .debounce(for: .milliseconds(1))
+            .makeAsyncIterator()
 
         #expect(firstTick != nil)
+        #expect(await chunks.next() == [1])
+        let debouncedValue = await debounced.next()
+        #expect(debouncedValue == 7)
         #expect(CarbonCompatibility.available == false)
     }
 
@@ -3283,6 +3743,69 @@ struct CompatibilityModuleTests {
         #expect(values == [1, 2])
     }
 
+    @Test("Combine MergeMany delivers values from all inputs and completes when empty")
+    func combineMergeManyDeliversValuesAndCompletesWhenEmpty() {
+        let first = PassthroughSubject<Int, Never>()
+        let second = PassthroughSubject<Int, Never>()
+        let third = PassthroughSubject<Int, Never>()
+        var values: [Int] = []
+
+        let cancellable = Publishers.MergeMany([first, second, third])
+            .eraseToAnyPublisher()
+            .sink { values.append($0) }
+
+        first.send(1)
+        second.send(2)
+        third.send(3)
+        cancellable.cancel()
+        first.send(4)
+
+        var emptyCompleted = false
+        _ = Publishers.MergeMany([AnyPublisher<Int, Never>]())
+            .eraseToAnyPublisher()
+            .sink { completion in
+                if case .finished = completion {
+                    emptyCompleted = true
+                }
+            } receiveValue: { _ in
+                Issue.record("Empty MergeMany should not emit values")
+            }
+
+        #expect(values == [1, 2, 3])
+        #expect(emptyCompleted)
+    }
+
+    @Test("Combine CombineLatest emits after both inputs have latest values")
+    func combineCombineLatestEmitsAfterBothInputsHaveLatestValues() {
+        let first = PassthroughSubject<Int, Never>()
+        let second = PassthroughSubject<String, Never>()
+        var values: [(Int, String)] = []
+        var completed = false
+
+        let cancellable = Publishers.CombineLatest(first, second)
+            .eraseToAnyPublisher()
+            .sink { completion in
+                if case .finished = completion {
+                    completed = true
+                }
+            } receiveValue: { value in
+                values.append(value)
+            }
+
+        first.send(1)
+        #expect(values.isEmpty)
+        second.send("a")
+        first.send(2)
+        second.send("b")
+        first.send(completion: .finished)
+        #expect(!completed)
+        second.send(completion: .finished)
+        cancellable.cancel()
+
+        #expect(values.map { "\($0.0):\($0.1)" } == ["1:a", "2:a", "2:b"])
+        #expect(completed)
+    }
+
     @Test("Combine merge buffers values beyond current downstream demand")
     func combineMergeBuffersBeyondCurrentDemand() {
         let first = PassthroughSubject<Int, Never>()
@@ -3440,9 +3963,9 @@ struct CompatibilityModuleTests {
         #expect(repeatedAnimation.repeatsForever)
         #expect(repeatedAnimation.autoreverses == false)
 
-        // ImageRenderer: Color content now produces real bytes without
-        // requiring the GTK display path. Non-Color content returns nil until
-        // a backend installs the SwiftOpenUI ImageRenderer hook.
+        // ImageRenderer: Color and file-backed Image content produce real bytes
+        // without requiring the GTK display path. Other arbitrary content
+        // returns nil until a backend installs the SwiftOpenUI renderer hook.
         let renderer = ImageRenderer(content: Text("rendered"))
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
@@ -3455,6 +3978,12 @@ struct CompatibilityModuleTests {
         #expect(Image(systemName: "photo").render() == nil)
         let fileBackedImageData = "quill-render-\(UUID().uuidString)".data(using: .utf8)!
         #expect(Image(data: fileBackedImageData).render()?.data == fileBackedImageData)
+        #if os(Linux)
+        let imageRenderer = ImageRenderer(content: Image(data: fileBackedImageData))
+        #expect(imageRenderer.nsImage?.data == fileBackedImageData)
+        #expect(imageRenderer.uiImage?.data == fileBackedImageData)
+        #expect(imageRenderer.cgImage?.data == fileBackedImageData)
+        #endif
         guard let platformImage = PlatformImage(data: Data([1, 2, 3])) else {
             Issue.record("PlatformImage(data:) should construct the RSImage-backed image container")
             return
@@ -3623,6 +4152,66 @@ struct CompatibilityModuleTests {
         let image = try #require(UIImage(named: "message_status_sent"))
         #expect(image.size == CGSize(width: 12, height: 12))
         #expect(image.quillResourceName == "message_status_sent")
+    }
+
+    @Test("Bundle image resources resolve files and symbolsets")
+    func bundleImageResourcesResolveFilesAndSymbolsets() throws {
+        let fileManager = FileManager.default
+        let bundleURL = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillImageBundle-\(UUID().uuidString).bundle", isDirectory: true)
+        let resourcesURL = bundleURL.appendingPathComponent("Resources", isDirectory: true)
+        let symbolsetURL = resourcesURL
+            .appendingPathComponent("Symbols.xcassets", isDirectory: true)
+            .appendingPathComponent("github.symbolset", isDirectory: true)
+        defer { try? fileManager.removeItem(at: bundleURL) }
+        try fileManager.createDirectory(at: symbolsetURL, withIntermediateDirectories: true)
+
+        let imageData = Data("bundle image".utf8)
+        let imageURL = resourcesURL.appendingPathComponent("logo-nobg.png")
+        try imageData.write(to: imageURL)
+
+        try """
+        {
+          "symbols" : [
+            {
+              "filename" : "github.svg",
+              "idiom" : "universal"
+            }
+          ],
+          "info" : { "author" : "xcode", "version" : 1 }
+        }
+        """.write(to: symbolsetURL.appendingPathComponent("Contents.json"), atomically: true, encoding: .utf8)
+
+        let symbolData = Data("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 8 8\"/>".utf8)
+        let symbolURL = symbolsetURL.appendingPathComponent("github.svg")
+        try symbolData.write(to: symbolURL)
+
+        let bundle = try #require(Bundle(url: bundleURL))
+        #expect(QuillResourceLookup.path(
+            forResource: "logo-nobg",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) == imageURL.path)
+        #expect(bundle.image(forResource: "logo-nobg")?.data == imageData)
+
+        if case .filePath(let path) = Image("logo-nobg", bundle: bundle).source {
+            #expect(path == imageURL.path)
+        } else {
+            Issue.record("Image(_:bundle:) should resolve bundle resources to file-backed SwiftOpenUI images")
+        }
+
+        #expect(QuillResourceLookup.path(
+            forResource: "github",
+            candidateExtensions: QuillResourceLookup.commonImageExtensions,
+            in: bundle
+        ) == symbolURL.path)
+        #expect(bundle.image(forResource: "github")?.data == symbolData)
+
+        if case .filePath(let path) = Image("github", bundle: bundle).source {
+            #expect(path == symbolURL.path)
+        } else {
+            Issue.record("Image(_:bundle:) should resolve bundle symbolsets to file-backed SwiftOpenUI images")
+        }
     }
 
     @Test("System images preserve symbol identity for render backends")
@@ -4365,6 +4954,56 @@ struct CompatibilityModuleTests {
         #expect(optionalProvided.wrappedValue == "message")
     }
 
+    // MARK: - SwiftUI CGFloat frame overloads
+
+    @Test("SwiftUI frame overloads accept typed CGFloat constants and optionals")
+    func swiftUICGFloatFrameOverloads() {
+        let fixedWidth: CGFloat = 40
+        let fixedHeight: CGFloat = 24
+        let fixed = Text("Fixed").frame(width: fixedWidth, height: fixedHeight)
+        #expect(fixed.width == 40)
+        #expect(fixed.height == 24)
+
+        let maxWidth: CGFloat? = 260
+        let minHeight: CGFloat? = 32
+        let flexible = Text("Flexible")
+            .frame(maxWidth: maxWidth, minHeight: minHeight, alignment: .leading)
+
+        #expect(flexible.maxWidth == 260)
+        #expect(flexible.minHeight == 32)
+        #expect(flexible.alignment == .leading)
+    }
+
+    @Test("SwiftUI Text foreground overloads preserve styled run colors")
+    func swiftUITextForegroundOverloadsPreserveColors() {
+        let textColor = Color(red: 0.93, green: 0.97, blue: 0.98)
+        let mutedColor = Color(red: 0.62, green: 0.69, blue: 0.72)
+
+        let foregroundStyleText = Text("Ask QuillCode")
+            .foregroundStyle(textColor)
+        #expect(foregroundStyleText.content == "Ask QuillCode")
+        #expect(foregroundStyleText.runs.count == 1)
+        #expect(foregroundStyleText.runs.first?.color == textColor)
+
+        let foregroundColorText = Text("Use Auto")
+            .foregroundColor(mutedColor)
+        #expect(foregroundColorText.content == "Use Auto")
+        #expect(foregroundColorText.runs.count == 1)
+        #expect(foregroundColorText.runs.first?.color == mutedColor)
+
+        let optionalNil = Text("Untouched")
+            .foregroundColor(nil as Color?)
+        #expect(optionalNil.runs.first?.color == nil)
+
+        let mixed = Text(styledRuns: [
+            .init(text: "A", color: .blue),
+            .init(text: "B", color: nil)
+        ])
+        let overridden = mixed.foregroundStyle(textColor)
+        #expect(overridden.content == "AB")
+        #expect(overridden.runs.map(\.color) == [textColor, textColor])
+    }
+
     // MARK: - Namespace identity
 
     @Test("Namespace generates unique IDs across instances and is Hashable")
@@ -4483,6 +5122,159 @@ struct CompatibilityModuleTests {
         #expect(String(describing: combined).contains("combined"))
         #expect(String(describing: combined).contains("opacity"))
         #expect(String(describing: combined).contains("slide"))
+
+        let animated = AnyTransition.opacity.animation(.easeInOut(duration: 0.25))
+        #expect(String(describing: animated).contains("animation"))
+
+        struct NoOpModifier: ViewModifier {
+            func body(content: Content) -> some View {
+                content
+            }
+        }
+        let modified = AnyTransition.modifier(
+            active: NoOpModifier(),
+            identity: NoOpModifier()
+        )
+        #expect(String(describing: modified).contains("modifier"))
+    }
+
+    @Test("SwiftUI compatibility covers WelcomeWindow source-level modifiers")
+    func welcomeWindowSwiftUISurfaceCompiles() {
+        struct DropView: View {
+            @Environment(\.controlActiveState)
+            private var controlActiveState
+
+            private var focusShape: some InsettableShape {
+                .rect(cornerRadius: 8)
+            }
+
+            var body: some View {
+                Text("drop")
+                    .background(focusShape.stroke(controlActiveState == .active ? Color.accentColor : Color.clear, lineWidth: 1))
+                    .onDrop(of: [.fileURL], isTargeted: .constant(true)) { providers in
+                        providers.isEmpty
+                    }
+            }
+        }
+
+        struct RecentsView: View {
+            @State private var selection: Set<URL> = []
+            private let recentProjects = [URL(fileURLWithPath: "/tmp/QuillProject")]
+
+            var body: some View {
+                List(recentProjects, id: \.self, selection: $selection) { project in
+                    Text(project.lastPathComponent)
+                }
+                .listStyle(.sidebar)
+                .contextMenu(forSelectionType: URL.self) { items in
+                    if !items.isEmpty {
+                        Button("Copy path") {}
+                    }
+                } primaryAction: { items in
+                    _ = items
+                }
+                .onCopyCommand {
+                    selection.map { NSItemProvider(object: $0.path as NSString) }
+                }
+                .onDeleteCommand {
+                    selection.removeAll()
+                }
+            }
+        }
+
+        let list = RecentsView()
+
+        let scene = Window("Welcome", id: "welcome") {
+            DropView()
+        }
+        .windowStyle(.hiddenTitleBar)
+
+        #expect(String(describing: type(of: list)).contains("RecentsView"))
+        #expect(String(describing: type(of: scene)).contains("Window"))
+    }
+
+    @Test("SwiftUI compatibility covers CodeEdit table, layout, material and scroll surface")
+    func codeEditSwiftUISurfaceCompiles() {
+        struct Row: Identifiable, Hashable {
+            let id = UUID()
+            var name: String
+        }
+
+        struct SurfaceProbe: View {
+            @State private var selection: Set<Row.ID> = []
+            @State private var extensionsEnabled = false
+            private let rows = [Row(name: "Sources")]
+            private let focusedModel = NSObject()
+
+            private var adaptiveLayout: AnyLayout {
+                rows.count > 1 ? AnyLayout(HStackLayout(spacing: 8)) : AnyLayout(VStackLayout(spacing: 8))
+            }
+
+            var body: some View {
+                VStack {
+                    adaptiveLayout {
+                        Text("Navigator")
+                        Text("Editor")
+                    }
+                    .focusedObject(focusedModel)
+                    .transformEnvironment(\.colorScheme) { colorScheme in
+                        colorScheme = .dark
+                    }
+                    .colorScheme(.dark)
+                    .navigationSubtitle("Workspace")
+
+                    Toggle("Extensions", isOn: $extensionsEnabled)
+                        .toggleStyle(.button)
+
+                    Table(rows, selection: $selection) {
+                        TableColumn("Name") { row in
+                            Text(row.name)
+                        }
+                    }
+                    .scrollDisabled(false)
+                    .scrollContentBackground(.hidden)
+                    .contextMenu(forSelectionType: Row.ID.self) { items in
+                        Button("Reveal") { _ = items }
+                    } primaryAction: { items in
+                        _ = items
+                    }
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(.regularMaterial)
+                        .containerShape(RoundedRectangle(cornerRadius: 6))
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.accentColor.gradient)
+
+                    List {
+                        Text("Terminal")
+                            .contextMenu(
+                                ContextMenu {
+                                    Button("Delete") {}
+                                }
+                            )
+                    }
+                    .listStyle(.automatic)
+                    .accentColor(.secondary)
+                    .accessibilityElement(children: .contain)
+
+                    Color.coolGray
+                        .hueRotation(.degrees(-5))
+                        .zIndex(1)
+                        .coordinateSpace(name: "editor-tabs")
+                        .transaction { transaction in
+                            transaction.animation = nil
+                        }
+                        .navigationBarBackButtonHidden(true)
+                        .frame(width: 1, height: 1)
+                }
+            }
+        }
+
+        let view = SurfaceProbe()
+        let focused = Text("Focused").focusedObject(NSObject())
+        #expect(String(describing: type(of: view)).contains("SurfaceProbe"))
+        #expect(String(describing: type(of: focused.body)).contains("Text"))
     }
 
     // MARK: - QuillCompatibilityEvent equality
@@ -4722,6 +5514,37 @@ struct CompatibilityModuleTests {
         let styledCommandItems = QuillUI.quillCommandMenuItems(from: styledCommand)
         #expect(styledCommandItems.count == 1)
         #expect(styledCommandItems.first?.label == "Sync")
+
+        @ViewBuilder
+        func shortcutIfPresent<V: View>(_ view: V, shortcut: KeyboardShortcut?) -> some View {
+            if let shortcut {
+                view.keyboardShortcut(shortcut)
+            } else {
+                view
+            }
+        }
+
+        let conditionalShortcut = shortcutIfPresent(
+            Button("Refresh") {
+                count.value = (count.value ?? 0) + 1
+            },
+            shortcut: KeyboardShortcut("r", modifiers: .command)
+        )
+        let conditionalShortcutItems = QuillUI.quillCommandMenuItems(from: conditionalShortcut)
+        #expect(conditionalShortcutItems.count == 1)
+        #expect(conditionalShortcutItems.first?.label == "Refresh")
+        #expect(conditionalShortcutItems.first?.shortcut == KeyboardShortcut("r", modifiers: .command))
+
+        let conditionalPlain = shortcutIfPresent(
+            Button("Plain") {
+                count.value = (count.value ?? 0) + 1
+            },
+            shortcut: nil
+        )
+        let conditionalPlainItems = QuillUI.quillCommandMenuItems(from: conditionalPlain)
+        #expect(conditionalPlainItems.count == 1)
+        #expect(conditionalPlainItems.first?.label == "Plain")
+        #expect(conditionalPlainItems.first?.shortcut == nil)
 
         // Unknown view returns empty.
         struct Unknown: View {
@@ -5011,6 +5834,20 @@ struct CompatibilityModuleTests {
             properties: [.compressionFactor: 0.2]
         ))
         #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+    }
+
+    @Test("ImageRenderer preserves file-backed Image bytes for upstream render paths")
+    func imageRendererPreservesFileBackedImageBytes() throws {
+        let png = try #require(referencePNGFixture())
+
+        let renderer = ImageRenderer(content: Image(data: png))
+        #expect(renderer.nsImage?.data == png)
+        #expect(renderer.uiImage?.data == png)
+        #expect(renderer.cgImage?.data == png)
+
+        let platformImage = try #require(PlatformImage(data: png))
+        #expect(Image(nsImage: platformImage).render()?.data == png)
+        #expect(Image(uiImage: platformImage).render()?.data == png)
     }
     #endif
 

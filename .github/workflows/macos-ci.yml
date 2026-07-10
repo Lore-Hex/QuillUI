@@ -5,6 +5,7 @@ on:
     branches:
       - main
   pull_request:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -31,12 +32,22 @@ jobs:
       - name: Shell syntax
         run: scripts/check-shell-syntax.sh
 
+      - name: Audit vendored SwiftPM sources
+        run: scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored
+
+      - name: Restore upstream source cache
+        uses: ./.github/actions/upstream-cache
+        with:
+          cache-name: default
+
       # The NetNewsWire/WireGuard/CodeEdit upstreams live under
       # `.upstream/` (gitignored). Fetch them so the matching
       # Package.swift targets resolve. Without this step the
       # gated targets are simply absent — QuillUI/QuillEnchanted
       # still build.
       - name: Fetch upstream sources
+        env:
+          QUILLUI_TRUST_UPSTREAM_CACHE: "1"
         run: scripts/fetch-upstream.sh
 
       # Each Quill app is built individually so a failure in one doesn't

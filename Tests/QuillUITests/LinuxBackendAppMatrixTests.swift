@@ -83,7 +83,12 @@ struct LinuxBackendAppMatrixTests {
 
     private static let expectedBackends = ["gtk", "qt"]
     private static let expectedNativeRuntimeBackends = ["gtk"]
-    private static let expectedGeneratedAppProducts = ["quill-enchanted-linux"]
+    private static let expectedGeneratedAppProducts = ["quill-enchanted-linux", "quill-code-desktop-linux"]
+    private static let expectedGeneratedAppBuildSpecs = [
+        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
+        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
+        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR"
+    ]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
 
@@ -377,10 +382,19 @@ struct LinuxBackendAppMatrixTests {
         #expect(generatedAppRuntimeRows.status == 0, Comment(rawValue: generatedAppRuntimeRows.output))
         #expect(Self.lines(generatedAppRuntimeRows.output) == Self.expectedGeneratedAppRuntimeRows)
 
+        let generatedAppBuildSpecs = try runScript(script, arguments: ["generated-app-build-specs"])
+        #expect(generatedAppBuildSpecs.status == 0, Comment(rawValue: generatedAppBuildSpecs.output))
+        #expect(Self.lines(generatedAppBuildSpecs.output) == Self.expectedGeneratedAppBuildSpecs)
+
+        let quillCodeBuildSpec = try runScript(script, arguments: ["generated-app-build-spec", "quill-code-desktop-linux"])
+        #expect(quillCodeBuildSpec.status == 0, Comment(rawValue: quillCodeBuildSpec.output))
+        #expect(Self.lines(quillCodeBuildSpec.output) == [Self.expectedGeneratedAppBuildSpecs[2]])
+
         let nativeOverrides = try runScript(script, arguments: ["native-product-runtime-overrides"])
         #expect(nativeOverrides.status == 0, Comment(rawValue: nativeOverrides.output))
         #expect(Self.lines(nativeOverrides.output) == [
             "quill-enchanted-linux\tqt\tqt",
+            "quill-code-desktop-linux\tqt\tqt",
             "quill-qt-interaction-smoke\tqt\tqt"
         ])
 
@@ -859,6 +873,16 @@ struct LinuxBackendAppMatrixTests {
         quillui_append_enchanted_profile_fixture_environment_if_needed non_enchanted_profile_env quill-wireguard "\(temporaryDirectory.path)/profile"
         printf 'wireguard-profile-env=%s\\n' "$(quillui_print_env_array "${non_enchanted_profile_env[@]}")"
 
+        artifact_executable="\(temporaryDirectory.path)/artifact/app"
+        artifact_path_file="\(temporaryDirectory.path)/artifact/.quillui-artifact-path"
+        mkdir -p "$(dirname "$artifact_executable")"
+        printf '#!/usr/bin/env bash\\nexit 0\\n' > "$artifact_executable"
+        chmod +x "$artifact_executable"
+        printf '%s\\n' "$artifact_executable" > "$artifact_path_file"
+        artifact_path=""
+        quillui_artifact_path_from_file "$artifact_path_file" artifact_path
+        printf 'artifact-path=%s\\n' "$artifact_path"
+
         if quillui_export_backend_argument qt quill-wireguard-qt 2>/dev/null; then
           echo unexpected-product
           exit 1
@@ -949,6 +973,7 @@ struct LinuxBackendAppMatrixTests {
         #expect(result.output.contains("enchanted-profile-fixture=ok"))
         #expect(result.output.contains("legacy-chat-profile-env=HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLDATA_HOME=\(temporaryDirectory.path)/profile/quill-chat-linux-profile-home|QUILLUI_ENCHANTED_REFERENCE_MODE=1|QUILLUI_QUILL_CHAT_REFERENCE_MODE=1|QUILLUI_ENCHANTED_PROFILE_MODE=1|QUILLUI_QUILL_CHAT_PROFILE_MODE=1|"))
         #expect(result.output.contains("wireguard-profile-env=\n"))
+        #expect(result.output.contains("artifact-path=\(temporaryDirectory.path)/artifact/app"))
         #expect(result.output.contains("default-mode-signal=click"))
         #expect(result.output.contains("default-mode-chat=toolbar-menu"))
         #expect(result.output.contains("default-mode-wireguard=tunnel-name-edit"))
@@ -1107,6 +1132,100 @@ struct LinuxBackendAppMatrixTests {
             let fields = row.split(separator: "\t").map(String.init)
             return "\(fields[0]),\(fields[1]),\(fields[2]),\(fields[3]),1,2,3,4.0,5.0,ok"
         }.joined(separator: "\n"))
+
+        """
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(result.output == expected)
+        #expect(try String(contentsOf: csv, encoding: .utf8) == expected)
+    }
+
+    @Test("profile budget can allow bounded profiler timeouts")
+    func profileBudgetCanAllowBoundedProfilerTimeouts() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-timeout-budget-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("timeout.csv")
+        try """
+        \(Self.profileCSVHeader)
+        quill-enchanted-linux,gtk,gtk,native,0,0,0,0.0,0.0,profiler-exit-124
+
+        """.write(to: csv, atomically: true, encoding: .utf8)
+
+        let strict = try runScript(
+            script,
+            arguments: [csv.path, "--max-rss-kb", "400000", "--max-startup-ms", "10000", "--max-cpu-pct", "99"]
+        )
+        #expect(strict.status != 0)
+        #expect(strict.output.contains("profile budget failed: quill-enchanted-linux exit_status=profiler-exit-124"))
+
+        let allowed = try runScript(
+            script,
+            arguments: [
+                csv.path,
+                "--max-rss-kb", "400000",
+                "--max-startup-ms", "10000",
+                "--max-cpu-pct", "99",
+                "--allow-profile-timeouts",
+            ]
+        )
+        #expect(allowed.status == 0, Comment(rawValue: allowed.output))
+        #expect(allowed.output.contains("profile budget warning: quill-enchanted-linux exit_status=profiler-exit-124 allowed by --allow-profile-timeouts"))
+    }
+
+    @Test("profile CSV runner records timed out profiler rows")
+    func profileCSVRunnerRecordsTimedOutProfilerRows() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/run-linux-backend-profile-csv.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-timeout-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let csv = temporaryDirectory.appendingPathComponent("profile.csv")
+        let fakeProfiler = temporaryDirectory.appendingPathComponent("slow-profiler.sh")
+        try """
+        #!/usr/bin/env bash
+        echo "profiler should have been wrapped by timeout" >&2
+        exit 43
+
+        """.write(to: fakeProfiler, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeProfiler.path)
+
+        let fakeTimeout = temporaryDirectory.appendingPathComponent("fake-timeout.sh")
+        try """
+        #!/usr/bin/env bash
+        while [[ "${1:-}" == --* ]]; do
+          shift
+        done
+        shift
+        exit 124
+
+        """.write(to: fakeTimeout, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeTimeout.path)
+
+        let row = "quill-netnewswire\tqt\tqt\tnative"
+        let result = try runScript(
+            script,
+            arguments: [csv.path, row],
+            environment: [
+                "QUILLUI_BACKEND_PROFILE_COMMAND": fakeProfiler.path,
+                "QUILLUI_BACKEND_PROFILE_TIMEOUT_COMMAND": fakeTimeout.path,
+                "QUILLUI_BACKEND_PROFILE_ROW_TIMEOUT": "1s",
+                "QUILLUI_BACKEND_PROFILE_ROW_KILL_AFTER": "1s",
+                "QUILLUI_RESOURCE_GUARD_DISABLE": "1",
+            ]
+        )
+
+        let expected = """
+        \(Self.profileCSVHeader)
+        quill-netnewswire,qt,qt,native,0,0,0,0.0,0.0,profiler-exit-124
 
         """
 

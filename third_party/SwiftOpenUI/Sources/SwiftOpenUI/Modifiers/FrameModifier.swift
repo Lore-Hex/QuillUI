@@ -15,6 +15,17 @@ public struct FrameView<Content: View>: View, PrimitiveView {
 }
 
 extension View {
+    /// Set only frame alignment without changing size constraints.
+    public func frame(alignment: Alignment) -> FrameView<Self> {
+        FrameView(
+            content: self,
+            width: nil, height: nil,
+            minWidth: nil, minHeight: nil,
+            maxWidth: nil, maxHeight: nil,
+            alignment: alignment
+        )
+    }
+
     /// Set an explicit fixed size.
     public func frame(
         width: Double? = nil,

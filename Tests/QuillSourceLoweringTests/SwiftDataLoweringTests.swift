@@ -75,6 +75,21 @@ struct SwiftDataLoweringTests {
         #expect(!lowered.contains("#Predicate"))
     }
 
+    @Test("@Attribute is stripped from stored properties")
+    func attributeStripped() {
+        let source = """
+        @Model
+        final class ConversationSD: Identifiable {
+            @Attribute(.unique) var id: UUID = UUID()
+            @Attribute(.externalStorage) var image: Data?
+        }
+        """
+        let lowered = SwiftDataLowering().lower(source)
+        #expect(!lowered.contains("@Attribute"))
+        #expect(lowered.contains("var id: UUID = UUID()"))
+        #expect(lowered.contains("var image: Data?"))
+    }
+
     @Test("@Relationship properties gain inverse-maintenance observers and registration")
     func relationshipObserversAndRegistration() {
         let source = """
@@ -112,6 +127,7 @@ struct SwiftDataLoweringTests {
         #expect(lowered.contains("childType: MessageSD.self"))
         #expect(lowered.contains("toOneProperty: \"conversation\""))
         #expect(lowered.contains("toOne: \\MessageSD.conversation"))
+        #expect(!lowered.contains("@Relationship"))
         #expect(!lowered.contains("self.conversation = conversation"))
     }
 
@@ -137,6 +153,7 @@ struct SwiftDataLoweringTests {
         #expect(lowered.contains("var model: LanguageModelSD? {"))
         #expect(!lowered.contains("__quillRelationshipsRegistered"))
         #expect(!lowered.contains("toMany: \\LanguageModelSD.conversations"))
+        #expect(!lowered.contains("@Relationship"))
     }
 
     @Test("Non-@Model classes are left alone")
@@ -260,6 +277,7 @@ struct SwiftDataLoweringTests {
             #expect(lowered.contains("QuillRelationships.registerInverse("))
             #expect(lowered.contains("toMany: \\ConversationSD.messages"))
             #expect(lowered.contains("toOne: \\MessageSD.conversation"))
+            #expect(!lowered.contains("@Relationship"))
         }
         #expect(loweredMessage.contains("var conversation: ConversationSD? {"))
         #expect(!loweredMessage.contains("self.conversation = conversation"))

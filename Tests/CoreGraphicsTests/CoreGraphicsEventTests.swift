@@ -69,6 +69,9 @@ struct CoreGraphicsEventTests {
 
         #expect(CGEventTapOptions.defaultTap.rawValue == 0)
         #expect(CGEventTapOptions.listenOnly.rawValue == 1)
+
+        #expect(CGScrollEventUnit.line.rawValue == 0)
+        #expect(CGScrollEventUnit.pixel.rawValue == 1)
     }
 
     @Test("CGEventFlags use Apple event and modifier raw masks")
@@ -148,5 +151,43 @@ struct CoreGraphicsEventTests {
         event.setIntegerValueField(.mouseEventClickState, value: 2)
         #expect(event.getIntegerValueField(.mouseEventDeltaX) == -7)
         #expect(event.getIntegerValueField(.mouseEventClickState) == 2)
+    }
+
+    @Test("CGEvent scroll initializer preserves source unit and wheel fields")
+    func scrollInitializerPreservesSourceUnitAndWheelFields() throws {
+        let source = try #require(CGEventSource(stateID: .hidSystemState))
+        let event = try #require(CGEvent(
+            scrollWheelEvent2Source: source,
+            units: .pixel,
+            wheelCount: 3,
+            wheel1: -11,
+            wheel2: 7,
+            wheel3: 2
+        ))
+
+        #expect(event.source === source)
+        #expect(event.type == .scrollWheel)
+        #expect(event.virtualKey == 0)
+        #expect(!event.keyDown)
+        #expect(event.location == .zero)
+        #expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == -11)
+        #expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis2) == 7)
+        #expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis3) == 2)
+        #expect(event.getIntegerValueField(.scrollWheelEventFixedPtDeltaAxis1) == (-11 << 16))
+        #expect(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == -11)
+        #expect(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == 7)
+        #expect(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis3) == 2)
+    }
+
+    @Test("display capture APIs are Apple-shaped and inert on Linux")
+    func displayCaptureAPIsAreAppleShapedAndInert() throws {
+        #expect(CGMainDisplayID() == 0)
+        #expect(CGPreflightScreenCaptureAccess() == false)
+
+        let image = try #require(CGDisplayCreateImage(CGMainDisplayID()))
+        #expect(image.width == 1)
+        #expect(image.height == 1)
+        #expect(image.quillBytesPerRow == 4)
+        #expect(image.quillBGRAPixels == [0, 0, 0, 255])
     }
 }

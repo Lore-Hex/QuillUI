@@ -120,7 +120,11 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
                !crossFills,
                !shouldForceMainAxisExpansion(child),
                shouldHonorArrangedSubviewFixedFrame(child) {
-                gtk_widget_set_size_request(childWidget, gint(child.frame.width), gint(child.frame.height))
+                gtk_widget_set_size_request(
+                    childWidget,
+                    UIKitGtkRenderer.gtkSizeRequestValue(child.frame.width),
+                    UIKitGtkRenderer.gtkSizeRequestValue(child.frame.height)
+                )
                 gtk_widget_set_hexpand(childWidget, 0)
                 gtk_widget_set_vexpand(childWidget, 0)
                 gtk_widget_set_halign(childWidget, GTK_ALIGN_CENTER)
@@ -184,8 +188,11 @@ public enum UIStackViewGtkMapper: UIViewGtkMapper {
         stack: UIStackView,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: stack)
         stack.quillSetSubviewMutationHandler("SignalUIRender.stackChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedStack = updatedView as? UIStackView else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedStack)
             clearBoxChildren(box)
             let isVertical = (updatedStack.axis == .vertical)
             let mainAxisFills: Bool
@@ -311,12 +318,19 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         for child in subviewsInLayerOrder(view.subviews) {
             guard let childWidget = ctx.render(child) else { continue }
             let frame = centeredBadgeChildFrame(child.frame, child: child, parent: view)
-            gtk_fixed_put(fixedPtr, childWidget, gdouble(frame.origin.x), gdouble(frame.origin.y))
-            if frame.width > 0 || frame.height > 0 {
+            gtk_fixed_put(
+                fixedPtr,
+                childWidget,
+                UIKitGtkRenderer.gtkCoordinateValue(frame.origin.x),
+                UIKitGtkRenderer.gtkCoordinateValue(frame.origin.y)
+            )
+            let width = UIKitGtkRenderer.gtkSizeRequestValue(frame.width)
+            let height = UIKitGtkRenderer.gtkSizeRequestValue(frame.height)
+            if width > 0 || height > 0 {
                 gtk_widget_set_size_request(
                     childWidget,
-                    frame.width > 0 ? gint(frame.width) : -1,
-                    frame.height > 0 ? gint(frame.height) : -1
+                    width,
+                    height
                 )
             }
         }
@@ -350,7 +364,10 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         view: UIView,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: view)
         view.quillSetSubviewMutationHandler("SignalUIRender.genericFixedChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedView)
             clearFixedChildren(fixed)
             appendFixedSubviews(to: fixed, view: updatedView, ctx: ctx)
             gtk_widget_queue_resize(fixed)
@@ -359,17 +376,19 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
 
     private static func applyViewSize(to widget: GtkWidgetPtr, from view: UIView) {
         let size = view.bounds.size != .zero ? view.bounds.size : view.frame.size
-        guard size.width > 0 || size.height > 0 else { return }
+        let width = UIKitGtkRenderer.gtkSizeRequestValue(size.width)
+        let height = UIKitGtkRenderer.gtkSizeRequestValue(size.height)
+        guard width > 0 || height > 0 else { return }
         gtk_widget_set_size_request(
             widget,
-            size.width > 0 ? gint(size.width) : -1,
-            size.height > 0 ? gint(size.height) : -1
+            width,
+            height
         )
-        if size.width > 0 {
+        if width > 0 {
             gtk_widget_set_hexpand(widget, 1)
             gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
         }
-        if size.height > 0 {
+        if height > 0 {
             gtk_widget_set_vexpand(widget, 1)
             gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
         }
@@ -419,7 +438,10 @@ public enum GenericViewGtkMapper: UIViewGtkMapper {
         isBadge: Bool,
         ctx: UIKitGtkRenderContext
     ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: view)
         view.quillSetSubviewMutationHandler("SignalUIRender.genericBoxChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedView)
             clearBoxChildren(box)
             for child in updatedView.subviews {
                 guard let childWidget = ctx.render(child) else { continue }

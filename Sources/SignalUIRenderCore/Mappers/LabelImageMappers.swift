@@ -84,7 +84,9 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
     }
 
     private static func installLabelMutationBridge(_ widget: GtkWidgetPtr, label: UILabel) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: label)
         label.quillSetViewMutationHandler("SignalUIRender.labelContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedLabel = updatedView as? UILabel else { return }
             applyLabelContent(to: widget, label: updatedLabel)
             gtk_widget_queue_resize(widget)
@@ -99,9 +101,13 @@ public enum UILabelGtkMapper: UIViewGtkMapper {
         if numberOfLines == 1 {
             gtk_label_set_wrap(labelPtr, 0)
             gtk_label_set_lines(labelPtr, 1)
+            gtk_label_set_single_line_mode(labelPtr, 1)
+            gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_END)
             return
         }
 
+        gtk_label_set_single_line_mode(labelPtr, 0)
+        gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_NONE)
         gtk_label_set_wrap(labelPtr, 1)
         // Word-then-char wrapping matches SwiftOpenUI's multi-line labels and
         // avoids mid-word overflow when a single token is wider than the box.
@@ -175,9 +181,13 @@ public enum CustomDrawnTextGtkMapper: UIViewGtkMapper {
         if numberOfLines == 1 {
             gtk_label_set_wrap(labelPtr, 0)
             gtk_label_set_lines(labelPtr, 1)
+            gtk_label_set_single_line_mode(labelPtr, 1)
+            gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_END)
             return
         }
 
+        gtk_label_set_single_line_mode(labelPtr, 0)
+        gtk_label_set_ellipsize(labelPtr, PANGO_ELLIPSIZE_NONE)
         gtk_label_set_wrap(labelPtr, 1)
         gtk_label_set_wrap_mode(labelPtr, PANGO_WRAP_WORD_CHAR)
         gtk_label_set_lines(labelPtr, numberOfLines == 0 ? -1 : gint(numberOfLines))
@@ -257,7 +267,9 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
     }
 
     private static func installTextViewLabelMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: textView)
         textView.quillSetViewMutationHandler("SignalUIRender.textViewLabelContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedTextView = updatedView as? UITextView else { return }
             applyTextViewLabelContent(to: widget, textView: updatedTextView)
             gtk_widget_queue_resize(widget)
@@ -311,10 +323,13 @@ public enum UITextViewGtkMapper: UIViewGtkMapper {
 
     private static func installEditableTextViewMutationBridge(_ widget: GtkWidgetPtr, textView: UITextView) {
         let rawWidget = UnsafeMutableRawPointer(widget)
+        let token = UIKitGtkRenderer.renderBindingToken(for: textView)
         textView.quillSetViewMutationHandler("SignalUIRender.textViewEntryContent") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
             guard let updatedTextView = updatedView as? UITextView else { return }
             let nextText = updatedTextView.attributedText?.string ?? updatedTextView.text ?? ""
-            if quillSignalTextViewEntryGetText(rawWidget) != nextText {
+            if !quillSignalTextViewEntryIsApplyingText(rawWidget),
+               quillSignalTextViewEntryGetText(rawWidget) != nextText {
                 quillSignalTextViewEntrySetText(rawWidget, nextText)
             }
             if let placeholder = placeholderText(for: updatedTextView) {
@@ -447,7 +462,10 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         let isAvatar = size.width >= 44 && size.height >= 44 && imageView.layer.cornerRadius > 0
 
         if isAvatar {
-            return "?"
+            if name.contains("question") {
+                return "?"
+            }
+            return avatarInitials(for: imageView) ?? ""
         }
         if name.contains("plus") || name.contains("add") || name.contains("attachment") || name.contains("paperclip") {
             return "+"
@@ -491,6 +509,108 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         return nil
     }
 
+    private static func avatarInitials(for imageView: UIImageView) -> String? {
+        var best: (initials: String, score: Int)?
+
+        for candidate in avatarInitialCandidateTexts(near: imageView) {
+            guard let scored = scoredAvatarInitials(from: candidate.text, distance: candidate.distance) else {
+                continue
+            }
+            if best == nil || scored.score > best!.score {
+                best = scored
+            }
+        }
+
+        return best?.initials
+    }
+
+    private static func avatarInitialCandidateTexts(near imageView: UIImageView) -> [(text: String, distance: Int)] {
+        var candidates: [(text: String, distance: Int)] = []
+
+        if let label = imageView.accessibilityLabel {
+            candidates.append((label, 0))
+        }
+
+        var distance = 1
+        var ancestor = imageView.superview
+        while let current = ancestor, distance <= 5 {
+            if let label = current.accessibilityLabel {
+                candidates.append((label, distance))
+            }
+            collectLabelTexts(in: current, excluding: imageView, distance: distance, into: &candidates)
+            ancestor = current.superview
+            distance += 1
+        }
+
+        return candidates
+    }
+
+    private static func collectLabelTexts(
+        in root: UIView,
+        excluding excluded: UIView,
+        distance: Int,
+        into candidates: inout [(text: String, distance: Int)]
+    ) {
+        for child in root.subviews where child !== excluded {
+            if containsView(child, target: excluded) {
+                continue
+            }
+            if let label = child as? UILabel {
+                let text = visibleText(from: label.attributedText?.string ?? label.text ?? "")
+                candidates.append((text, distance))
+            }
+            collectLabelTexts(in: child, excluding: excluded, distance: distance + 1, into: &candidates)
+        }
+    }
+
+    private static func containsView(_ root: UIView, target: UIView) -> Bool {
+        if root === target {
+            return true
+        }
+        return root.subviews.contains { containsView($0, target: target) }
+    }
+
+    private static func scoredAvatarInitials(from rawText: String, distance: Int) -> (initials: String, score: Int)? {
+        let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, text.count <= 48 else { return nil }
+
+        let lower = text.lowercased()
+        let rejectedPhrases = [
+            "message", "groups in common", "no groups", "typing", "online",
+            "offline", "sent", "delivered", "read", "now"
+        ]
+        guard !rejectedPhrases.contains(where: { lower.contains($0) }) else {
+            return nil
+        }
+
+        let words = text
+            .split { character in
+                !character.isLetter && !character.isNumber
+            }
+            .map(String.init)
+            .filter { word in
+                word.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
+            }
+
+        guard !words.isEmpty, words.count <= 3 else { return nil }
+
+        let pickedWords = words.count == 1 ? [words[0]] : [words[0], words[1]]
+        let initials = pickedWords
+            .compactMap { $0.first.map { String($0).uppercased() } }
+            .joined()
+        guard !initials.isEmpty, initials.count <= 3 else { return nil }
+
+        let capitalizedBonus = words.filter { word in
+            guard let first = word.first else { return false }
+            return String(first).uppercased() == String(first)
+        }.count
+        let wordCountBonus = words.count == 2 ? 8 : (words.count == 1 ? 4 : 2)
+        let distancePenalty = distance * 2
+        let score = wordCountBonus + capitalizedBonus - distancePenalty - min(text.count / 16, 3)
+
+        return (initials, score)
+    }
+
     private static func fallbackLabel(text: String, for imageView: UIImageView) -> GtkWidgetPtr {
         let widget: GtkWidgetPtr = gtk_label_new(nil)
         let labelPtr = OpaquePointer(widget)
@@ -504,11 +624,13 @@ public enum UIImageViewGtkMapper: UIViewGtkMapper {
         gtk_label_set_xalign(labelPtr, 0.5)
         gtk_label_set_yalign(labelPtr, 0.5)
         gtk_label_set_justify(labelPtr, GTK_JUSTIFY_CENTER)
-        if size.width > 0 || size.height > 0 {
+        let width = UIKitGtkRenderer.gtkSizeRequestValue(size.width)
+        let height = UIKitGtkRenderer.gtkSizeRequestValue(size.height)
+        if width > 0 || height > 0 {
             gtk_widget_set_size_request(
                 widget,
-                size.width > 0 ? gint(size.width) : -1,
-                size.height > 0 ? gint(size.height) : -1
+                width,
+                height
             )
         }
         gtk_widget_set_halign(widget, GTK_ALIGN_CENTER)

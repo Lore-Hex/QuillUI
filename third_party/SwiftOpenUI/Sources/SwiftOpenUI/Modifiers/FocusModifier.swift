@@ -42,3 +42,15 @@ extension View {
         FocusedEqualsView(content: self, focusState: state, value: value)
     }
 }
+
+public extension AnyView {
+    func focused<V: Hashable>(_ state: FocusState<V?>.Binding, equals value: V) -> AnyView {
+        _ = (state, value)
+        return self
+    }
+
+    func focused<V: Hashable>(_ state: FocusState<V?>, equals value: V) -> AnyView {
+        _ = (state, value)
+        return self
+    }
+}

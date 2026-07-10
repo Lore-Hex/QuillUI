@@ -31,6 +31,19 @@ public enum UICollectionViewGtkMapper: UIViewGtkMapper {
         gtk_widget_set_hexpand(stack, 1)
         gtk_widget_set_halign(stack, GTK_ALIGN_FILL)
 
+        appendCollectionChildren(to: stack, collectionView: collectionView, ctx: ctx)
+        installCollectionMutationBridge(on: stack, collectionView: collectionView, ctx: ctx)
+
+        gtk_scrolled_window_set_child(OpaquePointer(scrolled), stack)
+        ctx.applyLayerStyle(scrolled, view)
+        return scrolled
+    }
+
+    private static func appendCollectionChildren(
+        to stack: GtkWidgetPtr,
+        collectionView: UICollectionView,
+        ctx: UIKitGtkRenderContext
+    ) {
         if let backgroundView = collectionView.backgroundView,
            let backgroundWidget = ctx.render(backgroundView) {
             gtk_widget_set_hexpand(backgroundWidget, 1)
@@ -45,19 +58,33 @@ public enum UICollectionViewGtkMapper: UIViewGtkMapper {
             gtk_widget_set_valign(cellWidget, GTK_ALIGN_START)
 
             let frame = cell.frame
-            if frame.width > 0 || frame.height > 0 {
+            let width = UIKitGtkRenderer.gtkSizeRequestValue(frame.width)
+            let height = UIKitGtkRenderer.gtkSizeRequestValue(frame.height)
+            if width > 0 || height > 0 {
                 gtk_widget_set_size_request(
                     cellWidget,
-                    frame.width > 0 ? gint(frame.width) : -1,
-                    frame.height > 0 ? gint(frame.height) : -1
+                    width,
+                    height
                 )
             }
             gtk_box_append(boxPointer(stack), cellWidget)
         }
+    }
 
-        gtk_scrolled_window_set_child(OpaquePointer(scrolled), stack)
-        ctx.applyLayerStyle(scrolled, view)
-        return scrolled
+    private static func installCollectionMutationBridge(
+        on stack: GtkWidgetPtr,
+        collectionView: UICollectionView,
+        ctx: UIKitGtkRenderContext
+    ) {
+        let token = UIKitGtkRenderer.renderBindingToken(for: collectionView)
+        collectionView.quillSetSubviewMutationHandler("SignalUIRender.collectionChildren") { updatedView in
+            guard UIKitGtkRenderer.isRenderBindingActive(token, for: updatedView) else { return }
+            guard let updatedCollectionView = updatedView as? UICollectionView else { return }
+            UIKitGtkRenderer.invalidateDescendantRenderBindings(for: updatedCollectionView)
+            clearCollectionBoxChildren(stack)
+            appendCollectionChildren(to: stack, collectionView: updatedCollectionView, ctx: ctx)
+            gtk_widget_queue_resize(stack)
+        }
     }
 }
 
@@ -74,5 +101,11 @@ public enum UICollectionViewCellGtkMapper: UIViewGtkMapper {
         gtk_widget_set_halign(body, GTK_ALIGN_FILL)
         ctx.applyLayerStyle(body, cell)
         return body
+    }
+}
+
+private func clearCollectionBoxChildren(_ box: GtkWidgetPtr) {
+    while let child = gtk_widget_get_first_child(box) {
+        gtk_box_remove(boxPointer(box), child)
     }
 }

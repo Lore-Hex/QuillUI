@@ -13,4 +13,14 @@ extension View {
     public func contextMenu(@MenuBuilder menuItems: () -> [MenuElement]) -> ContextMenuView<Self> {
         ContextMenuView(content: self, menuElements: menuItems())
     }
+
+    public func contextMenu<SelectionValue: Hashable>(
+        forSelectionType selectionType: SelectionValue.Type,
+        @MenuBuilder menu: (Set<SelectionValue>) -> [MenuElement],
+        primaryAction: ((Set<SelectionValue>) -> Void)? = nil
+    ) -> ContextMenuView<Self> {
+        _ = selectionType
+        _ = primaryAction
+        return ContextMenuView(content: self, menuElements: menu([]))
+    }
 }

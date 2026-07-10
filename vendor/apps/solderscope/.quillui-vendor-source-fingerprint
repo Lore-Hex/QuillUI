@@ -1,0 +1,17 @@
+quillui-app-source-vendor/v1
+app=solderscope
+source=tree:4d0c9d9708112a9ad1e3e776b09e340a741bcf4ebe41f6a3b7dcf5ca4cb96cf7
+exclude=--exclude
+exclude=.git
+exclude=--exclude
+exclude=.build
+exclude=--exclude
+exclude=.build-*
+exclude=--exclude
+exclude=.swiftpm
+exclude=--exclude
+exclude=DerivedData
+exclude=--exclude
+exclude=xcuserdata
+exclude=--exclude
+exclude=.DS_Store

@@ -22,6 +22,14 @@ SWIFT_TEST_ARGS=()
 # suite (current and future) rather than annotating each one @MainActor.
 export SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE="${SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE:-legacy}"
 
+# Focused library/test loops should not accidentally compile every fetched
+# upstream app checkout. Generated app checks opt back in when they need the
+# real app graph.
+: "${QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS:=1}"
+export QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS
+: "${QUILLUI_LINUX_BACKEND:=gtk}"
+export QUILLUI_LINUX_BACKEND
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scratch-path)
@@ -54,7 +62,6 @@ done
     [[ -n "$triple" ]] || continue
     mkdir -p "$SCRATCH_PATH/$triple/debug/index/store/v5/units"
   done
-
   # Build the test bundle FIRST, untimed (a cold all-upstreams build can take
   # the better part of an hour on a CI runner). Then run the suite with a TIGHT
   # timeout: separating the two means the timeout bounds only the (fast) test
@@ -75,6 +82,9 @@ done
   done
 
   set +e
+  # Keep the index store enabled for the build phase: SwiftPM's generated test
+  # discovery reads index units for test files and fails if `--disable-index-store`
+  # suppressed them. The skip-build test run below can still disable indexing.
   "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
     swift build --build-tests --scratch-path "$SCRATCH_PATH" ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test-build.log"
@@ -100,8 +110,9 @@ done
     case "$arg" in --filter|--filter=*) warm_lower=0 ;; esac
   done
   if [[ $warm_lower -eq 1 ]]; then
-    lower_pkg="$ROOT_DIR/.build/quill-source-lower-package"
-    lower_scratch="$ROOT_DIR/.build/quill-source-lower-tool"
+    lower_cache_key="$(printf '%s' "$ROOT_DIR" | cksum | awk '{print $1}')"
+    lower_pkg="$ROOT_DIR/.build/quill-source-lower-package-$lower_cache_key"
+    lower_scratch="$ROOT_DIR/.build/quill-source-lower-tool-$lower_cache_key"
     warm_dir="$(mktemp -d)"
     printf 'import Foundation\n' > "$warm_dir/Warm.swift"
     # NOTE: leave "$warm_dir/out" uncreated — quill-source-lower refuses to run
@@ -138,7 +149,7 @@ done
   timeout --signal=KILL "$TEST_RUN_TIMEOUT" \
     stdbuf -oL -eL \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
-    swift test --skip-build --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
+    swift test --skip-build --disable-index-store --scratch-path "$SCRATCH_PATH" ${SWIFT_TEST_ARGS[@]+"${SWIFT_TEST_ARGS[@]}"} \
     2>&1 | tee "$SCRATCH_PATH/swift-test.log"
   status=${PIPESTATUS[0]}
   set -e

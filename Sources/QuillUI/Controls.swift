@@ -345,14 +345,7 @@ public struct QuillChatComposer: View {
             if let selectedImage {
                 selectedImagePreview(selectedImage)
             }
-            TextField("Message", text: $message, axis: .vertical)
-                .font(.system(size: 14))
-                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                .clipped()
-                .textFieldStyle(.plain)
-                .onSubmit {
-                    submitIfPossible()
-                }
+            composerTextField
             composerActions
         }
         .transition(.slide)
@@ -370,6 +363,28 @@ public struct QuillChatComposer: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+    private var composerTextField: some View {
+        #if os(Linux)
+        TextField("Message", text: $message)
+            .font(.system(size: 14))
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .clipped()
+            .textFieldStyle(.plain)
+            .onSubmit {
+                submitIfPossible()
+            }
+        #else
+        TextField("Message", text: $message, axis: .vertical)
+            .font(.system(size: 14))
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .clipped()
+            .textFieldStyle(.plain)
+            .onSubmit {
+                submitIfPossible()
+            }
+        #endif
     }
 
     private var canSend: Bool {
@@ -395,7 +410,20 @@ public struct QuillChatComposer: View {
 
     private func submitIfPossible() {
         guard canSend else { return }
+        importBuiltInImageSelectionIfAvailableForSend()
         onSend()
+    }
+
+    private func importBuiltInImageSelectionIfAvailableForSend() {
+        #if os(Linux)
+        guard supportsImages,
+              usesBuiltInImageSelection,
+              selectedImage == nil,
+              ProcessInfo.processInfo.environment["QUILLUI_FILE_IMPORTER_AUTO_ATTACH"] == "1" else {
+            return
+        }
+        handleImageImport(QuillFileImporter.selectURL(allowedContentTypes: [.png, .jpeg, .tiff]))
+        #endif
     }
 
     private func selectImage() {
@@ -1131,6 +1159,18 @@ private extension View {
         self.buttonStyle(.plain)
         #endif
     }
+
+    @ViewBuilder
+    func quillSidebarUtilityButtonStyle() -> some View {
+        #if os(Linux)
+        self.buttonStyle(ButtonStyleType.quillPaintMacListRow(
+            isSelected: false,
+            drawsIdleBackground: false
+        ))
+        #else
+        self.buttonStyle(.plain)
+        #endif
+    }
 }
 
 private extension Color {
@@ -1551,7 +1591,7 @@ public struct QuillSidebarNavigationButton: View {
             .frame(maxWidth: .infinity, minHeight: navigationRowHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .quillSidebarUtilityButtonStyle()
     }
 
     #if os(Linux)

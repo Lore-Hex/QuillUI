@@ -15,6 +15,9 @@
 import Foundation
 import QuillKit
 
+public let UNNotificationDefaultActionIdentifier = "com.apple.UNNotificationDefaultActionIdentifier"
+public let UNNotificationDismissActionIdentifier = "com.apple.UNNotificationDismissActionIdentifier"
+
 // MARK: - Option sets / enums
 
 public struct UNAuthorizationOptions: OptionSet, Sendable {
@@ -440,6 +443,12 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
         completionHandler(UNNotificationSettings(
             authorizationStatus: UNAuthorizationStatus(QuillNotificationService.shared.authorizationStatus)
         ))
+    }
+
+    public func notificationSettings() async -> UNNotificationSettings {
+        UNNotificationSettings(
+            authorizationStatus: UNAuthorizationStatus(QuillNotificationService.shared.authorizationStatus)
+        )
     }
 
     public func deliveredNotifications() async -> [UNNotification] {
