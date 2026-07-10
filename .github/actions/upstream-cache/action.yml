@@ -13,10 +13,14 @@ runs:
       id: cache-key
       shell: bash
       run: |
-        digest="$({
-          git hash-object scripts/fetch-upstream.sh
-          git hash-object .github/actions/upstream-cache/action.yml
-        } | git hash-object --stdin)"
+        digest="$(
+          git -c 'safe.directory=*' ls-files -s \
+            .github/actions/upstream-cache/action.yml \
+            scripts/fetch-upstream.sh \
+            scripts/quillui-vendored-source.sh \
+            vendor/apps \
+            | git hash-object --stdin
+        )"
         echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
     - name: Restore .upstream

@@ -12,10 +12,13 @@ struct VendoredSourcePipelineTests {
         )
 
         #expect(source.contains("SOURCE_APP=\"${QUILLUI_APP_SOURCE_APP:-}\""))
+        #expect(source.contains("REQUIRE_VENDORED_SOURCE=\"${QUILLUI_APP_REQUIRE_VENDORED_SOURCE:-0}\""))
         #expect(source.contains("--source-app NAME"))
+        #expect(source.contains("--require-vendored-source"))
         #expect(source.contains("--source-subdir PATH"))
         #expect(source.contains("--source-dir and --source-app are mutually exclusive"))
         #expect(source.contains("BUILD_SOURCE_ARGS=(--source-app \"$SOURCE_APP\")"))
+        #expect(source.contains("BUILD_SOURCE_ARGS+=(--require-vendored-source)"))
         #expect(source.contains("BUILD_SOURCE_ARGS+=(--source-subdir \"$SOURCE_SUBDIR\")"))
         #expect(source.contains("BUILD_SOURCE_ARGS=(--source-dir \"$SOURCE_DIR\")"))
         #expect(source.contains("\"${BUILD_SOURCE_ARGS[@]}\""))
@@ -45,9 +48,102 @@ struct VendoredSourcePipelineTests {
         #expect(source.contains("scripts/package-swiftui-linux-app.sh"))
         #expect(source.contains("--source-app enchanted"))
         #expect(source.contains("--source-subdir Enchanted"))
-        #expect(source.contains("Audit vendored Enchanted SwiftPM sources"))
-        #expect(source.contains("scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored"))
+        #expect(source.contains("--require-vendored-source"))
+        #expect(source.contains("Audit vendored Enchanted app source"))
+        #expect(source.contains("scripts/check-vendored-swiftui-app-source.sh enchanted"))
         #expect(!source.contains("ENCHANTED_APP_DIR=\"$(quillui_resolve_enchanted_source_dir \"$PWD\")\""))
+    }
+
+    @Test("Vendored app audit verifies source metadata and SwiftPM pins")
+    func vendoredAppAuditVerifiesSourceMetadataAndSwiftPMPins() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let scratch = fileManager.temporaryDirectory
+            .appendingPathComponent("QuillUIVendoredAppAudit-\(UUID().uuidString)")
+        let scripts = scratch.appendingPathComponent("scripts")
+        let app = scratch.appendingPathComponent("vendor/apps/demo")
+        let thirdParty = scratch.appendingPathComponent("third_party/trusted-router-swift")
+        let auditScript = scripts.appendingPathComponent("check-vendored-swiftui-app-source.sh")
+        defer { try? fileManager.removeItem(at: scratch) }
+
+        try fileManager.createDirectory(at: scripts, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: app, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: thirdParty.appendingPathComponent("Sources/TrustedRouter"),
+            withIntermediateDirectories: true
+        )
+
+        for script in [
+            "check-vendored-swiftui-app-source.sh",
+            "vendor-swiftpm-sources.sh",
+            "quillui-vendored-source.sh",
+        ] {
+            let destination = scripts.appendingPathComponent(script)
+            try fileManager.copyItem(at: root.appendingPathComponent("scripts/\(script)"), to: destination)
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
+        }
+
+        try write(
+            """
+            quillui-app-source-vendor/v1
+            app=demo
+            source=tree:test
+            """,
+            to: app.appendingPathComponent(".quillui-vendor-source-fingerprint")
+        )
+        try write("# Vendored demo Source\n", to: app.appendingPathComponent("QUILLUI_VENDOR.md"))
+        try write(
+            """
+            {
+              "pins" : [
+                {
+                  "identity" : "trusted-router-swift",
+                  "kind" : "remoteSourceControl",
+                  "location" : "https://github.com/jperla/trusted-router-swift.git",
+                  "state" : {
+                    "revision" : "410cb034ce5a20b62f209d03d46a256cafe7b54f",
+                    "version" : "0.4.1"
+                  }
+                }
+              ],
+              "version" : 3
+            }
+            """,
+            to: app.appendingPathComponent("Package.resolved")
+        )
+        try write(
+            """
+            // swift-tools-version: 6.0
+            import PackageDescription
+
+            let package = Package(
+                name: "TrustedRouter",
+                products: [.library(name: "TrustedRouter", targets: ["TrustedRouter"])],
+                targets: [.target(name: "TrustedRouter")]
+            )
+            """,
+            to: thirdParty.appendingPathComponent("Package.swift")
+        )
+        try write(
+            "public struct TrustedRouterClient {}\n",
+            to: thirdParty.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift")
+        )
+
+        let success = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [auditScript.path, "--all-vendored-apps"]
+        )
+        #expect(success.status == 0, Comment(rawValue: success.output))
+        #expect(success.output.contains("vendored app source ok: demo"), Comment(rawValue: success.output))
+        #expect(success.output.contains("vendored SwiftPM source pins ok: demo"), Comment(rawValue: success.output))
+
+        try fileManager.removeItem(at: app.appendingPathComponent(".quillui-vendor-source-fingerprint"))
+        let missingFingerprint = try run(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [auditScript.path, "demo", "--no-deps"]
+        )
+        #expect(missingFingerprint.status != 0, Comment(rawValue: missingFingerprint.output))
+        #expect(missingFingerprint.output.contains("missing vendored app fingerprint"), Comment(rawValue: missingFingerprint.output))
     }
 
     @Test("QuillCode SwiftPM dependency sources are vendored without bulky artifacts")

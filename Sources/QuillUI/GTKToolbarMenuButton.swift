@@ -260,6 +260,46 @@ struct QuillGTKToolbarMenuButton: View, PrimitiveView, GTKRenderable {
     }
 }
 
+struct QuillGTKDesktopChatToolbar: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+
+    var modelActions: [QuillMenuAction]
+    var optionsActions: [QuillMenuAction]
+    var onNewConversation: () -> Void
+
+    var body: Never { fatalError("QuillGTKDesktopChatToolbar is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
+        gtk_widget_set_size_request(box, -1, 32)
+        gtk_widget_set_halign(box, GTK_ALIGN_END)
+        gtk_widget_set_valign(box, GTK_ALIGN_CENTER)
+        gtk_widget_set_hexpand(box, 0)
+        gtk_widget_set_vexpand(box, 0)
+
+        appendToolbarWidget(QuillGTKToolbarMenuButton(
+            systemImage: "chevron.down",
+            showsChevron: false,
+            width: 30,
+            actions: modelActions
+        ).gtkCreateWidget(), to: box)
+        appendToolbarWidget(QuillGTKToolbarMenuButton(
+            systemImage: "ellipsis",
+            showsChevron: true,
+            width: 42,
+            actions: optionsActions
+        ).gtkCreateWidget(), to: box)
+        appendToolbarWidget(QuillGTKToolbarIconButton(
+            systemImage: "square.and.pencil",
+            showsChevron: false,
+            width: 30,
+            action: onNewConversation
+        ).gtkCreateWidget(), to: box)
+
+        return OpaquePointer(box)
+    }
+}
+
 private struct QuillGTKToolbarGlyph {
     var materialName: String
     var pointSize: Int
@@ -310,7 +350,7 @@ private func toolbarGlyphs(
         }
         return glyphs
     case "square.and.pencil":
-        return [QuillGTKToolbarGlyph(materialName: "edit_square", pointSize: 26, width: 27)]
+        return [QuillGTKToolbarGlyph(materialName: "edit", pointSize: 26, width: 27)]
     default:
         return [QuillGTKToolbarGlyph(
             materialName: QuillSystemSymbol.compatibleName(systemImage),
@@ -352,6 +392,14 @@ private func toolbarButtonPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> 
 
 private func toolbarBoxPointer(_ widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkBox> {
     UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkBox.self)
+}
+
+private func appendToolbarWidget(_ child: OpaquePointer, to box: UnsafeMutablePointer<GtkWidget>) {
+    gtk_box_append(toolbarBoxPointer(box), toolbarWidgetPointer(child))
+}
+
+private func toolbarWidgetPointer(_ pointer: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
+    UnsafeMutableRawPointer(pointer).assumingMemoryBound(to: GtkWidget.self)
 }
 
 private func connectToolbarButton(

@@ -85,9 +85,9 @@ struct LinuxBackendAppMatrixTests {
     private static let expectedNativeRuntimeBackends = ["gtk"]
     private static let expectedGeneratedAppProducts = ["quill-enchanted-linux", "quill-code-desktop-linux"]
     private static let expectedGeneratedAppBuildSpecs = [
-        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
-        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR",
-        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR"
+        "quill-enchanted-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR\tQuillGenericQtAppCatalog.enchantedUpstreamSlice",
+        "quill-chat-linux\tenchanted-full-source\tenchanted\tEnchanted\tEnchantedApp\t\tQUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR\tQuillGenericQtAppCatalog.enchantedUpstreamSlice",
+        "quill-code-desktop-linux\tgeneric-swiftui\tquillcode\t\tQuillCodeDesktopApp\tquill-code-desktop\tQUILLUI_QUILLCODE_BUILD_WORKDIR\tQuillGenericQtAppCatalog.quillCode"
     ]
     private static let expectedSmokeProducts = ["quill-gtk-interaction-smoke", "quill-qt-interaction-smoke"]
     private static let profileCSVHeader = "product,requested_backend,runtime_backend,runtime_mode,build_ms,startup_ms,rss_kb,cpu_pct_initial,cpu_pct_steady,exit_status"
@@ -173,6 +173,13 @@ struct LinuxBackendAppMatrixTests {
             }
         }
         return product
+    }
+
+    private static func expectedGeneratedInteractionVerifierProduct(product: String, backend: String) -> String {
+        if product == "quill-code-desktop-linux" {
+            return "quill-code-desktop-linux-toolbar-menu"
+        }
+        return Self.expectedVisualVerifierProduct(product: product, backend: backend)
     }
 
     private static func expectedVisualRow(product: String, backend: String) -> String {
@@ -518,7 +525,7 @@ struct LinuxBackendAppMatrixTests {
             let backend = fields[1]
             let runtimeBackend = fields[2]
             let runtimeMode = fields[3]
-            let verifyProduct = Self.expectedVisualVerifierProduct(product: product, backend: backend)
+            let verifyProduct = Self.expectedGeneratedInteractionVerifierProduct(product: product, backend: backend)
             return "interaction\t\(product)\t\(backend)\t\(runtimeBackend)\t\(runtimeMode)\t.qa/\(product)-\(backend).png\t0\t\(verifyProduct)"
         })
 

@@ -37,6 +37,7 @@ TARGET_NAME_RE = re.compile(r"\bname\s*:\s*\"([^\"]+)\"")
 TOP_LEVEL_TARGETS_RE = re.compile(r"(?m)^([ \t]*)targets\s*:\s*\[")
 TOP_LEVEL_DEPENDENCIES_RE = re.compile(r"(?m)^([ \t]*)dependencies\s*:\s*\[")
 TOP_LEVEL_DEPENDENCIES_VARIABLE_RE = re.compile(r"(?m)^([ \t]*)dependencies\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\s*,")
+TARGET_DEPENDENCIES_VARIABLE_RE = re.compile(r"\bdependencies\s*:\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 SWIFT_TOOLS_VERSION_RE = re.compile(r"(?m)^// swift-tools-version:\s*([0-9]+(?:\.[0-9]+)?)\s*$")
 QUILL_PREP_PRODUCTS = {
     "ActivityIndicatorView",
@@ -77,6 +78,27 @@ QUILL_PREP_PRODUCTS = {
     "UIKit",
     "UniformTypeIdentifiers",
     "UserNotifications",
+    "Vortex",
+    "WebKit",
+    "WrappingHStack",
+}
+QUILL_SHIMS_IMPORT_PRODUCTS = {
+    "ActivityIndicatorView",
+    "AppKit",
+    "ApplicationServices",
+    "AVFoundation",
+    "AVKit",
+    "Carbon",
+    "Cocoa",
+    "CoreGraphics",
+    "CoreImage",
+    "CoreSpotlight",
+    "MarkdownUI",
+    "PhotosUI",
+    "Sparkle",
+    "SwiftUI",
+    "SwiftUIIntrospect",
+    "UIKit",
     "Vortex",
     "WebKit",
     "WrappingHStack",
@@ -257,7 +279,12 @@ def unique_strings(values: list[str]) -> list[str]:
     return result
 
 
-def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) -> Path | None:
+def local_candidate_for_url(
+    root_dir: Path,
+    url: str,
+    package_name: str | None,
+    search_roots: tuple[str, ...] = ("third_party", ".upstream", "vendor/apps"),
+) -> Path | None:
     identity = package_identity_from_url(url)
     identity_key = identity.lower()
     identities = [identity, identity_key]
@@ -268,7 +295,7 @@ def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) 
     identities = unique_strings(identities)
 
     candidates: list[Path] = []
-    for base in ("third_party", ".upstream", "vendor/apps"):
+    for base in search_roots:
         for item in identities:
             candidates.append(root_dir / base / item)
 
@@ -277,7 +304,7 @@ def local_candidate_for_url(root_dir: Path, url: str, package_name: str | None) 
             return candidate.resolve()
 
     normalized_identities = {normalized_package_component(item) for item in identities}
-    for base in ("third_party", ".upstream", "vendor/apps"):
+    for base in search_roots:
         directory = root_dir / base
         if not directory.is_dir():
             continue
@@ -437,9 +464,9 @@ def package_declares_quill_products_for_imports(package_dir: Path, imports_by_ta
     if '.package(name: "QuillUI"' not in manifest:
         return False
 
-    required_products = {"QuillShims"}
+    required_products: set[str] = set()
     for imports in imports_by_target.values():
-        required_products.update(imports)
+        required_products.update(quill_products_for_imports(imports))
 
     return all(f'.product(name: "{product}", package: "QuillUI")' in manifest for product in required_products)
 
@@ -630,11 +657,40 @@ def product_entries(products: set[str]) -> list[str]:
     return [f'.product(name: "{name}", package: "QuillUI")' for name in sorted(products)]
 
 
+def quill_products_for_imports(imports: set[str]) -> set[str]:
+    products = set(imports)
+    if imports & QUILL_SHIMS_IMPORT_PRODUCTS:
+        products.add("QuillShims")
+    return products
+
+
+def target_needs_ui_source_lowering(imports: set[str]) -> bool:
+    return bool(imports & QUILL_SHIMS_IMPORT_PRODUCTS)
+
+
 def strip_line_comments(text: str) -> str:
     return "\n".join(line.split("//", 1)[0] for line in text.splitlines())
 
 
-def patch_dependency_array(block: str, products: set[str]) -> str:
+def dependency_variable_block(manifest: str, variable_name: str) -> str:
+    escaped_name = re.escape(variable_name)
+    assignment_re = re.compile(
+        rf"(?:\b(?:var|let)\s+{escaped_name}\b[^\n=]*=|\b{escaped_name}\s*(?:\+=|=))\s*\["
+    )
+    blocks: list[str] = []
+    for match in assignment_re.finditer(manifest):
+        open_index = manifest.find("[", match.start())
+        if open_index < 0:
+            continue
+        try:
+            close_index = find_matching(manifest, open_index, "[", "]")
+        except ValueError:
+            continue
+        blocks.append(manifest[match.start() : close_index + 1])
+    return "\n".join(blocks)
+
+
+def patch_dependency_array(block: str, products: set[str], manifest: str) -> str:
     entries = [entry for entry in product_entries(products) if entry not in block]
     if not entries:
         return block
@@ -655,6 +711,25 @@ def patch_dependency_array(block: str, products: set[str]) -> str:
         if existing_syntax and not existing_syntax.endswith((",", "[")):
             insertion = "," + insertion
         return block[:close_index] + insertion + "\n" + dependency_indent + block[close_index:]
+
+    variable_match = TARGET_DEPENDENCIES_VARIABLE_RE.search(block)
+    if variable_match:
+        variable_name = variable_match.group(1)
+        variable_block = dependency_variable_block(manifest, variable_name)
+        missing_entries = [entry for entry in entries if entry not in variable_block]
+        if not missing_entries:
+            return block
+        dependency_indent = line_indent(block, variable_match.start())
+        entry_indent = dependency_indent + "    "
+        replacement = (
+            f"{variable_name} + [\n"
+            + "".join(f"{entry_indent}{entry},\n" for entry in missing_entries)
+            + f"{dependency_indent}]"
+        )
+        return block[: variable_match.start(1)] + replacement + block[variable_match.end(1) :]
+
+    if re.search(r"\bdependencies\s*:", block):
+        return block
 
     name_match = TARGET_NAME_RE.search(block)
     if not name_match:
@@ -725,7 +800,7 @@ def patch_target_dependencies(manifest: str, target_products: dict[str, set[str]
         products = target_products.get(target_name)
         if not products:
             continue
-        patched_block = patch_dependency_array(block, products)
+        patched_block = patch_dependency_array(block, products, manifest)
         patched_block = patch_target_swift_settings(patched_block)
         replacements.append((match.start(), close_index + 1, patched_block))
 
@@ -1050,10 +1125,13 @@ def prepare_package(
         return prepared_dir
     in_progress.add(package_dir)
 
-    target_products = {name: set(products) | {"QuillShims"} for name, products in imports.items()}
+    target_products = {name: quill_products_for_imports(products) for name, products in imports.items()}
 
     if not skip_source_lowering:
-        for source_dir in source_dirs_for_targets(prepared_dir, set(imports)):
+        targets_needing_ui_lowering = {
+            name for name, products in imports.items() if target_needs_ui_source_lowering(products)
+        }
+        for source_dir in source_dirs_for_targets(prepared_dir, targets_needing_ui_lowering):
             if source_dir.is_dir():
                 subprocess.run(
                     [str(root_dir / "scripts/lower-swiftui-source-for-linux.sh"), str(source_dir)],
@@ -1079,10 +1157,11 @@ def prepare_package(
     return prepared_dir
 
 
-def resolved_package_dir(root_dir: Path, parsed: PackageLine) -> Path | None:
+def resolved_package_dir(root_dir: Path, parsed: PackageLine, require_vendored_sources: bool = False) -> Path | None:
     package_dir = parsed.path.resolve() if parsed.path else None
     if package_dir is None and parsed.url:
-        package_dir = local_candidate_for_url(root_dir, parsed.url, parsed.package_name)
+        search_roots = ("third_party",) if require_vendored_sources else ("third_party", ".upstream", "vendor/apps")
+        package_dir = local_candidate_for_url(root_dir, parsed.url, parsed.package_name, search_roots)
     if package_dir is None or not (package_dir / "Package.swift").is_file():
         return None
     return package_dir.resolve()
@@ -1094,9 +1173,10 @@ def rewritten_line(
     line: str,
     skip_source_lowering: bool,
     materialized: dict[Path, Path],
+    require_vendored_sources: bool = False,
 ) -> str:
     parsed = parse_package_line(line)
-    package_dir = resolved_package_dir(root_dir, parsed)
+    package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
     if package_dir is None or not (package_dir / "Package.swift").is_file():
         return parsed.original
 
@@ -1133,7 +1213,7 @@ def main() -> int:
         parsed = parse_package_line(stripped)
         if is_quill_provided_package(parsed):
             continue
-        package_dir = resolved_package_dir(root_dir, parsed)
+        package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
         if package_dir is None:
             if require_vendored_sources and parsed.url:
                 unresolved_remote_dependencies.append(parsed.original)
@@ -1156,7 +1236,7 @@ def main() -> int:
             parsed = parse_package_line(stripped)
             if is_quill_provided_package(parsed):
                 continue
-            package_dir = resolved_package_dir(root_dir, parsed)
+            package_dir = resolved_package_dir(root_dir, parsed, require_vendored_sources)
             if package_dir is None or package_dir in materialized:
                 continue
             prepare_package(
@@ -1178,7 +1258,14 @@ def main() -> int:
     for stripped in stripped_lines:
         if is_quill_provided_package(parse_package_line(stripped)):
             continue
-        rewritten = rewritten_line(root_dir, work_root, stripped, args.skip_source_lowering, materialized)
+        rewritten = rewritten_line(
+            root_dir,
+            work_root,
+            stripped,
+            args.skip_source_lowering,
+            materialized,
+            require_vendored_sources,
+        )
         if require_vendored_sources and PACKAGE_URL_RE.search(rewritten):
             unresolved_remote_dependencies.append(rewritten)
         if rewritten in seen_output_lines:

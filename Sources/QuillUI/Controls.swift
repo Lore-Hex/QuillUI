@@ -2299,7 +2299,8 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
 
     public var body: some View {
         GeometryReader { geometry in
-            let resolvedSidebarWidth = resolvedSidebarWidth(totalWidth: Double(geometry.size.width))
+            let resolvedLayoutWidth = resolvedLayoutWidth(totalWidth: Double(geometry.size.width))
+            let resolvedSidebarWidth = resolvedSidebarWidth(totalWidth: Double(resolvedLayoutWidth))
             HStack(spacing: 0) {
                 sidebar
                     .frame(width: resolvedSidebarWidth, alignment: .leading)
@@ -2337,14 +2338,29 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
                         .background(QuillDesktopChromeStyle.detailBackground)
                 }
             }
+            .frame(width: resolvedLayoutWidth, alignment: .leading)
             .background(QuillDesktopChromeStyle.detailBackground)
         }
     }
 
+    private func resolvedLayoutWidth(totalWidth: Double) -> CGFloat {
+        #if os(Linux)
+        return CGFloat(quillDesktopSplitResolvedLayoutWidth(
+            totalWidth: totalWidth,
+            referenceWindowWidth: quillBackendReferenceWindowWidth
+        ))
+        #else
+        return CGFloat(totalWidth)
+        #endif
+    }
+
     private func resolvedSidebarWidth(totalWidth: Double) -> CGFloat {
         #if os(Linux)
-        guard totalWidth > 0 else { return sidebarWidth }
-        return CGFloat(max(Double(sidebarWidth), min(620.0, totalWidth * 0.285)))
+        return CGFloat(quillDesktopSplitResolvedSidebarWidth(
+            baseSidebarWidth: Double(sidebarWidth),
+            totalWidth: totalWidth,
+            referenceWindowWidth: quillBackendReferenceWindowWidth
+        ))
         #else
         return sidebarWidth
         #endif
@@ -2362,6 +2378,30 @@ public struct QuillDesktopSplitLayout<Sidebar: View, ToolbarContent: View, Conte
     #else
     private var resolvedToolbarHeight: CGFloat { toolbarHeight }
     #endif
+}
+
+internal func quillDesktopSplitResolvedLayoutWidth(
+    totalWidth: Double,
+    referenceWindowWidth: Double?
+) -> Double {
+    guard totalWidth > 0 else { return totalWidth }
+    if let referenceWindowWidth, referenceWindowWidth > 0 {
+        return min(totalWidth, referenceWindowWidth)
+    }
+    return totalWidth
+}
+
+internal func quillDesktopSplitResolvedSidebarWidth(
+    baseSidebarWidth: Double,
+    totalWidth: Double,
+    referenceWindowWidth: Double?
+) -> Double {
+    guard totalWidth > 0 else { return baseSidebarWidth }
+    let effectiveTotalWidth = quillDesktopSplitResolvedLayoutWidth(
+        totalWidth: totalWidth,
+        referenceWindowWidth: referenceWindowWidth
+    )
+    return max(baseSidebarWidth, min(620.0, effectiveTotalWidth * 0.285))
 }
 
 public struct QuillMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
@@ -2972,7 +3012,7 @@ public struct QuillModelConversationChatScaffold<
         selectedModelID: ModelID?,
         promptSource: [PromptItem],
         reachable: Bool,
-        statusMaxWidth: CGFloat = 1524,
+        statusMaxWidth: CGFloat = .infinity,
         settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
         onNewConversation: @escaping () -> Void,
         editContent: @escaping (EditMessage) -> String,
@@ -3123,6 +3163,14 @@ public struct QuillDesktopChatToolbar: View {
     }
 
     public var body: some View {
+        #if os(Linux) && QUILLUI_GTK_BACKEND
+        QuillGTKDesktopChatToolbar(
+            modelActions: modelActions,
+            optionsActions: optionsActions,
+            onNewConversation: onNewConversation
+        )
+        .frame(height: 32, alignment: .trailing)
+        #else
         QuillToolbarActionRow {
             QuillToolbarMenuButton(
                 systemImage: "chevron.down",
@@ -3140,6 +3188,7 @@ public struct QuillDesktopChatToolbar: View {
 
             QuillToolbarIconButton(systemImage: "square.and.pencil", action: onNewConversation)
         }
+        #endif
     }
 }
 
@@ -3185,7 +3234,7 @@ public struct QuillToolbarIconButton: View {
     }
 
     public var body: some View {
-        #if os(Linux)
+        #if os(Linux) && QUILLUI_GTK_BACKEND
         QuillGTKToolbarIconButton(
             systemImage: systemImage,
             showsChevron: showsChevron,
@@ -3253,7 +3302,7 @@ public struct QuillToolbarMenuButton: View {
     }
 
     public var body: some View {
-        #if os(Linux)
+        #if os(Linux) && QUILLUI_GTK_BACKEND
         QuillGTKToolbarMenuButton(
             systemImage: systemImage,
             showsChevron: showsChevron,

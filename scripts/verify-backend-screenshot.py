@@ -284,6 +284,29 @@ def wireguard_error_text_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def quill_code_light_text_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) >= 520 and max(rgb) - min(rgb) <= 95
+
+
+def quill_code_dark_text_pixel(rgb: tuple[int, int, int]) -> bool:
+    return sum(rgb) < 260
+
+
+def quill_code_divider_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 155 <= red <= 225 and 155 <= green <= 225 and 155 <= blue <= 225 and max(rgb) - min(rgb) <= 18
+
+
+def quill_code_warning_amber_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 150 <= red <= 255 and 85 <= green <= 210 and blue <= 125 and red - blue >= 55 and green - blue >= 20
+
+
+def quill_code_runtime_issue_banner_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 235 <= red <= 255 and 185 <= green <= 230 and 190 <= blue <= 235 and red - green >= 15 and red - blue >= 10
+
+
 def wireguard_gtk_sidebar_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -3952,6 +3975,169 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
     )
 
 
+def validate_quill_code_desktop_linux(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1_000 <= app_width <= 1_240, f"QuillCode window width is unexpected: {app_width}px")
+    require(680 <= app_height <= 840, f"QuillCode window height is unexpected: {app_height}px")
+
+    sidebar_width = 280
+    main_left = min(right, left + sidebar_width)
+    main_center_x = main_left + ((right - main_left) // 2)
+    empty_state_top = top + int(app_height * 0.74)
+    empty_state_bottom = top + int(app_height * 0.91)
+    center_text_pixels = pixel_count(
+        image,
+        max(main_left, main_center_x - 330),
+        empty_state_top,
+        min(right + 1, main_center_x + 330),
+        min(bottom + 1, empty_state_bottom),
+        quill_code_light_text_pixel,
+    )
+    far_right_text_pixels = pixel_count(
+        image,
+        max(main_left, right - 280),
+        empty_state_top,
+        right + 1,
+        min(bottom + 1, empty_state_bottom),
+        quill_code_light_text_pixel,
+    )
+    composer_text_pixels = pixel_count(
+        image,
+        main_left + 20,
+        max(top, bottom - 70),
+        right - 20,
+        bottom + 1,
+        quill_code_light_text_pixel,
+    )
+
+    require(
+        center_text_pixels >= 800,
+        "QuillCode empty-state text was not detected in the centered main-pane band: "
+        f"pixels={center_text_pixels}",
+    )
+    require(
+        far_right_text_pixels <= max(650, center_text_pixels // 2),
+        "QuillCode empty-state text appears clipped or right-drifted: "
+        f"center_pixels={center_text_pixels}, far_right_pixels={far_right_text_pixels}",
+    )
+    require(
+        composer_text_pixels >= 250,
+        f"QuillCode composer placeholder was not detected: pixels={composer_text_pixels}",
+    )
+
+    return (
+        "QuillCode desktop Linux: "
+        f"app={app_width}x{app_height}, "
+        f"center_text_pixels={center_text_pixels}, "
+        f"far_right_text_pixels={far_right_text_pixels}, "
+        f"composer_text_pixels={composer_text_pixels}"
+    )
+
+
+def validate_quill_code_desktop_linux_toolbar_menu(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    require(1_000 <= app_width <= 1_240, f"QuillCode toolbar window width is unexpected: {app_width}px")
+    require(680 <= app_height <= 840, f"QuillCode toolbar window height is unexpected: {app_height}px")
+
+    sidebar_width = 280
+    main_left = min(right, left + sidebar_width)
+    divider_pixels = pixel_count(
+        image,
+        main_left - 6,
+        top + 50,
+        main_left + 8,
+        bottom + 1,
+        quill_code_divider_pixel,
+    )
+    divider_light_pixels = pixel_count(
+        image,
+        main_left - 6,
+        top + 50,
+        main_left + 8,
+        bottom + 1,
+        quill_code_light_text_pixel,
+    )
+    gtk_dark_shell_pixels = dark_pixel_count(
+        image,
+        main_left,
+        top + 68,
+        right + 1,
+        bottom + 1,
+    )
+    gtk_warning_pixels = pixel_count(
+        image,
+        main_left + 20,
+        top + 70,
+        right - 90,
+        top + 205,
+        quill_code_warning_amber_pixel,
+    )
+    gtk_warning_text_pixels = pixel_count(
+        image,
+        main_left + 50,
+        top + 80,
+        right - 90,
+        top + 185,
+        quill_code_light_text_pixel,
+    )
+    qt_runtime_issue_pixels = pixel_count(
+        image,
+        main_left + 50,
+        bottom - 150,
+        right - 50,
+        bottom - 30,
+        quill_code_runtime_issue_banner_pixel,
+    )
+    qt_runtime_text_pixels = pixel_count(
+        image,
+        main_left + 50,
+        bottom - 150,
+        right - 50,
+        bottom - 30,
+        quill_code_dark_text_pixel,
+    )
+
+    require(
+        max(divider_pixels, divider_light_pixels) >= 400,
+        "QuillCode sidebar/main divider was not detected after toolbar interaction: "
+        f"divider_pixels={divider_pixels}, divider_light_pixels={divider_light_pixels}",
+    )
+    gtk_toolbar_state = (
+        gtk_dark_shell_pixels >= 450_000
+        and gtk_warning_pixels >= 150
+        and gtk_warning_text_pixels >= 150
+    )
+    qt_toolbar_state = (
+        qt_runtime_issue_pixels >= 15_000
+        and qt_runtime_text_pixels >= 800
+    )
+    require(
+        gtk_toolbar_state or qt_toolbar_state,
+        "QuillCode toolbar interaction state was not detected: "
+        f"gtk_dark_shell_pixels={gtk_dark_shell_pixels}, "
+        f"gtk_warning_pixels={gtk_warning_pixels}, "
+        f"gtk_warning_text_pixels={gtk_warning_text_pixels}, "
+        f"qt_runtime_issue_pixels={qt_runtime_issue_pixels}, "
+        f"qt_runtime_text_pixels={qt_runtime_text_pixels}",
+    )
+
+    return (
+        "QuillCode desktop Linux toolbar interaction: "
+        f"app={app_width}x{app_height}, "
+        f"divider_pixels={divider_pixels}, "
+        f"divider_light_pixels={divider_light_pixels}, "
+        f"gtk_dark_shell_pixels={gtk_dark_shell_pixels}, "
+        f"gtk_warning_pixels={gtk_warning_pixels}, "
+        f"gtk_warning_text_pixels={gtk_warning_text_pixels}, "
+        f"qt_runtime_issue_pixels={qt_runtime_issue_pixels}, "
+        f"qt_runtime_text_pixels={qt_runtime_text_pixels}"
+    )
+
+
 def validate_quill_wireguard_qt_native(
     image: Screenshot,
     minimum_selected_center_offset: int | None = None,
@@ -4911,6 +5097,10 @@ def main() -> int:
         print(validate_quill_generic_gtk_list_selection(image, product))
     elif product in GENERIC_QT_LIST_SELECTION_PRODUCTS:
         print(validate_quill_generic_qt_list_selection(image, product))
+    elif product == "quill-code-desktop-linux":
+        print(validate_quill_code_desktop_linux(image))
+    elif product == "quill-code-desktop-linux-toolbar-menu":
+        print(validate_quill_code_desktop_linux_toolbar_menu(image))
     elif product == "quill-wireguard-qt":
         print(validate_quill_wireguard_qt_native(image))
     elif product == "quill-wireguard-qt-tunnel-selection":

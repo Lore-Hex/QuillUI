@@ -81,6 +81,65 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(gtk_widget_get_overflow(wrapper), GTK_OVERFLOW_HIDDEN)
     }
 
+    func testFiniteMaxWidthEmptyStateStaysCenteredInFlexibleMainPane() throws {
+        try requireGTK()
+
+        let title = "Ask QuillCode to inspect, edit, and build your code."
+        let subtitle = "Use Auto for normal coding work, Review for manual code review, and Edit when you want a focused patch."
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 0) {
+                Color.gray
+                    .frame(width: 280)
+                Divider()
+                VStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    VStack(spacing: 8) {
+                        Text(title)
+                        Text(subtitle)
+                    }
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 540)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 22)
+                    .padding(.bottom, 20)
+                    Divider()
+                    TextField("Message QuillCode", text: .constant(""))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                }
+            }
+        ))
+        gtkConfigureRootContentToFillWindow(wrapper)
+        allocate(widget: wrapper, size: ViewSize(width: 1_180, height: 760))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        guard let titleLabel = labels.first(where: { label in
+            let text = gtk_label_get_text(OpaquePointer(label)).map { String(cString: $0) }
+            return text == title
+        }) else {
+            XCTFail("Expected to find empty-state title label.")
+            return
+        }
+
+        let titleOrigin = translatedChildOrigin(child: titleLabel, in: wrapper)
+        let titleSize = allocatedSize(of: titleLabel)
+        let titleCenterX = titleOrigin.x + (titleSize.width / 2)
+        let mainPaneCenterX = 280 + ((1_180 - 280) / 2)
+
+        XCTAssertEqual(
+            titleCenterX,
+            Double(mainPaneCenterX),
+            accuracy: 120,
+            "A finite maxWidth frame nested inside maxWidth infinity should center in the flexible pane, not drift to the right edge."
+        )
+        XCTAssertLessThan(
+            titleOrigin.x + titleSize.width,
+            1_150,
+            "Empty-state title should remain fully visible inside the allocated window."
+        )
+    }
+
     func testVStackSharedLayoutAppliesTrailingAlignmentAndSpacing() throws {
         try requireGTK()
 
@@ -2194,6 +2253,72 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testHorizontalPaddingConstrainsExpandingRowsBeforeTrailingEdge() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack {
+                Text("Leading")
+                Spacer()
+                Text("Trailing")
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 28)
+        ))
+        gtk_widget_set_hexpand(wrapper, 1)
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        allocate(widget: wrapper, size: ViewSize(width: 2_048, height: 80))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        guard let trailingLabel = labels.first(where: { label in
+            let text = gtk_label_get_text(OpaquePointer(label)).map { String(cString: $0) }
+            return text == "Trailing"
+        }) else {
+            XCTFail("Expected to find trailing label.")
+            return
+        }
+
+        let trailingOrigin = translatedChildOrigin(child: trailingLabel, in: wrapper)
+        let trailingSize = allocatedSize(of: trailingLabel)
+        XCTAssertLessThanOrEqual(
+            trailingOrigin.x + trailingSize.width,
+            2_020,
+            "Horizontal padding around an expanding row must preserve the trailing inset instead of clipping at the parent edge."
+        )
+    }
+
+    func testHStackHonorsRequestedPrimitiveWidths() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(spacing: 14) {
+                RequestedSizeGTKPrimitive(width: 30, height: 30)
+                RequestedSizeGTKPrimitive(width: 42, height: 30)
+                RequestedSizeGTKPrimitive(width: 30, height: 30)
+            }
+        ))
+
+        let measured = measuredSize(of: wrapper)
+        XCTAssertGreaterThanOrEqual(
+            measured.width,
+            130,
+            "HStack layout must include explicit GTK size requests from primitive toolbar-like children."
+        )
+
+        allocate(widget: wrapper, size: ViewSize(width: 130, height: 30))
+        let first = try unwrapFirstChild(of: wrapper)
+        let second = try unwrapNextSibling(of: first)
+        let third = try unwrapNextSibling(of: second)
+        let thirdOrigin = translatedChildOrigin(child: third, in: wrapper)
+        let thirdSize = allocatedSize(of: third)
+        XCTAssertLessThanOrEqual(
+            thirdOrigin.x + thirdSize.width,
+            130,
+            "The trailing requested-size primitive must remain inside the HStack allocation."
+        )
+    }
+
     func testMiddleTruncationFrameRendersScrolledWindowWithSingleLabel() throws {
         try requireGTK()
 
@@ -2811,6 +2936,23 @@ private func unwrapNextSibling(
         throw XCTSkip()
     }
     return sibling
+}
+
+private struct RequestedSizeGTKPrimitive: View, PrimitiveView, GTKRenderable {
+    typealias Body = Never
+
+    var width: Int
+    var height: Int
+
+    var body: Never { fatalError("RequestedSizeGTKPrimitive is a primitive view") }
+
+    func gtkCreateWidget() -> OpaquePointer {
+        let button = gtk_button_new()!
+        gtk_widget_set_size_request(button, gint(width), gint(height))
+        gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
+        return OpaquePointer(button)
+    }
 }
 
 private func measuredSize(of widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {

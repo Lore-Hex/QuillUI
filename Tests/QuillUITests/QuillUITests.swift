@@ -706,6 +706,38 @@ struct QuillUITests {
         #expect(unreachableBanner.bottomPadding == 74)
     }
 
+    @Test("QuillDesktopSplitLayout clamps sidebar math to reference width")
+    func quillDesktopSplitLayoutClampsSidebarMathToReferenceWidth() {
+        let overAllocatedWidth = 2_130.0
+        let referenceWidth = 2_048.0
+
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: overAllocatedWidth, referenceWindowWidth: referenceWidth) == referenceWidth)
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: 1_200, referenceWindowWidth: referenceWidth) == 1_200)
+        #expect(quillDesktopSplitResolvedLayoutWidth(totalWidth: overAllocatedWidth, referenceWindowWidth: nil) == overAllocatedWidth)
+
+        let unclampedSidebarWidth = quillDesktopSplitResolvedSidebarWidth(
+            baseSidebarWidth: 320,
+            totalWidth: overAllocatedWidth,
+            referenceWindowWidth: nil
+        )
+        let referenceClampedSidebarWidth = quillDesktopSplitResolvedSidebarWidth(
+            baseSidebarWidth: 320,
+            totalWidth: overAllocatedWidth,
+            referenceWindowWidth: referenceWidth
+        )
+
+        #expect(abs(unclampedSidebarWidth - 607.05) < 0.001)
+        #expect(abs(referenceClampedSidebarWidth - 583.68) < 0.001)
+        #expect(referenceClampedSidebarWidth < unclampedSidebarWidth)
+        #expect(abs(quillDesktopSplitResolvedSidebarWidth(
+            baseSidebarWidth: 320,
+            totalWidth: 1_200,
+            referenceWindowWidth: referenceWidth
+        ) - 342) < 0.001)
+        #expect(quillDesktopSplitResolvedSidebarWidth(baseSidebarWidth: 320, totalWidth: 0, referenceWindowWidth: referenceWidth) == 320)
+        #expect(quillDesktopSplitResolvedSidebarWidth(baseSidebarWidth: 320, totalWidth: 3_000, referenceWindowWidth: nil) == 620)
+    }
+
     @Test("QuillDesktopChatScaffold builds standard toolbar shells")
     func quillDesktopChatScaffoldStandardToolbarInitializer() {
         let scaffold = QuillDesktopChatScaffold(

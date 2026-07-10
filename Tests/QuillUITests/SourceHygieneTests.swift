@@ -99,6 +99,16 @@ struct SourceHygieneTests {
         #expect(renderer.contains("? minHeight.map(gtkPixelSize) ?? -1"))
     }
 
+    @Test("GTK FrameView does not treat finite max size as infinite parent expansion")
+    func gtkFrameViewDoesNotTreatFiniteMaxSizeAsInfiniteParentExpansion() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+
+        #expect(renderer.contains("(maxWidth == .infinity)"))
+        #expect(renderer.contains("(maxHeight == .infinity)"))
+        #expect(!renderer.contains("(maxWidth != nil)\n                || (maxWidth == nil && childExpH)"))
+        #expect(!renderer.contains("(maxHeight != nil)\n                || (maxHeight == nil && childExpV)"))
+    }
+
     @Test("Vendored LogStream C header is portable for Linux module builds")
     func vendoredLogStreamCHeaderIsPortableForLinuxModuleBuilds() throws {
         let header = try packageSource("third_party/LogStream/Sources/Headers/include/Header.h")
@@ -712,7 +722,6 @@ struct SourceHygieneTests {
                     dependencies: [
                         .product(name: "AuthenticationServices", package: "QuillUI"),
                         .product(name: "CryptoKit", package: "QuillUI"),
-                        .product(name: "QuillShims", package: "QuillUI"),
                         .product(name: "Security", package: "QuillUI"),
                     ]
                 )
@@ -763,6 +772,183 @@ struct SourceHygieneTests {
         #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
         #expect(!rewrittenDependencies.contains("prepared-packages/LinuxReadySDK"))
         #expect(!fileManager.fileExists(atPath: workRoot.appendingPathComponent("prepared-packages/LinuxReadySDK").path))
+    }
+
+    @Test("Generated app builder requires URL dependencies under third party when vendoring is required")
+    func generatedAppBuilderRequiresURLDependenciesUnderThirdPartyWhenVendoringIsRequired() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-url-vendor-boundary-\(UUID().uuidString)")
+        let upstreamDir = sandbox.appendingPathComponent(".upstream/LinuxReadySDK")
+        let thirdPartyDir = sandbox.appendingPathComponent("third_party/LinuxReadySDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: upstreamDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        let manifest = """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "LinuxReadySDK",
+            products: [.library(name: "LinuxReadySDK", targets: ["LinuxReadySDK"])],
+            targets: [.target(name: "LinuxReadySDK")]
+        )
+        """
+        try manifest.write(to: upstreamDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "LinuxReadySDK", url: "https://example.com/LinuxReadySDK.git", from: "1.0.0")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let upstreamOnlyResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(upstreamOnlyResult.status == 66, Comment(rawValue: upstreamOnlyResult.output))
+        #expect(
+            upstreamOnlyResult.output.contains("SwiftPM URL dependencies remain after vendored-source preparation"),
+            Comment(rawValue: upstreamOnlyResult.output)
+        )
+        #expect(
+            upstreamOnlyResult.output.contains("https://example.com/LinuxReadySDK.git"),
+            Comment(rawValue: upstreamOnlyResult.output)
+        )
+
+        try fileManager.createDirectory(at: thirdPartyDir, withIntermediateDirectories: true)
+        try manifest.write(to: thirdPartyDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+
+        let vendoredResult = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+                "--require-vendored-sources",
+            ]
+        )
+
+        #expect(vendoredResult.status == 0, Comment(rawValue: vendoredResult.output))
+
+        let rewrittenDependencies = try String(contentsOf: dependenciesOut, encoding: .utf8)
+        let resolvedThirdPartyPath = thirdPartyDir.resolvingSymlinksInPath().path
+        let resolvedUpstreamPath = upstreamDir.resolvingSymlinksInPath().path
+
+        #expect(rewrittenDependencies.contains(".package(name: \"LinuxReadySDK\", path:"))
+        #expect(
+            rewrittenDependencies.contains(resolvedThirdPartyPath)
+                || rewrittenDependencies.contains("/private\(resolvedThirdPartyPath)")
+        )
+        #expect(!rewrittenDependencies.contains(resolvedUpstreamPath))
+        #expect(!rewrittenDependencies.contains("https://example.com/LinuxReadySDK.git"))
+    }
+
+    @Test("Generated app builder patches variable-backed target dependency lists")
+    func generatedAppBuilderPatchesVariableBackedTargetDependencyLists() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-variable-target-deps-\(UUID().uuidString)")
+        let packageDir = sandbox.appendingPathComponent("third_party/VariableTargetSDK")
+        let packageSources = packageDir.appendingPathComponent("Sources/VariableTargetSDK")
+        let workRoot = sandbox.appendingPathComponent("work")
+        let dependenciesIn = sandbox.appendingPathComponent("dependencies-in.swift")
+        let dependenciesOut = sandbox.appendingPathComponent("dependencies-out.swift")
+
+        try fileManager.createDirectory(at: packageSources, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: workRoot, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "QuillUI",
+            targets: [.target(name: "QuillUI")]
+        )
+        """.write(to: sandbox.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try fileManager.createDirectory(
+            at: sandbox.appendingPathComponent("Sources/QuillUI"),
+            withIntermediateDirectories: true
+        )
+        try "public enum QuillUIRoot {}\n".write(
+            to: sandbox.appendingPathComponent("Sources/QuillUI/QuillUIRoot.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        var targetDependencies: [Target.Dependency] = []
+
+        let package = Package(
+            name: "VariableTargetSDK",
+            products: [.library(name: "VariableTargetSDK", targets: ["VariableTargetSDK"])],
+            targets: [
+                .target(
+                    name: "VariableTargetSDK",
+                    dependencies: targetDependencies
+                )
+            ]
+        )
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        import SwiftUI
+
+        public struct VariableTargetView: View {
+            public var body: some View { Text("variable") }
+        }
+        """.write(to: packageSources.appendingPathComponent("VariableTargetView.swift"), atomically: true, encoding: .utf8)
+        try """
+        .package(name: "VariableTargetSDK", path: "\(packageDir.path)")
+        """.write(to: dependenciesIn, atomically: true, encoding: .utf8)
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [
+                "python3",
+                root.appendingPathComponent("scripts/prepare-swiftui-linux-package-dependencies.py").path,
+                "--root-dir", sandbox.path,
+                "--work-root", workRoot.path,
+                "--dependencies-in", dependenciesIn.path,
+                "--dependencies-out", dependenciesOut.path,
+                "--skip-source-lowering",
+            ]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+
+        let preparedManifest = try String(
+            contentsOf: workRoot
+                .appendingPathComponent("prepared-packages/VariableTargetSDK/Package.swift"),
+            encoding: .utf8
+        )
+
+        #expect(preparedManifest.contains("dependencies: targetDependencies + ["))
+        #expect(preparedManifest.contains(".product(name: \"SwiftUI\", package: \"QuillUI\")"))
+        #expect(preparedManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(preparedManifest.components(separatedBy: "dependencies: targetDependencies").count == 2)
+        #expect(!preparedManifest.contains("dependencies: [\n                    .product(name: \"QuillShims\", package: \"QuillUI\"),\n                ],\n                    dependencies: targetDependencies"))
     }
 
     @Test("Generated app builder does not prepare the QuillUI root dependency")
@@ -2304,6 +2490,14 @@ struct SourceHygieneTests {
         #expect(fileManager.fileExists(
             atPath: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift").path
         ))
+        let vendoredPackageFingerprint = try String(
+            contentsOf: vendoredPackageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            encoding: .utf8
+        )
+        #expect(vendoredPackageFingerprint.contains("quillui-swiftpm-vendor/v1"))
+        #expect(vendoredPackageFingerprint.contains("package=trusted-router-swift"))
+        #expect(vendoredPackageFingerprint.contains("source=tree:"))
+        #expect(vendoredPackageFingerprint.contains("slim=1"))
 
         let dryRun = try runSourceHygieneProcess(
             URL(fileURLWithPath: "/usr/bin/env"),
@@ -2319,6 +2513,176 @@ struct SourceHygieneTests {
         #expect(dryRun.output.contains("would vendor dry-demo source"), Comment(rawValue: dryRun.output))
         #expect(dryRun.output.contains("would vendor trusted-router-swift -> third_party/trusted-router-swift"), Comment(rawValue: dryRun.output))
         #expect(!fileManager.fileExists(atPath: sandbox.appendingPathComponent("vendor/apps/dry-demo").path))
+    }
+
+    @Test("SwiftPM vendoring can stamp existing source snapshots without a checkout")
+    func swiftPMVendoringCanStampExistingSourceSnapshotsWithoutCheckout() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-swiftpm-existing-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let resolvedDir = sandbox.appendingPathComponent("vendor/apps/demo")
+        let vendoredPackageDir = sandbox.appendingPathComponent("third_party/trusted-router-swift")
+        let vendorScript = scriptsDir.appendingPathComponent("vendor-swiftpm-sources.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: resolvedDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter"),
+            withIntermediateDirectories: true
+        )
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        for script in [
+            "vendor-swiftpm-sources.sh",
+            "quillui-vendored-source.sh",
+            "hydrate-swiftpm-checkouts-from-resolved.py",
+        ] {
+            let destination = scriptsDir.appendingPathComponent(script)
+            try fileManager.copyItem(
+                at: root.appendingPathComponent("scripts/\(script)"),
+                to: destination
+            )
+            try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destination.path)
+        }
+
+        try """
+        {
+          "pins" : [
+            {
+              "identity" : "trusted-router-swift",
+              "kind" : "remoteSourceControl",
+              "location" : "https://github.com/jperla/trusted-router-swift.git",
+              "state" : {
+                "revision" : "410cb034ce5a20b62f209d03d46a256cafe7b54f",
+                "version" : "0.4.1"
+              }
+            }
+          ],
+          "version" : 3
+        }
+        """.write(to: resolvedDir.appendingPathComponent("Package.resolved"), atomically: true, encoding: .utf8)
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "TrustedRouter",
+            products: [.library(name: "TrustedRouter", targets: ["TrustedRouter"])],
+            targets: [.target(name: "TrustedRouter")]
+        )
+        """.write(to: vendoredPackageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try "public struct TrustedRouterClient {}\n".write(
+            to: vendoredPackageDir.appendingPathComponent("Sources/TrustedRouter/TrustedRouter.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let result = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/usr/bin/env"),
+            arguments: [vendorScript.path, "--no-resolve", "--app", "demo"]
+        )
+
+        #expect(result.status == 0, Comment(rawValue: result.output))
+        #expect(
+            result.output.contains("stamped vendored trusted-router-swift source fingerprint"),
+            Comment(rawValue: result.output)
+        )
+        #expect(result.output.contains("already vendored trusted-router-swift"), Comment(rawValue: result.output))
+
+        let fingerprint = try String(
+            contentsOf: vendoredPackageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            encoding: .utf8
+        )
+        #expect(fingerprint.contains("quillui-swiftpm-vendor/v1"))
+        #expect(fingerprint.contains("package=trusted-router-swift"))
+        #expect(fingerprint.contains("source=tree:"))
+    }
+
+    @Test("Vendored SwiftPM app scan stamps invalidate when source fingerprints change")
+    func vendoredSwiftPMAppScanStampsInvalidateWhenSourceFingerprintsChange() throws {
+        let root = try packageRoot()
+        let fileManager = FileManager.default
+        let sandbox = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-vendor-swiftpm-stamp-\(UUID().uuidString)")
+        let scriptsDir = sandbox.appendingPathComponent("scripts")
+        let packageDir = sandbox.appendingPathComponent("third_party/DemoPackage")
+        let stampFile = sandbox.appendingPathComponent(".build/stamps/demo.stamp")
+        let helper = scriptsDir.appendingPathComponent("quillui-vendored-source.sh")
+
+        try fileManager.createDirectory(at: scriptsDir, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: packageDir, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: sandbox) }
+
+        try fileManager.copyItem(
+            at: root.appendingPathComponent("scripts/quillui-vendored-source.sh"),
+            to: helper
+        )
+        try """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(name: "DemoPackage")
+        """.write(to: packageDir.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        try """
+        quillui-swiftpm-vendor/v1
+        package=DemoPackage
+        source=tree:first
+        """.write(
+            to: packageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let createAndValidate = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/bin/bash"),
+            arguments: [
+                "-c",
+                """
+                set -euo pipefail
+                source "$1"
+                quillui_write_vendored_swiftpm_app_stamp "$2" "$3" demo key DemoPackage
+                quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"
+                grep -q '^sourceFingerprint=' "$3"
+                """,
+                "stamp-test",
+                helper.path,
+                sandbox.path,
+                stampFile.path,
+            ]
+        )
+        #expect(createAndValidate.status == 0, Comment(rawValue: createAndValidate.output))
+
+        try """
+        quillui-swiftpm-vendor/v1
+        package=DemoPackage
+        source=tree:second
+        """.write(
+            to: packageDir.appendingPathComponent(".quillui-vendor-source-fingerprint"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let staleCheck = try runSourceHygieneProcess(
+            URL(fileURLWithPath: "/bin/bash"),
+            arguments: [
+                "-c",
+                """
+                set -euo pipefail
+                source "$1"
+                if quillui_vendored_swiftpm_app_stamp_is_valid "$2" "$3"; then
+                  echo "stamp unexpectedly valid"
+                  exit 1
+                fi
+                """,
+                "stamp-test",
+                helper.path,
+                sandbox.path,
+                stampFile.path,
+            ]
+        )
+        #expect(staleCheck.status == 0, Comment(rawValue: staleCheck.output))
     }
 
     @Test("Linux lowering folds AppKit extension overrides into owning class")
@@ -3177,6 +3541,9 @@ struct SourceHygieneTests {
         #expect(preparedPackageDependencyScript.contains("reused prepared local SwiftPM dependency"))
         #expect(preparedPackageDependencyScript.contains("VENDORED_PACKAGE_ALIASES"))
         #expect(preparedPackageDependencyScript.contains("package_declares_quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("QUILL_SHIMS_IMPORT_PRODUCTS"))
+        #expect(preparedPackageDependencyScript.contains("quill_products_for_imports"))
+        #expect(preparedPackageDependencyScript.contains("TARGET_DEPENDENCIES_VARIABLE_RE"))
         #expect(preparedPackageDependencyScript.contains("is_quillui_root_dependency"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_file_contents"))
         #expect(preparedPackageDependencyScript.contains("update_digest_with_tool_input"))
@@ -3307,11 +3674,16 @@ struct SourceHygieneTests {
         #expect(manifest.contains("let gtk4SwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags(\"gtk4\")"))
         #expect(manifest.contains("let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags(\"gtk4\")"))
         #expect(manifest.contains("let quillUIGTKSwiftImporterSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk ? ["))
+        #expect(manifest.contains(".define(\"QUILLUI_GTK_BACKEND\")"))
         #expect(manifest.contains("let quillUIGTKLinkerSettings: [LinkerSetting] = quillUILinuxBuildBackend == .gtk ? ["))
+        #expect(manifest.contains("let quillUIGTKSourceFiles: [String] = ["))
+        #expect(manifest.contains("\"GTKToolbarMenuButton.swift\""))
+        #expect(manifest.contains("\"GtkOffscreenRender.swift\""))
+        #expect(manifest.contains("quillUILinuxBuildBackend == .qt ? quillUIGTKSourceFiles : []"))
         #expect(!manifest.contains("pkgConfig: \"gdk-pixbuf-2.0\""))
         #expect(!manifest.contains("pkgConfig: \"gtk4\""))
         #expect(manifest.contains("] + quillUIGTKSwiftImporterSettings"))
-        #expect(manifest.contains("dependencies: quillUIDependencies,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
+        #expect(manifest.contains("dependencies: quillUIDependencies,\n        exclude: quillUIExcludedSources,\n        swiftSettings: quillUIGTKSwiftImporterSettings,\n        linkerSettings: quillUIGTKLinkerSettings"))
         #expect(manifest.contains(".unsafeFlags(gtk4SwiftImporterFlags)"))
         #expect(manifest.contains(".unsafeFlags(gtk4LinkerFlags)"))
         #expect(swiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
@@ -3434,11 +3806,19 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("extension HelpView: QtRenderable"))
         #expect(qtRenderer.contains("quill_qt_widget_set_tooltip_recursive(qtHandle(widget), text)"))
         #expect(qtRenderer.contains("extension DisabledView: QtRenderable"))
+        #expect(qtRenderer.contains("let previousEnvironment = getCurrentEnvironment()"))
+        #expect(qtRenderer.contains("let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled"))
+        #expect(qtRenderer.contains("environment.isEnabled = effectiveIsEnabled"))
+        #expect(qtRenderer.contains("defer { setCurrentEnvironment(previousEnvironment) }"))
+        #expect(qtRenderer.contains("if !effectiveIsEnabled {"))
         #expect(qtRenderer.contains("quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)"))
         #expect(qtRenderer.contains("extension FocusedView: QtRenderable"))
         #expect(qtRenderer.contains("extension FocusedEqualsView: QtRenderable"))
         #expect(qtRenderer.contains("state.storage.addPlatformFocusCallback(key: callbackKey)"))
         #expect(qtRenderer.contains("quill_qt_widget_request_focus_recursive(qtHandle(widget))"))
+        #expect(qtRenderer.contains("quill_qt_widget_request_focus_recursive_later(qtHandle(widget))"))
+        #expect(qtRenderer.contains("if state.wrappedValue {"))
+        #expect(qtRenderer.contains("if state.wrappedValue == matchValue {"))
         #expect(qtRenderer.contains("quill_qt_widget_clear_focus_recursive(qtHandle(widget))"))
         #expect(qtRenderer.contains("state.storage.removePlatformFocusCallback(key: callbackKey)"))
         #expect(qtRenderer.contains("quill_qt_widget_install_focus_recursive(qtHandle(widget), focusChanged, box, destroy)"))
@@ -3454,6 +3834,8 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("extension SheetModifierView: QtRenderable"))
         #expect(qtRenderer.contains("extension ItemSheetModifierView: QtRenderable"))
         #expect(qtRenderer.contains("extension PopoverView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_popover_show_for_anchor(qtHandle(base), qtHandle(panel), 6, closed, box, destroy)"))
+        #expect(qtRenderer.contains("return base"))
         #expect(qtRenderer.contains("private func qtRenderPresentedView<V: View>"))
         #expect(qtRenderer.contains("environment.dismiss = DismissAction(handler: dismiss)"))
         #expect(qtRenderer.contains("environment.isPresentedInSheet = true"))
@@ -3471,6 +3853,10 @@ struct SourceHygieneTests {
         #expect(qtRenderer.contains("qtInstallKeyPressActions("))
         #expect(qtRenderer.contains("quill_qt_widget_install_key_press_recursive(qtHandle(widget), callback, box, destroy)"))
         #expect(qtRenderer.contains("QtKeyPressActionBox"))
+        #expect(qtRenderer.contains("extension MoveCommandView: QtRenderable"))
+        #expect(qtRenderer.contains("QtMoveCommandActionBox"))
+        #expect(qtRenderer.contains("qtMoveCommandDirection(for keyCode: Int32)"))
+        #expect(qtRenderer.contains("qtInstallMoveCommandAction(on: widget, environment: environment, action: action)"))
         #expect(qtRenderer.contains("extension KeyboardShortcutView: QtRenderable"))
         #expect(qtRenderer.contains("environment.keyboardShortcut = shortcut"))
         #expect(qtRenderer.contains("QtShortcutDispatchBox"))
@@ -3494,15 +3880,20 @@ struct SourceHygieneTests {
         #expect(cqtHeader.contains("quill_qt_widget_install_shortcut_dispatcher"))
         #expect(cqtHeader.contains("quill_qt_widget_connect_destroyed"))
         #expect(cqtHeader.contains("quill_qt_widget_request_focus_recursive"))
+        #expect(cqtHeader.contains("quill_qt_widget_request_focus_recursive_later"))
         #expect(cqtHeader.contains("quill_qt_widget_clear_focus_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_allows_hit_testing_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_enabled_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_tooltip_recursive"))
+        #expect(cqtHeader.contains("quill_qt_popover_show_for_anchor"))
+        #expect(cqtHeader.contains("The popup does not participate in the anchor's layout"))
         #expect(cqtHeader.contains("quill_qt_widget_set_accessible_name_recursive"))
         #expect(cqtHeader.contains("quill_qt_widget_set_accessible_description_recursive"))
         #expect(cqtHeader.contains("quill_qt_line_edit_connect_return_pressed"))
         #expect(cqtBridge.contains("class QuillQtHoverFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtFocusFilter final : public QObject"))
+        #expect(cqtBridge.contains("class QuillQtPopoverState final"))
+        #expect(cqtBridge.contains("class QuillQtPopoverFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtKeyPressFilter final : public QObject"))
         #expect(cqtBridge.contains("class QuillQtShortcutFilter final : public QObject"))
         #expect(cqtBridge.contains("target->installEventFilter(new QuillQtHoverFilter(state, target))"))
@@ -3530,6 +3921,9 @@ struct SourceHygieneTests {
         #expect(cqtBridge.contains("target->setEnabled(enabled != 0)"))
         #expect(cqtBridge.contains("target->setToolTip(tooltip)"))
         #expect(cqtBridge.contains("target->setAccessibleDescription(tooltip)"))
+        #expect(cqtBridge.contains("popoverWidget->setParent(anchorWidget, Qt::Popup | Qt::FramelessWindowHint)"))
+        #expect(cqtBridge.contains("anchorWidget->mapToGlobal(QPoint(0, anchorWidget->height() + gap))"))
+        #expect(cqtBridge.contains("state_->notifyClosed()"))
         #expect(cqtBridge.contains("target->setAccessibleName(name)"))
         #expect(cqtBridge.contains("target->setAccessibleDescription(description)"))
         #expect(cqtHeader.contains("quill_qt_widget_set_text_selectable_recursive"))
@@ -3699,10 +4093,10 @@ struct SourceHygieneTests {
 
         #expect(fileManager.isExecutableFile(atPath: vendorScriptURL.path))
         #expect(fileManager.fileExists(atPath: hydrateScriptURL.path))
-        #expect(linuxWorkflow.contains("Audit vendored SwiftPM sources"))
-        #expect(linuxWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
-        #expect(macOSWorkflow.contains("Audit vendored SwiftPM sources"))
-        #expect(macOSWorkflow.contains("scripts/vendor-swiftpm-sources.sh --all-vendored-apps --no-resolve --check-vendored"))
+        #expect(linuxWorkflow.contains("Audit vendored SwiftUI app sources"))
+        #expect(linuxWorkflow.contains("scripts/check-vendored-swiftui-app-source.sh --all-vendored-apps"))
+        #expect(macOSWorkflow.contains("Audit vendored SwiftUI app sources"))
+        #expect(macOSWorkflow.contains("scripts/check-vendored-swiftui-app-source.sh --all-vendored-apps"))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/Package.swift").path))
         #expect(fileManager.fileExists(atPath: root.appendingPathComponent("third_party/OpenCombine/LICENSE").path))
         #expect(openCombineURLSession.contains("@unchecked Sendable"))
@@ -3798,7 +4192,7 @@ struct SourceHygieneTests {
         #expect(trustedRouterManifest.contains(".package(name: \"QuillUI\", path: \"../..\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"AuthenticationServices\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"CryptoKit\", package: \"QuillUI\")"))
-        #expect(trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
+        #expect(!trustedRouterManifest.contains(".product(name: \"QuillShims\", package: \"QuillUI\")"))
         #expect(trustedRouterManifest.contains(".product(name: \"Security\", package: \"QuillUI\")"))
         #expect(ollamaKitManifest.contains(".package(path: \"../Alamofire\")"))
         #expect(!ollamaKitManifest.contains("swift-docc-plugin"))
@@ -3833,10 +4227,13 @@ struct SourceHygieneTests {
         #expect(vendorScript.contains("QUILLUI_VENDOR_FORCE=1"))
         #expect(vendorScript.contains("git_source_identity()"))
         #expect(vendorScript.contains("git -C \"$source\" status --porcelain --untracked-files=no"))
+        #expect(vendorScript.contains("content_source_identity()"))
+        #expect(vendorScript.contains("quillui-swiftpm-source-tree/v1"))
         #expect(vendorScript.contains("vendored_source_metadata()"))
         #expect(vendorScript.contains("quillui-swiftpm-vendor/v1"))
         #expect(vendorScript.contains(".quillui-vendor-source-fingerprint"))
         #expect(vendorScript.contains("[[ \"$(cat \"$metadata_file\")\" == \"$metadata\" ]]"))
+        #expect(vendorScript.contains("stamped vendored $package source fingerprint"))
         #expect(vendorScript.contains("rsync -a --delete --delete-excluded"))
         #expect(vendorScript.contains("chmod -R u+w \"$destination\""))
         #expect(vendorScript.contains("--exclude '.git'"))
@@ -4761,8 +5158,10 @@ struct SourceHygieneTests {
         // mount via swiftUIShadowMountDependencies.
         #expect(manifest.contains("\"QuillSwiftUICompatibility\", \"AppKit\", \"UIKit\", \"CoreImage\", \"CoreTransferable\", \"Combine\","))
         #expect(manifest.contains("] + swiftUIShadowMountDependencies"))
-        #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\","))
-        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\","))
+        #expect(manifest.contains("\"Observation\",\n    .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\"),\n    \"CGdkPixbuf\"\n] + (quillUILinuxBuildBackend == .gtk ? ["))
+        #expect(manifest.contains("let wrappingHStackCoreDependencies: [Target.Dependency] = [\n    \"SwiftUI\",\n    \"Observation\""))
+        #expect(manifest.contains("let wrappingHStackDependencies: [Target.Dependency] = wrappingHStackCoreDependencies"))
+        #expect(manifest.contains("+ (quillUILinuxBuildBackend == .gtk ? [\n    .product(name: \"BackendGTK4\", package: \"SwiftOpenUI\"),"))
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
         #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"QuillSwiftUICompatibility\",\n                    \"Observation\",\n                    \"CQtBridge\""))
@@ -4825,6 +5224,48 @@ struct SourceHygieneTests {
         #expect(!designCompatibility.contains("public struct PlainButtonStyle: ButtonStyle"))
         #expect(!quillUpstreamCompatibility.contains("public struct RoundedBorderTextFieldStyle"))
         #expect(!swiftUIShim.contains("static var firstTextBaseline"))
+    }
+
+    @Test("SwiftUI shadow fileImporter uses the CoreTransferable importer")
+    func swiftUIShadowFileImporterUsesCoreTransferableImporter() throws {
+        let coreTransferable = try packageSource("Sources/CoreTransferable/CoreTransferable.swift")
+        let swiftUIPlatformSurface = try packageSource("Sources/SwiftUIShim/PlatformSurface.swift")
+        let quillUpstreamCompatibility = try packageSource("Sources/QuillUI/UpstreamCompatibility.swift")
+        let quillCodeApp = try packageSource("vendor/apps/quillcode/Sources/quill-code-desktop/QuillCodeDesktopApp.swift")
+
+        #expect(coreTransferable.contains("public enum QuillFileImporter"))
+        #expect(coreTransferable.contains("public static func selectURL(allowedContentTypes: [UTType]) -> Result<URL, Error>"))
+        #expect(coreTransferable.contains("public static func selectURLs("))
+        #expect(coreTransferable.contains("return .folder"))
+        #expect(coreTransferable.contains("requiresDirectorySelection(allowedContentTypes: allowedContentTypes)"))
+        #expect(coreTransferable.contains("[\"zenity\", \"--file-selection\", \"--directory\"]"))
+        #expect(coreTransferable.contains("[\"kdialog\", \"--getexistingdirectory\"]"))
+        #expect(coreTransferable.contains("validate([testSelectionURL], allowedContentTypes: allowedContentTypes)"))
+        #expect(!quillUpstreamCompatibility.contains("public enum QuillFileImporter"))
+
+        #expect(swiftUIPlatformSurface.contains("""
+        func fileImporter(
+                isPresented: Binding<Bool>,
+                allowedContentTypes: [UTType],
+                allowsMultipleSelection: Bool = false,
+                onCompletion: @escaping (Result<[URL], Error>) -> Void
+            ) -> OnChangeView<Self, Bool>
+        """))
+        #expect(swiftUIPlatformSurface.contains("""
+        QuillFileImporter.selectURLs(
+                        allowedContentTypes: allowedContentTypes,
+                        allowsMultipleSelection: allowsMultipleSelection
+                    )
+        """))
+        #expect(quillUpstreamCompatibility.contains("QuillFileImporter.selectURL(allowedContentTypes: allowedContentTypes)"))
+
+        #expect(quillCodeApp.contains("""
+        .fileImporter(
+                    isPresented: $controller.isProjectImporterPresented,
+                    allowedContentTypes: [.folder],
+                    allowsMultipleSelection: false
+                ) { result in
+        """))
     }
 
     @Test("ImageRenderer comments describe the current GTK offscreen path")
@@ -5197,6 +5638,10 @@ struct SourceHygieneTests {
         let workflows = try workflowPaths
             .map { try String(contentsOf: root.appendingPathComponent($0), encoding: .utf8) }
             .joined(separator: "\n")
+        let linuxWorkflow = try String(
+            contentsOf: root.appendingPathComponent(".github/workflows/linux-ci.yml"),
+            encoding: .utf8
+        )
         let shellSyntaxCheck = try String(
             contentsOf: root.appendingPathComponent("scripts/check-shell-syntax.sh"),
             encoding: .utf8
@@ -5209,6 +5654,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent(".github/actions/lowered-source-cache/action.yml"),
             encoding: .utf8
         )
+        let preparedPackageCacheAction = try String(
+            contentsOf: root.appendingPathComponent(".github/actions/prepared-package-cache/action.yml"),
+            encoding: .utf8
+        )
         let upstreamFetch = try String(
             contentsOf: root.appendingPathComponent("scripts/fetch-upstream.sh"),
             encoding: .utf8
@@ -5218,6 +5667,10 @@ struct SourceHygieneTests {
         #expect(workflows.contains("uses: actions/upload-artifact@v6"))
         #expect(workflows.contains("uses: ./.github/actions/upstream-cache"))
         #expect(workflows.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(workflows.contains("uses: ./.github/actions/prepared-package-cache"))
+        #expect(linuxWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
+        #expect(linuxWorkflow.contains("uses: ./.github/actions/prepared-package-cache"))
+        #expect(!linuxWorkflow.contains("source-app: enchanted"))
         #expect(workflows.contains("QUILLUI_TRUST_UPSTREAM_CACHE: \"1\""))
         #expect(workflows.contains("scripts/check-shell-syntax.sh"))
         #expect(shellSyntaxCheck.contains("find scripts -type f -name '*.sh' | sort"))
@@ -5225,6 +5678,9 @@ struct SourceHygieneTests {
         #expect(upstreamCacheAction.contains("uses: actions/cache@v6"))
         #expect(upstreamCacheAction.contains("path: .upstream"))
         #expect(upstreamCacheAction.contains("scripts/fetch-upstream.sh"))
+        #expect(upstreamCacheAction.contains("scripts/quillui-vendored-source.sh"))
+        #expect(upstreamCacheAction.contains("vendor/apps"))
+        #expect(upstreamCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
         #expect(upstreamCacheAction.contains("restore-keys:"))
         #expect(loweredSourceCacheAction.contains("uses: actions/cache@v6"))
         #expect(loweredSourceCacheAction.contains("path: .build/quillui-lowered-source-cache"))
@@ -5238,6 +5694,21 @@ struct SourceHygieneTests {
         #expect(loweredSourceCacheAction.contains("Sources/QuillSourceLowering"))
         #expect(loweredSourceCacheAction.contains("vendor/apps"))
         #expect(loweredSourceCacheAction.contains("restore-keys:"))
+        #expect(preparedPackageCacheAction.contains("uses: actions/cache@v6"))
+        #expect(preparedPackageCacheAction.contains(".build/quillui-prepared-packages-cache"))
+        #expect(preparedPackageCacheAction.contains(".build/quillui-vendored-swiftpm-source-stamps"))
+        #expect(preparedPackageCacheAction.contains("source-app:"))
+        #expect(preparedPackageCacheAction.contains("source_paths=(vendor/apps)"))
+        #expect(preparedPackageCacheAction.contains("source_paths=(\"vendor/apps/$source_app\")"))
+        #expect(preparedPackageCacheAction.contains("git -c 'safe.directory=*' ls-files -s"))
+        #expect(preparedPackageCacheAction.contains("quillui-${{ runner.os }}-prepared-packages-${{ inputs.cache-name }}-"))
+        #expect(preparedPackageCacheAction.contains("scripts/vendor-swiftpm-sources.sh"))
+        #expect(preparedPackageCacheAction.contains("scripts/quillui-vendored-source.sh"))
+        #expect(preparedPackageCacheAction.contains("scripts/prepare-swiftui-linux-package-dependencies.py"))
+        #expect(preparedPackageCacheAction.contains("scripts/discover-local-swiftpm-import-dependencies.py"))
+        #expect(preparedPackageCacheAction.contains("third_party"))
+        #expect(preparedPackageCacheAction.contains("vendor/apps"))
+        #expect(preparedPackageCacheAction.contains("restore-keys:"))
         #expect(upstreamFetch.contains("QUILLUI_TRUST_UPSTREAM_CACHE=1"))
         #expect(upstreamFetch.contains("using cached $name"))
         #expect(upstreamFetch.contains("reset_repo_to_commit"))
@@ -5307,7 +5778,9 @@ struct SourceHygieneTests {
         #expect(helperSource.contains("struct QuillLinuxRuntimeHostDescriptor: Equatable, Sendable"))
         #expect(helperSource.contains("enum QuillLinuxRuntimeHost: CaseIterable"))
         #expect(helperSource.contains("case qt6"))
-        #expect(helperSource.contains("static let linkedHosts: [QuillLinuxRuntimeHost] = [.gtk4]"))
+        #expect(helperSource.contains("static let linkedHosts: [QuillLinuxRuntimeHost] = {"))
+        #expect(helperSource.contains("#if QUILLUI_GTK_BACKEND"))
+        #expect(helperSource.contains("return [.gtk4]"))
         #expect(helperSource.contains("static var knownHosts: [QuillLinuxRuntimeHost]"))
         #expect(helperSource.contains("static var knownDescriptors: [QuillLinuxRuntimeHostDescriptor]"))
         #expect(helperSource.contains("static var linkedDescriptors: [QuillLinuxRuntimeHostDescriptor]"))
@@ -5399,6 +5872,7 @@ struct SourceHygieneTests {
 
         #expect(manifest.contains(".library(name: \"QuillUIGtk\", targets: [\"QuillUIGtk\"])"))
         #expect(manifest.contains(".library(name: \"QuillUIQt\", targets: [\"QuillUIQt\"])"))
+        #expect(manifest.contains(".library(name: \"QuillAppKitQt\", targets: [\"QuillAppKitQt\"])"))
         #expect(manifest.contains("if quillUILinuxBuildBackend == .gtk {"))
         #expect(manifest.contains("products.append(.executable(name: \"quill-gtk-interaction-smoke\", targets: [\"QuillGtkInteractionSmoke\"]))"))
         #expect(manifest.contains(".executable(name: \"quill-qt-interaction-smoke\", targets: [\"QuillQtInteractionSmoke\"])"))
@@ -5799,6 +6273,7 @@ struct SourceHygieneTests {
         #expect(enchantedShared.contains("public static let cardQuietColor = \"#F1F1F5\""))
         #expect(genericQtRuntime.contains("static func appSpecific(_ environmentKeys: String...) -> [String]"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.codeEdit"))
+        #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.quillCode"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.iceCubes"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.iina"))
         #expect(genericQtRuntime.contains("QuillGenericQtSelectionEnvironment.netNewsWire"))
@@ -5812,6 +6287,10 @@ struct SourceHygieneTests {
         #expect(genericQtRuntime.contains("executableName: QuillQtNativeRuntimeSupport.executableName(fallback: \"quill-generic-qt\")"))
         #expect(genericQtRuntime.contains("Use **flexbox**: set `display` to `flex`"))
         #expect(genericQtRuntime.contains("justify-content: center;"))
+        #expect(genericQtRuntime.contains("public static let quillCode = QuillGenericQtAppSnapshot("))
+        #expect(genericQtRuntime.contains("windowTitle: \"QuillCode\""))
+        #expect(genericQtRuntime.contains("composerPlaceholder: \"Message QuillCode\""))
+        #expect(genericQtRuntime.contains("QUILLUI_QUILLCODE_SELECTED_THREAD_INDEX_ON_START"))
         #expect(!genericQtRuntime.contains("executableName: String"))
         #expect(!genericQtRuntime.contains("executableName: executableName"))
         #expect(!genericQtRuntime.contains("ProcessInfo.processInfo.environment["))
@@ -6253,12 +6732,16 @@ struct SourceHygieneTests {
         #expect(swiftOpenUIGTKBackend.contains("KeyboardShortcutRegistry.shared.dispatch(shortcut, windowID: windowID)"))
         #expect(qtBackend.contains("@_exported import QuillUI"))
         #expect(qtBackend.contains("public enum QuillQtBackend"))
-        #expect(qtBackend.contains("public typealias QuillQtApp = QuillBackendApp<QuillQtBackend>"))
+        #expect(qtBackend.contains("public enum QuillQtApp"))
+        #expect(qtBackend.contains("static func run<A: App>(_ appType: A.Type)"))
+        #expect(qtBackend.contains("QuillBackendRuntimeContext.install(launchPlan)"))
+        #expect(qtBackend.contains("QtBackend().run(appType)"))
+        #expect(qtBackend.contains("QuillApp.run(appType, preferredBackend: .qt)"))
+        #expect(!qtBackend.contains("public typealias QuillQtApp = QuillBackendApp<QuillQtBackend>"))
         #expect(qtBackend.contains("public typealias QuillQtRuntimeAvailability = QuillBackendRuntimeAvailability"))
         #expect(qtBackend.contains("public typealias QuillQtBackendStatus = QuillBackendRuntimeStatus"))
         #expect(!qtBackend.contains("public static var status"))
         #expect(!qtBackend.contains("runtimeStatus"))
-        #expect(!qtBackend.contains("static func run<A: App>"))
         #expect(!qtBackend.contains("QuillQtBackend.run(appType)"))
         #expect(workflow.contains("swift build --scratch-path .build-linux --target QuillUIGtk"))
         #expect(workflow.contains("swift build --scratch-path .build-linux --target QuillUIQt"))
@@ -6288,6 +6771,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_backend_app_interaction_verify_product_for_product()"))
         #expect(backendProducts.contains("quillui_backend_enchanted_linux_interaction_verify_product()"))
         #expect(backendProducts.contains("quillui_backend_quill_chat_interaction_verify_product()"))
+        #expect(backendProducts.contains("quillui_backend_quill_code_desktop_interaction_verify_product()"))
         #expect(backendProducts.contains("quillui_backend_quill_chat_mac_reference_interaction_modes()"))
         #expect(backendProducts.contains("quill-chat-mac-reference-interaction-modes)"))
         #expect(backendProducts.contains("quillui_backend_wireguard_interaction_verify_product()"))
@@ -6295,6 +6779,7 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("verify_product=\"quill-enchanted-linux-$selected_backend\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-toolbar-menu\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-toolbar-menu\""))
+        #expect(backendProducts.contains("quill-code-desktop-linux-toolbar-menu"))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-composer-typed\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-panel\""))
         #expect(backendProducts.contains("verify_product=\"quill-chat-linux-mac-reference-settings-endpoint-typed\""))
@@ -6694,9 +7179,13 @@ struct SourceHygieneTests {
         #expect(smokeLib.contains("quillui_generated_app_work_root()"))
         #expect(smokeLib.contains("default_work_root=\"$default_work_root-$backend_facade\""))
         #expect(smokeLib.contains("quillui_backend_generated_app_build_spec_for_product \"$product\""))
+        #expect(smokeLib.contains("qt_native_catalog_entry"))
         #expect(smokeLib.contains("quillui_artifact_path_from_file()"))
         #expect(smokeLib.contains("artifact_path_file=\"${QUILLUI_BACKEND_APP_ARTIFACT_PATH_FILE:-$work_root/.quillui-artifact-path}\""))
         #expect(smokeLib.contains("QUILLUI_APP_ARTIFACT_PATH_FILE=\"$artifact_path_file\""))
+        #expect(smokeLib.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$qt_native_catalog_entry\""))
+        #expect(smokeLib.contains("--qt-native-catalog-entry \"$qt_native_catalog_entry\""))
+        #expect(smokeLib.contains("--require-vendored-source"))
         #expect(smokeLib.contains("Generated app build did not write a usable artifact path for $product: $artifact_path_file"))
         #expect(smokeLib.contains(".build/quillui-generated-app-build-cache"))
         #expect(smokeLib.contains("scripts/build-swiftui-linux-app.sh"))
@@ -6736,6 +7225,8 @@ struct SourceHygieneTests {
         #expect(backendProducts.contains("quillui_require_backend_product_build_stamp()"))
         #expect(!backendProducts.contains("quillui_backend_identifier_or_raw()"))
         #expect(backendProducts.contains("quillui_backend_generated_app_products()"))
+        #expect(backendProducts.contains("QT_NATIVE_CATALOG_ENTRY"))
+        #expect(backendProducts.contains("QuillGenericQtAppCatalog.quillCode"))
         #expect(backendProducts.contains("quillui_backend_generated_app_matrix()"))
         #expect(backendProducts.contains("product_rows=\"$(quillui_backend_generated_app_products)\""))
         #expect(backendProducts.contains("quillui_backend_smoke_products()"))
@@ -6904,6 +7395,18 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("product in GENERIC_GTK_LIST_SELECTION_PRODUCTS"))
         #expect(screenshotVerifier.contains("product in GENERIC_QT_LIST_SELECTION_PRODUCTS"))
         #expect(screenshotVerifier.contains("product in CHAT_GTK_LIST_SELECTION_PRODUCTS"))
+        #expect(screenshotVerifier.contains("validate_quill_code_desktop_linux"))
+        #expect(screenshotVerifier.contains("product == \"quill-code-desktop-linux\""))
+        #expect(screenshotVerifier.contains("product == \"quill-code-desktop-linux-toolbar-menu\""))
+        #expect(screenshotVerifier.contains("QuillCode empty-state text was not detected in the centered main-pane band"))
+        #expect(screenshotVerifier.contains("QuillCode empty-state text appears clipped or right-drifted"))
+        #expect(screenshotVerifier.contains("center_text_pixels >= 800"))
+        #expect(screenshotVerifier.contains("far_right_text_pixels <= max(650, center_text_pixels // 2)"))
+        #expect(screenshotVerifier.contains("validate_quill_code_desktop_linux_toolbar_menu"))
+        #expect(screenshotVerifier.contains("QuillCode toolbar interaction state was not detected"))
+        #expect(screenshotVerifier.contains("max(divider_pixels, divider_light_pixels) >= 400"))
+        #expect(screenshotVerifier.contains("gtk_warning_pixels >= 150"))
+        #expect(screenshotVerifier.contains("qt_runtime_issue_pixels >= 15_000"))
         #expect(!screenshotVerifier.contains("fixture row"))
         #expect(screenshotVerifier.contains("Quill WireGuard Qt native"))
         #expect(screenshotVerifier.contains("validate_quill_wireguard_qt_native"))
@@ -6981,7 +7484,7 @@ struct SourceHygieneTests {
         #expect(interactionModeRunner.contains("DEFAULT_APP_LOG_TEMPLATE='.qa/{product}-interaction-{mode}.log'"))
         #expect(interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-$DEFAULT_APP_LOG_TEMPLATE}\""))
         #expect(!interactionModeRunner.contains("APP_LOG_TEMPLATE=\"${QUILLUI_BACKEND_INTERACTION_APP_LOG_TEMPLATE:-.qa/{product}-interaction-{mode}.log}\""))
-        #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
+        #expect(workflow.contains("Generated app backend visual smokes\n        env:\n          QUILLUI_BACKEND_SMOKE_ROW_TIMEOUT: 30m\n        run: scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products visual generated-app-matrix '.qa/{product}-generated-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh visual smoke-matrix '.qa/{product}-visual-{backend}.png'"))
         #expect(workflow.contains("scripts/run-linux-backend-smoke-matrix.sh --skip-repeated-products interaction smoke-interaction-matrix '.qa/{product}-{mode}-{backend}.png'"))
         #expect(workflow.contains("QUILLUI_SOLDERSCOPE: \"1\""))
@@ -7343,10 +7846,19 @@ struct SourceHygieneTests {
         #expect(source.contains("backend_runner=\"QuillApp\""))
         #expect(source.contains("backend_import=\"QuillUIGtk\""))
         #expect(source.contains("backend_runner=\"QuillGtkApp\""))
-        #expect(source.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-QuillGenericQtAppCatalog.enchantedUpstreamSlice}\""))
+        #expect(source.contains("QT_RUNTIME_MODE=\"${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}\""))
+        #expect(source.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}\""))
+        #expect(source.contains("normalize_qt_runtime_mode()"))
+        #expect(source.contains("effective_qt_runtime_mode()"))
+        #expect(source.contains("QT_RUNTIME_MODE=\"$(normalize_qt_runtime_mode \"$QT_RUNTIME_MODE\")\""))
+        #expect(source.contains("if [[ -n \"$QT_NATIVE_CATALOG_ENTRY\" ]]"))
         #expect(source.contains("validate_swift_type \"$QT_NATIVE_CATALOG_ENTRY\""))
+        #expect(source.contains("effective_qt_mode=\"$(effective_qt_runtime_mode \"$QT_RUNTIME_MODE\" \"$QT_NATIVE_CATALOG_ENTRY\")\""))
+        #expect(source.contains("QUILLUI_GENERATED_QT_RUNTIME_MODE=native requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
         #expect(source.contains("backend_import=\"QuillGenericQtNativeRuntime\""))
         #expect(source.contains("backend_launch_statement=\"QuillGenericQtNativeApp.run($QT_NATIVE_CATALOG_ENTRY)\""))
+        #expect(source.contains("backend_import=\"QuillUIQt\""))
+        #expect(source.contains("backend_runner=\"QuillQtApp\""))
         #expect(source.contains("backend_launch_statement=\"${backend_runner}.run(${APP_ENTRY_TYPE}.self)\""))
         #expect(source.contains("copy_source_files=0"))
         #expect(source.contains("if [[ \"$copy_source_files\" == \"1\" ]]"))
@@ -7398,7 +7910,11 @@ struct SourceHygieneTests {
         #expect(source.contains("import QuillAppKitGTK"))
         #expect(source.contains("_ = QuillAppKitGTKAutoInstall.didInstall"))
         #expect(source.contains(".product(name: \"QuillAppKitGTK\", package: \"QuillUI\")' \"$target_dependency_entries\")"))
-        #expect(source.contains("if [[ \"$BACKEND_FACADE\" != \"qt\" ]]"))
+        #expect(source.contains("import QuillAppKitQt"))
+        #expect(source.contains("_ = QuillAppKitQtAutoInstall.didInstall"))
+        #expect(source.contains(".product(name: \"QuillUIQt\", package: \"QuillUI\")"))
+        #expect(source.contains(".product(name: \"QuillAppKitQt\", package: \"QuillUI\")"))
+        #expect(source.contains("case \"$BACKEND_FACADE:$effective_qt_mode\" in"))
         #expect(source.contains("quillui_generated_source_requires_macro_plugin()"))
         #expect(source.contains("grep -R -E -q --include='*.swift'"))
         #expect(source.contains("generated source still contains Swift macro syntax; disabling runtime-only macro stubs"))
@@ -7409,10 +7925,23 @@ struct SourceHygieneTests {
         #expect(source.contains(".product(name: \"QuillUIGtk\", package: \"QuillUI\")"))
         #expect(source.contains(".product(name: \"QuillGenericQtNativeRuntime\", package: \"QuillUI\")"))
         #expect(buildSource.contains("--backend-facade"))
+        #expect(buildSource.contains("--qt-runtime-mode"))
+        #expect(buildSource.contains("QUILLUI_APP_QT_RUNTIME_MODE"))
+        #expect(buildSource.contains("QT_RUNTIME_MODE=\"${QUILLUI_APP_QT_RUNTIME_MODE:-${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}}\""))
+        #expect(buildSource.contains("--qt-native-catalog-entry"))
+        #expect(buildSource.contains("QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY"))
+        #expect(buildSource.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY:-${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}}\""))
         #expect(buildSource.contains("--source-app"))
         #expect(buildSource.contains("--source-subdir"))
+        #expect(buildSource.contains("--require-vendored-source"))
+        #expect(buildSource.contains("--allow-upstream-source"))
         #expect(buildSource.contains("QUILLUI_APP_SOURCE_APP"))
         #expect(buildSource.contains("QUILLUI_APP_SOURCE_SUBDIR"))
+        #expect(buildSource.contains("QUILLUI_APP_REQUIRE_VENDORED_SOURCE=0"))
+        #expect(buildSource.contains("validate_boolean_flag \"$REQUIRE_VENDORED_SOURCE\" \"QUILLUI_APP_REQUIRE_VENDORED_SOURCE\""))
+        #expect(buildSource.contains("quillui_vendored_app_source_dir \"$ROOT_DIR\" \"$SOURCE_APP\""))
+        #expect(buildSource.contains("Vendored app source is required for:"))
+        #expect(buildSource.contains("scripts/vendor-swiftui-app-source.sh $SOURCE_APP <checkout>"))
         #expect(buildSource.contains("source \"$ROOT_DIR/scripts/quillui-vendored-source.sh\""))
         #expect(buildSource.contains("validate_source_app_name()"))
         #expect(buildSource.contains("validate_relative_source_path()"))
@@ -7432,12 +7961,17 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_APP_BUILD_SCRATCH_CACHE_DIR"))
         #expect(buildSource.contains("QUILLUI_APP_REUSE_BUILD_SCRATCH=1"))
         #expect(buildSource.contains("generated_app_build_scratch_key()"))
+        #expect(buildSource.contains("\"qt_runtime_mode\": sys.argv[10]"))
+        #expect(buildSource.contains("\"qt_native_catalog_entry\": sys.argv[14]"))
         #expect(buildSource.contains("default_generated_build_scratch()"))
         #expect(buildSource.contains(".build/quillui-generated-app-build-cache"))
-        #expect(buildSource.contains("quillui-generated-app-build-scratch/v1"))
+        #expect(buildSource.contains("quillui-generated-app-build-scratch/v2"))
+        #expect(buildSource.contains("\"Package.swift\""))
         #expect(buildSource.contains("scripts/generate-swiftui-linux-package.sh"))
         #expect(buildSource.contains("Package.resolved"))
         #expect(buildSource.contains("QUILLUI_GENERATED_BUILD_SCRATCH=\"$BUILD_SCRATCH\""))
+        #expect(buildSource.contains("QUILLUI_GENERATED_QT_RUNTIME_MODE=\"$EFFECTIVE_QT_RUNTIME_MODE\""))
+        #expect(buildSource.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$QT_NATIVE_CATALOG_ENTRY\""))
         #expect(buildSource.contains("--scratch-path \"$BUILD_SCRATCH\""))
         #expect(buildSource.contains("==> generated app SwiftPM scratch:"))
         #expect(buildSource.contains("--vendor-swiftpm-sources"))
@@ -7475,6 +8009,8 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_RUNTIME_ONLY_MACROS=\"$quillui_runtime_only_macros\" QUILLUI_LINUX_BACKEND=gtk"))
         #expect(buildSource.contains("QUILLUI_APP_BACKEND_FACADE"))
         #expect(buildSource.contains("NORMALIZED_BACKEND_FACADE"))
+        #expect(buildSource.contains("EFFECTIVE_QT_RUNTIME_MODE=\"$(effective_qt_runtime_mode \"$QT_RUNTIME_MODE\" \"$QT_NATIVE_CATALOG_ENTRY\")\""))
+        #expect(buildSource.contains("--qt-runtime-mode native requires --qt-native-catalog-entry"))
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=qt \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
         #expect(buildSource.contains("scripts/prepare-linux-build-backend.sh"))
         #expect(buildSource.contains("QUILLUI_LINUX_BACKEND=gtk \"$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh\" swift build"))
@@ -7502,6 +8038,8 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("GENERATED_APP_RESOURCES_DIR=\"$WORK_ROOT/package/Sources/GeneratedSwiftUILinuxApp/Resources\""))
         #expect(buildSource.contains("scripts/materialize-swiftui-linux-main-bundle-resources.py"))
         #expect(linuxBuildToolingSource.contains("--vendor-swiftpm-sources"))
+        #expect(linuxBuildToolingSource.contains("--require-vendored-source"))
+        #expect(linuxBuildToolingSource.contains("QUILLUI_APP_REQUIRE_VENDORED_SOURCE=1"))
         #expect(linuxBuildToolingSource.contains("vendor-swiftui-app-source.sh"))
         #expect(linuxBuildToolingSource.contains("QUILLUI_APP_VENDOR_SWIFTPM_RESOLVE=1"))
         #expect(linuxBuildToolingSource.contains(".build/quillui-lowered-source-cache"))
@@ -7512,11 +8050,15 @@ struct SourceHygieneTests {
         #expect(buildSource.contains("QUILLUI_APP_ARTIFACT_PATH_FILE"))
         #expect(buildSource.contains("printf '%s\\n' \"$ARTIFACT_PATH\" > \"$ARTIFACT_PATH_FILE\""))
         #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_manifest_fingerprint()"))
+        #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_source_fingerprint()"))
         #expect(vendoredSourceHelper.contains("quillui_vendored_swiftpm_app_stamp_is_valid()"))
         #expect(vendoredSourceHelper.contains("quillui_write_vendored_swiftpm_app_stamp()"))
         #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-manifests/v1"))
+        #expect(vendoredSourceHelper.contains("quillui-vendored-swiftpm-sources/v1"))
         #expect(vendoredSourceHelper.contains("swiftpmPackage=%s"))
         #expect(vendoredSourceHelper.contains("manifestFingerprint=%s"))
+        #expect(vendoredSourceHelper.contains("sourceFingerprint=%s"))
+        #expect(vendoredSourceHelper.contains("missing-source-fingerprint"))
         #expect(genericProfileRuntimeSource.contains("scripts/run-quill-source-lower.sh"))
         #expect(genericProfileRuntimeSource.contains("scripts/lower-swiftui-source-for-linux.sh"))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_PROFILE_LOWERED_SOURCE_CACHE_DIR"))
@@ -7540,6 +8082,10 @@ struct SourceHygieneTests {
         #expect(genericProfileRuntimeSource.contains("source \"$ROOT_DIR/scripts/swiftpm-profile-lowered-source-cache.sh\""))
         #expect(genericProfileRuntimeSource.contains("PREPARED_PACKAGE_CACHE_DIR=\"${QUILLUI_PROFILE_PREPARED_PACKAGE_CACHE_DIR:-${QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR:-$ROOT_DIR/.build/quillui-prepared-packages-cache}}\""))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_PREPARED_PACKAGE_CACHE_DIR=\"$PREPARED_PACKAGE_CACHE_DIR\""))
+        #expect(genericProfileRuntimeSource.contains("QT_RUNTIME_MODE=\"${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}\""))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_QT_RUNTIME_MODE=\"$QT_RUNTIME_MODE\""))
+        #expect(genericProfileRuntimeSource.contains("QT_NATIVE_CATALOG_ENTRY=\"${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}\""))
+        #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY=\"$QT_NATIVE_CATALOG_ENTRY\""))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_REQUIRE_VENDORED_SOURCES=\"${QUILLUI_REQUIRE_VENDORED_SOURCES:-1}\""))
         #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_derive_swiftpm_layout"))
         #expect(genericProfileRuntimeSource.contains("quillui_profile_maybe_discover_local_import_dependencies"))
@@ -7564,11 +8110,19 @@ struct SourceHygieneTests {
         #expect(localImportDiscoverySource.contains("product:{product.product_name}:{product.package_name}"))
         #expect(genericProfileRuntimeSource.contains("scripts/generate-swiftui-linux-package.sh"))
         #expect(genericProfileRuntimeSource.contains("QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1"))
-        #expect(genericProfileRuntimeSource.contains("generic-swiftui qt facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
+        #expect(genericProfileRuntimeSource.contains("generic-swiftui qt native facade requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"))
         #expect(!genericProfileRuntimeSource.contains("Enchanted"))
         #expect(!genericProfileRuntimeSource.contains("QuillCode"))
         #expect(packageSource.contains("scripts/build-swiftui-linux-app.sh"))
         #expect(packageSource.contains("QUILLUI_APP_BACKEND_FACADE:-gtk"))
+        #expect(packageSource.contains("QUILLUI_APP_REQUIRE_VENDORED_SOURCE"))
+        #expect(packageSource.contains("--require-vendored-source"))
+        #expect(packageSource.contains("--allow-upstream-source"))
+        #expect(packageSource.contains("BUILD_SOURCE_ARGS+=(--require-vendored-source)"))
+        #expect(packageSource.contains("--qt-runtime-mode"))
+        #expect(packageSource.contains("--qt-native-catalog-entry"))
+        #expect(packageSource.contains("QUILLUI_APP_QT_RUNTIME_MODE"))
+        #expect(packageSource.contains("QUILLUI_APP_QT_NATIVE_CATALOG_ENTRY"))
         #expect(packageSource.contains("QUILLUI_APP_ID"))
         #expect(packageSource.contains("validate_app_id \"$APP_ID\""))
         #expect(packageSource.contains("QUILLUI_APP_BUNDLE_SWIFT_RUNTIME"))
@@ -7710,8 +8264,8 @@ struct SourceHygieneTests {
         #expect(enchantedWorkflow.contains("--source-app enchanted"))
         #expect(enchantedWorkflow.contains("--source-subdir Enchanted"))
         #expect(enchantedWorkflow.contains("Confirm vendored Enchanted source"))
-        #expect(enchantedWorkflow.contains("Audit vendored Enchanted SwiftPM sources"))
-        #expect(enchantedWorkflow.contains("scripts/vendor-swiftpm-sources.sh --app enchanted --no-resolve --check-vendored"))
+        #expect(enchantedWorkflow.contains("Audit vendored Enchanted app source"))
+        #expect(enchantedWorkflow.contains("scripts/check-vendored-swiftui-app-source.sh enchanted"))
         #expect(enchantedWorkflow.contains("Restore lowered source cache"))
         #expect(enchantedWorkflow.contains("uses: ./.github/actions/lowered-source-cache"))
         #expect(enchantedWorkflow.contains("source-app: enchanted"))
@@ -8542,7 +9096,17 @@ struct SourceHygieneTests {
         let toolbar = try packageSource("Sources/QuillUI/GTKToolbarMenuButton.swift")
         let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
 
-        #expect(controls.contains("#if os(Linux)\n        QuillGTKToolbarIconButton("))
+        #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKDesktopChatToolbar("))
+        #expect(controls.contains("statusMaxWidth: CGFloat = .infinity"))
+        #expect(controls.contains(".frame(height: 32, alignment: .trailing)"))
+        #expect(!controls.contains(".frame(width: 132, height: 32, alignment: .trailing)"))
+        #expect(controls.contains("#if os(Linux) && QUILLUI_GTK_BACKEND\n        QuillGTKToolbarIconButton("))
+        #expect(toolbar.contains("struct QuillGTKDesktopChatToolbar: View, PrimitiveView, GTKRenderable"))
+        #expect(toolbar.contains("gtk_widget_set_size_request(box, -1, 32)"))
+        #expect(!toolbar.contains("gtk_widget_set_size_request(box, 132, 32)"))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarMenuButton(\n            systemImage: \"chevron.down\""))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarMenuButton(\n            systemImage: \"ellipsis\""))
+        #expect(toolbar.contains("appendToolbarWidget(QuillGTKToolbarIconButton(\n            systemImage: \"square.and.pencil\""))
         #expect(toolbar.contains("struct QuillGTKToolbarIconButton: View, PrimitiveView, GTKRenderable"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_always_show_arrow(button, 0)"))
         #expect(toolbar.contains("gtk_swift_menu_button_set_child(button, makeToolbarGlyphChild("))
@@ -8561,7 +9125,7 @@ struct SourceHygieneTests {
         #expect(!toolbar.contains("boxPointer(box)"))
         #expect(toolbar.contains("materialName: \"more_horiz\""))
         #expect(toolbar.contains("materialName: \"expand_more\""))
-        #expect(toolbar.contains("materialName: \"edit_square\""))
+        #expect(toolbar.contains("materialName: \"edit\""))
         #expect(toolbar.contains("materialName: \"library_books\""))
         #expect(toolbar.contains("materialName: \"auto_awesome\""))
         #expect(toolbar.contains("materialName: \"filter_list\""))
@@ -8979,6 +9543,161 @@ struct SourceHygieneTests {
         #expect(renderer.contains("keyPressActions: getCurrentEnvironment().keyPressActions"))
     }
 
+    @Test("SwiftUI onMoveCommand is real GTK and Qt arrow-key behavior")
+    func swiftUIOnMoveCommandRendersThroughLinuxBackends() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesktopInteractionCompat.swift")
+        let gtkMoveCommand = try packageSource("Sources/QuillUI/GTKMoveCommandModifiers.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let quillCodeCommandPalette = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeCommandPaletteDialog.swift"
+        )
+
+        #expect(quillCodeCommandPalette.contains(".onMoveCommand { direction in"))
+        #expect(compatibility.contains("public struct MoveCommandView<Content: View>: View"))
+        #expect(compatibility.contains("func onMoveCommand("))
+        #expect(gtkMoveCommand.contains("extension MoveCommandView: GTKRenderable"))
+        #expect(gtkMoveCommand.contains("gtk_swift_key_capture_controller()"))
+        #expect(gtkMoveCommand.contains("quillGTKMoveCommandDirection(for keyval: guint)"))
+        #expect(gtkMoveCommand.contains("case 0xff52:"))
+        #expect(gtkMoveCommand.contains("case 0xff54:"))
+        #expect(gtkMoveCommand.contains("action(direction)"))
+        #expect(qtRenderer.contains("extension MoveCommandView: QtRenderable"))
+        #expect(qtRenderer.contains("qtInstallMoveCommandAction(on: widget, environment: environment, action: action)"))
+        #expect(qtRenderer.contains("qtMoveCommandDirection(for keyCode: Int32)"))
+        #expect(qtRenderer.contains("case .upArrow:"))
+        #expect(qtRenderer.contains("case .downArrow:"))
+        #expect(qtRenderer.contains("action(direction)"))
+    }
+
+    @Test("SwiftUI controlSize drives GTK and Qt native button chrome")
+    func swiftUIControlSizeRendersThroughLinuxButtons() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let environment = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let quillCodeExtensions = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeExtensionsPaneView.swift"
+        )
+
+        #expect(quillCodeExtensions.contains(".controlSize(.small)"))
+        #expect(compatibility.contains("func controlSize(_ size: ControlSize) -> EnvironmentModifierView<Self, ControlSize>"))
+        #expect(compatibility.contains("environment(\\.controlSize, size)"))
+        #expect(!compatibility.contains("private struct ControlSizeKey"))
+        #expect(environment.contains("public enum ControlSize: Hashable, Sendable"))
+        #expect(environment.contains("public var controlSize: ControlSize"))
+        #expect(gtkRenderer.contains("gtkApplyButtonControlSize("))
+        #expect(gtkRenderer.contains("environment.controlSize"))
+        #expect(gtkRenderer.contains("case .small:"))
+        #expect(gtkRenderer.contains("padding: 3px 8px; min-height: 22px; font-size: 12px;"))
+        #expect(qtRenderer.contains("qtApplyButtonChrome("))
+        #expect(qtRenderer.contains("environment.controlSize"))
+        #expect(qtRenderer.contains("qtButtonControlSizeRule(_ size: ControlSize)"))
+        #expect(qtRenderer.contains("if appliesControlSize, let sizeRule = qtButtonControlSizeRule(controlSize)"))
+        #expect(qtRenderer.contains("extension EnvironmentModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("extension TransformEnvironmentModifierView: QtRenderable"))
+        #expect(qtRenderer.contains("case .borderedProminent, .quillPaintMacDefault:"))
+    }
+
+    @Test("SwiftUI pickerStyle drives segmented GTK and Qt picker rendering")
+    func swiftUIPickerStyleRendersSegmentedPickersThroughLinuxBackends() throws {
+        let compatibility = try packageSource("Sources/QuillSwiftUICompatibility/DesignSystemSurfaceCompat.swift")
+        let picker = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/Picker.swift")
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+        let quillCodeSettings = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeSettingsView.swift"
+        )
+
+        #expect(quillCodeSettings.contains(".pickerStyle(.segmented)"))
+        #expect(picker.contains("private struct PickerStyleKey: EnvironmentKey"))
+        #expect(picker.contains("var pickerStyle: PickerStyle"))
+        #expect(picker.contains("func pickerStyle(_ style: PickerStyle) -> EnvironmentModifierView<Self, PickerStyle>"))
+        #expect(picker.contains("environment(\\.pickerStyle, style)"))
+        #expect(!compatibility.contains("func pickerStyle(_ style: PickerStyle) -> Self"))
+        #expect(gtkRenderer.contains("switch effectiveStyle"))
+        #expect(gtkRenderer.contains("style == .automatic ? getCurrentEnvironment().pickerStyle : style"))
+        #expect(gtkRenderer.contains("gtkCreateSegmentedWidget()"))
+        #expect(qtRenderer.contains("switch effectiveStyle"))
+        #expect(qtRenderer.contains("style == .automatic ? getCurrentEnvironment().pickerStyle : style"))
+        #expect(qtRenderer.contains("qtCreateSegmentedPicker()"))
+        #expect(qtRenderer.contains("quill_qt_make_segmented_picker()"))
+        #expect(qtRenderer.contains("quill_qt_segmented_picker_add_item("))
+        #expect(qtRenderer.contains("quill_qt_segmented_picker_connect_selected("))
+        #expect(cqtHeader.contains("quill_qt_make_segmented_picker"))
+        #expect(cqtHeader.contains("quill_qt_segmented_picker_add_item"))
+        #expect(cqtHeader.contains("quill_qt_segmented_picker_connect_selected"))
+        #expect(cqtBridge.contains("QButtonGroup *group = new QButtonGroup(container)"))
+        #expect(cqtBridge.contains("&QButtonGroup::idClicked"))
+    }
+
+    @Test("SwiftUI custom control styles drive Qt rendered controls")
+    func swiftUICustomControlStylesRenderThroughQt() throws {
+        let controlStyles = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+        )
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+        let enchantedButtonStyle = try packageSource(
+            "vendor/apps/enchanted/Enchanted/Extensions/Button+Extension.swift"
+        )
+        let quillCodeDesign = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeDesignSystem.swift"
+        )
+        let quillCodeTerminal = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeTerminalPaneView.swift"
+        )
+        let quillCodeComposer = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeComposerView.swift"
+        )
+
+        #expect(enchantedButtonStyle.contains("struct GrowingButton: ButtonStyle"))
+        #expect(quillCodeDesign.contains("struct QuillCodePressableButtonStyle: ButtonStyle"))
+        #expect(quillCodeTerminal.contains(".textFieldStyle(.roundedBorder)"))
+        #expect(quillCodeComposer.contains(".disabled("))
+        #expect(controlStyles.contains("public struct CustomButtonStyleModifier<Content: View>: View, PrimitiveView"))
+        #expect(controlStyles.contains("public var customButtonStyle: AnyButtonStyle?"))
+        #expect(qtRenderer.contains("private final class QtCustomButtonStyleContext"))
+        #expect(qtRenderer.contains("renderEnvironment.customButtonStyle = nil"))
+        #expect(qtRenderer.contains("renderEnvironment.buttonStyle = .plain"))
+        #expect(qtRenderer.contains("style.makeBody(configuration: .init(label: label, isPressed: isPressed))"))
+        #expect(qtRenderer.contains("extension CustomButtonStyleModifier: QtRenderable"))
+        #expect(qtRenderer.contains("environment.customButtonStyle = style"))
+        #expect(qtRenderer.contains("quill_qt_button_set_child(qtHandle(button), qtHandle(child))"))
+        #expect(qtRenderer.contains("quill_qt_button_connect_pressed_changed("))
+        #expect(qtRenderer.contains("let effectiveIsEnabled = previousEnvironment.isEnabled && !isDisabled"))
+        #expect(qtRenderer.contains("extension TextFieldStyleModifier: QtRenderable"))
+        #expect(qtRenderer.contains("qtApplyTextFieldStyle(to: lineEdit, style: environment.textFieldStyle)"))
+        #expect(cqtHeader.contains("quill_qt_button_set_child"))
+        #expect(cqtHeader.contains("quill_qt_button_connect_pressed_changed"))
+        #expect(cqtBridge.contains("&QPushButton::pressed"))
+        #expect(cqtBridge.contains("&QPushButton::released"))
+        #expect(cqtBridge.contains("layout->addWidget(childWidget)"))
+    }
+
+    @Test("QuillCode model picker popover renders as native Qt popup outside layout")
+    func quillCodeModelPickerPopoverRendersAsNativeQtPopupOutsideLayout() throws {
+        let modelPicker = try packageSource(
+            "vendor/apps/quillcode/Sources/QuillCodeApp/QuillCodeModelPickerView.swift"
+        )
+        let qtRenderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let cqtHeader = try packageSource("Sources/CQtBridge/include/CQtBridge.h")
+        let cqtBridge = try packageSource("Sources/CQtBridge/CQtBridge.cpp")
+
+        #expect(modelPicker.contains(".popover(isPresented: $isPresented, arrowEdge: .bottom)"))
+        #expect(modelPicker.contains(".focused($isSearchFocused)"))
+        #expect(modelPicker.contains(".onSubmit(selectHighlightedModel)"))
+        #expect(qtRenderer.contains("extension PopoverView: QtRenderable"))
+        #expect(qtRenderer.contains("quill_qt_popover_show_for_anchor(qtHandle(base), qtHandle(panel), 6, closed, box, destroy)"))
+        #expect(qtRenderer.contains("return base"))
+        #expect(cqtHeader.contains("The popup does not participate in the anchor's layout"))
+        #expect(cqtBridge.contains("Qt::Popup | Qt::FramelessWindowHint"))
+        #expect(cqtBridge.contains("QTimer::singleShot(0, [anchorWidget, popoverWidget, gap, state]()"))
+        #expect(cqtBridge.contains("popoverWidget->activateWindow()"))
+    }
+
     @Test("Enchanted SF Symbols map to bundled Material glyphs")
     func enchantedSFSymbolsMapToMaterialGlyphs() throws {
         let symbols = try packageSource(
@@ -9337,6 +10056,12 @@ struct SourceHygieneTests {
         #expect(patcher.contains("private func gtkClampHiddenHorizontalScrollOffset"))
         #expect(patcher.contains("old_vertical_scroll_horizontal_guard"))
         #expect(patcher.contains("!isSwiftUIVerticalScrollView,"))
+        #expect(patcher.contains("gtk_widget_set_halign(trailingCluster, GTK_ALIGN_END)"))
+        #expect(patcher.contains("gtk_widget_set_hexpand(spacer, 1)"))
+        #expect(!patcher.contains("gtk_widget_set_margin_start(trailingCluster, 620)"))
+        #expect(navigation.contains("gtk_widget_set_halign(trailingCluster, GTK_ALIGN_END)"))
+        #expect(navigation.contains("gtk_widget_set_hexpand(spacer, 1)"))
+        #expect(!navigation.contains("gtk_widget_set_margin_start(trailingCluster, 620)"))
         #expect(navigation.contains("private func gtkCreateFixedSplitColumnContainer("))
         #expect(navigation.contains("gtk_scrolled_window_set_max_content_width(scrolledOp, pixelWidth)"))
         #expect(navigation.contains("gtkApplyFixedSplitColumnWidth(sidebar, width: sidebarW)"))

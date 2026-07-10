@@ -241,12 +241,15 @@ public extension View {
         allowedContentTypes: [UTType],
         allowsMultipleSelection: Bool = false,
         onCompletion: @escaping (Result<[URL], Error>) -> Void
-    ) -> Self {
-        _ = isPresented
-        _ = allowedContentTypes
-        _ = allowsMultipleSelection
-        _ = onCompletion
-        return self
+    ) -> OnChangeView<Self, Bool> {
+        onChange(of: isPresented.wrappedValue) { presented in
+            guard presented else { return }
+            isPresented.wrappedValue = false
+            onCompletion(QuillFileImporter.selectURLs(
+                allowedContentTypes: allowedContentTypes,
+                allowsMultipleSelection: allowsMultipleSelection
+            ))
+        }
     }
 }
 #endif

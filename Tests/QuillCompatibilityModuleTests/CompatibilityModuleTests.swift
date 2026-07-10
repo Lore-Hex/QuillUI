@@ -3611,12 +3611,59 @@ struct CompatibilityModuleTests {
                 Issue.record("Expected .unsupportedFileSelection, got \(quillError)")
             }
         }
+
+        QuillFileImporter.setTestSelection(directory)
+
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.folder]) {
+        case .success(let url):
+            #expect(url == directory)
+        case .failure(let error):
+            Issue.record("Expected folder selection to match .folder: \(error)")
+        }
+
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.directory]) {
+        case .success(let url):
+            #expect(url == directory)
+        case .failure(let error):
+            Issue.record("Expected folder selection to conform to .directory: \(error)")
+        }
+
+        switch QuillFileImporter.selectURLs(allowedContentTypes: [.folder], allowsMultipleSelection: false) {
+        case .success(let urls):
+            #expect(urls == [directory])
+        case .failure(let error):
+            Issue.record("Expected single folder selection array: \(error)")
+        }
+
+        QuillFileImporter.setTestSelection(pngURL)
+
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.folder]) {
+        case .success:
+            Issue.record("Expected folder-only allowedTypes to reject a .png URL")
+        case .failure(let error):
+            guard let quillError = error as? QuillCompatibilityError else {
+                Issue.record("Expected QuillCompatibilityError, got \(type(of: error)): \(error)")
+                return
+            }
+            switch quillError {
+            case .unsupportedFileSelection(let url, let allowed):
+                #expect(url == pngURL)
+                #expect(allowed == [.folder])
+            default:
+                Issue.record("Expected .unsupportedFileSelection, got \(quillError)")
+            }
+        }
     }
 
     // MARK: - UTType behavior
 
     @Test("UTType infers types from file extensions and reports conformance")
-    func utTypeInfersAndConforms() {
+    func utTypeInfersAndConforms() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillUTTypeDirectoryTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.png")) == .png)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.PNG")) == .png)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/photo.jpeg")) == .jpeg)
@@ -3629,6 +3676,7 @@ struct CompatibilityModuleTests {
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/clip.mp4")) == .mpeg4Movie)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/audio.mp3")) == .mp3)
         #expect(UTType.type(for: URL(fileURLWithPath: "/tmp/no-extension")) == nil)
+        #expect(UTType.type(for: directory) == .folder)
 
         // Identity conformance.
         #expect(UTType.png.conforms(to: .png))

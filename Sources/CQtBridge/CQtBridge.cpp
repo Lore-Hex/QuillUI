@@ -20,6 +20,8 @@
 #include <QFontDatabase>
 #include <QFrame>
 #include <QGridLayout>
+#include <QButtonGroup>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -30,9 +32,12 @@
 #include <QMenu>
 #include <QObject>
 #include <QPixmap>
+#include <QPointer>
+#include <QPoint>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRect>
+#include <QScreen>
 #include <QSize>
 #include <QScrollArea>
 #include <QString>
@@ -289,6 +294,75 @@ protected:
 
 private:
     std::shared_ptr<QuillQtFocusState> state_;
+};
+
+class QuillQtPopoverState final {
+public:
+    QuillQtPopoverState(
+        quill_qt_bridge_click_callback closed,
+        void *userData,
+        quill_qt_bridge_click_callback destroy
+    )
+        : closed_(closed),
+          userData_(userData),
+          destroy_(destroy)
+    {
+    }
+
+    ~QuillQtPopoverState() {
+        release();
+    }
+
+    void notifyClosed() {
+        if (closed_ != nullptr && userData_ != nullptr) {
+            closed_(userData_);
+        }
+        release();
+    }
+
+private:
+    void release() {
+        if (destroy_ != nullptr && userData_ != nullptr) {
+            destroy_(userData_);
+        }
+        userData_ = nullptr;
+        closed_ = nullptr;
+        destroy_ = nullptr;
+    }
+
+    quill_qt_bridge_click_callback closed_;
+    void *userData_;
+    quill_qt_bridge_click_callback destroy_;
+};
+
+class QuillQtPopoverFilter final : public QObject {
+public:
+    QuillQtPopoverFilter(
+        std::shared_ptr<QuillQtPopoverState> state,
+        QObject *parent
+    )
+        : QObject(parent),
+          state_(std::move(state))
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::Hide:
+        case QEvent::Close:
+        case QEvent::DeferredDelete:
+        case QEvent::Destroy:
+            state_->notifyClosed();
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::shared_ptr<QuillQtPopoverState> state_;
 };
 
 class QuillQtKeyPressState final {
@@ -879,6 +953,65 @@ void quill_qt_bridge_widget_set_fixed_size(
     }
 }
 
+void quill_qt_popover_show_for_anchor(
+    QuillQtWidgetHandle anchor,
+    QuillQtWidgetHandle popover,
+    int vertical_gap,
+    quill_qt_bridge_click_callback closed,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QPointer<QWidget> anchorWidget(asWidget(anchor));
+    QPointer<QWidget> popoverWidget(asWidget(popover));
+    const int gap = std::max(0, vertical_gap);
+    auto state = std::make_shared<QuillQtPopoverState>(closed, user_data, destroy);
+
+    if (anchorWidget.isNull() || popoverWidget.isNull()) {
+        if (!popoverWidget.isNull()) {
+            popoverWidget->deleteLater();
+        }
+        return;
+    }
+
+    popoverWidget->setParent(anchorWidget, Qt::Popup | Qt::FramelessWindowHint);
+    popoverWidget->setAttribute(Qt::WA_DeleteOnClose, true);
+    popoverWidget->installEventFilter(new QuillQtPopoverFilter(state, popoverWidget));
+
+    QTimer::singleShot(0, [anchorWidget, popoverWidget, gap, state]() {
+        (void)state;
+        if (anchorWidget.isNull() || popoverWidget.isNull()) {
+            if (!popoverWidget.isNull()) {
+                popoverWidget->deleteLater();
+            }
+            return;
+        }
+
+        const QSize natural = resolvedWidgetSize(popoverWidget);
+        popoverWidget->resize(natural);
+
+        const QPoint anchorTopLeft = anchorWidget->mapToGlobal(QPoint(0, 0));
+        QPoint origin = anchorWidget->mapToGlobal(QPoint(0, anchorWidget->height() + gap));
+        QScreen *screen = anchorWidget->screen();
+        if (screen == nullptr) {
+            screen = QApplication::primaryScreen();
+        }
+        if (screen != nullptr) {
+            const QRect available = screen->availableGeometry();
+            if (origin.x() + natural.width() > available.right()) {
+                origin.setX(std::max(available.left(), available.right() - natural.width()));
+            }
+            if (origin.y() + natural.height() > available.bottom()) {
+                origin.setY(std::max(available.top(), anchorTopLeft.y() - natural.height() - gap));
+            }
+        }
+
+        popoverWidget->move(origin);
+        popoverWidget->show();
+        popoverWidget->raise();
+        popoverWidget->activateWindow();
+    });
+}
+
 // --- Leaf widgets ----------------------------------------------------------
 
 QuillQtWidgetHandle quill_qt_bridge_label_create(const char *text) {
@@ -1038,6 +1171,16 @@ void quill_qt_widget_request_focus_recursive(QuillQtWidgetHandle widget) {
         window->raise();
     }
     focusable->setFocus(Qt::OtherFocusReason);
+}
+
+void quill_qt_widget_request_focus_recursive_later(QuillQtWidgetHandle widget) {
+    QPointer<QWidget> target(asWidget(widget));
+    QTimer::singleShot(0, [target]() {
+        if (target.isNull()) {
+            return;
+        }
+        quill_qt_widget_request_focus_recursive(reinterpret_cast<QuillQtWidgetHandle>(target.data()));
+    });
 }
 
 void quill_qt_widget_clear_focus_recursive(QuillQtWidgetHandle widget) {
@@ -1304,6 +1447,71 @@ QuillQtWidgetHandle quill_qt_bridge_button_create(
     return reinterpret_cast<QuillQtWidgetHandle>(button);
 }
 
+void quill_qt_button_set_child(
+    QuillQtWidgetHandle button_handle,
+    QuillQtWidgetHandle child
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    QWidget *childWidget = asWidget(child);
+    if (button == nullptr || childWidget == nullptr) {
+        return;
+    }
+
+    QHBoxLayout *layout = qobject_cast<QHBoxLayout *>(button->layout());
+    if (layout == nullptr) {
+        layout = new QHBoxLayout(button);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+        button->setLayout(layout);
+    } else {
+        while (QLayoutItem *item = layout->takeAt(0)) {
+            if (QWidget *oldChild = item->widget()) {
+                oldChild->hide();
+                oldChild->setParent(nullptr);
+                oldChild->deleteLater();
+            }
+            delete item;
+        }
+    }
+
+    childWidget->setParent(button);
+    layout->addWidget(childWidget);
+    const QSize childSize = resolvedWidgetSize(childWidget);
+    button->setMinimumSize(childSize);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
+    childWidget->show();
+}
+
+void quill_qt_button_connect_pressed_changed(
+    QuillQtWidgetHandle button_handle,
+    quill_qt_bridge_toggle_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QPushButton *button = qobject_cast<QPushButton *>(asWidget(button_handle));
+    if (button == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(button, &QPushButton::pressed, button, [callback, user_data]() {
+            callback(1, user_data);
+        });
+        QObject::connect(button, &QPushButton::released, button, [callback, user_data]() {
+            callback(0, user_data);
+        });
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(button, &QObject::destroyed, button, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
 QuillQtWidgetHandle quill_qt_make_check_box(void) {
     QCheckBox *checkBox = new QCheckBox();
     return reinterpret_cast<QuillQtWidgetHandle>(checkBox);
@@ -1508,6 +1716,100 @@ void quill_qt_combo_box_connect_current_index_changed(
 
     if (destroy != nullptr) {
         QObject::connect(comboBox, &QObject::destroyed, comboBox, [destroy, user_data]() {
+            destroy(user_data);
+        });
+    }
+}
+
+static QButtonGroup *segmentedPickerGroup(QWidget *container) {
+    if (container == nullptr) {
+        return nullptr;
+    }
+    return container->findChild<QButtonGroup *>("quill-segmented-picker-group");
+}
+
+QuillQtWidgetHandle quill_qt_make_segmented_picker(void) {
+    QWidget *container = new QWidget();
+    QHBoxLayout *layout = new QHBoxLayout(container);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    QButtonGroup *group = new QButtonGroup(container);
+    group->setObjectName("quill-segmented-picker-group");
+    group->setExclusive(true);
+
+    container->setStyleSheet(
+        "QPushButton {"
+        "  background: rgba(255, 255, 255, 0.68);"
+        "  border: 1px solid rgba(0, 0, 0, 0.20);"
+        "  border-radius: 6px;"
+        "  padding: 3px 10px;"
+        "  min-height: 24px;"
+        "}"
+        "QPushButton + QPushButton { margin-left: -1px; }"
+        "QPushButton:checked {"
+        "  background: rgba(53, 132, 228, 0.18);"
+        "  border-color: rgba(53, 132, 228, 0.52);"
+        "  color: #1c71d8;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: rgba(0, 0, 0, 0.38);"
+        "  background: rgba(255, 255, 255, 0.38);"
+        "}"
+    );
+
+    return reinterpret_cast<QuillQtWidgetHandle>(container);
+}
+
+void quill_qt_segmented_picker_add_item(
+    QuillQtWidgetHandle segmented_picker,
+    const char *text,
+    int index,
+    int selected
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QHBoxLayout *layout = container != nullptr ? qobject_cast<QHBoxLayout *>(container->layout()) : nullptr;
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (layout == nullptr || group == nullptr) {
+        return;
+    }
+
+    QPushButton *button = new QPushButton(utf8(text), container);
+    button->setCheckable(true);
+    button->setChecked(selected != 0);
+    button->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    group->addButton(button, index);
+    layout->addWidget(button);
+}
+
+void quill_qt_segmented_picker_connect_selected(
+    QuillQtWidgetHandle segmented_picker,
+    quill_qt_bridge_index_callback callback,
+    void *user_data,
+    quill_qt_bridge_click_callback destroy
+) {
+    QWidget *container = asWidget(segmented_picker);
+    QButtonGroup *group = segmentedPickerGroup(container);
+    if (container == nullptr || group == nullptr) {
+        if (destroy != nullptr && user_data != nullptr) {
+            destroy(user_data);
+        }
+        return;
+    }
+
+    if (callback != nullptr) {
+        QObject::connect(
+            group,
+            &QButtonGroup::idClicked,
+            container,
+            [callback, user_data](int index) {
+                callback(index, user_data);
+            }
+        );
+    }
+
+    if (destroy != nullptr) {
+        QObject::connect(container, &QObject::destroyed, container, [destroy, user_data]() {
             destroy(user_data);
         });
     }

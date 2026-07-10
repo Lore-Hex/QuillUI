@@ -433,14 +433,14 @@ quillui_backend_generated_app_products() {
 }
 
 quillui_backend_generated_app_build_specs() {
-  # PRODUCT PROFILE SOURCE_APP SOURCE_SUBDIR APP_TYPE ENTRY_TARGET WORKDIR_ENV_NAMES
+  # PRODUCT PROFILE SOURCE_APP SOURCE_SUBDIR APP_TYPE ENTRY_TARGET WORKDIR_ENV_NAMES QT_NATIVE_CATALOG_ENTRY
   # Keep external app build metadata here so smoke/profiling tooling can build
   # vendored app source through the generic SwiftUI Linux builder without
   # product-specific shell blocks.
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    quill-enchanted-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
-    quill-chat-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR \
-    quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    quill-enchanted-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR QuillGenericQtAppCatalog.enchantedUpstreamSlice \
+    quill-chat-linux enchanted-full-source enchanted Enchanted EnchantedApp "" QUILLUI_ENCHANTED_BUILD_WORKDIR,QUILLUI_QUILL_CHAT_BUILD_WORKDIR QuillGenericQtAppCatalog.enchantedUpstreamSlice \
+    quill-code-desktop-linux generic-swiftui quillcode "" QuillCodeDesktopApp quill-code-desktop QUILLUI_QUILLCODE_BUILD_WORKDIR QuillGenericQtAppCatalog.quillCode
 }
 
 quillui_backend_generated_app_build_spec_for_product() {
@@ -741,6 +741,22 @@ quillui_backend_enchanted_linux_interaction_verify_product() {
   printf 'quill-enchanted-linux-%s\n' "$selected_backend"
 }
 
+quillui_backend_quill_code_desktop_interaction_verify_product() {
+  local selected_backend
+  local interaction_mode="$2"
+
+  selected_backend="$(quillui_require_backend_identifier "$1")" || return $?
+
+  case "$interaction_mode" in
+    click|toolbar-menu)
+      printf 'quill-code-desktop-linux-toolbar-menu\n'
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 quillui_backend_app_interaction_verify_product_for_product() {
   local product="$1"
   local selected_backend="$2"
@@ -752,6 +768,9 @@ quillui_backend_app_interaction_verify_product_for_product() {
       ;;
     quill-chat-linux)
       quillui_backend_quill_chat_interaction_verify_product "$selected_backend" "$interaction_mode"
+      ;;
+    quill-code-desktop-linux)
+      quillui_backend_quill_code_desktop_interaction_verify_product "$selected_backend" "$interaction_mode"
       ;;
     quill-wireguard)
       quillui_backend_wireguard_interaction_verify_product "$selected_backend" "$interaction_mode"
@@ -871,6 +890,9 @@ quillui_backend_default_interaction_mode_for_product() {
 
   case "$product" in
     quill-chat-linux)
+      echo "toolbar-menu"
+      ;;
+    quill-code-desktop-linux)
       echo "toolbar-menu"
       ;;
     quill-wireguard)
@@ -1416,6 +1438,7 @@ quillui_backend_validate_generated_app_build_specs() {
   local app_type
   local entry_target
   local workdir_env_names
+  local qt_native_catalog_entry
   local extra
   local field_separator=$'\037'
   local row
@@ -1424,14 +1447,14 @@ quillui_backend_validate_generated_app_build_specs() {
 
   while IFS= read -r row; do
     split_row="${row//$'\t'/$field_separator}"
-    IFS="$field_separator" read -r product profile source_app source_subdir app_type entry_target workdir_env_names extra <<< "$split_row"
-    [[ -n "$product" || -n "$profile" || -n "$source_app" || -n "$source_subdir" || -n "$app_type" || -n "$entry_target" || -n "$workdir_env_names" || -n "${extra:-}" ]] || continue
+    IFS="$field_separator" read -r product profile source_app source_subdir app_type entry_target workdir_env_names qt_native_catalog_entry extra <<< "$split_row"
+    [[ -n "$product" || -n "$profile" || -n "$source_app" || -n "$source_subdir" || -n "$app_type" || -n "$entry_target" || -n "$workdir_env_names" || -n "$qt_native_catalog_entry" || -n "${extra:-}" ]] || continue
     if [[ -n "${extra:-}" ]]; then
-      echo "generated-app-build-specs row has too many columns: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$extra" >&2
+      echo "generated-app-build-specs row has too many columns: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$qt_native_catalog_entry	$extra" >&2
       return 65
     fi
-    if [[ -z "$profile" || -z "$source_app" || -z "$app_type" ]]; then
-      echo "generated-app-build-specs contains an incomplete row: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names" >&2
+    if [[ -z "$profile" || -z "$source_app" || -z "$app_type" || -z "$qt_native_catalog_entry" ]]; then
+      echo "generated-app-build-specs contains an incomplete row: $product	$profile	$source_app	$source_subdir	$app_type	$entry_target	$workdir_env_names	$qt_native_catalog_entry" >&2
       return 65
     fi
     quillui_backend_build_stamp_product_name "$product" >/dev/null || return $?

@@ -46,6 +46,13 @@ private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
 }
 
+private func gtkHasExplicitSizeRequest(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    var requestedWidth: Int32 = -1
+    var requestedHeight: Int32 = -1
+    gtk_widget_get_size_request(widget, &requestedWidth, &requestedHeight)
+    return requestedWidth > 0 || requestedHeight > 0
+}
+
 private func gtkMarkSwiftUIScrollView(_ widget: UnsafeMutablePointer<GtkWidget>, hasVerticalAxis: Bool) {
     gtkSetLayoutMarker(widget, key: gtkSwiftScrollViewMarker)
     if hasVerticalAxis {
@@ -62,11 +69,11 @@ private func gtkPropagateSingleChildLayoutMarkers(
     to wrapper: UnsafeMutablePointer<GtkWidget>
 ) {
     guard children.count == 1, let child = children.first else { return }
-    if gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker) {
-        gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)
-    }
-    if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
-        gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
+        if gtkHasLayoutMarker(child, key: gtkSwiftSpacerMarker) {
+            gtkSetLayoutMarker(wrapper, key: gtkSwiftSpacerMarker)
+        }
+        if gtkHasLayoutMarker(child, key: gtkSwiftDividerMarker) {
+            gtkSetLayoutMarker(wrapper, key: gtkSwiftDividerMarker)
     }
 }
 
@@ -1747,6 +1754,13 @@ extension Button: GTKRenderable, GTKDescribable {
                 break // default GTK button styling
             }
         }
+        if !handledByQuillPaint, styleContext == nil {
+            gtkApplyButtonControlSize(
+                button,
+                size: environment.controlSize,
+                style: buttonStyleType
+            )
+        }
 
         gtk_widget_set_hexpand(button, buttonWantsHExpand ? 1 : 0)
         gtk_widget_set_vexpand(button, buttonWantsVExpand ? 1 : 0)
@@ -1874,6 +1888,28 @@ extension Button: GTKRenderable, GTKDescribable {
         gtkApplyEnabledState(to: button)
         return opaqueFromWidget(button)
     }
+}
+
+private func gtkApplyButtonControlSize(
+    _ button: UnsafeMutablePointer<GtkWidget>,
+    size: ControlSize,
+    style: ButtonStyleType
+) {
+    guard style != .plain else { return }
+    let css: String
+    switch size {
+    case .mini:
+        css = "padding: 1px 6px; min-height: 18px; font-size: 11px;"
+    case .small:
+        css = "padding: 3px 8px; min-height: 22px; font-size: 12px;"
+    case .regular:
+        return
+    case .large:
+        css = "padding: 8px 14px; min-height: 34px; font-size: 15px;"
+    case .extraLarge:
+        css = "padding: 10px 16px; min-height: 40px; font-size: 16px;"
+    }
+    applyCSSToWidget(button, properties: css)
 }
 
 // MARK: - keyboardShortcut GTK extension
@@ -2164,6 +2200,9 @@ private func gtkCanUseSharedVStackLayout(_ children: [UnsafeMutablePointer<GtkWi
     for widget in children {
         let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
         if g_object_get_data(gobject, gtkSwiftSpacerMarker) != nil {
+            return false
+        }
+        if gtkHasExplicitSizeRequest(widget) {
             return false
         }
         if gtk_widget_get_hexpand(widget) != 0 || gtk_widget_get_vexpand(widget) != 0 {
@@ -2544,6 +2583,34 @@ extension PaddedView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         let child = widgetFromOpaque(gtkRenderView(content))
+        let childExpH = gtk_widget_get_hexpand(child) != 0
+        let childExpV = gtk_widget_get_vexpand(child) != 0
+        let paddedChild: UnsafeMutablePointer<GtkWidget>
+
+        if childExpH && (leading > 0 || trailing > 0) {
+            let row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+            if leading > 0 {
+                gtk_box_append(boxPointer(row), gtkPaddingSpacer(width: leading))
+            }
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+            gtk_box_append(boxPointer(row), child)
+            if trailing > 0 {
+                gtk_box_append(boxPointer(row), gtkPaddingSpacer(width: trailing))
+            }
+            gtk_widget_set_hexpand(row, 1)
+            gtk_widget_set_halign(row, GTK_ALIGN_FILL)
+            if childExpV {
+                gtk_widget_set_vexpand(row, 1)
+                gtk_widget_set_valign(row, GTK_ALIGN_FILL)
+            }
+            paddedChild = row
+        } else {
+            gtk_widget_set_margin_start(child, gint(leading))
+            gtk_widget_set_margin_end(child, gint(trailing))
+            paddedChild = child
+        }
+
         let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         // Use GTK widget margins (not CSS padding) for the spacing. CSS
         // padding-X in GTK4 interacts poorly with hexpand-distributed
@@ -2552,25 +2619,32 @@ extension PaddedView: GTKRenderable, GTKDescribable {
         // natural-size distribution, producing an unfilled gap in HStacks
         // like the LayoutStress dashboard cards. Margins on the inner
         // child are respected by measurement and don't hit that path.
-        gtk_widget_set_margin_top(child, gint(top))
-        gtk_widget_set_margin_bottom(child, gint(bottom))
-        gtk_widget_set_margin_start(child, gint(leading))
-        gtk_widget_set_margin_end(child, gint(trailing))
+        gtk_widget_set_margin_top(paddedChild, gint(top))
+        gtk_widget_set_margin_bottom(paddedChild, gint(bottom))
         // PaddedView must let expanding content fill its margin wrapper.
         // This is what carries a fixed frame's proposed width into a
         // padded VStack/HStack instead of clipping Spacer-based rows at
         // their natural size.
-        if gtk_widget_get_hexpand(child) != 0 {
+        if childExpH {
             gtk_widget_set_hexpand(wrapper, 1)
-            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_halign(paddedChild, GTK_ALIGN_FILL)
         }
-        if gtk_widget_get_vexpand(child) != 0 {
+        if childExpV {
             gtk_widget_set_vexpand(wrapper, 1)
-            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(paddedChild, GTK_ALIGN_FILL)
         }
         gtkMarkHostedNodeKind(wrapper, kind: .padding)
-        gtk_box_append(boxPointer(wrapper), child)
+        gtk_box_append(boxPointer(wrapper), paddedChild)
         return opaqueFromWidget(wrapper)
+    }
+
+    private func gtkPaddingSpacer(width: Int) -> UnsafeMutablePointer<GtkWidget> {
+        let spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+        gtkMarkLayoutHelper(spacer)
+        gtk_widget_set_size_request(spacer, gtkPixelSize(Double(width)), -1)
+        gtk_widget_set_hexpand(spacer, 0)
+        gtk_widget_set_halign(spacer, GTK_ALIGN_START)
+        return spacer
     }
 }
 
@@ -2600,12 +2674,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
         let widthFree  = width == nil && minWidth == nil && (maxWidth == nil || maxWidth == .infinity)
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil)
+                (maxWidth == .infinity)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil)
+                (maxHeight == .infinity)
                 || (maxHeight == nil && childExpV)
             )
 
@@ -2760,12 +2834,12 @@ extension FrameView: GTKRenderable, GTKDescribable {
 
         let widthMayGrowWithParent = width == nil
             && (
-                (maxWidth != nil)
+                (maxWidth == .infinity)
                 || (maxWidth == nil && childExpH)
             )
         let heightMayGrowWithParent = height == nil
             && (
-                (maxHeight != nil)
+                (maxHeight == .infinity)
                 || (maxHeight == nil && childExpV)
             )
 
@@ -3010,10 +3084,13 @@ private func gtkMeasureWidgetNaturalSize(_ widget: UnsafeMutablePointer<GtkWidge
     var widthNat: Int32 = 0
     var heightMin: Int32 = 0
     var heightNat: Int32 = 0
+    var requestedWidth: Int32 = -1
+    var requestedHeight: Int32 = -1
     gtk_swift_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &widthMin, &widthNat)
     gtk_swift_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &heightMin, &heightNat)
-    let width = max(widthMin, widthNat)
-    let height = max(heightMin, heightNat)
+    gtk_widget_get_size_request(widget, &requestedWidth, &requestedHeight)
+    let width = max(max(widthMin, widthNat), max(requestedWidth, 0))
+    let height = max(max(heightMin, heightNat), max(requestedHeight, 0))
     return ViewSize(width: Double(width), height: Double(height))
 }
 
@@ -7957,7 +8034,7 @@ private class SegmentClosureBox {
 extension Picker: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
-        switch style {
+        switch effectiveStyle {
         case .segmented, .palette:
             widget = gtkCreateSegmentedWidget()
         default:
@@ -7965,6 +8042,10 @@ extension Picker: GTKRenderable {
         }
         gtkApplyEnabledState(to: widgetFromOpaque(widget))
         return widget
+    }
+
+    private var effectiveStyle: PickerStyle {
+        style == .automatic ? getCurrentEnvironment().pickerStyle : style
     }
 
     /// True iff the caller wrapped us in `.labelsHidden()`. The

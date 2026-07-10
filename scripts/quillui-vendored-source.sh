@@ -98,6 +98,63 @@ print(digest.hexdigest())
 PY
 }
 
+quillui_vendored_swiftpm_source_fingerprint() {
+    local root_dir="$1"
+    shift || true
+
+    python3 - "$root_dir" "$@" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1]).resolve()
+packages = sorted(dict.fromkeys(sys.argv[2:]))
+third_party = root / "third_party"
+digest = hashlib.sha256()
+digest.update(b"quillui-vendored-swiftpm-sources/v1\0")
+
+
+def update_with_file(path: Path) -> None:
+    try:
+        relative = path.resolve().relative_to(root)
+    except ValueError:
+        relative = path.resolve()
+    data = path.read_bytes()
+    digest.update(str(relative).encode("utf-8"))
+    digest.update(b"\0")
+    digest.update(str(len(data)).encode("utf-8"))
+    digest.update(b":")
+    digest.update(data)
+    digest.update(b"\0")
+
+
+if third_party.is_dir():
+    package_dirs = [third_party / package for package in packages]
+    if not packages:
+        package_dirs = sorted(path for path in third_party.iterdir() if path.is_dir())
+
+    for package_dir in package_dirs:
+        package_name = package_dir.name
+        digest.update(b"package\0")
+        digest.update(package_name.encode("utf-8"))
+        digest.update(b"\0")
+
+        metadata = package_dir / ".quillui-vendor-source-fingerprint"
+        if metadata.is_file():
+            update_with_file(metadata)
+        else:
+            digest.update(b"missing-source-fingerprint\0")
+            digest.update(package_name.encode("utf-8"))
+            digest.update(b"\0")
+
+        for manifest in sorted(package_dir.glob("Package*.swift")):
+            if manifest.is_file():
+                update_with_file(manifest)
+
+print(digest.hexdigest())
+PY
+}
+
 quillui_vendored_swiftpm_app_stamp_is_valid() {
     local root_dir="$1"
     local stamp_file="$2"
@@ -106,13 +163,13 @@ quillui_vendored_swiftpm_app_stamp_is_valid() {
     local packages=()
 
     [[ -f "$stamp_file" ]] || return 1
-    expected="$(awk -F= '$1 == "manifestFingerprint" { print $2; exit }' "$stamp_file" 2>/dev/null || true)"
+    expected="$(awk -F= '$1 == "sourceFingerprint" { print $2; exit }' "$stamp_file" 2>/dev/null || true)"
     [[ -n "$expected" ]] || return 1
     while IFS= read -r package; do
         [[ -n "$package" ]] || continue
         packages+=("$package")
     done < <(awk -F= '$1 == "swiftpmPackage" { print $2 }' "$stamp_file" 2>/dev/null || true)
-    current="$(quillui_vendored_swiftpm_manifest_fingerprint "$root_dir" "${packages[@]}")" || return 1
+    current="$(quillui_vendored_swiftpm_source_fingerprint "$root_dir" "${packages[@]}")" || return 1
     [[ "$current" == "$expected" ]]
 }
 
@@ -122,9 +179,11 @@ quillui_write_vendored_swiftpm_app_stamp() {
     local app_name="$3"
     local stamp_key="$4"
     local manifest_fingerprint
+    local source_fingerprint
     shift 4
 
     manifest_fingerprint="$(quillui_vendored_swiftpm_manifest_fingerprint "$root_dir" "$@")"
+    source_fingerprint="$(quillui_vendored_swiftpm_source_fingerprint "$root_dir" "$@")"
     mkdir -p "$(dirname "$stamp_file")"
     {
         printf 'quillui-vendored-swiftpm-app/v1\n'
@@ -134,6 +193,7 @@ quillui_write_vendored_swiftpm_app_stamp() {
             printf 'swiftpmPackage=%s\n' "$package"
         done
         printf 'manifestFingerprint=%s\n' "$manifest_fingerprint"
+        printf 'sourceFingerprint=%s\n' "$source_fingerprint"
     } > "$stamp_file"
 }
 

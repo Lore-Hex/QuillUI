@@ -242,6 +242,7 @@ let gtk4SwiftImporterFlags: [String] = pkgConfigSwiftImporterFlags("gtk4")
 let gtk4LinkerFlags: [String] = pkgConfigLinkerFlags("gtk4")
 
 let quillUIGTKSwiftImporterSettings: [SwiftSetting] = quillUILinuxBuildBackend == .gtk ? [
+    .define("QUILLUI_GTK_BACKEND"),
     .unsafeFlags(gdkPixbufSwiftImporterFlags),
     .unsafeFlags(gtk4SwiftImporterFlags)
 ] : []
@@ -659,6 +660,18 @@ let quillV4L2Dependencies: [Target.Dependency] = []
 #endif
 
 #if os(Linux)
+let quillUIGTKSourceFiles: [String] = [
+    "GTKAccessibilityModifiers.swift",
+    "GTKHitTestingModifiers.swift",
+    "GTKHoverModifiers.swift",
+    "GTKMessageHoverActions.swift",
+    "GTKMoveCommandModifiers.swift",
+    "GTKTextSelectionModifiers.swift",
+    "GTKToolbarMenuButton.swift",
+    "GtkOffscreenRender.swift"
+]
+let quillUIExcludedSources: [String] =
+    quillUILinuxBuildBackend == .qt ? quillUIGTKSourceFiles : []
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
     "QuillPaint",
@@ -672,26 +685,38 @@ let quillUIDependencies: [Target.Dependency] = [
     "UniformTypeIdentifiers",
     "Observation",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
-    "CGdkPixbuf",
+    "CGdkPixbuf"
+] + (quillUILinuxBuildBackend == .gtk ? [
     .product(name: "CGTK", package: "SwiftOpenUI"),
     .product(name: "BackendGTK4", package: "SwiftOpenUI")
-]
+] : [])
+let quillUIQtDependencies: [Target.Dependency] = [
+    "QuillUI",
+    .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
+] + (quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [
+    "BackendQt"
+] : [])
 #else
+let quillUIExcludedSources: [String] = []
 let quillUIDependencies: [Target.Dependency] = [
     "QuillKit",
     "QuillPaint",
     .product(name: "SwiftOpenUI", package: "SwiftOpenUI")
 ]
+let quillUIQtDependencies: [Target.Dependency] = ["QuillUI"]
 #endif
 
 #if os(Linux)
-let wrappingHStackDependencies: [Target.Dependency] = [
+let wrappingHStackCoreDependencies: [Target.Dependency] = [
     "SwiftUI",
-    "Observation",
+    "Observation"
+]
+let wrappingHStackDependencies: [Target.Dependency] = wrappingHStackCoreDependencies
+    + (quillUILinuxBuildBackend == .gtk ? [
     .product(name: "BackendGTK4", package: "SwiftOpenUI"),
     .product(name: "CGTK", package: "SwiftOpenUI"),
     .product(name: "CGTKBridge", package: "SwiftOpenUI"),
-]
+] : [])
 #else
 let wrappingHStackDependencies: [Target.Dependency] = []
 #endif
@@ -1138,6 +1163,7 @@ var targets: [Target] = [
     .target(
         name: "QuillUI",
         dependencies: quillUIDependencies,
+        exclude: quillUIExcludedSources,
         swiftSettings: quillUIGTKSwiftImporterSettings,
         linkerSettings: quillUIGTKLinkerSettings
     ),
@@ -1149,7 +1175,7 @@ var targets: [Target] = [
     ),
     .target(
         name: "QuillUIQt",
-        dependencies: ["QuillUI"],
+        dependencies: quillUIQtDependencies,
         path: "Sources/QuillUIQt",
         swiftSettings: appSwiftSettings
     ),
@@ -3610,6 +3636,9 @@ if quillUILinuxBuildBackend == .qt {
         .target(name: "CoreText", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreText"),
         .target(name: "CoreImage", dependencies: ["QuillFoundation", "CoreVideo"], path: "Sources/AppleFrameworkShims/CoreImage"),
         .target(name: "CoreServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/CoreServices"),
+        .target(name: "AuthenticationServices", dependencies: ["QuillFoundation"], path: "Sources/AppleFrameworkShims/AuthenticationServices"),
+        .target(name: "CryptoKit", dependencies: [.product(name: "Crypto", package: "swift-crypto")], path: "Sources/CryptoKitShim"),
+        .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
         .target(
             name: "AppKit",
             dependencies: appKitShadowDependencies,
@@ -3703,6 +3732,7 @@ if quillUILinuxBuildBackend == .qt {
         // apps remain the flag-off (reset) build's concern. SwiftOpenUI also
         // stays in allPackageDependencies (no reset), so it is NOT re-added here.
         products += [
+            .library(name: "QuillAppKitQt", targets: ["QuillAppKitQt"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
@@ -3717,6 +3747,10 @@ if quillUILinuxBuildBackend == .qt {
         products = quillCanonicalLinuxAppProducts + [
             .library(name: "UniformTypeIdentifiers", targets: ["UniformTypeIdentifiers"]),
             .library(name: "CoreTransferable", targets: ["CoreTransferable"]),
+            .library(name: "AuthenticationServices", targets: ["AuthenticationServices"]),
+            .library(name: "CryptoKit", targets: ["CryptoKit"]),
+            .library(name: "Security", targets: ["Security"]),
+            .library(name: "QuillAppKitQt", targets: ["QuillAppKitQt"]),
             .library(name: "QuillGenericQtNativeRuntime", targets: ["QuillGenericQtNativeRuntime"]),
             .executable(name: "quill-qt-interaction-smoke", targets: ["QuillQtInteractionSmoke"])
         ]
@@ -3849,7 +3883,6 @@ if quillUILinuxBuildBackend == .qt {
             .target(name: "LocalAuthentication", dependencies: ["QuillKit"], path: "Sources/LocalAuthenticationShim"),
             .target(name: "WireGuardKitGo", dependencies: [], path: "Sources/WireGuardKitGoShim"),
             .target(name: "CoreWLAN", dependencies: [], path: "Sources/CoreWLAN"),
-            .target(name: "Security", dependencies: ["QuillKit"], path: "Sources/Security"),
             .target(name: "ServiceManagement", dependencies: ["QuillKit"], path: "Sources/ServiceManagement")
         ]
         targets += wireGuardConformanceTargets

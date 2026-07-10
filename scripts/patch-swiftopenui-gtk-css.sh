@@ -5774,13 +5774,20 @@ private func gtkCreateToolbarRow<V: View>(from view: V) -> UnsafeMutablePointer<
     }
 
     let trailingCluster = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
-    gtk_widget_set_margin_start(trailingCluster, 620)
+    gtk_widget_set_halign(trailingCluster, GTK_ALIGN_END)
+    gtk_widget_set_valign(trailingCluster, GTK_ALIGN_CENTER)
+    gtk_widget_set_hexpand(trailingCluster, 0)
 
     for item in toolbarItems where item.placement != .leading {
         for widget in gtkRenderToolbarItemWidgets(item) {
             gtk_box_append(boxPointer(trailingCluster), widget)
         }
     }
+
+    let spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)!
+    gtk_widget_set_hexpand(spacer, 1)
+    gtk_widget_set_vexpand(spacer, 0)
+    gtk_box_append(boxPointer(row), spacer)
     gtk_box_append(boxPointer(row), trailingCluster)
 
     return row

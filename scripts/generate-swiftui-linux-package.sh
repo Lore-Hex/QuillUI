@@ -23,7 +23,8 @@ INCLUDE_BACKEND_ENTRY="${QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY:-0}"
 BACKEND_FACADE="${QUILLUI_GENERATED_BACKEND_FACADE:-swiftui}"
 APP_ENTRY_TYPE="${QUILLUI_GENERATED_APP_ENTRY_TYPE:-}"
 APP_MAIN_TYPE="${QUILLUI_GENERATED_APP_MAIN_TYPE:-GeneratedSwiftUILinuxMain}"
-QT_NATIVE_CATALOG_ENTRY="${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-QuillGenericQtAppCatalog.enchantedUpstreamSlice}"
+QT_RUNTIME_MODE="${QUILLUI_GENERATED_QT_RUNTIME_MODE:-auto}"
+QT_NATIVE_CATALOG_ENTRY="${QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY:-}"
 REPORT_LABEL="${QUILLUI_GENERATED_REPORT_LABEL:-Generated SwiftUI Linux package}"
 
 validate_boolean_flag() {
@@ -92,6 +93,36 @@ normalize_generated_backend_facade() {
   printf '%s\n' "$normalized"
 }
 
+normalize_qt_runtime_mode() {
+  local value="${1:-auto}"
+
+  case "$value" in
+    auto|generic|native)
+      printf '%s\n' "$value"
+      ;;
+    *)
+      echo "QUILLUI_GENERATED_QT_RUNTIME_MODE must be auto, generic, or native, got: $value" >&2
+      exit 64
+      ;;
+  esac
+}
+
+effective_qt_runtime_mode() {
+  local mode="$1"
+  local catalog_entry="$2"
+
+  if [[ "$mode" == "auto" ]]; then
+    if [[ -n "$catalog_entry" ]]; then
+      printf '%s\n' native
+    else
+      printf '%s\n' generic
+    fi
+    return
+  fi
+
+  printf '%s\n' "$mode"
+}
+
 if [[ "$(uname -s)" != "Linux" ]]; then
   cat >&2 <<'MSG'
 The generated SwiftUI Linux package builder must run on Linux because the
@@ -120,6 +151,7 @@ validate_package_token "$PRODUCT_NAME" "QUILLUI_GENERATED_PRODUCT_NAME"
 validate_swift_identifier "$TARGET_NAME" "QUILLUI_GENERATED_TARGET_NAME"
 validate_boolean_flag "$INCLUDE_BACKEND_ENTRY" "QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY"
 BACKEND_FACADE="$(normalize_generated_backend_facade "$BACKEND_FACADE")"
+QT_RUNTIME_MODE="$(normalize_qt_runtime_mode "$QT_RUNTIME_MODE")"
 if [[ "$INCLUDE_BACKEND_ENTRY" != "1" && "$BACKEND_FACADE" != "swiftui" ]]; then
   echo "QUILLUI_GENERATED_BACKEND_FACADE=$BACKEND_FACADE requires QUILLUI_GENERATED_INCLUDE_BACKEND_ENTRY=1" >&2
   exit 64
@@ -136,6 +168,7 @@ backend_import="QuillUI"
 backend_runner="QuillApp"
 backend_launch_statement=""
 copy_source_files=1
+effective_qt_mode="generic"
 target_dependencies=""
 target_resources=""
 target_definitions=""
@@ -160,7 +193,16 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
 
   validate_swift_type "$APP_ENTRY_TYPE" "QUILLUI_GENERATED_APP_ENTRY_TYPE"
   validate_swift_type "$APP_MAIN_TYPE" "QUILLUI_GENERATED_APP_MAIN_TYPE"
-  validate_swift_type "$QT_NATIVE_CATALOG_ENTRY" "QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"
+  if [[ -n "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+    validate_swift_type "$QT_NATIVE_CATALOG_ENTRY" "QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY"
+  fi
+  if [[ "$BACKEND_FACADE" == "qt" ]]; then
+    effective_qt_mode="$(effective_qt_runtime_mode "$QT_RUNTIME_MODE" "$QT_NATIVE_CATALOG_ENTRY")"
+    if [[ "$effective_qt_mode" == "native" && -z "$QT_NATIVE_CATALOG_ENTRY" ]]; then
+      echo "QUILLUI_GENERATED_QT_RUNTIME_MODE=native requires QUILLUI_GENERATED_QT_NATIVE_CATALOG_ENTRY" >&2
+      exit 64
+    fi
+  fi
 
   case "$BACKEND_FACADE" in
     swiftui)
@@ -170,9 +212,14 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
       backend_runner="QuillGtkApp"
       ;;
     qt)
-      backend_import="QuillGenericQtNativeRuntime"
-      backend_launch_statement="QuillGenericQtNativeApp.run($QT_NATIVE_CATALOG_ENTRY)"
-      copy_source_files=0
+      if [[ "$effective_qt_mode" == "native" ]]; then
+        backend_import="QuillGenericQtNativeRuntime"
+        backend_launch_statement="QuillGenericQtNativeApp.run($QT_NATIVE_CATALOG_ENTRY)"
+        copy_source_files=0
+      else
+        backend_import="QuillUIQt"
+        backend_runner="QuillQtApp"
+      fi
       ;;
   esac
 
@@ -182,10 +229,18 @@ if [[ "$INCLUDE_BACKEND_ENTRY" == "1" ]]; then
 
   appkit_runtime_import=""
   appkit_runtime_install=""
-  if [[ "$BACKEND_FACADE" != "qt" ]]; then
-    appkit_runtime_import=$'#if canImport(QuillAppKitGTK)\nimport QuillAppKitGTK\n#endif\n'
-    appkit_runtime_install=$'        #if canImport(QuillAppKitGTK)\n        _ = QuillAppKitGTKAutoInstall.didInstall\n        #endif\n'
-  fi
+  case "$BACKEND_FACADE:$effective_qt_mode" in
+    qt:generic)
+      appkit_runtime_import=$'#if canImport(QuillAppKitQt)\nimport QuillAppKitQt\n#endif\n'
+      appkit_runtime_install=$'        #if canImport(QuillAppKitQt)\n        _ = QuillAppKitQtAutoInstall.didInstall\n        #endif\n'
+      ;;
+    qt:native)
+      ;;
+    *)
+      appkit_runtime_import=$'#if canImport(QuillAppKitGTK)\nimport QuillAppKitGTK\n#endif\n'
+      appkit_runtime_install=$'        #if canImport(QuillAppKitGTK)\n        _ = QuillAppKitGTKAutoInstall.didInstall\n        #endif\n'
+      ;;
+  esac
 
   cat > "$TARGET_DIR/GeneratedMain.swift" <<SWIFT
 import $backend_import
@@ -301,6 +356,9 @@ append_target_definition() {
   fi
   if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" == "gtk" ]]; then
     target_dependency_entries="$(printf '%s,\n                .product(name: "QuillUIGtk", package: "QuillUI")' "$target_dependency_entries")"
+  fi
+  if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" == "qt" && "$effective_qt_mode" == "generic" ]]; then
+    target_dependency_entries="$(printf '%s,\n                .product(name: "QuillUIQt", package: "QuillUI"),\n                .product(name: "QuillAppKitQt", package: "QuillUI")' "$target_dependency_entries")"
   fi
   if [[ "$target_name" == "$TARGET_NAME" && "$BACKEND_FACADE" != "qt" ]]; then
     target_dependency_entries="$(printf '%s,\n                .product(name: "QuillAppKitGTK", package: "QuillUI")' "$target_dependency_entries")"
@@ -458,7 +516,7 @@ fi
 case "$BACKEND_FACADE" in
   qt)
     if [[ "$copy_source_files" == "1" ]]; then
-      target_dependencies='                .product(name: "QuillGenericQtNativeRuntime", package: "QuillUI")'
+      target_dependencies="$(printf '%s,\n                .product(name: "QuillUIQt", package: "QuillUI"),\n                .product(name: "QuillAppKitQt", package: "QuillUI")' "$source_target_dependencies")"
     fi
     ;;
   gtk)
