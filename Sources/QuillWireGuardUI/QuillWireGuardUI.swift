@@ -76,7 +76,7 @@ private enum WireGuardFallbackStyle {
 // list/edit/export UI rendering consistently now.
 @MainActor
 public struct WireGuardFallbackConfigurationView: View {
-    @State private var tunnels = QuillWireGuardFixtures.tunnels
+    @State private var tunnels = WireGuardFallbackConfigurationView.loadInitialTunnels()
     @State private var selectedTunnelID = QuillWireGuardFixtures.defaultTunnelID
     @State private var isImportPanelVisible = false
     @State private var importConfigurationText = ""
@@ -99,6 +99,14 @@ public struct WireGuardFallbackConfigurationView: View {
 
     public init() {}
 
+    /// Real device tunnels from /etc/wireguard, or the bundled fixtures when none
+    /// are present/readable (CI, macOS, or a non-privileged run — the configs are
+    /// root-only 0600) so the list and the interaction smoke are never empty.
+    private static func loadInitialTunnels() -> [QuillWireGuardTunnel] {
+        let loaded = QuillWireGuardConfigLoader.load().tunnels
+        return loaded.isEmpty ? QuillWireGuardFixtures.tunnels : loaded
+    }
+
     public nonisolated var body: some View {
         QuillMainActorView.assumeIsolated {
             HStack(spacing: 0) {
@@ -115,6 +123,11 @@ public struct WireGuardFallbackConfigurationView: View {
                 loadStartupImportConfigurationIfNeeded()
                 guard !didFetchInitialLiveStatus else { return }
                 didFetchInitialLiveStatus = true
+                // Loaded device tunnels won't include the fixture default id; select
+                // the first real tunnel so its detail + live status show.
+                if selectedTunnel == nil {
+                    selectedTunnelID = tunnels.first?.id
+                }
                 if let tunnel = selectedTunnel {
                     refreshLiveStatus(for: tunnel)
                 }
