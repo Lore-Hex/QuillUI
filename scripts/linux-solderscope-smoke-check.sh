@@ -357,7 +357,7 @@ quillui_solderscope_drive_freeze_once() {
       ;;
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label $freeze_key_driver key space" >&2
-      QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK="${QUILLUI_SOLDERSCOPE_FREEZE_KEY_FOCUS_CLICK:-1}" \
+      QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK="${QUILLUI_SOLDERSCOPE_FREEZE_KEY_FOCUS_CLICK:-0}" \
       QUILLUI_SOLDERSCOPE_KEY_DRIVER="$freeze_key_driver" \
         quillui_solderscope_send_key "$window_id" space
       ;;

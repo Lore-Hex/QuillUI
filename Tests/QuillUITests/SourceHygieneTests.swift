@@ -7209,7 +7209,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_KEY_DRIVER:-window"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_KEY_FOCUS_SETTLE_SECONDS:-0.15"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK:-0"))
-        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_KEY_FOCUS_CLICK:-1"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_KEY_FOCUS_CLICK:-0"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_KEY_FOCUS_CLICK_SETTLE_SECONDS:-0.1"))
         #expect(solderScopeSmoke.contains("xdotool key --clearmodifiers"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_TICK"))
