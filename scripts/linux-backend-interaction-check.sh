@@ -838,11 +838,7 @@ refresh_capture_window_for_sheet_interaction() {
 
 quill_chat_settings_click_x() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    if [[ "$SELECTED_BACKEND" == "qt" ]]; then
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 80))}"
-    else
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
-    fi
+    printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 88))}"
   else
     printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
   fi
@@ -850,11 +846,7 @@ quill_chat_settings_click_x() {
 
 quill_chat_settings_click_y() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-    if [[ "$SELECTED_BACKEND" == "qt" ]]; then
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 22))}"
-    else
-      printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 22))}"
-    fi
+    printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 44))}"
   else
     printf '%s\n' "${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
   fi
