@@ -271,7 +271,7 @@ struct QuillGTKDesktopChatToolbar: View, PrimitiveView, GTKRenderable {
 
     func gtkCreateWidget() -> OpaquePointer {
         let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
-        gtk_widget_set_size_request(box, 132, 32)
+        gtk_widget_set_size_request(box, -1, 32)
         gtk_widget_set_halign(box, GTK_ALIGN_END)
         gtk_widget_set_valign(box, GTK_ALIGN_CENTER)
         gtk_widget_set_hexpand(box, 0)

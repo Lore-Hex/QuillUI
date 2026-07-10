@@ -3012,7 +3012,7 @@ public struct QuillModelConversationChatScaffold<
         selectedModelID: ModelID?,
         promptSource: [PromptItem],
         reachable: Bool,
-        statusMaxWidth: CGFloat = 1524,
+        statusMaxWidth: CGFloat = .infinity,
         settingsFocusedValue: WritableKeyPath<FocusedValues, Binding<Bool>?>? = nil,
         onNewConversation: @escaping () -> Void,
         editContent: @escaping (EditMessage) -> String,
@@ -3169,7 +3169,7 @@ public struct QuillDesktopChatToolbar: View {
             optionsActions: optionsActions,
             onNewConversation: onNewConversation
         )
-        .frame(width: 132, height: 32, alignment: .trailing)
+        .frame(height: 32, alignment: .trailing)
         #else
         QuillToolbarActionRow {
             QuillToolbarMenuButton(
