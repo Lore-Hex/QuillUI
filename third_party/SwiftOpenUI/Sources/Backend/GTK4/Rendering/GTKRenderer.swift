@@ -1938,6 +1938,17 @@ private final class GTKButtonRootEventContext {
     }
 }
 
+private let gtkButtonGlobalDispatcherDataKey = "gtk-swift-button-global-dispatcher"
+
+private final class GTKButtonGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
 private let gtkCustomButtonStyleContextKey = "quill-custom-button-style-context"
 
 private final class GTKCustomButtonStyleContext {
@@ -2220,6 +2231,95 @@ private func gtkWidgetTreeContainsVisualButtonAtRootPoint(
         child = gtk_widget_get_next_sibling(current)
     }
     return false
+}
+
+private func gtkButtonActionBox(from widget: UnsafeMutablePointer<GtkWidget>) -> GTKButtonActionBox? {
+    guard gtk_swift_widget_is_button(widget) != 0 else { return nil }
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let actionData = g_object_get_data(object, gtkSwiftButtonActionBoxDataKey) else {
+        return nil
+    }
+    return Unmanaged<GTKButtonActionBox>.fromOpaque(actionData).takeUnretainedValue()
+}
+
+private func gtkPickedButtonActionWidgetAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    var depth = 0
+    while let widget = current, depth < 32 {
+        if gtkButtonActionBox(from: widget) != nil {
+            return widget
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return nil
+}
+
+private func gtkVisualButtonActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return nil }
+
+    if gtkButtonActionBox(from: widget) != nil {
+        let frame = gtkWidgetVisualFrameInRoot(widget, root: root)
+        let isHit: Bool
+        if let frame {
+            let localX = x - frame.x
+            let localY = y - frame.y
+            isHit = localX >= 0 && localX < frame.width && localY >= 0 && localY < frame.height
+        } else {
+            isHit = false
+        }
+        gtkDebugVisualButtonCandidate(widget, root: root, x: x, y: y, isHit: isHit, frame: frame)
+        if isHit || gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+            return widget
+        }
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualButtonActionWidgetAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkPreferredButtonActionAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> (widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox)? {
+    if let widget = gtkPickedButtonActionWidgetAtRootPoint(root: root, x: x, y: y),
+       let box = gtkButtonActionBox(from: widget) {
+        return (widget, box)
+    }
+    if let widget = gtkVisualButtonActionWidgetAtRootPoint(root, root: root, x: x, y: y),
+       let box = gtkButtonActionBox(from: widget) {
+        return (widget, box)
+    }
+    return nil
 }
 
 private func gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
@@ -2545,6 +2645,74 @@ private func gtkScheduleButtonAction(
     }, context)
 }
 
+private func gtkInstallGlobalButtonRootDispatcher(for widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkButtonGlobalDispatcherDataKey) == nil else { return }
+
+    let dispatcher = GTKButtonGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkButtonGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKButtonGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("button global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let dispatcher = Unmanaged<GTKButtonGlobalRootDispatcher>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            let root = dispatcher.root
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            guard let target = gtkPreferredButtonActionAtRootPoint(root: root, x: rootX, y: rootY) else {
+                gtkDebugPickedWidgetChain(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "button global dispatch"
+                )
+                gtkDebugLog("button global dispatch miss root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+            gtkDebugLog(
+                "button global root-hit root@\(Int(rootX)),\(Int(rootY)) "
+                + gtkDebugVisualFrameDescription(target.widget, root: root)
+            )
+            gtkScheduleButtonAction(
+                target.box,
+                source: gtkButtonDebugSource(
+                    "global-root@\(Int(rootX)),\(Int(rootY))",
+                    widget: target.widget
+                ),
+                phase: .pointerPress
+            )
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
 private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
     guard context.controller == nil else { return }
     guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
@@ -2814,6 +2982,7 @@ extension Button: GTKRenderable, GTKDescribable {
             unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+                gtkInstallGlobalButtonRootDispatcher(for: context.widget)
                 gtkInstallButtonRootEventFallback(context)
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,

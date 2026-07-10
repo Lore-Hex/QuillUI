@@ -177,7 +177,10 @@ quillui_solderscope_click_toolbar_button() {
     quillui_solderscope_focus_window "$window_id"
   fi
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$button_x" "$reset_y"
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$button_x" "$button_y" click 1
+  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$button_x" "$button_y"
+  DISPLAY="$DISPLAY_ID" xdotool mousedown 1
+  sleep "${QUILLUI_SOLDERSCOPE_TOOLBAR_PRESS_SECONDS:-0.08}"
+  DISPLAY="$DISPLAY_ID" xdotool mouseup 1
   sleep "${QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS:-0.2}"
 }
 
@@ -404,6 +407,29 @@ quillui_solderscope_try_freeze_driver() {
       fi
     fi
   fi
+
+  return 1
+}
+
+quillui_solderscope_try_freeze_toolbar_candidates() {
+  local window_id="$1"
+  local window_x="$2"
+  local window_y="$3"
+  local window_width="$4"
+  local attempt_screenshot="$5"
+  local label="${6:-freeze-fallback}"
+  local key_driver="${7:-${QUILLUI_SOLDERSCOPE_FREEZE_KEY_DRIVER:-window}}"
+  local right_offsets="${QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_RIGHT_OFFSETS:-${QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-218} 205 230 190 245}"
+  local right_offset
+
+  for right_offset in $right_offsets; do
+    if QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET="$right_offset" \
+      quillui_solderscope_try_freeze_driver \
+        toolbar "$window_id" "$window_x" "$window_y" "$window_width" \
+        "$attempt_screenshot" "$label-right-$right_offset" "$key_driver"; then
+      return 0
+    fi
+  done
 
   return 1
 }
@@ -663,10 +689,18 @@ quillui_solderscope_converge_freeze() {
   local fallback_driver
   fallback_driver="$(quillui_solderscope_freeze_fallback_driver "$freeze_driver")" || return $?
   if [[ "$fallback_driver" != "none" && "$fallback_driver" != "$freeze_driver" ]]; then
-    if quillui_solderscope_try_freeze_driver \
-        "$fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" \
-        "$attempt_screenshot" freeze-fallback "$primary_key_driver"; then
-      return 0
+    if [[ "$fallback_driver" == "toolbar" ]]; then
+      if quillui_solderscope_try_freeze_toolbar_candidates \
+          "$window_id" "$window_x" "$window_y" "$window_width" \
+          "$attempt_screenshot" freeze-fallback "$primary_key_driver"; then
+        return 0
+      fi
+    else
+      if quillui_solderscope_try_freeze_driver \
+          "$fallback_driver" "$window_id" "$window_x" "$window_y" "$window_width" \
+          "$attempt_screenshot" freeze-fallback "$primary_key_driver"; then
+        return 0
+      fi
     fi
   fi
 

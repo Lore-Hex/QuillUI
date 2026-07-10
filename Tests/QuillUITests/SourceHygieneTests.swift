@@ -4775,6 +4775,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/IceCubesViewModifiers.swift"),
             encoding: .utf8
         )
+        let fileImporterCompatibility = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillSwiftUICompatibility/QuillFileImporter.swift"),
+            encoding: .utf8
+        )
         let iceCubesShims = try String(
             contentsOf: root.appendingPathComponent("Sources/IceCubesShims/IceCubesShims.swift"),
             encoding: .utf8
@@ -4839,6 +4843,9 @@ struct SourceHygieneTests {
         #expect(designCompatibility.contains("func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> ScrollContentBackgroundView<Self>"))
         #expect(!designCompatibility.contains("func scrollContentBackground(_ visibility: ScrollContentBackgroundVisibility) -> Self"))
         #expect(swiftUIPlatformSurface.contains("func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType>"))
+        #expect(fileImporterCompatibility.contains("func fileImporter("))
+        #expect(fileImporterCompatibility.contains("QuillFileImporter.selectURLs("))
+        #expect(!swiftUIPlatformSurface.contains("func fileImporter("))
         #expect(designCompatibility.contains("func formStyle(_ style: GroupedFormStyle) -> Self"))
         #expect(!iceCubesViewModifiers.contains("func formStyle(_ style: GroupedFormStyle) -> Self"))
         #expect(swiftOpenUITextField.contains("public init(_ title: String, text: Binding<String>, axis: Axis = .horizontal)"))
@@ -7186,11 +7193,15 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("quillui_solderscope_freeze_shortcut_handled_count()"))
         #expect(solderScopeSmoke.contains("key shortcut=none\\\\+space .* handled=true"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_try_freeze_driver()"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_try_freeze_toolbar_candidates()"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_ALT_KEY_DRIVER:-active"))
         #expect(solderScopeSmoke.contains("shortcut $label did not reach GTK handler"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_BUTTON_RIGHT_OFFSET:-218"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_RIGHT_OFFSETS"))
+        #expect(solderScopeSmoke.contains("205 230 190 245"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_TOOLBAR_PRESS_SECONDS:-0.08"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_TOOLBAR_RETARGET_DELTA_Y"))
         #expect(solderScopeSmoke.contains("SOLDERSCOPE_FREEZE_DRIVER=\"${QUILLUI_SOLDERSCOPE_FREEZE_DRIVER:-shortcut}\""))
@@ -9731,6 +9742,12 @@ struct SourceHygieneTests {
             )
             #expect(source.contains("gtk_swift_widget_is_topmost_at_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))
+            #expect(source.contains("private let gtkButtonGlobalDispatcherDataKey"))
+            #expect(source.contains("private final class GTKButtonGlobalRootDispatcher"))
+            #expect(source.contains("gtkPreferredButtonActionAtRootPoint"))
+            #expect(source.contains("button global root dispatcher installed"))
+            #expect(source.contains("button global root-hit root@"))
+            #expect(source.contains("gtkInstallGlobalButtonRootDispatcher(for: context.widget)"))
             #expect(source.contains("background: transparent;"))
             #expect(source.contains("background-color: transparent;"))
             #expect(source.contains("background-image: none;"))
