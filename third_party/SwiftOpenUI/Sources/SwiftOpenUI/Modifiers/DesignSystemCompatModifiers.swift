@@ -36,3 +36,21 @@ extension Color {
         Resolved(red: Float(red), green: Float(green), blue: Float(blue), opacity: Float(alpha))
     }
 }
+
+// iOS pointer/hover modifier used by vendored DesignSystem. No visual effect on
+// Linux/GTK (no pointer-hover affordances) — DS view bodies only need it to
+// type-check. Defined here (not QuillUI) so a single canonical declaration is
+// visible to vendored real source through the SwiftUI shadow; the name does not
+// exist in QuillUI, so there is no cross-module ambiguity. (`.task` is NOT added
+// here — SwiftOpenUI already provides the real lifecycle `task` in
+// LifecycleModifier.swift; adding a second is an ambiguous-use error.)
+public struct HoverEffect: Equatable, Sendable {
+    private let id: String
+    public static let automatic = HoverEffect(id: "automatic")
+    public static let highlight = HoverEffect(id: "highlight")
+    public static let lift = HoverEffect(id: "lift")
+}
+
+extension View {
+    public func hoverEffect(_ effect: HoverEffect = .automatic) -> some View { self }
+}
