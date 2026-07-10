@@ -626,6 +626,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("validate_quill_chat_mac_reference_prompt_send"))
         #expect(verifier.contains("Mac-reference {label} message content was not detected"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_composer_send"))
+        #expect(verifier.contains("if minimum_right_aligned_message_pixels > 0:"))
+        #expect(verifier.contains("\"composer-send\",\n        minimum_message_pixels=80,\n        minimum_right_aligned_message_pixels=0"))
         #expect(verifier.contains("message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("selected_message_y0 = top + int(app_height * 0.05)"))
