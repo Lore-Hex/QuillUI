@@ -6816,6 +6816,20 @@ elif "private func gtkLayoutChildViews(from view: any View" not in text:
     helper_body = layout_marker_helper.split("private func gtkLayoutChildViews", 1)[1]
     text = text.replace(marker, "private func gtkLayoutChildViews" + helper_body + marker, 1)
 
+primitive_render_fallback = '''    if V.self is any PrimitiveView.Type {
+        gtkDebugLog("unsupported primitive view rendered as EmptyView: \\(String(reflecting: V.self))")
+        return opaqueFromWidget(gtkCreateEmptyViewWidget())
+    }
+
+'''
+if "unsupported primitive view rendered as EmptyView" not in text:
+    marker = "    // Composite view with reactive state — wrap in GTKViewHost\n    if hasReactiveProperties(view) {\n"
+    if marker not in text:
+        marker = "    if hasReactiveProperties(view) {\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI primitive render fallback insertion point was not recognized")
+    text = text.replace(marker, primitive_render_fallback + marker, 1)
+
 vertical_fill_constant = '''/// Marker string for views that intentionally fill the parent's vertical
 /// proposal, rather than merely inheriting GTK vexpand from descendants.
 private let gtkSwiftVerticalFillIntentMarker = "gtk-swift-vertical-fill-intent"

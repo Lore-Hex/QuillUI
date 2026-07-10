@@ -1039,6 +1039,11 @@ public func gtkRenderView<V: View>(_ view: V) -> OpaquePointer {
         return opaqueFromWidget(box)
     }
 
+    if V.self is any PrimitiveView.Type {
+        gtkDebugLog("unsupported primitive view rendered as EmptyView: \(String(reflecting: V.self))")
+        return opaqueFromWidget(gtkCreateEmptyViewWidget())
+    }
+
     // Composite view with reactive state — wrap in GTKViewHost
     if hasReactiveProperties(view) {
         return gtkRenderStatefulView(view)
