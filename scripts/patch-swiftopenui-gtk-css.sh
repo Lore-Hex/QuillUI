@@ -3153,6 +3153,7 @@ private final class GTKButtonRootEventContext {
     let box: GTKButtonActionBox
     var root: UnsafeMutablePointer<GtkWidget>?
     var controller: gpointer?
+    var gestureController: gpointer?
 
     init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
         self.widget = widget
@@ -3160,10 +3161,16 @@ private final class GTKButtonRootEventContext {
     }
 
     func removeController() {
-        guard let root, let controller else { return }
-        gtk_swift_remove_event_controller(root, controller)
+        guard let root else { return }
+        if let controller {
+            gtk_swift_remove_event_controller(root, controller)
+        }
+        if let gestureController {
+            gtk_swift_remove_event_controller(root, gestureController)
+        }
         self.root = nil
         self.controller = nil
+        self.gestureController = nil
     }
 }
 
@@ -3190,8 +3197,11 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
     guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
 
     let controller = gtk_swift_legacy_capture_controller()!
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
     context.root = root
     context.controller = controller
+    context.gestureController = gpointer(gesture)
     let contextPointer = Unmanaged.passUnretained(context).toOpaque()
     g_signal_connect_data(
         controller,
@@ -3204,15 +3214,56 @@ private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventCont
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            guard gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0 else { return 0 }
-            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\\(Int(x)),\\(Int(y))", widget: context.widget))
-            return 0
+            return gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: "root-legacy")
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
         nil,
         GConnectFlags(rawValue: 0)
     )
     gtk_swift_add_event_controller(root, controller)
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return }
+            _ = gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: "root-gesture")
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(root, gesture)
+}
+
+private func gtkDispatchButtonRootPress(
+    _ context: GTKButtonRootEventContext,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> gboolean {
+    if gtkActiveMenuOverlayState != nil {
+        return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+    }
+    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+    let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
+    gtkDebugButtonRootHitTest(
+        widget: context.widget,
+        root: root,
+        x: x,
+        y: y,
+        isTopmost: isTopmost,
+        isVisualHit: isVisualHit
+    )
+    guard isTopmost || isVisualHit else { return 0 }
+    let resolvedSource = isTopmost ? source : "\\(source)-visual"
+    gtkScheduleButtonAction(
+        context.box,
+        source: gtkButtonDebugSource("\\(resolvedSource)@\\(Int(x)),\\(Int(y))", widget: context.widget)
+    )
+    return 0
 }
 
 '''
@@ -3227,6 +3278,7 @@ if "private final class GTKButtonRootEventContext" not in text:
     let box: GTKButtonActionBox
     var root: UnsafeMutablePointer<GtkWidget>?
     var controller: gpointer?
+    var gestureController: gpointer?
 
     init(widget: UnsafeMutablePointer<GtkWidget>, box: GTKButtonActionBox) {
         self.widget = widget
@@ -3234,10 +3286,16 @@ if "private final class GTKButtonRootEventContext" not in text:
     }
 
     func removeController() {
-        guard let root, let controller else { return }
-        gtk_swift_remove_event_controller(root, controller)
+        guard let root else { return }
+        if let controller {
+            gtk_swift_remove_event_controller(root, controller)
+        }
+        if let gestureController {
+            gtk_swift_remove_event_controller(root, gestureController)
+        }
         self.root = nil
         self.controller = nil
+        self.gestureController = nil
     }
 }
 
@@ -3317,6 +3375,23 @@ private func gtkWidgetVisuallyContainsRootPoint(
     return localX >= 0 && localX < width && localY >= 0 && localY < height
 }
 
+private func gtkDebugButtonRootHitTest(
+    widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    isTopmost: Bool,
+    isVisualHit: Bool
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    guard let frame = gtkWidgetVisualFrameInRoot(widget, root: root) else { return }
+    guard y >= frame.y - 24, y <= frame.y + frame.height + 24 else { return }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    gtkDebugLog(
+        "button root-hit-test root@\\(Int(x)),\\(Int(y)) widget=\\(typeName) frame=\\(Int(frame.x)),\\(Int(frame.y)) \\(Int(frame.width))x\\(Int(frame.height)) topmost=\\(isTopmost) visual=\\(isVisualHit)"
+    )
+}
+
 private func gtkWidgetTreeContainsVisualButtonAtRootPoint(
     _ widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
@@ -3370,14 +3445,43 @@ func gtkTestWidgetTreeContainsVisualButtonAtRootPoint(
         raise SystemExit("SwiftOpenUI Button visual hit-test insertion marker was not recognized")
     text = text.replace(visual_hit_marker, visual_button_hit_helpers + visual_hit_marker, 1)
 
+if "private func gtkDebugButtonRootHitTest" not in text:
+    debug_button_root_hit_helper = '''private func gtkDebugButtonRootHitTest(
+    widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    isTopmost: Bool,
+    isVisualHit: Bool
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    guard let frame = gtkWidgetVisualFrameInRoot(widget, root: root) else { return }
+    guard y >= frame.y - 24, y <= frame.y + frame.height + 24 else { return }
+    let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+    gtkDebugLog(
+        "button root-hit-test root@\\(Int(x)),\\(Int(y)) widget=\\(typeName) frame=\\(Int(frame.x)),\\(Int(frame.y)) \\(Int(frame.width))x\\(Int(frame.height)) topmost=\\(isTopmost) visual=\\(isVisualHit)"
+    )
+}
+
+'''
+    debug_button_root_marker = "private func gtkWidgetOrDescendantVisuallyContainsRootPoint(\n"
+    if debug_button_root_marker not in text:
+        debug_button_root_marker = "private func gtkWidgetTreeContainsVisualButtonAtRootPoint(\n"
+    if debug_button_root_marker not in text:
+        raise SystemExit("SwiftOpenUI Button root-hit-test debug insertion marker was not recognized")
+    text = text.replace(debug_button_root_marker, debug_button_root_hit_helper + debug_button_root_marker, 1)
+
 if "private func gtkInstallButtonRootEventFallback" not in text:
     root_install_helper = '''private func gtkInstallButtonRootEventFallback(_ context: GTKButtonRootEventContext) {
     guard context.controller == nil else { return }
     guard let root = gtk_swift_widget_root_widget(context.widget) else { return }
 
     let controller = gtk_swift_legacy_capture_controller()!
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
     context.root = root
     context.controller = controller
+    context.gestureController = gpointer(gesture)
     let contextPointer = Unmanaged.passUnretained(context).toOpaque()
     g_signal_connect_data(
         controller,
@@ -3390,18 +3494,56 @@ if "private func gtkInstallButtonRootEventFallback" not in text:
             var x: Double = 0
             var y: Double = 0
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
-            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
-            let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
-            guard isTopmost || isVisualHit else { return 0 }
-            let source = isTopmost ? "root-legacy" : "root-visual"
-            gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("\\(source)@\\(Int(x)),\\(Int(y))", widget: context.widget))
-            return 0
+            return gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: "root-legacy")
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
         contextPointer,
         nil,
         GConnectFlags(rawValue: 0)
     )
     gtk_swift_add_event_controller(root, controller)
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, x: gdouble, y: gdouble, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
+            guard let root = context.root else { return }
+            _ = gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: "root-gesture")
+        } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
+        contextPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(root, gesture)
+}
+
+private func gtkDispatchButtonRootPress(
+    _ context: GTKButtonRootEventContext,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> gboolean {
+    if gtkActiveMenuOverlayState != nil {
+        return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+    }
+    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+    let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
+    gtkDebugButtonRootHitTest(
+        widget: context.widget,
+        root: root,
+        x: x,
+        y: y,
+        isTopmost: isTopmost,
+        isVisualHit: isVisualHit
+    )
+    guard isTopmost || isVisualHit else { return 0 }
+    let resolvedSource = isTopmost ? source : "\\(source)-visual"
+    gtkScheduleButtonAction(
+        context.box,
+        source: gtkButtonDebugSource("\\(resolvedSource)@\\(Int(x)),\\(Int(y))", widget: context.widget)
+    )
+    return 0
 }
 
 '''
@@ -7647,7 +7789,11 @@ new_function = '''public func gtkCanApplyTextColorHostMutation(plan: GTK4Descrip
     }
 }
 '''
-if "Reused buttons stay on the narrow path" not in text:
+if (
+    "Reused buttons stay on the narrow path" not in text
+    or "if case .none = plan.newDescriptor.props" not in text
+    or "if plan.newDescriptor.kind == .button" not in text
+):
     signature = "public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool"
     start = text.find(signature)
     if start == -1:

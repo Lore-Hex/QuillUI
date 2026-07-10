@@ -3306,7 +3306,14 @@ let quillLinuxAppKitShadowTargets: [Target] = [
     // branch). Apps that want the runtime backing import QuillAppKitGTK.
     .target(
         name: "QuillAppKitGTK",
-        dependencies: ["AppKit", "CGtk4", "Observation", .product(name: "CGTK", package: "SwiftOpenUI"), .product(name: "SwiftOpenUI", package: "SwiftOpenUI")],
+        dependencies: [
+            "AppKit",
+            "CGtk4",
+            "Observation",
+            .product(name: "CGTK", package: "SwiftOpenUI"),
+            .product(name: "SwiftOpenUI", package: "SwiftOpenUI"),
+            .product(name: "OpenCombineDispatch", package: "OpenCombine"),
+        ],
         path: "Sources/QuillAppKitGTK",
         swiftSettings: [
             .swiftLanguageMode(.v5),

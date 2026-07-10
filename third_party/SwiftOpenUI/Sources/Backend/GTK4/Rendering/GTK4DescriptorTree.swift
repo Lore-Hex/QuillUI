@@ -1014,10 +1014,19 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
         // destroyed mid-typing. A button whose own props changed plans as
         // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
+            // Props-bearing leaves (TextField & co.) compare meaningfully:
+            // identical descriptors mean nothing changed, and the native
+            // widget owns its visible state, so reuse is safe. Only
+            // prop-less childless composites are opaque.
+            if case .none = plan.newDescriptor.props {
+                return false
+            }
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
+        if plan.newDescriptor.kind == .button {
+            return false
+        }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
                 || plan.updateIntent == .canvasContent
                 || plan.updateIntent == .sliderValue

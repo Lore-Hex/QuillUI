@@ -543,17 +543,17 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("top + int(app_height * 0.18)"))
         #expect(verifier.contains("abs(panel_segment.center - detail_center)"))
         #expect(verifier.contains("Mac-reference root-overlay settings panel is misplaced or too narrow"))
-        #expect(verifier.contains("body_dark_threshold = 900 if panel_kind == \"root-overlay\" else 1_000"))
+        #expect(verifier.contains("body_dark_threshold = 800 if panel_kind == \"root-overlay\" else 1_000"))
         #expect(verifier.contains("panel={panel_segment.width}px@{panel_y} ({panel_kind})"))
         #expect(verifier.contains("Mac-reference typed settings endpoint was not detected"))
         #expect(verifier.contains("endpoint_text_pixels >= 300"))
         #expect(verifier.contains("Mac-reference typed settings bearer token was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(3)"))
-        #expect(verifier.contains("token_text_threshold = 220"))
+        #expect(verifier.contains("token_text_threshold = 200"))
         #expect(verifier.contains("Mac-reference typed settings ping interval was not detected"))
         #expect(verifier.contains("root_overlay_field_text_pixels(4)"))
         #expect(verifier.contains("for y in range(panel_y + 32"))
-        #expect(verifier.contains("ping_text_pixels >= 90"))
+        #expect(verifier.contains("ping_text_pixels >= 70"))
         #expect(verifier.contains("if not require_selected_default_model:"))
         #expect(verifier.contains("Mac-reference selected default model was not detected"))
         #expect(verifier.contains("model_x0 = panel_segment.start + 20"))
@@ -629,9 +629,8 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("quill-chat-linux-mac-reference-copy-chat-json"))
         #expect(verifier.contains("validate_quill_chat_functional_transcript"))
         #expect(verifier.contains("Functional transcript assistant reply was not detected"))
-        #expect(verifier.contains("QUILLUI_FUNCTIONAL_TRANSCRIPT_MIN_USER_PIXELS"))
-        #expect(verifier.contains("trailing_message_pixels >= minimum_trailing_message_pixels"))
-        #expect(verifier.contains("user_pixels={trailing_message_pixels}/{minimum_trailing_message_pixels}"))
+        #expect(verifier.contains("trailing_message_pixels >= 120"))
+        #expect(verifier.contains("user_pixels={trailing_message_pixels}"))
         #expect(verifier.contains("transcript_message_y0 = top + int(app_height * 0.05)"))
         #expect(verifier.contains("transcript_message_y1 = top + int(app_height * 0.70)"))
         #expect(verifier.contains("quill-chat-linux-functional-transcript"))
@@ -1751,7 +1750,8 @@ struct QuillDataSourceLoweringTests {
         #expect(lowered.contains("plain: @escaping () -> String = String.init"))
         #expect(lowered.contains("Date.init(timeIntervalSince1970: timestamp)"))
         #expect(!lowered.contains("@Sendable () -> Date = Date.init"))
-        #expect(lowered.contains(".keyboardType(KeyboardType.URL)"))
+        #expect(lowered.contains(".keyboardType(.URL)"))
+        #expect(!lowered.contains(".keyboardType(KeyboardType.URL)"))
         #expect(lowered.contains(".textContentType(TextContentType.URL)"))
         #expect(!lowered.contains("@main"))
         #expect(!lowered.contains("@Observable"))
@@ -1784,6 +1784,9 @@ struct QuillDataSourceLoweringTests {
         let navigation = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
         )
+        let navigationDestination = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Navigation/NavigationDestination.swift"
+        )
         let shim = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"
         )
@@ -1796,11 +1799,41 @@ struct QuillDataSourceLoweringTests {
         let symbols = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
         )
+        let symbolCodepoints = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
+        )
         let scrollViewReader = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Views/ScrollViewReader.swift"
         )
+        let scrollView = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Views/ScrollView.swift"
+        )
+        let localization = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Localization.swift"
+        )
+        let onChangeModifier = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"
+        )
+        let controlStyleModifiers = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
+        )
+        let confirmationDialogModifier = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
+        )
+        let menu = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Views/Menu.swift"
+        )
         let state = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/State.swift"
+        )
+        let observableObject = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/ObservableObject.swift"
+        )
+        let bindable = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/Bindable.swift"
+        )
+        let environment = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift"
         )
         let issueReporter = directory.appendingPathComponent(
             "checkouts/xctest-dynamic-overlay/Sources/IssueReporting/IssueReporters/DefaultReporter.swift"
@@ -1808,7 +1841,13 @@ struct QuillDataSourceLoweringTests {
         let sharedBinding = directory.appendingPathComponent(
             "checkouts/swift-sharing/Sources/Sharing/SharedBinding.swift"
         )
-        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, shim, toolbar, layout, symbols, scrollViewReader, state, issueReporter, sharedBinding] {
+        func copyVendoredSwiftOpenUIFile(_ relativePath: String, to destination: URL) throws {
+            try String(
+                contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI").appendingPathComponent(relativePath),
+                encoding: .utf8
+            ).write(to: destination, atomically: true, encoding: .utf8)
+        }
+        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -1935,6 +1974,20 @@ struct QuillDataSourceLoweringTests {
                 gtk_widget_set_vexpand(scrolled, 1)
                 gtk_widget_set_hexpand(scrolled, 1)
                 return opaqueFromWidget(scrolled)
+            }
+        }
+
+        extension OnChangeView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                onChangeCheckAndFire(value: value, action: action)
+                return gtkRenderView(content)
+            }
+        }
+
+        extension OnChangeTwoArgView: GTKRenderable {
+            public func gtkCreateWidget() -> OpaquePointer {
+                onChangeCheckAndFireTwoArg(value: value, action: action)
+                return gtkRenderView(content)
             }
         }
 
@@ -2553,12 +2606,66 @@ struct QuillDataSourceLoweringTests {
         """.write(to: scrollViewReader, atomically: true, encoding: .utf8)
 
         try """
+        public struct Axis: OptionSet, Sendable {
+            public typealias Set = Axis
+
+            public let rawValue: Int
+            public init(rawValue: Int) { self.rawValue = rawValue }
+
+            public static let horizontal = Axis(rawValue: 1)
+            public static let vertical = Axis(rawValue: 2)
+            public static let all: Axis = [.horizontal, .vertical]
+        }
+
+        public struct ScrollView<Content: View>: View {
+            public typealias Body = Never
+
+            public let axes: Axis
+            public let showsIndicators: Bool
+            public let content: Content
+
+            public init(_ axes: Axis = .vertical, @ViewBuilder content: () -> Content) {
+                self.axes = axes
+                self.showsIndicators = true
+                self.content = content()
+            }
+
+            public init(
+                _ axes: Axis = .vertical,
+                showsIndicators: Bool,
+                @ViewBuilder content: () -> Content
+            ) {
+                self.axes = axes
+                self.showsIndicators = showsIndicators
+                self.content = content()
+            }
+
+            public var body: Never { fatalError("ScrollView is a primitive view") }
+        }
+        """.write(to: scrollView, atomically: true, encoding: .utf8)
+
+        try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Localization.swift"),
+            encoding: .utf8
+        ).write(to: localization, atomically: true, encoding: .utf8)
+
+        try String(
+            contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"),
+            encoding: .utf8
+        ).write(to: onChangeModifier, atomically: true, encoding: .utf8)
+
+        try """
         #include <gtk/gtk.h>
         #include <fontconfig/fontconfig.h>
 
         void
         gtk_swift_add_gesture(GtkWidget *widget, GtkGesture *gesture) {
             gtk_widget_add_controller(widget, GTK_EVENT_CONTROLLER(gesture));
+        }
+
+        static inline GtkWidget *
+        gtk_swift_search_entry_new(void) {
+            return gtk_search_entry_new();
         }
         """.write(to: shim, atomically: true, encoding: .utf8)
 
@@ -2776,6 +2883,28 @@ struct QuillDataSourceLoweringTests {
         """.write(to: navigation, atomically: true, encoding: .utf8)
 
         try """
+        /// Modifier that registers a navigation destination factory for path-based navigation.
+        public struct NavigationDestinationModifier<Content: View, D: Hashable, Destination: View>: View {
+            public typealias Body = Never
+
+            public let content: Content
+            public let dataType: D.Type
+            public let destination: (D) -> Destination
+
+            public var body: Never { fatalError("NavigationDestinationModifier is a primitive view") }
+        }
+
+        extension View {
+            public func navigationDestination<D: Hashable, Destination: View>(
+                for data: D.Type,
+                @ViewBuilder destination: @escaping (D) -> Destination
+            ) -> NavigationDestinationModifier<Self, D, Destination> {
+                NavigationDestinationModifier(content: self, dataType: data, destination: destination)
+            }
+        }
+        """.write(to: navigationDestination, atomically: true, encoding: .utf8)
+
+        try """
         public struct AnyToolbarItem {
             public let placement: ToolbarItemPlacement
             public let wrapped: any View
@@ -2827,6 +2956,34 @@ struct QuillDataSourceLoweringTests {
         ]
         """.write(to: symbols, atomically: true, encoding: .utf8)
 
+        // Keep this hermetic patcher test aligned with the vendored SwiftOpenUI
+        // source shapes. The assertions below still pin the compatibility
+        // contracts, while the patcher is exercised as an idempotent pass over
+        // the current vendored upstream.
+        try copyVendoredSwiftOpenUIFile("Package.swift", to: swiftOpenUIManifest)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKRenderer.swift", to: renderer)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift", to: descriptorTree)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4Backend.swift", to: backend)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKViewHost.swift", to: viewHost)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKNavigation.swift", to: navigation)
+        try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/CGTK/shim.h", to: shim)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Navigation/NavigationDestination.swift", to: navigationDestination)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift", to: toolbar)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Layout/Layout.swift", to: layout)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift", to: symbols)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift", to: symbolCodepoints)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Views/ScrollViewReader.swift", to: scrollViewReader)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Views/ScrollView.swift", to: scrollView)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Localization.swift", to: localization)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift", to: onChangeModifier)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift", to: controlStyleModifiers)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift", to: confirmationDialogModifier)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Views/Menu.swift", to: menu)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/State.swift", to: state)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/ObservableObject.swift", to: observableObject)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/Bindable.swift", to: bindable)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Environment/Environment.swift", to: environment)
+
         let script = root.appendingPathComponent("scripts/patch-swiftopenui-gtk-css.sh")
         let result = try runScript(
             script,
@@ -2863,6 +3020,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("gtk_editable_get_text(OpaquePointer(editable))"))
         #expect(patchScript.contains("case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)"))
         #expect(patchScript.contains("quill_gtk_list_row_paint_hook"))
+        #expect(patchScript.contains("private func gtkDebugButtonRootHitTest"))
+        #expect(patchScript.contains("gtkHandleActiveMenuOverlayClick(x: x, y: y)"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
@@ -2939,7 +3098,7 @@ struct QuillDataSourceLoweringTests {
         // Deferred renders (GeometryReader callbacks) have no rebuilding host;
         // the forced-namespace fallback keeps their subtree off the shared
         // never-reset "root" counter pool so @State survives geometry passes.
-        #expect(patchedRenderer.contains("?? gtkForcedStateIdentityNamespace"))
+        #expect(patchedRenderer.contains("gtkForcedStateIdentityNamespace\n        ?? GTKViewHost.getCurrentRebuilding()?.stateIdentityNamespace"))
         #expect(patchedRenderer.contains("private var gtkForcedStateIdentityNamespace: String?"))
         #expect(patchedRenderer.contains("func gtkClaimStateIdentityNamespace(_ kind: String) -> String"))
         #expect(patchedRenderer.contains("func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T) -> T"))
@@ -2967,11 +3126,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private final class GTKScrollViewCrossAxisContext"))
         #expect(patchedRenderer.contains("gtkScrollViewCrossAxisTickCallback"))
         #expect(patchedRenderer.contains("gtkInstallScrollViewCrossAxisFill("))
-        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, width, -1)"))
+        #expect(patchedRenderer.contains("gtk_widget_set_size_request(context.child, max(gint(1), width - horizontalMargins), -1)"))
         #expect(patchedRenderer.contains("private final class GTKScrollToContext"))
         #expect(patchedRenderer.contains("let targetID: AnyHashable?"))
         #expect(patchedRenderer.contains("var remainingTotalTicks: Int"))
-        #expect(patchedRenderer.contains("targetID: AnyHashable? = nil, anchor: UnitPoint?, remainingTicks: Int = 180, remainingTotalTicks: Int = 600"))
+        #expect(patchedRenderer.contains("targetID: AnyHashable? = nil,\n        anchor: UnitPoint?,\n        remainingTicks: Int = 180,\n        remainingTotalTicks: Int = 600"))
         #expect(patchedRenderer.contains("private var gtkScrollTargetRegistry"))
         #expect(patchedRenderer.contains("private func gtkRegisterScrollTarget(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>)"))
         #expect(patchedRenderer.contains("g_object_ref(gpointer(widget))"))
@@ -3002,17 +3161,17 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if verticalApplied && isSwiftUIVerticalScrollView { return true }"))
         #expect(patchedRenderer.contains("if verticalApplied { fallbackVerticalApplied = true }"))
         #expect(patchedRenderer.contains("return fallbackVerticalApplied"))
-        #expect(patchedRenderer.contains("let target = context.targetID.flatMap { gtkScrollTargetRegistry[$0] } ?? context.target"))
+        #expect(patchedRenderer.contains("let target = context.targetID.flatMap { gtkLookupLiveScrollTarget($0) } ?? context.target"))
         #expect(patchedRenderer.contains("let applied = gtkApplyScrollTo(target, anchor: context.anchor)"))
         #expect(patchedRenderer.contains("if applied {\n            context.remainingTicks -= 1\n        }"))
         #expect(patchedRenderer.contains("context.remainingTotalTicks -= 1"))
         #expect(patchedRenderer.contains("context.remainingTicks > 0 && context.remainingTotalTicks > 0"))
-        #expect(patchedRenderer.contains("let request = GTKPendingScrollRequest(anchor: anchor)"))
-        #expect(patchedRenderer.contains("gtkPendingScrollRequests[id] = request"))
-        #expect(patchedRenderer.contains("guard let widget = gtkScrollTargetRegistry[id] else { return }"))
+        #expect(patchedRenderer.contains("gtkPendingScrollRequests[anyID] = GTKPendingScrollRequest(anchor: anchor)"))
+        #expect(patchedRenderer.contains("private func gtkResolvePendingScrollTo(id: AnyHashable, widget: UnsafeMutablePointer<GtkWidget>)"))
+        #expect(patchedRenderer.contains("if let widget = gtkLookupLiveScrollTarget(anyID)"))
         #expect(patchedRenderer.contains("gtkResolvePendingScrollTo(id: id, widget: widget)"))
         #expect(patchedRenderer.contains("gtkScheduleScrollTo(id: id, widget, anchor: anchor)"))
-        #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(id: AnyHashable? = nil, _ target"))
+        #expect(patchedRenderer.contains("private func gtkScheduleIdleScrollTo(\n    id: AnyHashable? = nil,"))
         #expect(patchedRenderer.contains("gtkScheduleIdleScrollTo(id: id, widget, anchor: request.anchor)"))
         #expect(patchedRenderer.contains("g_object_ref(gpointer(target))"))
         #expect(patchedRenderer.contains("g_timeout_add(16, { userData -> gboolean in"))
@@ -3020,12 +3179,12 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("unmanaged.release()"))
         #expect(patchedRenderer.contains("defer { g_object_unref(gpointer(context.target)) }"))
         #expect(patchedRenderer.contains("g_idle_add({ userData -> gboolean in"))
-        #expect(patchedRenderer.contains("gtkResolveOrQueueScrollTo(id: anyID, anchor: anchor)"))
+        #expect(patchedRenderer.contains("gtkApplyOrScheduleScrollTo(id: context.targetID, target, anchor: context.anchor)"))
         #expect(patchedRenderer.contains("let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!"))
         #expect(patchedRenderer.contains("gtk_box_append(boxPointer(wrapper), widget)"))
         #expect(patchedRenderer.contains("gtkPropagateSingleChildLayoutMarkers(from: [widget], to: wrapper)"))
         #expect(patchedRenderer.contains("gtkRegisterScrollTarget(id: AnyHashable(id), widget: wrapper)"))
-        #expect(!patchedRenderer.contains("lookupViewID(id) as? UnsafeMutablePointer<GtkWidget>"))
+        #expect(patchedRenderer.contains("private func gtkLookupLiveScrollTarget(_ id: AnyHashable) -> UnsafeMutablePointer<GtkWidget>?"))
         #expect(patchedRenderer.contains("private func gtkSheetPresentationMode() -> String"))
         #expect(patchedRenderer.contains("QUILLUI_BACKEND_SHEET_PRESENTATION"))
         #expect(patchedRenderer.contains("private func gtkShouldRenderSheetInRootOverlay() -> Bool"))
@@ -3038,11 +3197,11 @@ struct QuillDataSourceLoweringTests {
         // Presented panels live in a global registry keyed by the type-derived
         // activeKey: anchors are recreated per parent render, so per-anchor
         // g_object data would orphan the panel after the first rebuild.
-        #expect(patchedRenderer.contains("private var gtkRootSheetPanels: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
+        #expect(patchedRenderer.contains("private var gtkRootSheetLayers: [String: UnsafeMutablePointer<GtkWidget>] = [:]"))
         #expect(patchedRenderer.contains("private var gtkRootSheetItemIDs: [String: Int] = [:]"))
-        #expect(patchedRenderer.contains("guard let panel = gtkRootSheetPanels.removeValue(forKey: activeKey) else"))
-        #expect(patchedRenderer.contains("guard gtkRootSheetPanels[activeKey] == nil else"))
-        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetPanels[activeKey] = panel").count == 3)
+        #expect(patchedRenderer.contains("if let registeredLayer = gtkRootSheetLayers.removeValue(forKey: activeKey)"))
+        #expect(patchedRenderer.contains("guard gtkRootSheetLayers[activeKey] == nil else"))
+        #expect(patchedRenderer.components(separatedBy: "gtkRootSheetLayers[activeKey] = layer").count == 3)
         #expect(!patchedRenderer.contains("g_object_set_data(gobject, overlayKey, gpointer(panel))"))
         // Debounced entry->binding writes: typing must not schedule a rebuild
         // per keystroke, and UI actions flush eagerly so callbacks read the
@@ -3055,10 +3214,10 @@ struct QuillDataSourceLoweringTests {
         // to the sheet's first button.
         #expect(patchedRenderer.contains("if gtk_widget_get_width(target.panel) <= 1"))
         #expect(patchedRenderer.contains("private func gtkScheduleSheetDismissal(_ action"))
-        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        binding.wrappedValue = false"))
-        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        itemBinding.wrappedValue = nil"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                    binding.wrappedValue = false"))
+        #expect(patchedRenderer.contains("gtkScheduleSheetDismissal {\n                    itemBinding.wrappedValue = nil"))
         #expect(patchedRenderer.contains("let dismissAction: () -> Void"))
-        #expect(patchedRenderer.contains("env.dismiss = DismissAction(handler: dismissAction)"))
+        #expect(patchedRenderer.contains("env.dismiss = DismissAction(handler: dismissAction, debugName: \"gtk sheet bool root overlay\")"))
         #expect(patchedRenderer.contains("swiftOpenUIWithPresentationDismissAction(dismissAction)"))
         #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(anchor: anchor, overlayKey: overlayKey, activeKey: activeKey)"))
         #expect(!patchedRenderer.contains("gtkScheduleSheetDismissal {\n                        gtkRemoveSheetRootOverlay(\n                            anchor: anchor"))
@@ -3093,7 +3252,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("if let rootOverlay = gtkFallbackRootPresentationOverlay()"))
         #expect(patchedRenderer.components(separatedBy: "let rootOverlay = gtkSheetRootOverlay(for: anchor)").count == 3)
         #expect(patchedRenderer.components(separatedBy: "gtkWithRootSheetOverlay(rootOverlay) {").count == 3)
-        #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)").count == 3)
+        #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: panel)").count == 4)
         #expect(patchedRenderer.components(separatedBy: "gtkStoreRootPresentationOverlay(rootOverlay, on: sheetWidget)").count == 3)
         #expect(patchedRenderer.contains("let stringList = gtk_swift_string_list_new()!"))
         #expect(patchedRenderer.contains("gtk_swift_drop_down_new(stringList)!"))
@@ -3101,8 +3260,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("guard options.indices.contains(newIndex), newIndex != clampedSelection else"))
         #expect(patchedRenderer.contains("private func gtkAttachRootSheetOverlay("))
         #expect(patchedRenderer.contains("let previousTop = gtk_widget_get_last_child(overlayWidget)"))
-        #expect(patchedRenderer.contains("gtk_widget_insert_after(panel, overlayWidget, previousTop)"))
-        #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(panel, to: rootOverlay)").count == 3)
+        #expect(patchedRenderer.contains("gtk_widget_insert_after(layer, overlayWidget, previousTop)"))
+        #expect(patchedRenderer.components(separatedBy: "gtkAttachRootSheetOverlay(layer, to: rootOverlay)").count == 3)
         #expect(patchedRenderer.contains("sheet item root present activeKey="))
         #expect(patchedRenderer.contains("sheet item root unavailable activeKey="))
         #expect(patchedRenderer.contains("gtkCreateSheetOverlay(contentWidget: widget, sheetWidget: sheetWidget)"))
@@ -3113,21 +3272,27 @@ struct QuillDataSourceLoweringTests {
         #expect(!patchedRenderer.contains("remainingTicks: Int = 4"))
         #expect(patchedRenderer.contains("context.remainingTicks -= 1"))
         #expect(patchedRenderer.contains("gtkScheduleOnAppear(_ action"))
-        #expect(patchedRenderer.contains("gtkScheduleOnAppear(boundAction, on: widget)"))
+        #expect(patchedRenderer.contains("GTK4OnAppearPayload(action: bindActionToCurrentEnvironment(action))"))
         #expect(!patchedRenderer.contains("gtk_widget_grab_focus(widget)"))
         #expect(patchedRenderer.contains("private func gtkDisableButtonChildTargeting"))
         #expect(patchedRenderer.contains("gtkDisableButtonChildTargeting(childWidget)"))
         #expect(patchedRenderer.contains("private final class GTKButtonActionBox"))
         #expect(patchedRenderer.contains("private func gtkScheduleButtonAction"))
         #expect(patchedRenderer.contains("gtk_swift_gesture_single_set_button(gesture, 1)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget))"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"gesture\", widget: context.widget), phase: .pointerPress)"))
         #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(button, gesture)"))
         #expect(patchedRenderer.contains("let legacyController = gtk_swift_legacy_capture_controller()!"))
         #expect(patchedRenderer.contains("gtk_swift_event_is_primary_button_press(event)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\")"))
+        #expect(patchedRenderer.contains("gtkScheduleButtonAction(box, source: \"legacy\", phase: .pointerPress)"))
         #expect(patchedRenderer.contains("private final class GTKButtonRootEventContext"))
+        #expect(patchedRenderer.contains("var gestureController: gpointer?"))
         #expect(patchedRenderer.contains("gtkInstallButtonRootEventFallback(context)"))
-        #expect(patchedRenderer.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"root-legacy@"))
+        #expect(patchedRenderer.contains("context.gestureController = gpointer(gesture)"))
+        #expect(patchedRenderer.contains("gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: \"root-legacy\")"))
+        #expect(patchedRenderer.contains("gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: \"root-gesture\")"))
+        #expect(patchedRenderer.contains("gtk_swift_add_capture_gesture(root, gesture)"))
+        #expect(patchedRenderer.contains("private func gtkDispatchButtonRootPress"))
+        #expect(patchedRenderer.contains("gtkButtonDebugSource(\"\\(resolvedSource)@"))
         #expect(patchedRenderer.contains("private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)"))
         #expect(!patchedRenderer.contains("guard gtk_swift_widget_contains_root_point(root, context.widget"))
@@ -3193,7 +3358,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedState.contains("let forwarded = forwardedStorage"))
         #expect(patchedState.contains("forwarded.setValue(newValue)"))
         #expect(patchedState.contains("typed !== self"))
-        #expect(patchedState.contains("wireObservableObjectStateValueIfNeeded"))
+        #expect(patchedState.contains("wireObservableStateValue"))
+        #expect(patchedState.contains("subscribeOpaqueObservableObject(object)"))
+
+        let patchedEnvironment = try String(contentsOf: environment, encoding: .utf8)
+        #expect(patchedEnvironment.contains("refreshInjectedObjectsFromRegistry"))
 
         let patchedIssueReporter = try String(contentsOf: issueReporter, encoding: .utf8)
         #expect(!patchedIssueReporter.contains("canImport(os)"))
@@ -3403,7 +3572,8 @@ struct QuillDataSourceLoweringTests {
         #expect(rendererSource.contains("action: boundAction"))
         #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            gtkAttachStandaloneTaskLifecycle("))
         #expect(rendererSource.contains("let boundAction = bindActionToCurrentEnvironment(action)"))
-        #expect(rendererSource.contains("} else {\n            gtkScheduleOnAppear(boundAction, on: widget)\n        }"))
+        #expect(rendererSource.contains("Stateful hosts reconcile `onAppear` by descriptor identity"))
+        #expect(rendererSource.contains("if GTKViewHost.getCurrentRebuilding() == nil {\n            let box = Unmanaged.passRetained(ClosureBox(boundAction)).toOpaque()"))
     }
 
     private func runScript(

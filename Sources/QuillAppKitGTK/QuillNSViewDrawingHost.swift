@@ -512,6 +512,11 @@ private final class _DrawingHostBox {
     private weak var currentCursor: NSCursor?
     init(view: NSView) { self.view = view }
 
+    func queueDraw() {
+        guard let live = area else { return }
+        gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
+    }
+
     @MainActor
     func syncViewSize(width: Int32, height: Int32) {
         let bounds = NSRect(x: 0, y: 0, width: CGFloat(width), height: CGFloat(height))
@@ -1138,8 +1143,20 @@ extension NSView {
         // The handler holds the box strongly (it outlives GTK's user-data ref);
         // after widget destruction box.area is nil and this becomes a no-op.
         quillDisplayInvalidationHandler = {
-            guard let live = box.area else { return }
-            gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(live))
+            if Thread.isMainThread {
+                box.queueDraw()
+                return
+            }
+
+            let boxPointer = Unmanaged.passRetained(box).toOpaque()
+            g_idle_add_full(Int32(G_PRIORITY_DEFAULT), { userData in
+                guard let userData else { return 0 }
+                let box = Unmanaged<_DrawingHostBox>
+                    .fromOpaque(userData)
+                    .takeRetainedValue()
+                box.queueDraw()
+                return 0
+            }, boxPointer, nil)
         }
         return areaPointer
     }
@@ -1177,6 +1194,13 @@ public func quillGtkRetainWidget(_ widget: OpaquePointer) {
 
 public func quillGtkReleaseWidget(_ widget: OpaquePointer) {
     g_object_unref(UnsafeMutableRawPointer(widget))
+}
+
+/// Force a cached/custom draw widget to repaint after its owning NSView was
+/// updated. This gives NSViewRepresentable the same practical behavior apps
+/// rely on from AppKit's display scheduling.
+public func quillGtkQueueDrawWidget(_ widget: OpaquePointer) {
+    gtk_widget_queue_draw(UnsafeMutablePointer<GtkWidget>(widget))
 }
 
 /// Detach a cached widget from its previous parent (if any) so the renderer

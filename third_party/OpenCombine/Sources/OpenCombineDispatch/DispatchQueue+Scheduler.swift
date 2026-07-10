@@ -8,6 +8,35 @@
 import Dispatch
 import OpenCombine
 
+#if os(Linux)
+private var openCombineDispatchMainQueueScheduler: ((@escaping () -> Void) -> Void)?
+
+public func openCombineDispatchInstallMainQueueScheduler(
+    _ scheduler: ((@escaping () -> Void) -> Void)?
+) {
+    openCombineDispatchMainQueueScheduler = scheduler
+}
+
+private func openCombineDispatchIsMainQueue(_ queue: DispatchQueue) -> Bool {
+    // swift-corelibs-libdispatch does not preserve DispatchQueue.main object
+    // identity across accesses, so `queue === DispatchQueue.main` is false on
+    // Linux. The label is the stable libdispatch marker for the main queue.
+    queue === DispatchQueue.main || queue.label == "com.apple.main-thread"
+}
+
+@discardableResult
+private func openCombineDispatchScheduleOnInstalledMainQueue(
+    _ queue: DispatchQueue,
+    _ action: @escaping () -> Void
+) -> Bool {
+    guard openCombineDispatchIsMainQueue(queue),
+          let scheduler = openCombineDispatchMainQueueScheduler
+    else { return false }
+    scheduler(action)
+    return true
+}
+#endif
+
 extension DispatchQueue {
 
     /// A namespace for disambiguation when both OpenCombine and Combine are imported.
@@ -296,6 +325,17 @@ extension DispatchQueue {
         public func schedule(options: SchedulerOptions?,
                              _ action: @escaping () -> Void) {
             let options = options ?? .init()
+            #if os(Linux)
+            if openCombineDispatchIsMainQueue(queue),
+               openCombineDispatchMainQueueScheduler != nil {
+                options.group?.enter()
+                openCombineDispatchScheduleOnInstalledMainQueue(queue) {
+                    defer { options.group?.leave() }
+                    action()
+                }
+                return
+            }
+            #endif
             queue.async(group: options.group,
                         qos: options.qos,
                         flags: options.flags,
@@ -307,6 +347,19 @@ extension DispatchQueue {
                              options: SchedulerOptions?,
                              _ action: @escaping () -> Void) {
             let options = options ?? .init()
+            #if os(Linux)
+            if openCombineDispatchIsMainQueue(queue),
+               openCombineDispatchMainQueueScheduler != nil {
+                options.group?.enter()
+                DispatchQueue.global().asyncAfter(deadline: date.dispatchTime) {
+                    openCombineDispatchScheduleOnInstalledMainQueue(self.queue) {
+                        defer { options.group?.leave() }
+                        action()
+                    }
+                }
+                return
+            }
+            #endif
             queue.asyncAfter(deadline: date.dispatchTime,
                              qos: options.qos,
                              flags: options.flags,
@@ -321,6 +374,24 @@ extension DispatchQueue {
                              options: SchedulerOptions?,
                              _ action: @escaping () -> Void) -> Cancellable {
             let options = options ?? .init()
+            #if os(Linux)
+            if openCombineDispatchIsMainQueue(queue),
+               openCombineDispatchMainQueueScheduler != nil {
+                let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+                timer.setEventHandler {
+                    options.group?.enter()
+                    openCombineDispatchScheduleOnInstalledMainQueue(self.queue) {
+                        defer { options.group?.leave() }
+                        action()
+                    }
+                }
+                timer.schedule(deadline: date.dispatchTime,
+                               repeating: interval.timeInterval,
+                               leeway: tolerance.timeInterval)
+                timer.resume()
+                return AnyCancellable(timer.cancel)
+            }
+            #endif
             let timer = DispatchSource.makeTimerSource(queue: queue)
             timer.setEventHandler(qos: options.qos,
                                   flags: options.flags,

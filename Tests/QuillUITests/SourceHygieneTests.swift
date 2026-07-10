@@ -4502,6 +4502,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift"),
             encoding: .utf8
         )
+        let gtkDrawingHost = try String(
+            contentsOf: root.appendingPathComponent("Sources/QuillAppKitGTK/QuillNSViewDrawingHost.swift"),
+            encoding: .utf8
+        )
         let swiftUINSViewRepresentable = try String(
             contentsOf: root.appendingPathComponent("Sources/SwiftUIShim/NSViewRepresentable.swift"),
             encoding: .utf8
@@ -4522,6 +4526,9 @@ struct SourceHygieneTests {
         #expect(!appKit.contains("nonisolated public init(frame: NSRect)"))
         #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated(unsafe) let representable: R") == 3)
         #expect(swiftUINSViewRepresentable.occurrences(of: "nonisolated init(_ representable: R)") == 3)
+        #expect(gtkDrawingHost.contains("public func quillGtkQueueDrawWidget(_ widget: OpaquePointer)"))
+        #expect(swiftUINSViewRepresentable.occurrences(of: "nsView.needsDisplay = true") == 2)
+        #expect(swiftUINSViewRepresentable.occurrences(of: "quillGtkQueueDrawWidget(") == 2)
         // SolderScope's @preconcurrency pivot (#548) made NSApplicationDelegate
         // @MainActor (its delegate methods are main-thread). `@preconcurrency`
         // downgrades the isolation check to Swift-5 mode, so a nonisolated
@@ -4612,7 +4619,12 @@ struct SourceHygieneTests {
             encoding: .utf8
         )
 
-        #expect(manifest.contains("dependencies: [\"AppKit\", \"CGtk4\", \"Observation\", .product(name: \"CGTK\", package: \"SwiftOpenUI\"), .product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\")]"))
+        #expect(manifest.contains("name: \"QuillAppKitGTK\""))
+        #expect(manifest.contains("\"AppKit\""))
+        #expect(manifest.contains("\"CGtk4\""))
+        #expect(manifest.contains("\"Observation\""))
+        #expect(manifest.contains(".product(name: \"CGTK\", package: \"SwiftOpenUI\")"))
+        #expect(manifest.contains(".product(name: \"SwiftOpenUI\", package: \"SwiftOpenUI\")"))
         #expect(host.contains("quillInstallGtkDrawHostInputControllers(on: area, host: box)"))
         #expect(host.contains("gtk_gesture_drag_new()"))
         #expect(host.contains("gtk_gesture_click_new()"))
@@ -9580,6 +9592,30 @@ struct SourceHygieneTests {
         #expect(patcher.contains("deduplicate_codepoint_entries"))
     }
 
+    @Test("GTK installs OpenCombine main DispatchQueue bridge")
+    func gtkInstallsOpenCombineMainDispatchQueueBridge() throws {
+        let scheduler = try packageSource(
+            "third_party/OpenCombine/Sources/OpenCombineDispatch/DispatchQueue+Scheduler.swift"
+        )
+        let gtkRuntime = try packageSource("Sources/QuillAppKitGTK/QuillAppKit+GTK.swift")
+        let drawingHost = try packageSource("Sources/QuillAppKitGTK/QuillNSViewDrawingHost.swift")
+        let manifest = try packageSource("Package.swift")
+
+        #expect(scheduler.contains("openCombineDispatchInstallMainQueueScheduler"))
+        #expect(scheduler.contains("openCombineDispatchIsMainQueue"))
+        #expect(scheduler.contains("openCombineDispatchScheduleOnInstalledMainQueue"))
+        #expect(scheduler.contains("queue.label == \"com.apple.main-thread\""))
+        #expect(gtkRuntime.contains("openCombineDispatchInstallMainQueueScheduler"))
+        #expect(gtkRuntime.contains("Preserve same-turn SwiftUI/Combine state ordering"))
+        #expect(gtkRuntime.contains("if Thread.isMainThread"))
+        #expect(gtkRuntime.contains("action()"))
+        #expect(gtkRuntime.contains("QuillOpenCombineDispatchActionBox"))
+        #expect(gtkRuntime.contains("g_idle_add_full(Int32(G_PRIORITY_DEFAULT)"))
+        #expect(drawingHost.contains("if Thread.isMainThread"))
+        #expect(drawingHost.contains("g_idle_add_full(Int32(G_PRIORITY_DEFAULT)"))
+        #expect(manifest.contains(#".product(name: "OpenCombineDispatch", package: "OpenCombine")"#))
+    }
+
     @Test("GTK labels use SF Symbol compatibility map")
     func gtkLabelsUseSFSymbolCompatibilityMap() throws {
         let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
@@ -9646,11 +9682,20 @@ struct SourceHygieneTests {
             #expect(source.contains("gtk_swift_event_is_primary_button_press"))
             #expect(source.contains("gtkScheduleButtonAction(box, source: \"legacy\""))
             #expect(source.contains("GTKButtonRootEventContext"))
+            #expect(source.contains("var gestureController: gpointer?"))
             #expect(source.contains("gtkInstallButtonRootEventFallback"))
-            #expect(source.contains("let source = isTopmost ? \"root-legacy\" : \"root-visual\""))
+            #expect(source.contains("context.gestureController = gpointer(gesture)"))
+            #expect(source.contains("gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: \"root-legacy\")"))
+            #expect(source.contains("gtkDispatchButtonRootPress(context, root: root, x: x, y: y, source: \"root-gesture\")"))
+            #expect(source.contains("gtk_swift_add_capture_gesture(root, gesture)"))
+            #expect(source.contains("private func gtkDispatchButtonRootPress"))
             #expect(
-                source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"\\(source)@")
-                    || source.contains("gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource(\"\\\\(source)@")
+                source.contains("let resolvedSource = isTopmost ? source : \"\\(source)-visual\"")
+                    || source.contains("let resolvedSource = isTopmost ? source : \"\\\\(source)-visual\"")
+            )
+            #expect(
+                source.contains("gtkButtonDebugSource(\"\\(resolvedSource)@")
+                    || source.contains("gtkButtonDebugSource(\"\\\\(resolvedSource)@")
             )
             #expect(source.contains("gtk_swift_widget_is_topmost_at_root_point"))
             #expect(source.contains("gtk_widget_add_css_class(button, \"flat\")"))

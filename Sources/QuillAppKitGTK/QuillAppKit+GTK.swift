@@ -20,6 +20,7 @@ import AppKit
 import QuillFoundation
 import SwiftOpenUI
 import Glibc
+import OpenCombineDispatch
 
 // MARK: - GTK lifecycle
 
@@ -34,6 +35,7 @@ public enum QuillGTK {
 
     @discardableResult
     public static func ensureInitialized() -> Bool {
+        quillInstallOpenCombineGTKMainQueueBridge()
         if didInit { return initOK }
         didInit = true
         // gtk_init aborts on failure; gtk_init_check returns gboolean
@@ -77,6 +79,42 @@ public enum QuillGTK {
     }
 }
 
+private var quillDidInstallOpenCombineGTKMainQueueBridge = false
+
+private final class QuillOpenCombineDispatchActionBox {
+    let action: () -> Void
+
+    init(action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+private func quillInstallOpenCombineGTKMainQueueBridge() {
+    guard !quillDidInstallOpenCombineGTKMainQueueBridge else { return }
+    quillDidInstallOpenCombineGTKMainQueueBridge = true
+
+    openCombineDispatchInstallMainQueueScheduler { action in
+        // Preserve same-turn SwiftUI/Combine state ordering for
+        // `receive(on: DispatchQueue.main)` while GTK owns the process loop.
+        if Thread.isMainThread {
+            action()
+            return
+        }
+
+        let box = Unmanaged.passRetained(
+            QuillOpenCombineDispatchActionBox(action: action)
+        ).toOpaque()
+        g_idle_add_full(Int32(G_PRIORITY_DEFAULT), { userData in
+            guard let userData else { return 0 }
+            let box = Unmanaged<QuillOpenCombineDispatchActionBox>
+                .fromOpaque(userData)
+                .takeRetainedValue()
+            box.action()
+            return 0
+        }, box, nil)
+    }
+}
+
 // MARK: - NSApplication: real run() that pumps GTK
 
 extension NSApplication {
@@ -93,6 +131,8 @@ extension NSApplication {
 /// now pump the GTK4 main loop — no source changes needed.
 
 public func _quillAppKitGTKInstallRunHook() {
+    quillInstallOpenCombineGTKMainQueueBridge()
+
     // Install runs on the process main thread (first touch of a public symbol
     // from the importing app's startup); NSApplication._runHook and .shared
     // are @MainActor via NSResponder, so assume the isolation that is true by
