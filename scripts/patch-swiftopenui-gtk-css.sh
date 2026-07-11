@@ -3593,17 +3593,34 @@ private func gtkPickedButtonActionWidgetAtRootPoint(
     return nil
 }
 
-private func gtkVisualButtonActionWidgetAtRootPoint(
+private typealias GTKVisualButtonActionCandidate = (
+    widget: UnsafeMutablePointer<GtkWidget>,
+    depth: Int,
+    area: Double
+)
+
+private func gtkPreferredVisualButtonActionCandidate(
+    _ current: GTKVisualButtonActionCandidate?,
+    _ proposed: GTKVisualButtonActionCandidate
+) -> GTKVisualButtonActionCandidate {
+    guard let current else { return proposed }
+    if proposed.depth > current.depth { return proposed }
+    if proposed.depth == current.depth && proposed.area < current.area { return proposed }
+    return current
+}
+
+private func gtkVisualButtonActionCandidateAtRootPoint(
     _ widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
     x: Double,
     y: Double,
     depth: Int = 0
-) -> UnsafeMutablePointer<GtkWidget>? {
+) -> GTKVisualButtonActionCandidate? {
     guard depth < 160 else { return nil }
     guard gtk_widget_get_visible(widget) != 0,
           gtk_widget_get_sensitive(widget) != 0,
           gtk_widget_get_opacity(widget) > 0.001 else { return nil }
+    var best: GTKVisualButtonActionCandidate?
 
     if gtkButtonActionBox(from: widget) != nil {
         let frame = gtkWidgetVisualFrameInRoot(widget, root: root)
@@ -3617,24 +3634,41 @@ private func gtkVisualButtonActionWidgetAtRootPoint(
         }
         gtkDebugVisualButtonCandidate(widget, root: root, x: x, y: y, isHit: isHit, frame: frame)
         if isHit || gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
-            return widget
+            let area = frame.map { max(1, $0.width * $0.height) } ?? Double.greatestFiniteMagnitude
+            best = gtkPreferredVisualButtonActionCandidate(best, (widget, depth, area))
         }
     }
 
     var child = gtk_widget_get_first_child(widget)
     while let current = child {
-        if let match = gtkVisualButtonActionWidgetAtRootPoint(
+        if let match = gtkVisualButtonActionCandidateAtRootPoint(
             current,
             root: root,
             x: x,
             y: y,
             depth: depth + 1
         ) {
-            return match
+            best = gtkPreferredVisualButtonActionCandidate(best, match)
         }
         child = gtk_widget_get_next_sibling(current)
     }
-    return nil
+    return best
+}
+
+private func gtkVisualButtonActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkVisualButtonActionCandidateAtRootPoint(
+        widget,
+        root: root,
+        x: x,
+        y: y,
+        depth: depth
+    )?.widget
 }
 
 private func gtkPreferredButtonActionAtRootPoint(
