@@ -7192,7 +7192,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_TOOLBAR_Y_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_START_TOOLBAR_Y_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORD_STOP_TOOLBAR_Y_OFFSET"))
-        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-window"))
+        #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-active"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_RECORDING_ACTIVE_SHORTCUT_FALLBACK:-0"))
         #expect(solderScopeSmoke.contains("shortcut $label active key r"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS"))

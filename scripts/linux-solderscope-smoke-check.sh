@@ -280,7 +280,7 @@ quillui_solderscope_drive_recording_action() {
       ;;
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label key r" >&2
-      local recording_key_driver="${QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-window}"
+      local recording_key_driver="${QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-active}"
       QUILLUI_SOLDERSCOPE_KEY_DRIVER="$recording_key_driver" \
         quillui_solderscope_send_key "$window_id" r
       if [[ "$recording_key_driver" != "active" ]] \
