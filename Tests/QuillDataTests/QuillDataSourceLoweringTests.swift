@@ -965,6 +965,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("attachment-send|image-attachment-send"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_PATH"))
         #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file"))
+        #expect(interactionScript.contains("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1"))
         #expect(interactionScript.contains("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_ATTACHMENT_CLICK_X"))
         #expect(interactionScript.contains("window_width - 100"))

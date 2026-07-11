@@ -381,6 +381,7 @@ path.write_bytes(base64.b64decode(
 ))
 PY
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$attachment_file")
+  app_environment+=("QUILLUI_FILE_IMPORTER_AUTO_ATTACH=1")
   app_environment+=("QUILLUI_QUILL_CHAT_REFERENCE_VISION_MODEL=1")
 fi
 quillui_append_backend_selection_start_environment \
@@ -1740,6 +1741,12 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep 3
         ;;
       attachment-send|image-attachment-send)
+        click_x="$(quill_chat_composer_click_x)"
+        click_y="$(quill_chat_composer_click_y)"
+        click_quill_chat_composer "$click_x" "$click_y"
+        sleep 1
+        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-describe this image from linux}"
+        sleep 1
         attachment_x="${QUILLUI_BACKEND_ATTACHMENT_CLICK_X:-$((window_x + window_width - 100))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           attachment_y="${QUILLUI_BACKEND_ATTACHMENT_CLICK_Y:-$(quill_chat_composer_click_y)}"
@@ -1749,12 +1756,6 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         echo "interaction-check: attachment=${attachment_x},${attachment_y}" >&2
         click_at "$attachment_x" "$attachment_y"
         sleep "${QUILLUI_BACKEND_ATTACHMENT_SELECT_SLEEP:-1}"
-        click_x="$(quill_chat_composer_click_x)"
-        click_y="$(quill_chat_composer_click_y)"
-        click_quill_chat_composer "$click_x" "$click_y"
-        sleep 1
-        type_text "${QUILLUI_BACKEND_TYPE_TEXT:-describe this image from linux}"
-        sleep 1
         send_x="${QUILLUI_BACKEND_SEND_CLICK_X:-$((window_x + window_width - 65))}"
         if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
           send_y="${QUILLUI_BACKEND_SEND_CLICK_Y:-$(quill_chat_composer_click_y)}"
