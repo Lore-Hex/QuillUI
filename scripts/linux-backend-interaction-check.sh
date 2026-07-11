@@ -550,6 +550,75 @@ refocus_capture_window() {
   DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
 }
 
+scroll_quill_chat_settings_to_clear_data() {
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+
+  local scroll_x="${QUILLUI_BACKEND_SETTINGS_SCROLL_X:-$((window_x + window_width / 2))}"
+  local scroll_y="${QUILLUI_BACKEND_SETTINGS_SCROLL_Y:-$((window_y + window_height - 420))}"
+  local scroll_ticks="${QUILLUI_BACKEND_SETTINGS_CLEAR_SCROLL_TICKS:-10}"
+  local tick
+
+  move_pointer_to "$scroll_x" "$scroll_y"
+  for ((tick = 0; tick < scroll_ticks; tick += 1)); do
+    DISPLAY="$DISPLAY_ID" xdotool click 5
+    sleep "${QUILLUI_BACKEND_SETTINGS_CLEAR_SCROLL_TICK_SLEEP:-0.04}"
+  done
+  sleep "${QUILLUI_BACKEND_SETTINGS_CLEAR_SCROLL_SETTLE_SLEEP:-0.5}"
+}
+
+quill_chat_clear_all_click_point() {
+  local probe_path="$OUTPUT_DIR/quill-chat-settings-clear-probe-${INTERACTION_MODE}-${INTERACTION_ATTEMPT}.png"
+
+  capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
+  python3 - "$probe_path" <<'PY'
+import subprocess
+import sys
+
+path = sys.argv[1]
+try:
+    width_text, height_text = subprocess.run(
+        ["identify", "-format", "%w %h", path],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ).stdout.split()
+    width = int(width_text)
+    height = int(height_text)
+    rgba = subprocess.run(
+        ["convert", path, "rgba:-"],
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    ).stdout
+except Exception:
+    raise SystemExit(1)
+
+x0 = int(width * 0.26)
+x1 = int(width * 0.74)
+y0 = int(height * 0.42)
+y1 = int(height * 0.82)
+pixels = []
+for y in range(y0, y1):
+    row = y * width * 4
+    for x in range(x0, x1):
+        offset = row + x * 4
+        red = rgba[offset]
+        green = rgba[offset + 1]
+        blue = rgba[offset + 2]
+        alpha = rgba[offset + 3]
+        if alpha >= 180 and red >= 150 and green <= 120 and blue <= 120 and red - green >= 45:
+            pixels.append((x, y))
+
+if len(pixels) < 20:
+    raise SystemExit(1)
+
+avg_x = round(sum(x for x, _ in pixels) / len(pixels))
+avg_y = round(sum(y for _, y in pixels) / len(pixels))
+print(f"{avg_x} {avg_y}")
+PY
+}
+
 generic_backend_list_selection_y() {
   # All generic backend apps select a list row at +350 from the window top, which
   # clears the validator's >=220 center floor with margin.
@@ -1530,16 +1599,13 @@ open_quill_chat_settings_delete_confirmation() {
   local settings_y
   local clear_x
   local clear_y
+  local clear_point
 
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     settings_x="$(quill_chat_settings_click_x)"
     settings_y="$(quill_chat_settings_click_y)"
-    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}"
-    if [[ "$SELECTED_BACKEND" == "qt" ]]; then
-      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-948}"
-    else
-      clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-840}"
-    fi
+    clear_x="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}"
+    clear_y="${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 432))}"
   else
     settings_x="${QUILLUI_BACKEND_SETTINGS_CLICK_X:-$((window_x + 52))}"
     settings_y="${QUILLUI_BACKEND_SETTINGS_CLICK_Y:-$((window_y + window_height - 14))}"
@@ -1548,6 +1614,14 @@ open_quill_chat_settings_delete_confirmation() {
   fi
   click_at "$settings_x" "$settings_y"
   sleep 1
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    scroll_quill_chat_settings_to_clear_data
+    if clear_point="$(quill_chat_clear_all_click_point)"; then
+      clear_x="${clear_point%% *}"
+      clear_y="${clear_point##* }"
+      echo "interaction-check: clear-all=${clear_x},${clear_y}" >&2
+    fi
+  fi
   click_at "$clear_x" "$clear_y"
   sleep "$post_click_sleep"
 }

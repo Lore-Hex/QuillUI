@@ -696,6 +696,11 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("settings-delete-confirmation"))
         #expect(interactionScript.contains("settings-delete-confirmed"))
         #expect(interactionScript.contains("confirm_quill_chat_settings_delete()"))
+        #expect(interactionScript.contains("scroll_quill_chat_settings_to_clear_data()"))
+        #expect(interactionScript.contains("quill_chat_clear_all_click_point()"))
+        #expect(interactionScript.contains("QUILLUI_BACKEND_SETTINGS_CLEAR_SCROLL_TICKS:-10"))
+        #expect(interactionScript.contains("DISPLAY=\"$DISPLAY_ID\" xdotool click 5"))
+        #expect(interactionScript.contains("interaction-check: clear-all=${clear_x},${clear_y}"))
         #expect(interactionScript.contains("verify_quill_chat_delete_confirmed_if_needed()"))
         #expect(interactionScript.contains("Settings delete confirmed cleared conversation data"))
         #expect(interactionScript.contains("quill_chat_settings_click_x()"))
@@ -730,8 +735,8 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_SELECTED_MODEL_NAME=${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"))
         #expect(interactionScript.contains("xdotool key --clearmodifiers Escape"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_PICKER_SETTLE_SLEEP"))
-        #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-1024}\""))
-        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-840}\""))
+        #expect(interactionScript.contains("clear_x=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_X:-$((window_x + window_width / 2))}\""))
+        #expect(interactionScript.contains("clear_y=\"${QUILLUI_BACKEND_CLEAR_ALL_CLICK_Y:-$((window_y + window_height - 432))}\""))
         #expect(interactionScript.contains("refresh_capture_window_for_active_child_window"))
         // No capture==root gate on the child-window refresh (smoke sheets
         // present as separate toplevels); IM popups are filtered by the
