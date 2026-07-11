@@ -24,7 +24,7 @@ private final class QuillGTKMessageHoverActionState {
     func enter() {
         hoverDepth += 1
         generation += 1
-        gtk_widget_add_css_class(actionWidget, quillGTKMessageHoverActionsVisibleClass)
+        gtk_widget_set_opacity(actionWidget, 1)
     }
 
     func leave() {
@@ -50,7 +50,7 @@ private final class QuillGTKMessageHoverActionState {
 
     func hide(ifGeneration expectedGeneration: Int) {
         guard hoverDepth == 0, generation == expectedGeneration else { return }
-        gtk_widget_remove_css_class(actionWidget, quillGTKMessageHoverActionsVisibleClass)
+        gtk_widget_set_opacity(actionWidget, 0.0001)
     }
 }
 
