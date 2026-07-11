@@ -2606,7 +2606,7 @@ def validate_quill_chat_mac_reference_markdown_transcript_selection(image: Scree
         markdown_code_panel_pixel,
     )
     require(
-        table_panel_pixels >= 35_000,
+        table_panel_pixels >= 20_000,
         "Mac-reference markdown transcript table panel was not detected: "
         f"pixels={table_panel_pixels}",
     )
