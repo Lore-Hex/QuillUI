@@ -276,6 +276,11 @@ app_environment+=(
   "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
 )
 quillui_append_enchanted_reference_mode_environment app_environment
+if [[ "$VERIFY_RELAUNCH" == "1" ]] && quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+  app_environment+=(
+    "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_FUNCTIONAL_RELAUNCH_SELECTED_INDEX:-${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-0}}"
+  )
+fi
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")

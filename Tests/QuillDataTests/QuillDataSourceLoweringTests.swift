@@ -1251,6 +1251,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("last_request_count == baseline_chat_requests"))
         #expect(functionalScript.contains("quill-chat-linux-functional-transcript"))
         #expect(functionalScript.contains("Functional relaunch screenshot"))
+        #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_SELECTED_INDEX"))
+        #expect(functionalScript.contains("QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_FUNCTIONAL_RELAUNCH_SELECTED_INDEX:-${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-0}}"))
         #expect(functionalScript.contains("quill_chat_functional_static_relaunch_history_click_points()"))
         #expect(functionalScript.contains("quill_chat_functional_relaunch_history_click_points()"))
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_Y_RATIOS"))
