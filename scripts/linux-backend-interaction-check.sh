@@ -439,7 +439,7 @@ if quillui_is_backend_smoke_sheet_interaction "$INTERACTION_MODE"; then
 fi
 quill_chat_copy_runtime_dir=""
 quill_gtk_toolbar_action_command_dir=""
-if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" ) ]]; then
+if [[ "$PRODUCT" == "quill-chat-linux" && ( "$INTERACTION_MODE" == "copy-chat" || "$INTERACTION_MODE" == "copy-chat-json" || "$INTERACTION_MODE" == "toolbar-model-selected" ) ]]; then
   quill_chat_copy_runtime_dir="${QUILLUI_BACKEND_CLIPBOARD_RUNTIME_DIR:-$OUTPUT_DIR/quill-chat-copy-runtime}"
   quill_gtk_toolbar_action_command_dir="$quill_chat_copy_runtime_dir/quill-toolbar-actions"
   rm -rf "$quill_chat_copy_runtime_dir/quill-pasteboard"
@@ -1572,7 +1572,9 @@ select_quill_chat_toolbar_model_and_send_prompt() {
   local model_y
   local prompt_x
   local prompt_y
+  local selected_model
 
+  selected_model="${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-1816}"
@@ -1597,12 +1599,18 @@ select_quill_chat_toolbar_model_and_send_prompt() {
     prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-$((window_y + 610))}"
   fi
 
-  click_at "$menu_x" "$menu_y"
-  sleep 0.8
-  if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
-    DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT" \
+    && [[ "$SELECTED_BACKEND" != "qt" ]] \
+    && [[ -n "$quill_gtk_toolbar_action_command_dir" ]]; then
+    emit_quill_chat_toolbar_action_command "$selected_model"
   else
-    click_at "$model_x" "$model_y"
+    click_at "$menu_x" "$menu_y"
+    sleep 0.8
+    if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
+      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Down Return
+    else
+      click_at "$model_x" "$model_y"
+    fi
   fi
   sleep 1
   click_at "$prompt_x" "$prompt_y"
