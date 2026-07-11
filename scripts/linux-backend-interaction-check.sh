@@ -1962,7 +1962,7 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         ensure_quill_chat_long_transcript_bottom_scroll
         ;;
       prompt-send)
-        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 820))}"
+        click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + 1825))}"
         click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + 610))}"
         click_at "$click_x" "$click_y"
         sleep 3

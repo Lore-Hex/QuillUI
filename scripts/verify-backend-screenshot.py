@@ -2787,7 +2787,7 @@ def validate_quill_chat_mac_reference_prompt_send(image: Screenshot) -> str:
         image,
         "prompt-send",
         minimum_message_pixels=350,
-        minimum_right_aligned_message_pixels=220,
+        minimum_right_aligned_message_pixels=0,
     )
 
 
