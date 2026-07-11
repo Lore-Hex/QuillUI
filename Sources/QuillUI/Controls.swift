@@ -2639,8 +2639,12 @@ struct QuillDesktopMessageHoverActionRow<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: isUserMessage ? .trailing : .leading, spacing: 2) {
             content
+                .frame(
+                    maxWidth: .infinity,
+                    alignment: isUserMessage ? .trailing : .leading
+                )
             HStack(spacing: 0) {
                 if isUserMessage {
                     Spacer()
