@@ -1846,6 +1846,7 @@ def validate_quill_chat_mac_reference_completions_panel_visible(image: Screensho
         image,
         minimum_row_dividers=2,
         minimum_wordmark_pixels=350,
+        minimum_row_action_segments=1,
     )
 
 

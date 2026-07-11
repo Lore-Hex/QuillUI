@@ -10066,7 +10066,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("Mac-reference completions New Completion action was not detected"))
         #expect(verifier.contains("Mac-reference completions row edit/delete actions were not detected"))
         #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_panel_visible"))
-        #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_panel_visible(image: Screenshot) -> str:\n    return validate_quill_chat_mac_reference_completions_panel(\n        image,\n        minimum_row_dividers=2,\n        minimum_wordmark_pixels=350,"))
+        #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_panel_visible(image: Screenshot) -> str:\n    return validate_quill_chat_mac_reference_completions_panel(\n        image,\n        minimum_row_dividers=2,\n        minimum_wordmark_pixels=350,\n        minimum_row_action_segments=1,"))
         #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_new_sheet"))
         #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_saved"))
         #expect(verifier.contains("def validate_quill_chat_mac_reference_completions_edited"))
