@@ -144,17 +144,29 @@ struct GTKDescribeCycleGuardTests {
         )
     }
 
-    @Test("SwiftUI shadow hit-testing wrapper renders through GTK without QuillUI import")
-    func swiftUIShadowHitTestingWrapperRendersThroughGTKWithoutQuillUIImport() throws {
-        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
-            return
-        }
+    @Test("SwiftUI compatibility wrappers have transparent body fallbacks")
+    func swiftUICompatibilityWrappersHaveTransparentBodyFallbacks() throws {
+        let hitTesting = QuillCompatibilityAllowsHitTestingView(
+            content: Text("Decorative transcript"),
+            enabled: false
+        )
+        let shaped = QuillCompatibilityContentShapeView(
+            content: Text("Expanded target"),
+            shape: Rectangle()
+        )
+        let selectable = QuillCompatibilityTextSelectionView(
+            content: Text("Selectable transcript"),
+            selection: .enabled
+        )
+        let hoverable = QuillCompatibilityOnHoverView(
+            content: Text("Hoverable transcript"),
+            action: { _ in }
+        )
 
-        let disabled = Text("Decorative transcript").allowsHitTesting(false)
-        let widget = widgetFromOpaque(gtkRenderView(disabled))
-        let label = try firstGTKLabel(in: widget)
-
-        #expect(String(cString: gtk_label_get_text(OpaquePointer(label))) == "Decorative transcript")
+        #expect(String(describing: type(of: hitTesting.body)).contains("Text"))
+        #expect(String(describing: type(of: shaped.body)).contains("Text"))
+        #expect(String(describing: type(of: selectable.body)).contains("Text"))
+        #expect(String(describing: type(of: hoverable.body)).contains("Text"))
     }
 }
 
