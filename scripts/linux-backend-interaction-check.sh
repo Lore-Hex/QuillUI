@@ -1586,7 +1586,7 @@ select_quill_chat_toolbar_model_and_send_prompt() {
     else
       model_y="${QUILLUI_BACKEND_MODEL_MENU_SELECT_Y:-134}"
     fi
-    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-820}"
+    prompt_x="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-1825}"
     prompt_y="${QUILLUI_BACKEND_PROMPT_CARD_CLICK_Y:-610}"
   else
     menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-$((window_x + window_width - 134))}"
