@@ -71,6 +71,7 @@ extension QuillDesktopMessageHoverActionRow: GTKRenderable {
 
         gtk_widget_set_hexpand(container, 1)
         gtk_widget_set_halign(container, GTK_ALIGN_FILL)
+        gtk_widget_set_can_target(container, 1)
         gtk_widget_set_hexpand(contentWidget, 0)
         gtk_widget_set_halign(contentWidget, isUserMessage ? GTK_ALIGN_END : GTK_ALIGN_START)
         gtk_widget_set_halign(actionWidget, isUserMessage ? GTK_ALIGN_END : GTK_ALIGN_START)

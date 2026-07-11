@@ -8587,6 +8587,7 @@ struct SourceHygieneTests {
         #expect(messageHoverActions.contains("extension QuillDesktopMessageHoverActionRow: GTKRenderable"))
         #expect(messageHoverActions.contains("gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)"))
         #expect(messageHoverActions.contains("gtk_widget_set_hexpand(container, 1)"))
+        #expect(messageHoverActions.contains("gtk_widget_set_can_target(container, 1)"))
         #expect(messageHoverActions.contains("gtk_widget_set_hexpand(contentWidget, 0)"))
         #expect(messageHoverActions.contains("gtk_widget_set_halign(contentWidget, isUserMessage ? GTK_ALIGN_END : GTK_ALIGN_START)"))
         #expect(messageHoverActions.contains("gtk_box_append(UnsafeMutableRawPointer(container).assumingMemoryBound(to: GtkBox.self), contentWidget)"))
