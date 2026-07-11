@@ -37,8 +37,6 @@ public struct AccessibilityIdentifierView<Content: View>: View {
 }
 
 public struct AccessibilityLabelView<Content: View>: View {
-    public typealias Body = Never
-
     public let content: Content
     public let label: String
 
@@ -47,12 +45,10 @@ public struct AccessibilityLabelView<Content: View>: View {
         self.label = label
     }
 
-    public var body: Never { fatalError("AccessibilityLabelView is a backend-rendered primitive") }
+    public var body: Content { content }
 }
 
 public struct AccessibilityValueView<Content: View>: View {
-    public typealias Body = Never
-
     public let content: Content
     public let value: String
 
@@ -61,12 +57,10 @@ public struct AccessibilityValueView<Content: View>: View {
         self.value = value
     }
 
-    public var body: Never { fatalError("AccessibilityValueView is a backend-rendered primitive") }
+    public var body: Content { content }
 }
 
 public struct AccessibilityHintView<Content: View>: View {
-    public typealias Body = Never
-
     public let content: Content
     public let hint: String
 
@@ -75,12 +69,10 @@ public struct AccessibilityHintView<Content: View>: View {
         self.hint = hint
     }
 
-    public var body: Never { fatalError("AccessibilityHintView is a backend-rendered primitive") }
+    public var body: Content { content }
 }
 
 public struct AccessibilityElementView<Content: View>: View {
-    public typealias Body = Never
-
     public let content: Content
     public let children: AccessibilityChildBehavior
 
@@ -89,7 +81,7 @@ public struct AccessibilityElementView<Content: View>: View {
         self.children = children
     }
 
-    public var body: Never { fatalError("AccessibilityElementView is a backend-rendered primitive") }
+    public var body: Content { content }
 }
 
 public enum PopoverAttachmentAnchor {

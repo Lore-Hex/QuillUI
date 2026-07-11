@@ -162,11 +162,31 @@ struct GTKDescribeCycleGuardTests {
             content: Text("Hoverable transcript"),
             action: { _ in }
         )
+        let labeled = AccessibilityLabelView(
+            content: Text("Readable transcript"),
+            label: "Readable transcript"
+        )
+        let valued = AccessibilityValueView(
+            content: Text("Unread count"),
+            value: "3 unread"
+        )
+        let hinted = AccessibilityHintView(
+            content: Text("Open"),
+            hint: "Opens the selected timeline"
+        )
+        let element = AccessibilityElementView(
+            content: Text("Combined row"),
+            children: .combine
+        )
 
         #expect(String(describing: type(of: hitTesting.body)).contains("Text"))
         #expect(String(describing: type(of: shaped.body)).contains("Text"))
         #expect(String(describing: type(of: selectable.body)).contains("Text"))
         #expect(String(describing: type(of: hoverable.body)).contains("Text"))
+        #expect(String(describing: type(of: labeled.body)).contains("Text"))
+        #expect(String(describing: type(of: valued.body)).contains("Text"))
+        #expect(String(describing: type(of: hinted.body)).contains("Text"))
+        #expect(String(describing: type(of: element.body)).contains("Text"))
     }
 }
 
