@@ -774,8 +774,10 @@ divider_x = max(
 )
 sidebar_left = left + 16
 sidebar_right = max(sidebar_left + 1, divider_x - 16)
-scan_top = top + int(app_height * 0.18)
-scan_bottom = bottom - int(app_height * 0.12)
+# Relaunch starts with the newest saved chat near the top of the mac-reference
+# sidebar. Keep the scan below the titlebar, but do not skip the first section.
+scan_top = top + int(app_height * 0.06)
+scan_bottom = bottom - int(app_height * 0.18)
 
 rows: list[tuple[int, int]] = []
 for y in range(scan_top, scan_bottom):
