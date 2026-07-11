@@ -1067,10 +1067,6 @@ private struct LocaleKey: EnvironmentKey {
     static let defaultValue = Locale.current
 }
 
-private struct DefaultMinListRowHeightKey: EnvironmentKey {
-    static let defaultValue = 44
-}
-
 public enum ControlActiveState: Equatable, Sendable {
     case key
     case active
@@ -1115,11 +1111,6 @@ public extension EnvironmentValues {
     var locale: Locale {
         get { self[LocaleKey.self] }
         set { self[LocaleKey.self] = newValue }
-    }
-
-    var defaultMinListRowHeight: Int {
-        get { self[DefaultMinListRowHeightKey.self] }
-        set { self[DefaultMinListRowHeightKey.self] = newValue }
     }
 
     var controlActiveState: ControlActiveState {

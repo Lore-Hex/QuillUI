@@ -158,6 +158,9 @@ struct QuillUITests {
         _ = Color.clear
             .scrollContentBackground(.hidden)
             .background(theme.primaryBackgroundColor)
+        _ = Color.clear
+            .environment(\.defaultMinListRowHeight, 1)
+            .listStyle(.plain)
         _ = Rectangle()
             .fill(.regularMaterial)
             .blendMode(.plusLighter)
