@@ -562,6 +562,27 @@ quillui_solderscope_wait_for_visible_frame_with_retry() {
   return 1
 }
 
+quillui_solderscope_copy_verified_final_frame() {
+  local destination="$1"
+  local candidate
+  local candidates=(
+    "${SCREENSHOT_PATH%.png}-recording-idle.png"
+    "${SCREENSHOT_PATH%.png}-snapshot-settled.png"
+    "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT"
+  )
+
+  for candidate in "${candidates[@]}" "$OUTPUT_DIR"/quill-solderscope-*-last-visible.png "$OUTPUT_DIR"/quill-solderscope-*-snapshot-settled.png; do
+    [[ -f "$candidate" ]] || continue
+    if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$candidate" "$VERIFY_PRODUCT" >/dev/null 2>&1; then
+      echo "SolderScope interaction smoke: using verified final frame $candidate" >&2
+      cp -f "$candidate" "$destination"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 quillui_solderscope_verify_freeze_attempt() {
   local attempt_screenshot="$1"
 
@@ -1184,13 +1205,8 @@ if [[ "$SMOKE_MODE" == "interaction" && "$VERIFY_PRODUCT" == "quill-solderscope-
   else
     DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
   fi
-elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-recording-idle.png" ]]; then
-  cp -f "${SCREENSHOT_PATH%.png}-recording-idle.png" "$SCREENSHOT_PATH"
-elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" ]]; then
-  cp -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" "$SCREENSHOT_PATH"
-elif [[ "$SMOKE_MODE" == "interaction" && -f "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT" ]]; then
-  echo "SolderScope interaction smoke: using last verified visible frame for final verifier" >&2
-  cp -f "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT" "$SCREENSHOT_PATH"
+elif [[ "$SMOKE_MODE" == "interaction" ]] && quillui_solderscope_copy_verified_final_frame "$SCREENSHOT_PATH"; then
+  true
 else
   DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 fi
