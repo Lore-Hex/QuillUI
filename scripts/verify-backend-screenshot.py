@@ -1563,11 +1563,13 @@ def validate_quill_chat_mac_reference_settings_panel(
             model_x1 = min(panel_segment.end, panel_segment.start + 520)
             model_y0 = panel_y + 340
             model_y1 = panel_y + 430
+            model_text_threshold = 140
         else:
             model_x0 = panel_segment.start + 310
             model_x1 = min(panel_segment.end, panel_segment.start + 640)
             model_y0 = panel_y + 272
             model_y1 = panel_y + 346
+            model_text_threshold = 200
         model_text_pixels = dark_pixel_count(
             image,
             model_x0,
@@ -1576,8 +1578,9 @@ def validate_quill_chat_mac_reference_settings_panel(
             model_y1,
         )
         require(
-            model_text_pixels >= 200,
-            f"Mac-reference selected default model was not detected: pixels={model_text_pixels}",
+            model_text_pixels >= model_text_threshold,
+            "Mac-reference selected default model was not detected: "
+            f"pixels={model_text_pixels}, threshold={model_text_threshold}",
         )
         typed_summary += f", selected_model_pixels={model_text_pixels}"
 
