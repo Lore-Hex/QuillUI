@@ -904,7 +904,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("hover_quill_chat_message_actions()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MESSAGE_HOVER_X"))
         #expect(interactionScript.contains("hover_x=\"${QUILLUI_BACKEND_MESSAGE_HOVER_X:-1900}\""))
-        #expect(interactionScript.contains("hover_y=\"${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-160}\""))
+        #expect(interactionScript.contains("hover_y=\"${QUILLUI_BACKEND_MESSAGE_HOVER_Y:-94}\""))
         #expect(interactionScript.contains("refocus_capture_window()"))
         #expect(interactionScript.contains("move_pointer_to()"))
         #expect(interactionScript.contains("QUILLUI_BACKEND_MESSAGE_HOVER_RESET_X"))
