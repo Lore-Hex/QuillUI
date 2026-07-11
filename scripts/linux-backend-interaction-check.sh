@@ -691,13 +691,13 @@ quill_chat_verified_selection_probe() {
 }
 
 scroll_quill_chat_transcript_to_bottom() {
-  local scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 70 / 100)))}"
-  local scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 48 / 100)))}"
+  local scroll_x="${QUILLUI_BACKEND_SCROLL_X:-$((window_x + (window_width * 32 / 100)))}"
+  local scroll_y="${QUILLUI_BACKEND_SCROLL_Y:-$((window_y + (window_height * 56 / 100)))}"
   local scroll_clicks="${QUILLUI_BACKEND_SCROLL_CLICKS:-900}"
   local scroll_click_delay="${QUILLUI_BACKEND_SCROLL_CLICK_DELAY:-1}"
   local scroll_key_repeats="${QUILLUI_BACKEND_SCROLL_KEY_REPEATS:-6}"
   local scroll_key_delay="${QUILLUI_BACKEND_SCROLL_KEY_DELAY:-0.08}"
-  local drag_x="${QUILLUI_BACKEND_SCROLL_DRAG_X:-$((window_x + (window_width * 72 / 100)))}"
+  local drag_x="${QUILLUI_BACKEND_SCROLL_DRAG_X:-$scroll_x}"
   local drag_start_y="${QUILLUI_BACKEND_SCROLL_DRAG_START_Y:-$((window_y + (window_height * 76 / 100)))}"
   local drag_end_y="${QUILLUI_BACKEND_SCROLL_DRAG_END_Y:-$((window_y + (window_height * 22 / 100)))}"
   local drag_repeats="${QUILLUI_BACKEND_SCROLL_DRAG_REPEATS:-4}"
@@ -1426,7 +1426,7 @@ select_quill_chat_markdown_transcript() {
 
 ensure_quill_chat_long_transcript_bottom_scroll() {
   local scroll_attempt
-  local scroll_attempts="${QUILLUI_BACKEND_LONG_TRANSCRIPT_SCROLL_VERIFY_ATTEMPTS:-2}"
+  local scroll_attempts="${QUILLUI_BACKEND_LONG_TRANSCRIPT_SCROLL_VERIFY_ATTEMPTS:-3}"
 
   if ! quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     scroll_quill_chat_transcript_to_bottom
