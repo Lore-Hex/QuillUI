@@ -587,7 +587,7 @@ quillui_backend_quill_chat_interaction_verify_product() {
       verify_product="quill-chat-linux-mac-reference-settings-panel"
       ;;
     *:completions-panel)
-      verify_product="quill-chat-linux-mac-reference-completions-panel"
+      verify_product="quill-chat-linux-mac-reference-completions-panel-visible"
       ;;
     *:completions-new-sheet)
       verify_product="quill-chat-linux-mac-reference-completions-new-sheet"

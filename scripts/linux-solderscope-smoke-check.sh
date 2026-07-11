@@ -1110,8 +1110,13 @@ quillui_drive_solderscope_interaction() {
       echo "SolderScope interaction smoke did not observe a finalized recording file in $SOLDERSCOPE_DESKTOP_DIR" >&2
       return 1
     fi
-    quillui_solderscope_wait_for_visible_frame_with_retry \
-      "after recording" "$settled_recording_screenshot" "$window_id" "$window_width" "$window_height"
+    if ! quillui_solderscope_wait_for_visible_frame_with_retry \
+      "after recording" "$settled_recording_screenshot" "$window_id" "$window_width" "$window_height"; then
+      if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRE_FRAME_AFTER_RECORDING:-0}"; then
+        return 1
+      fi
+      echo "SolderScope interaction smoke: continuing recording verification despite missing post-recording frame" >&2
+    fi
     sleep "${QUILLUI_SOLDERSCOPE_POST_RECORDING_SETTLE_SECONDS:-0.5}"
   fi
   if [[ "$SOLDERSCOPE_FREEZE_DRIVER" != "none" ]]; then

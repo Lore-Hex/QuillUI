@@ -1028,7 +1028,7 @@ quill_chat_mac_reference_completions_panel_visible() {
   capture_backend_screenshot "$probe_path" >/dev/null 2>&1 || return 1
   if python3 "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
     "$probe_path" \
-    quill-chat-linux-mac-reference-completions-panel \
+    quill-chat-linux-mac-reference-completions-panel-visible \
     >/dev/null 2>&1; then
     quill_chat_completions_panel_probe_path="$probe_path"
     return 0
