@@ -1573,8 +1573,10 @@ select_quill_chat_toolbar_model_and_send_prompt() {
   local prompt_x
   local prompt_y
   local selected_model
+  local selected_model_action_title
 
   selected_model="${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}"
+  selected_model_action_title="${QUILLUI_BACKEND_SELECTED_MODEL_ACTION_TITLE:-Mistral-7B-Reference-Linux-Picker latest}"
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       menu_x="${QUILLUI_BACKEND_MODEL_MENU_CLICK_X:-1816}"
@@ -1602,7 +1604,7 @@ select_quill_chat_toolbar_model_and_send_prompt() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT" \
     && [[ "$SELECTED_BACKEND" != "qt" ]] \
     && [[ -n "$quill_gtk_toolbar_action_command_dir" ]]; then
-    emit_quill_chat_toolbar_action_command "$selected_model"
+    emit_quill_chat_toolbar_action_command "$selected_model_action_title"
   else
     click_at "$menu_x" "$menu_y"
     sleep 0.8

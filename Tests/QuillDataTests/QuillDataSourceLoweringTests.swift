@@ -981,6 +981,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_MODEL_MENU_CLICK_X"))
         #expect(interactionScript.contains("mistral-7b-reference-linux-picker:latest"))
         #expect(interactionScript.contains("selected_model=\"${QUILLUI_BACKEND_SELECTED_MODEL_NAME:-mistral-7b-reference-linux-picker:latest}\""))
+        #expect(interactionScript.contains("selected_model_action_title=\"${QUILLUI_BACKEND_SELECTED_MODEL_ACTION_TITLE:-Mistral-7B-Reference-Linux-Picker latest}\""))
         #expect(interactionScript.contains("emit_quill_chat_toolbar_action_command"))
         #expect(interactionScript.contains("prompt_x=\"${QUILLUI_BACKEND_PROMPT_CARD_CLICK_X:-1825}\""))
         #expect(interactionScript.contains("quill_chat_latest_conversation_uses_model()"))
