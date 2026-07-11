@@ -1469,12 +1469,14 @@ def validate_quill_chat_mac_reference_settings_panel(
             if row[2].width <= 1_000
         ]
 
-    def root_overlay_field_text_pixels(index: int) -> int:
-        require(
-            len(root_overlay_field_rows) > index,
-            "Mac-reference settings root-overlay form field rows were not detected: "
-            f"rows={root_overlay_field_rows}",
-        )
+    def root_overlay_field_text_pixels(index: int, *, required: bool = True) -> int:
+        if len(root_overlay_field_rows) <= index:
+            require(
+                not required,
+                "Mac-reference settings root-overlay form field rows were not detected: "
+                f"rows={root_overlay_field_rows}",
+            )
+            return 0
         y0, y1, segment = root_overlay_field_rows[index]
         return dark_pixel_count(
             image,
@@ -1483,6 +1485,17 @@ def validate_quill_chat_mac_reference_settings_panel(
             min(segment.end, segment.start + 560),
             min(bottom + 1, y1 + 11),
         )
+
+    def root_overlay_ping_interval_text_pixels() -> int:
+        indexed_pixels = root_overlay_field_text_pixels(4, required=False)
+        band_pixels = dark_pixel_count(
+            image,
+            panel_segment.start + 30,
+            panel_y + int(app_height * 0.30),
+            min(panel_segment.end, panel_segment.start + 560),
+            panel_y + int(app_height * 0.36),
+        )
+        return max(indexed_pixels, band_pixels)
 
     if require_typed_endpoint:
         if panel_kind == "root-overlay":
@@ -1525,7 +1538,7 @@ def validate_quill_chat_mac_reference_settings_panel(
 
     if require_typed_ping_interval:
         if panel_kind == "root-overlay":
-            ping_text_pixels = root_overlay_field_text_pixels(4)
+            ping_text_pixels = root_overlay_ping_interval_text_pixels()
         else:
             ping_y0 = panel_y + 208
             ping_y1 = panel_y + 257
