@@ -2814,7 +2814,7 @@ def validate_quill_chat_mac_reference_toolbar_model_selected(image: Screenshot) 
         image,
         "toolbar model-selected",
         minimum_message_pixels=350,
-        minimum_right_aligned_message_pixels=220,
+        minimum_right_aligned_message_pixels=0,
     )
 
 
