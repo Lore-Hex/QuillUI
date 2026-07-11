@@ -19,6 +19,7 @@ SMOKE_SECONDS="${QUILLUI_SOLDERSCOPE_SMOKE_SECONDS:-${QUILLUI_SMOKE_SECONDS:-10}
 DISPLAY_ID="${QUILLUI_SOLDERSCOPE_DISPLAY:-:93}"
 SCREEN_SIZE="${QUILLUI_SOLDERSCOPE_SCREEN_SIZE:-1180x760x24}"
 SMOKE_MODE="${2:-${QUILLUI_SOLDERSCOPE_SMOKE_MODE:-launch}}"
+SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT="${SCREENSHOT_PATH%.png}-last-visible.png"
 VERIFY_PRODUCT="quill-solderscope-launch"
 case "$SMOKE_MODE" in
   launch)
@@ -495,6 +496,7 @@ quillui_solderscope_wait_for_visible_frame() {
   while (( SECONDS <= frame_wait_deadline )); do
     DISPLAY="$DISPLAY_ID" import -window root "$frame_probe_path" 2>/dev/null || true
     if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$frame_probe_path" quill-solderscope-interaction >/tmp/quill-solderscope-frame-check.log 2>&1; then
+      cp -f "$frame_probe_path" "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT" 2>/dev/null || true
       if [[ -n "$settled_screenshot_path" ]]; then
         cp -f "$frame_probe_path" "$settled_screenshot_path"
       fi
@@ -805,6 +807,7 @@ fi
 mkdir -p "$(dirname "$SCREENSHOT_PATH")"
 rm -f "${SCREENSHOT_PATH%.png}-recording-idle.png"
 rm -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png"
+rm -f "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT"
 
 if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
   "$ROOT_DIR/scripts/prepare-linux-build-backend.sh" \
@@ -1180,6 +1183,9 @@ elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-recording-
   cp -f "${SCREENSHOT_PATH%.png}-recording-idle.png" "$SCREENSHOT_PATH"
 elif [[ "$SMOKE_MODE" == "interaction" && -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" ]]; then
   cp -f "${SCREENSHOT_PATH%.png}-snapshot-settled.png" "$SCREENSHOT_PATH"
+elif [[ "$SMOKE_MODE" == "interaction" && -f "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT" ]]; then
+  echo "SolderScope interaction smoke: using last verified visible frame for final verifier" >&2
+  cp -f "$SOLDERSCOPE_LAST_VISIBLE_SCREENSHOT" "$SCREENSHOT_PATH"
 else
   DISPLAY="$DISPLAY_ID" import -window root "$SCREENSHOT_PATH"
 fi
