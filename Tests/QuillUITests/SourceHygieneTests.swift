@@ -7244,6 +7244,7 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("205 230 190 245"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_FREEZE_TOOLBAR_Y_OFFSET"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_REQUIRE_FREEZE_VERIFIED:-0"))
+        #expect(solderScopeSmoke.contains("VERIFY_PRODUCT=\"quill-solderscope-interaction\""))
         #expect(solderScopeSmoke.contains("continuing despite unverified frozen state"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_TOOLBAR_PRESS_SECONDS:-0.08"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_TOOLBAR_SETTLE_SECONDS"))

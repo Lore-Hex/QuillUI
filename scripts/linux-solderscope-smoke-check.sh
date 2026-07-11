@@ -726,6 +726,7 @@ quillui_solderscope_converge_freeze() {
   if quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_REQUIRE_FREEZE_VERIFIED:-0}"; then
     return 1
   fi
+  VERIFY_PRODUCT="quill-solderscope-interaction"
   echo "SolderScope interaction smoke: continuing despite unverified frozen state" >&2
   return 0
 }
