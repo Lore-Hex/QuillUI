@@ -9071,6 +9071,7 @@ struct SourceHygieneTests {
         let gtkTextField = try packageSource("Sources/QuillUIGtk/QuillGtkTextField.swift")
         let gtkToggle = try packageSource("Sources/QuillUIGtk/QuillGtkToggle.swift")
         let gtkListRow = try packageSource("Sources/QuillUIGtk/QuillGtkListRow.swift")
+        #expect(gtkListRow.contains("gtk_widget_set_can_target(overlay, 0)"))
 
         for source in [renderer, patcher, smallPatcher] {
             #expect(source.contains("quill_gtk_button_paint_hook"))
