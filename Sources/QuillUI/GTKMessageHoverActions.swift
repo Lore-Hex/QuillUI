@@ -3,6 +3,10 @@ import CGTK
 import SwiftOpenUI
 import BackendGTK4
 
+private let quillGTKMessageHoverRowClass = "quill-message-hover-row"
+private let quillGTKMessageHoverActionsClass = "quill-message-hover-actions"
+private let quillGTKMessageHoverActionsVisibleClass = "quill-message-hover-actions-visible"
+
 private final class QuillGTKMessageHoverActionState {
     let actionWidget: UnsafeMutablePointer<GtkWidget>
     private var hoverDepth = 0
@@ -20,7 +24,7 @@ private final class QuillGTKMessageHoverActionState {
     func enter() {
         hoverDepth += 1
         generation += 1
-        gtk_widget_set_opacity(actionWidget, 1)
+        gtk_widget_add_css_class(actionWidget, quillGTKMessageHoverActionsVisibleClass)
     }
 
     func leave() {
@@ -46,7 +50,7 @@ private final class QuillGTKMessageHoverActionState {
 
     func hide(ifGeneration expectedGeneration: Int) {
         guard hoverDepth == 0, generation == expectedGeneration else { return }
-        gtk_widget_set_opacity(actionWidget, 0.0001)
+        gtk_widget_remove_css_class(actionWidget, quillGTKMessageHoverActionsVisibleClass)
     }
 }
 
@@ -78,7 +82,7 @@ extension QuillDesktopMessageHoverActionRow: GTKRenderable {
         gtk_widget_set_can_target(actionWidget, 1)
         gtk_widget_set_halign(actionWidget, isUserMessage ? GTK_ALIGN_END : GTK_ALIGN_START)
         gtk_widget_set_margin_top(actionWidget, 2)
-        gtk_widget_set_opacity(actionWidget, 0.0001)
+        quillGTKInstallMessageHoverActionCSS(on: container, actionWidget: actionWidget)
         gtk_box_append(UnsafeMutableRawPointer(container).assumingMemoryBound(to: GtkBox.self), contentWidget)
         gtk_box_append(UnsafeMutableRawPointer(container).assumingMemoryBound(to: GtkBox.self), actionWidget)
 
@@ -94,6 +98,35 @@ extension QuillDesktopMessageHoverActionRow: GTKRenderable {
 
         return OpaquePointer(container)
     }
+}
+
+private func quillGTKInstallMessageHoverActionCSS(
+    on rowWidget: UnsafeMutablePointer<GtkWidget>,
+    actionWidget: UnsafeMutablePointer<GtkWidget>
+) {
+    let css = """
+    .\(quillGTKMessageHoverRowClass) .\(quillGTKMessageHoverActionsClass) {
+        opacity: 0.0001;
+    }
+    .\(quillGTKMessageHoverRowClass):hover .\(quillGTKMessageHoverActionsClass),
+    .\(quillGTKMessageHoverActionsClass):hover,
+    .\(quillGTKMessageHoverActionsVisibleClass) {
+        opacity: 1;
+    }
+    """
+
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(rowWidget) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(rowWidget, quillGTKMessageHoverRowClass)
+    gtk_widget_add_css_class(actionWidget, quillGTKMessageHoverActionsClass)
+    g_object_unref(gpointer(provider))
 }
 
 private func quillGTKInstallMessageHoverActionControllers(
