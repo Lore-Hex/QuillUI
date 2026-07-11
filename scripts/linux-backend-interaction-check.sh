@@ -1095,6 +1095,21 @@ ensure_quill_chat_completions_panel_open() {
   quill_chat_mac_reference_completions_panel_visible
 }
 
+dismiss_quill_chat_completions_overlay_if_visible() {
+  local close_x
+  local close_y
+
+  quillui_is_quill_chat_mac_reference_product "$PRODUCT" || return 0
+  quill_chat_mac_reference_completions_panel_visible || return 0
+
+  close_x="${QUILLUI_BACKEND_COMPLETIONS_CLOSE_CLICK_X:-$((window_x + window_width * 75 / 100))}"
+  close_y="${QUILLUI_BACKEND_COMPLETIONS_CLOSE_CLICK_Y:-$((window_y + window_height * 31 / 100))}"
+  click_at "$close_x" "$close_y"
+  sleep "${QUILLUI_BACKEND_COMPLETIONS_CLOSE_SLEEP:-0.6}"
+  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape
+  sleep "${QUILLUI_BACKEND_COMPLETIONS_CLOSE_ESCAPE_SLEEP:-0.3}"
+}
+
 quill_chat_mac_reference_new_completion_click_target() {
   local probe_path="$1"
 
@@ -1670,6 +1685,7 @@ open_quill_chat_new_chat() {
     new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 54))}"
   fi
 
+  dismiss_quill_chat_completions_overlay_if_visible
   click_at "$history_x" "$history_y"
   sleep 1
   click_at "$new_chat_x" "$new_chat_y"
