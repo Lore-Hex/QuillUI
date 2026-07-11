@@ -990,7 +990,7 @@ struct QuillDataSourceLoweringTests {
         #expect(interactionScript.contains("QUILLUI_BACKEND_HISTORY_CLICK_X"))
         #expect(interactionScript.contains("if [[ \"$SELECTED_BACKEND\" == \"qt\" ]]; then"))
         #expect(interactionScript.contains("new_chat_x=\"${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 70))}\""))
-        #expect(interactionScript.contains("new_chat_y=\"${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 57))}\""))
+        #expect(interactionScript.contains("new_chat_y=\"${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 32))}\""))
         #expect(interactionScript.contains("copy-chat"))
         #expect(interactionScript.contains("copy-chat-json"))
         #expect(interactionScript.contains("copy_quill_chat_transcript()"))

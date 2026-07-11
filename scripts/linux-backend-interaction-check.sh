@@ -1673,10 +1673,10 @@ open_quill_chat_new_chat() {
     history_y="${QUILLUI_BACKEND_HISTORY_CLICK_Y:-$(quill_chat_mac_reference_history_row_y recent-transcript)}"
     if [[ "$SELECTED_BACKEND" == "qt" ]]; then
       new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-$((window_x + window_width - 70))}"
-      new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 57))}"
+      new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-$((window_y + 32))}"
     else
       new_chat_x="${QUILLUI_BACKEND_NEW_CHAT_CLICK_X:-2010}"
-      new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-57}"
+      new_chat_y="${QUILLUI_BACKEND_NEW_CHAT_CLICK_Y:-32}"
     fi
   else
     history_x="${QUILLUI_BACKEND_HISTORY_CLICK_X:-$((window_x + 190))}"
