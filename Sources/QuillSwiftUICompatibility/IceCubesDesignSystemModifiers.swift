@@ -9,7 +9,9 @@ import QuillFoundation
 // `textSelection` are the first exceptions: they carry real wrappers so
 // backends can suppress native hit testing, expand gesture hit targets, install
 // native pointer tracking, and toggle native label selectability while
-// unmodified SwiftUI-only app source still type-checks.
+// unmodified SwiftUI-only app source still type-checks. Their bodies still
+// return `content` so shadow-only app targets render safely when a backend
+// conformance lives in a module the app does not import directly.
 // These live in
 // QuillSwiftUICompatibility (re-exported by the SwiftUI shadow) rather than
 // QuillUI so DesignSystem, which only imports the shadow, can see them.
@@ -39,9 +41,7 @@ public struct QuillCompatibilityTextSelectionView<Content: View>: View {
         self.selection = selection
     }
 
-    public var body: Never {
-        fatalError("QuillCompatibilityTextSelectionView is a backend-rendered primitive")
-    }
+    public var body: Content { content }
 }
 
 public struct QuillCompatibilityOnHoverView<Content: View>: View {
@@ -53,9 +53,7 @@ public struct QuillCompatibilityOnHoverView<Content: View>: View {
         self.action = action
     }
 
-    public var body: Never {
-        fatalError("QuillCompatibilityOnHoverView is a backend-rendered primitive")
-    }
+    public var body: Content { content }
 }
 
 public struct QuillCompatibilityAllowsHitTestingView<Content: View>: View {
@@ -67,9 +65,7 @@ public struct QuillCompatibilityAllowsHitTestingView<Content: View>: View {
         self.enabled = enabled
     }
 
-    public var body: Never {
-        fatalError("QuillCompatibilityAllowsHitTestingView is a backend-rendered primitive")
-    }
+    public var body: Content { content }
 }
 
 public struct QuillCompatibilityContentShapeView<Content: View, ShapeValue: Shape>: View {
@@ -81,9 +77,7 @@ public struct QuillCompatibilityContentShapeView<Content: View, ShapeValue: Shap
         self.shape = shape
     }
 
-    public var body: Never {
-        fatalError("QuillCompatibilityContentShapeView is a backend-rendered primitive")
-    }
+    public var body: Content { content }
 }
 
 public extension View {

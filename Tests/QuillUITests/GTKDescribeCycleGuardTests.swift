@@ -143,6 +143,19 @@ struct GTKDescribeCycleGuardTests {
             "Expected a hit-testing metadata wrapper, got \(typeName)"
         )
     }
+
+    @Test("SwiftUI shadow hit-testing wrapper renders through GTK without QuillUI import")
+    func swiftUIShadowHitTestingWrapperRendersThroughGTKWithoutQuillUIImport() throws {
+        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+            return
+        }
+
+        let disabled = Text("Decorative transcript").allowsHitTesting(false)
+        let widget = widgetFromOpaque(gtkRenderView(disabled))
+        let label = try firstGTKLabel(in: widget)
+
+        #expect(String(cString: gtk_label_get_text(OpaquePointer(label))) == "Decorative transcript")
+    }
 }
 
 private struct Cyclic: View {
