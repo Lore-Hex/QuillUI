@@ -804,8 +804,16 @@ groups.append(current)
 
 group = max(groups, key=lambda item: sum(count for _, count in item))
 click_y = (group[0][0] + group[-1][0]) // 2
-sidebar_width = divider_x - left
-click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
+text_columns = [
+    x
+    for x in range(sidebar_left, sidebar_right)
+    if any(sum(image.rgb(x, y)) < 430 for y, _ in group)
+]
+if text_columns:
+    click_x = (min(text_columns) + max(text_columns)) // 2
+else:
+    sidebar_width = divider_x - left
+    click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
 print(f"{window_x + click_x} {window_y + click_y}")
 PY
 }

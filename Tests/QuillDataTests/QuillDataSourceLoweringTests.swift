@@ -1185,6 +1185,8 @@ struct QuillDataSourceLoweringTests {
         #expect(functionalScript.contains("QUILLUI_FUNCTIONAL_RELAUNCH_HISTORY_PROBE"))
         #expect(functionalScript.contains("scan_top = top + int(app_height * 0.06)"))
         #expect(functionalScript.contains("scan_bottom = bottom - int(app_height * 0.18)"))
+        #expect(functionalScript.contains("text_columns = ["))
+        #expect(functionalScript.contains("click_x = (min(text_columns) + max(text_columns)) // 2"))
         #expect(functionalScript.contains("if sum(image.rgb(x, y)) < 430"))
         #expect(functionalScript.contains("mapfile -t relaunch_history_points < <(quill_chat_functional_relaunch_history_click_points)"))
         #expect(functionalScript.contains("relaunch_history_points=(\"$((window_x + 220)) $((window_y + window_height / 2))\")"))
