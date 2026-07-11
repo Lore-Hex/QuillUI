@@ -144,12 +144,20 @@ struct QuillUITests {
     @Test("SwiftUI compatibility covers CodeEdit AboutWindow modifier surface")
     func swiftUICompatibilityCoversCodeEditAboutWindowSurface() {
         @Namespace var namespace
+        struct ThemeColorFixture {
+            var primaryBackgroundColor = Color.white
+        }
+        let theme = ThemeColorFixture()
+
         _ = Spacer(minLength: CGFloat(20.5))
         #expect(EventModifiers.numericPad.rawValue != EventModifiers.command.rawValue)
         _ = Color.clear
             .background(.bar)
         _ = Color.clear
             .background(.regularMaterial.opacity(0))
+        _ = Color.clear
+            .scrollContentBackground(.hidden)
+            .background(theme.primaryBackgroundColor)
         _ = Rectangle()
             .fill(.regularMaterial)
             .blendMode(.plusLighter)
