@@ -852,6 +852,26 @@ quill_chat_settings_click_y() {
   fi
 }
 
+quill_chat_alert_settings_click_x() {
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 98))}"
+  elif quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 112))}"
+  else
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
+  fi
+}
+
+quill_chat_alert_settings_click_y() {
+  if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}"
+  elif quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 355))}"
+  else
+    printf '%s\n' "${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 350))}"
+  fi
+}
+
 quill_chat_completions_click_x() {
   if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
     printf '%s\n' "${QUILLUI_BACKEND_COMPLETIONS_CLICK_X:-$((window_x + 80))}"
@@ -1657,16 +1677,8 @@ if [[ "$PRODUCT" == "quill-chat-linux" ]]; then
         sleep "$post_click_sleep"
         ;;
       alert-settings-panel)
-        if quillui_is_quill_chat_mac_reference_product "$PRODUCT" && [[ "$SELECTED_BACKEND" == "qt" ]]; then
-          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 98))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 205))}"
-        elif quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
-          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 326))}"
-        else
-          click_x="${QUILLUI_BACKEND_CLICK_X:-$((window_x + window_width - 142))}"
-          click_y="${QUILLUI_BACKEND_CLICK_Y:-$((window_y + window_height - 350))}"
-        fi
+        click_x="$(quill_chat_alert_settings_click_x)"
+        click_y="$(quill_chat_alert_settings_click_y)"
         click_at "$click_x" "$click_y"
         sleep "$post_click_sleep"
         ;;
