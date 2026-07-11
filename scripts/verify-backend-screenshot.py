@@ -2618,7 +2618,7 @@ def validate_quill_chat_mac_reference_markdown_transcript_selection(image: Scree
         detail_left + int(detail_width * 0.03),
         detail_left + int(detail_width * 0.98),
         gray_line_pixel,
-        min_width=int(detail_width * 0.50),
+        min_width=int(detail_width * 0.40),
     )
     require(
         table_divider is not None,

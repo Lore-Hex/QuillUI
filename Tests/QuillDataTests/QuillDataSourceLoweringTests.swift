@@ -618,6 +618,7 @@ struct QuillDataSourceLoweringTests {
         #expect(verifier.contains("Mac-reference markdown transcript code panel was not detected"))
         #expect(verifier.contains("table_panel_pixels >= 20_000"))
         #expect(verifier.contains("Mac-reference markdown transcript table panel was not detected"))
+        #expect(verifier.contains("min_width=int(detail_width * 0.40)"))
         #expect(verifier.contains("Mac-reference markdown transcript table dividers were not detected"))
         #expect(verifier.contains("quill-chat-linux-mac-reference-markdown-transcript-selection"))
         #expect(verifier.contains("validate_quill_chat_mac_reference_message_hover_actions"))
