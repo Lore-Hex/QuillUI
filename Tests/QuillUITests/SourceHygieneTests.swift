@@ -3257,13 +3257,18 @@ struct SourceHygieneTests {
 
         let optionalOptions = nil as CFDictionary?
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         let thumbnailOptions = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceThumbnailMaxPixelSize: 200,
         ] as [CFString: Any] as CFDictionary
+        let destinationProperties = [
+            kCGImageDestinationLossyCompressionQuality: 0.8
+        ] as CFDictionary
         let metadataKeys: [CFString] = ["tiff:Orientation" as CFString]
         let source = CGImageSourceCreateWithData(Data() as CFData, nil)
         let destination = CGImageDestinationCreateWithData(NSMutableData() as CFMutableData, "public.png" as CFString, 1, nil)
+        let jpegDestination = CGImageDestinationCreateWithData(NSMutableData(), UTType.jpeg.identifier as CFString, 1, nil)
         let urlSource = CGImageSourceCreateWithURL(URL(fileURLWithPath: "/tmp/a.png") as CFURL, nil)
         let maybeName = "example" as CFString?
         let maybeNilName = nil as CFString?
@@ -3277,15 +3282,20 @@ struct SourceHygieneTests {
 
         let lowered = try String(contentsOf: sourceURL, encoding: .utf8)
         #expect(lowered.contains("let optionalOptions = nil"))
-        #expect(lowered.contains("let options = [kCGImageSourceShouldCache: false]"))
+        #expect(lowered.contains("let options = [kCGImageSourceShouldCache: false] as [String: Any]"))
+        #expect(lowered.contains("let sourceOptions = [kCGImageSourceShouldCache: false] as [String: Any]"))
         #expect(lowered.contains("] as [String: Any]"))
+        #expect(lowered.contains("let destinationProperties = [\n    kCGImageDestinationLossyCompressionQuality: 0.8\n] as [String: Any]"))
         #expect(lowered.contains("let metadataKeys: [String] = [\"tiff:Orientation\"]"))
         #expect(lowered.contains("CGImageSourceCreateWithData(Data(), nil)"))
         #expect(lowered.contains("CGImageDestinationCreateWithData(NSMutableData(), \"public.png\", 1, nil)"))
+        #expect(lowered.contains("CGImageDestinationCreateWithData(NSMutableData(), UTType.jpeg.identifier, 1, nil)"))
         #expect(lowered.contains("CGImageSourceCreateWithURL(URL(fileURLWithPath: \"/tmp/a.png\"), nil)"))
         #expect(lowered.contains("let maybeName = \"example\""))
         #expect(lowered.contains("let maybeNilName = nil"))
         #expect(!lowered.contains("nil?"))
+        #expect(!lowered.contains("CFDictionary"))
+        #expect(!lowered.contains("CFString"))
     }
 
     @Test("GTK manifest filters pkg-config prohibited flag warnings")

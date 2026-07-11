@@ -1131,6 +1131,18 @@ PY
         echo "==> lowering IceCubes StatusKit Objective-C interop syntax for Linux"
         "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$statusdir"
     fi
+
+    local appdir="$UPSTREAM_DIR/icecubes/IceCubesApp/App"
+    if [[ -d "$appdir" ]]; then
+        echo "==> lowering IceCubes app Objective-C/CoreFoundation interop syntax for Linux"
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$appdir"
+    fi
+
+    local intentsdir="$UPSTREAM_DIR/icecubes/IceCubesAppIntents"
+    if [[ -d "$intentsdir" ]]; then
+        echo "==> lowering IceCubes app-intents Objective-C/CoreFoundation interop syntax for Linux"
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$intentsdir"
+    fi
 }
 
 patch_signal_ios() {

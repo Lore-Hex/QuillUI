@@ -106,7 +106,7 @@ def lower_imageio_option_dictionaries(src: str) -> str:
     # need an explicit Swift dictionary context. Keep this generic to ImageIO
     # key dictionaries instead of naming IceCubes files.
     option_dictionary_re = re.compile(
-        r"(let\s+\w+\s*=\s*\[[^\]]*kCGImageSource[^\]]*\])(?!\s+as\s+\[String:\s*Any\])",
+        r"(let\s+\w+\s*=\s*\[[^\]]*kCGImage(?:Source|Destination)[^\]]*\])(?!\s+as\s+\[String:\s*Any\])",
         re.DOTALL,
     )
     return option_dictionary_re.sub(r"\1 as [String: Any]", src)
