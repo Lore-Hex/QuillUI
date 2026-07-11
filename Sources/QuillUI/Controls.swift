@@ -16,6 +16,10 @@ import SwiftOpenUI
 import QuillSwiftUICompatibility
 import class UIKit.NSItemProvider
 #endif
+#if os(Linux)
+import CGTK
+import BackendGTK4
+#endif
 
 public enum QuillSystemSymbol {
     public static func compatibleName(_ systemName: String) -> String {
@@ -2494,6 +2498,126 @@ where Message.ID: Hashable {
         #endif
     }
 }
+
+#if os(Linux)
+extension QuillMessageList: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let overlay = gtk_overlay_new()!
+        gtk_widget_set_hexpand(overlay, 1)
+        gtk_widget_set_vexpand(overlay, 1)
+
+        let scrolled = gtk_scrolled_window_new()!
+        gtk_widget_set_hexpand(scrolled, 1)
+        gtk_widget_set_vexpand(scrolled, 1)
+        gtk_scrolled_window_set_policy(OpaquePointer(scrolled), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC)
+
+        let stack = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        gtk_widget_set_hexpand(stack, 1)
+        gtk_widget_set_vexpand(stack, 0)
+        gtk_widget_set_valign(stack, GTK_ALIGN_START)
+
+        for message in messages {
+            let rowWidget = quillGTKMessageListWidgetPointer(gtkRenderView(
+                rowContent(message)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
+                    .padding(.vertical, rowVerticalPadding)
+                    .padding(.horizontal, rowHorizontalPadding)
+                    .contentShape(Rectangle())
+                    .contextMenu {
+                        ForEach(actions(message)) { action in
+                            contextMenuItem(for: action)
+                        }
+                    }
+                    .id(message)
+            ))
+            gtk_widget_set_hexpand(rowWidget, 1)
+            gtk_widget_set_halign(rowWidget, GTK_ALIGN_FILL)
+            gtk_box_append(UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GtkBox.self), rowWidget)
+        }
+
+        let sentinel = gtk_label_new("")!
+        gtk_widget_set_size_request(sentinel, -1, 1)
+        gtk_box_append(UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GtkBox.self), sentinel)
+
+        gtk_scrolled_window_set_child(OpaquePointer(scrolled), stack)
+        gtk_overlay_set_child(OpaquePointer(overlay), scrolled)
+
+        let overlayWidget = quillGTKMessageListWidgetPointer(gtkRenderView(overlayContent()))
+        gtk_widget_set_halign(overlayWidget, GTK_ALIGN_CENTER)
+        gtk_widget_set_valign(overlayWidget, GTK_ALIGN_START)
+        gtk_overlay_add_overlay(OpaquePointer(overlay), overlayWidget)
+
+        quillGTKScheduleMessageListBottomScroll(scrolled)
+        return OpaquePointer(overlay)
+    }
+}
+
+private final class QuillGTKMessageListScrollState {
+    let scrolled: UnsafeMutablePointer<GtkWidget>
+    var remainingAppliedTicks: Int
+    var remainingTotalTicks: Int
+
+    init(scrolled: UnsafeMutablePointer<GtkWidget>, remainingAppliedTicks: Int = 600, remainingTotalTicks: Int = 900) {
+        self.scrolled = scrolled
+        self.remainingAppliedTicks = remainingAppliedTicks
+        self.remainingTotalTicks = remainingTotalTicks
+        g_object_ref(gpointer(scrolled))
+    }
+
+    deinit {
+        g_object_unref(gpointer(scrolled))
+    }
+
+    @discardableResult
+    func scrollToBottom() -> Bool {
+        guard gtk_swift_is_widget(scrolled) != 0,
+              let adjustment = gtk_scrolled_window_get_vadjustment(OpaquePointer(scrolled)) else {
+            return false
+        }
+
+        let lower = gtk_adjustment_get_lower(adjustment)
+        let upper = gtk_adjustment_get_upper(adjustment)
+        let pageSize = gtk_adjustment_get_page_size(adjustment)
+        guard upper - lower > pageSize + 1.0 else {
+            return false
+        }
+
+        gtk_adjustment_set_value(adjustment, max(lower, upper - pageSize))
+        return true
+    }
+}
+
+private func quillGTKScheduleMessageListBottomScroll(_ scrolled: UnsafeMutablePointer<GtkWidget>) {
+    let state = QuillGTKMessageListScrollState(scrolled: scrolled)
+    g_timeout_add(16, { userData -> gboolean in
+        guard let userData else { return 0 }
+
+        let retained = Unmanaged<QuillGTKMessageListScrollState>.fromOpaque(userData)
+        let state = retained.takeUnretainedValue()
+        guard gtk_swift_is_widget(state.scrolled) != 0 else {
+            retained.release()
+            return 0
+        }
+
+        if state.scrollToBottom() {
+            state.remainingAppliedTicks -= 1
+        }
+        state.remainingTotalTicks -= 1
+
+        if state.remainingAppliedTicks > 0 && state.remainingTotalTicks > 0 {
+            return 1
+        }
+
+        retained.release()
+        return 0
+    }, Unmanaged.passRetained(state).toOpaque())
+}
+
+private func quillGTKMessageListWidgetPointer(_ opaque: OpaquePointer) -> UnsafeMutablePointer<GtkWidget> {
+    UnsafeMutableRawPointer(opaque).assumingMemoryBound(to: GtkWidget.self)
+}
+#endif
 
 public struct QuillEditableMessageList<Message: Identifiable & Hashable, RowContent: View, OverlayContent: View>: View
 where Message.ID: Hashable {
