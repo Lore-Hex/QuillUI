@@ -125,6 +125,15 @@ quillui_functional_enter_text() {
   case "$input_mode" in
     auto|paste-first|paste)
       if quillui_functional_paste_text "$text"; then
+        if [[ "${QUILLUI_FUNCTIONAL_TYPE_AFTER_PASTE:-0}" == "1" ]] \
+          || {
+            [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] \
+            && [[ "${QUILLUI_FUNCTIONAL_ATTACHMENT_TYPE_AFTER_PASTE:-1}" == "1" ]]
+          }; then
+          sleep "${QUILLUI_FUNCTIONAL_TYPE_AFTER_PASTE_SLEEP:-0.15}"
+          quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$text" \
+            || true
+        fi
         return
       fi
       ;;
@@ -716,6 +725,14 @@ PY
 }
 
 quill_chat_functional_composer_click_points() {
+  local default_max_points=8
+  local max_points
+
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    default_max_points=4
+  fi
+  max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-$default_max_points}"
+
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     {
       quill_chat_functional_detected_composer_click_points
@@ -727,7 +744,7 @@ quill_chat_functional_composer_click_points() {
       quill_chat_functional_detected_composer_click_points
       quill_chat_functional_static_composer_click_points
     }
-  fi | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
+  fi | awk -v max_points="$max_points" '
     !seen[$1 "," $2]++ {
       print
       emitted += 1
