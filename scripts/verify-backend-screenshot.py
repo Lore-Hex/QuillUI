@@ -1402,10 +1402,12 @@ def validate_quill_chat_mac_reference_settings_panel(
         panel_y + 450,
     )
     # Root-overlay sheets render through GTK with slightly lighter text
-    # antialiasing than the legacy full-width settings panel; the headless GTK
-    # GL render path used by packaged-artifact checks is lighter still. Keep a
-    # meaningful floor while reporting the active threshold in failures.
-    body_dark_threshold = 800 if panel_kind == "root-overlay" else 1_000
+    # antialiasing than the legacy full-width settings panel. After the
+    # destructive-data confirmation, the panel also has less populated text but
+    # should still show the header, field surfaces, dropdown rows, and clear
+    # action. Keep the body floor meaningful while reporting the active
+    # threshold in failures.
+    body_dark_threshold = 600 if panel_kind == "root-overlay" else 1_000
     require(
         body_dark_pixels >= body_dark_threshold,
         "Mac-reference settings labels and controls were not detected: "
