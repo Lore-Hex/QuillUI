@@ -381,7 +381,8 @@ public class AVAssetWriter: @unchecked Sendable {
         return quillEncodedFrameCount > 0
     }
 
-    private func quillAppendLatestCaptureFrameIfAvailable() {
+    @discardableResult
+    private func quillAppendLatestCaptureFrameIfAvailable() -> Bool {
         guard status == .writing,
               !quillHasEncodedFrames(),
               let encoder = quillEncoder,
@@ -392,15 +393,50 @@ public class AVAssetWriter: @unchecked Sendable {
                   height: height
               )
         else {
+            return false
+        }
+        return quillAppendFrameToEncoder(frame, encoder: encoder)
+    }
+
+    private func quillAppendFinalFallbackFrameIfNeeded() {
+        guard status == .writing,
+              !quillHasEncodedFrames(),
+              let encoder = quillEncoder,
+              let width = quillVideoWidth,
+              let height = quillVideoHeight
+        else {
             return
         }
-        _ = quillAppendFrameToEncoder(frame, encoder: encoder)
+        if quillAppendLatestCaptureFrameIfAvailable() {
+            return
+        }
+        _ = quillAppendFrameToEncoder(
+            quillMakeFallbackMovieFrame(width: width, height: height),
+            encoder: encoder
+        )
+    }
+
+    private func quillMakeFallbackMovieFrame(width: Int, height: Int) -> CVPixelBuffer {
+        let frame = CVPixelBuffer(
+            width: width,
+            height: height,
+            pixelFormatType: kCVPixelFormatType_32BGRA
+        )
+        frame.quillWithMutableBytes { raw in
+            for offset in stride(from: 0, to: raw.count, by: 4) {
+                raw[offset] = 24
+                if offset + 1 < raw.count { raw[offset + 1] = 24 }
+                if offset + 2 < raw.count { raw[offset + 2] = 24 }
+                if offset + 3 < raw.count { raw[offset + 3] = 255 }
+            }
+        }
+        return frame
     }
     #endif
 
     public func finishWriting(completionHandler handler: @escaping () -> Void) {
         #if os(Linux)
-        quillAppendLatestCaptureFrameIfAvailable()
+        quillAppendFinalFallbackFrameIfNeeded()
         QuillRealtimeMovieWriterRegistry.shared.unregister(self)
         if let encoder = quillEncoder {
             // ffmpeg finalizes the container on stdin close; do the wait off

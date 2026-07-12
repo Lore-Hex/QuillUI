@@ -289,6 +289,37 @@ struct AVCaptureSurfaceTests {
         #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
     }
 
+    @Test("real-time writer finalizes a valid fallback movie when no app frames arrive",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterFinalizesFallbackMovieWithoutFrames() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-empty-recording-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 64,
+            AVVideoHeightKey: 48,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 400_000,
+                AVVideoExpectedSourceFrameRateKey: 20,
+            ],
+        ])
+        input.expectsMediaDataInRealTime = true
+        #expect(writer.canAdd(input))
+        writer.add(input)
+        #expect(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+        input.markAsFinished()
+        await writer.finishWriting()
+        #expect(writer.status == .completed)
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
     @Test func ciImagePixelPipelineRoundTrips() {
         // Synthetic 4x2 BGRA frame with a recognizable gradient.
         let width = 4, height = 2
