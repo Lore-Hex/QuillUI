@@ -10408,6 +10408,7 @@ struct SourceHygieneTests {
         #expect(asyncImage.contains("+ (fileExtension.isEmpty ? \"\" : \".\\(fileExtension)\")"))
         #expect(script.contains("VERIFY_PRODUCT=\"icecubes-linux-add-account-instance\""))
         #expect(script.contains("sign-in-open)"))
+        #expect(script.contains("SIGN_IN_Y=\"${QUILLUI_ICECUBES_VISUAL_SIGN_IN_Y:-256}\""))
         #expect(script.contains("QUILLUI_OPEN_URL_LOG_FILE=$OPEN_URL_LOG_PATH"))
         #expect(script.contains("QUILLUI_OPEN_URL_LOG_ASSUME_HANDLED=1"))
         #expect(script.contains("verify_oauth_open_url_log"))
