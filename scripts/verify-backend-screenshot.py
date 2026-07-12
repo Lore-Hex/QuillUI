@@ -368,7 +368,19 @@ def icecubes_sign_in_button_pixel(rgb: tuple[int, int, int]) -> bool:
 
 def icecubes_instance_info_surface_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
-    return 225 <= red <= 248 and 225 <= green <= 248 and 225 <= blue <= 248 and max(rgb) - min(rgb) <= 18
+    light_table = (
+        225 <= red <= 248
+        and 225 <= green <= 248
+        and 225 <= blue <= 248
+        and max(rgb) - min(rgb) <= 18
+    )
+    dimmed_gtk_table = (
+        130 <= red <= 170
+        and 130 <= green <= 170
+        and 130 <= blue <= 170
+        and max(rgb) - min(rgb) <= 14
+    )
+    return light_table or dimmed_gtk_table
 
 
 def icecubes_authenticated_titlebar_pixel(rgb: tuple[int, int, int]) -> bool:
