@@ -1575,6 +1575,11 @@ old_search_box_creation = """        let box = gtk_box_new(GTK_ORIENTATION_VERTI
 new_search_box_creation = """        let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         let boxPtr = boxPointer(box)
         gtk_widget_set_can_target(box, 1)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_vexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        gtkMarkVerticalFillIntent(box)
         let binding = text
         let presentedBinding = isPresented
 
@@ -1614,7 +1619,10 @@ old_content_append = """        let contentWidget = widgetFromOpaque(gtkRenderVi
         gtk_box_append(boxPtr, contentWidget)
 """
 new_content_append = """        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        gtk_widget_set_hexpand(contentWidget, 1)
         gtk_widget_set_vexpand(contentWidget, 1)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
         gtk_swift_search_entry_set_key_capture_widget(entry, box)
         gtk_box_append(boxPtr, contentWidget)
 """
@@ -1627,6 +1635,46 @@ elif "gtk_swift_search_entry_set_key_capture_widget(entry, contentWidget)" in te
         1)
 elif "gtk_swift_search_entry_set_key_capture_widget(entry, box)" not in text:
     raise SystemExit("SwiftOpenUI SearchableView content append was not recognized")
+
+if "extension SearchableView: GTKRenderable, GTKDescribable" in text:
+    search_box_marker = """        gtk_widget_set_can_target(box, 1)
+        let binding = text
+"""
+    search_box_fill = """        gtk_widget_set_can_target(box, 1)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_vexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        gtkMarkVerticalFillIntent(box)
+        let binding = text
+"""
+    if search_box_marker in text:
+        text = text.replace(search_box_marker, search_box_fill, 1)
+    text = text.replace(
+        """        gtk_widget_set_can_target(box, 1)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_vexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        let binding = text
+""",
+        search_box_fill,
+        1,
+    )
+
+    search_content_marker = """        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        gtk_widget_set_vexpand(contentWidget, 1)
+        gtk_swift_search_entry_set_key_capture_widget(entry, box)
+"""
+    search_content_fill = """        let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        gtk_widget_set_hexpand(contentWidget, 1)
+        gtk_widget_set_vexpand(contentWidget, 1)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
+        gtk_swift_search_entry_set_key_capture_widget(entry, box)
+"""
+    if search_content_marker in text:
+        text = text.replace(search_content_marker, search_content_fill, 1)
 
 old_is_dismissed = "        let isDismissed = isPresented.map { !$0.wrappedValue } ?? false\n"
 new_is_dismissed = """        let isDismissed = isPresented.map {
@@ -5829,7 +5877,6 @@ old_scroll = '''        let child = widgetFromOpaque(gtkRenderView(content))
         gtk_scrolled_window_set_child(scrolledOp, child)
 '''
 new_scroll = '''        let child = widgetFromOpaque(gtkRenderView(content))
-        let childWantsVerticalFill = gtkHasVerticalFillIntent(child)
         if axes.contains(.vertical) {
             gtk_widget_set_vexpand(child, 0)
         }
@@ -5848,10 +5895,11 @@ new_scroll = '''        let child = widgetFromOpaque(gtkRenderView(content))
             // A horizontal-only SwiftUI ScrollView has the natural height of
             // its content. If it advertises vertical expansion, fixed-height
             // rows such as IceCubes' status summary buttons allocate the
-            // scroller as the row's fill child and clip neighboring labels.
-            // Keep explicit container-relative/full-height pagers fillable.
-            gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+            // scroller as the row's fill child and push neighboring sections
+            // below the fold. External FrameView constraints can still make
+            // the scroller taller; the primitive itself should fit content.
+            gtk_widget_set_vexpand(child, 0)
+            gtk_widget_set_valign(child, GTK_ALIGN_START)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
 '''
@@ -5899,15 +5947,7 @@ elif "gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 1)" not in te
         1,
     )
 
-if "let childWantsVerticalFill = gtkHasVerticalFillIntent(child)" not in text:
-    scroll_child_marker_anchor = "        let child = widgetFromOpaque(gtkRenderView(content))\n        if axes.contains(.vertical) {\n"
-    if scroll_child_marker_anchor not in text:
-        raise SystemExit("SwiftOpenUI ScrollView child marker shape was not recognized")
-    text = text.replace(
-        scroll_child_marker_anchor,
-        "        let child = widgetFromOpaque(gtkRenderView(content))\n        let childWantsVerticalFill = gtkHasVerticalFillIntent(child)\n        if axes.contains(.vertical) {\n",
-        1,
-    )
+text = text.replace("        let childWantsVerticalFill = gtkHasVerticalFillIntent(child)\n", "")
 
 legacy_horizontal_scroll_child_sizing = '''        if axes.contains(.horizontal) && !axes.contains(.vertical) {
             gtk_widget_set_vexpand(child, 1)
@@ -5918,10 +5958,11 @@ horizontal_scroll_child_sizing = '''        if axes.contains(.horizontal) && !ax
             // A horizontal-only SwiftUI ScrollView has the natural height of
             // its content. If it advertises vertical expansion, fixed-height
             // rows such as IceCubes' status summary buttons allocate the
-            // scroller as the row's fill child and clip neighboring labels.
-            // Keep explicit container-relative/full-height pagers fillable.
-            gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+            // scroller as the row's fill child and push neighboring sections
+            // below the fold. External FrameView constraints can still make
+            // the scroller taller; the primitive itself should fit content.
+            gtk_widget_set_vexpand(child, 0)
+            gtk_widget_set_valign(child, GTK_ALIGN_START)
         }
 '''
 if legacy_horizontal_scroll_child_sizing in text:
@@ -5943,20 +5984,20 @@ duplicate_scroll_cross_axis_install = '''        gtkInstallScrollViewCrossAxisFi
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 '''
 single_scroll_cross_axis_install = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 '''
 if duplicate_scroll_cross_axis_install in text:
@@ -6797,7 +6838,7 @@ if "gtkInstallScrollViewCrossAxisFill(on: scrolled" not in text:
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 """,
         1,
@@ -6807,7 +6848,7 @@ legacy_scroll_view_expansion = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 
         gtk_widget_set_vexpand(scrolled, 1)
@@ -6817,11 +6858,10 @@ scroll_view_expansion = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 
         let scrollerWantsVerticalFill = axes.contains(.vertical)
-            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)
         gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
         gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if scrollerWantsVerticalFill {
@@ -6835,7 +6875,7 @@ if legacy_scroll_view_expansion in text:
 elif legacy_axis_vexpand in text:
     text = text.replace(
         "        " + legacy_axis_vexpand + "\n        gtk_widget_set_hexpand(scrolled, 1)\n",
-        "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)\n        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)\n        if scrollerWantsVerticalFill {\n            gtkMarkVerticalFillIntent(scrolled)\n        }\n        gtk_widget_set_hexpand(scrolled, 1)\n",
+        "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)\n        if scrollerWantsVerticalFill {\n            gtkMarkVerticalFillIntent(scrolled)\n        }\n        gtk_widget_set_hexpand(scrolled, 1)\n",
         1,
     )
 elif "gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)" not in text:
@@ -6892,12 +6932,88 @@ if has_list_renderer_region and "gtkInstallScrollViewCrossAxisFill(on: scrolled,
         gtk_widget_set_vexpand(scrolled, 1)
 """
     new_list_child = """        gtk_scrolled_window_set_child(scrolledOp, listBox)
-        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)
+        // A short SwiftUI List still occupies the viewport and packs rows
+        // from the top. GTK's scrolled-window viewport can otherwise center
+        // the natural-height listbox vertically, which made IceCubes'
+        // Explore quick-access row appear halfway down the screen.
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: true)
         gtk_widget_set_vexpand(scrolled, 1)
 """
     if old_list_child not in text:
         raise SystemExit("SwiftOpenUI List cross-axis fill shape was not recognized")
     text = text.replace(old_list_child, new_list_child, 1)
+
+if has_list_renderer_region:
+    old_list_row_height = '''private func gtkListRowMinimumHeight(for view: any View) -> gint {
+    let environmentMinimum = max(gint(1), gint(getCurrentEnvironment().defaultMinListRowHeight))
+    if let explicitHeight = gtkExplicitFrameHeight(in: view) {
+        return max(environmentMinimum, gtkPixelSize(explicitHeight))
+    }
+    let contentMinimum = gtkViewIsPlainTextRow(view)
+        ? gtkPlainListRowMinimumHeight
+        : gtkComplexListRowMinimumHeight
+    return max(environmentMinimum, contentMinimum)
+}
+'''
+    new_list_row_height = '''private func gtkListRowMinimumHeight(for view: any View) -> gint {
+    let environmentMinimum = max(gint(1), gint(getCurrentEnvironment().defaultMinListRowHeight))
+    if let explicitHeight = gtkExplicitFrameHeight(in: view) {
+        return max(environmentMinimum, gtkPixelSize(explicitHeight))
+    }
+    return environmentMinimum
+}
+
+private func gtkListRowEstimatedHeight(for view: any View) -> gint {
+    let minimumHeight = gtkListRowMinimumHeight(for: view)
+    if gtkExplicitFrameHeight(in: view) != nil {
+        return minimumHeight
+    }
+    let contentMinimum = gtkViewIsPlainTextRow(view)
+        ? gtkPlainListRowMinimumHeight
+        : gtkComplexListRowMinimumHeight
+    return max(minimumHeight, contentMinimum)
+}
+'''
+    if old_list_row_height in text:
+        text = text.replace(old_list_row_height, new_list_row_height, 1)
+    elif "private func gtkListRowEstimatedHeight(for view: any View) -> gint" not in text:
+        raise SystemExit("SwiftOpenUI List row minimum-height shape was not recognized")
+
+    if "let estimatedHeight = gtkListRowEstimatedHeight(for: child)" not in text:
+        old_list_row_estimate_call = """            let metadata = gtkRowMetadata(from: child)
+            let minimumHeight = gtkListRowMinimumHeight(for: child)
+            let rowSource = String(reflecting: Swift.type(of: child))
+"""
+        new_list_row_estimate_call = """            let metadata = gtkRowMetadata(from: child)
+            let minimumHeight = gtkListRowMinimumHeight(for: child)
+            let estimatedHeight = gtkListRowEstimatedHeight(for: child)
+            let rowSource = String(reflecting: Swift.type(of: child))
+"""
+        if old_list_row_estimate_call not in text:
+            raise SystemExit("SwiftOpenUI List row estimated-height call shape was not recognized")
+        text = text.replace(old_list_row_estimate_call, new_list_row_estimate_call, 1)
+
+    text = text.replace(
+        "                estimatedHeight: Double(minimumHeight),\n",
+        "                estimatedHeight: Double(estimatedHeight),\n",
+        1,
+    )
+    text = text.replace(
+        "        gtk_widget_set_vexpand(listBox, 0)\n",
+        "        gtk_widget_set_vexpand(listBox, 1)\n",
+    )
+    text = text.replace(
+        "        gtk_widget_set_valign(listBox, GTK_ALIGN_START)\n",
+        "        gtk_widget_set_valign(listBox, GTK_ALIGN_FILL)\n",
+    )
+    text = text.replace(
+        "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)",
+        "gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: true)",
+    )
+    text = text.replace(
+        "        gtk_widget_set_vexpand(scrolled, 1)\n        gtk_widget_set_hexpand(scrolled, 1)\n\n        return opaqueFromWidget(scrolled)\n",
+        "        gtk_widget_set_vexpand(scrolled, 1)\n        gtk_widget_set_hexpand(scrolled, 1)\n        gtkMarkVerticalFillIntent(scrolled)\n\n        return opaqueFromWidget(scrolled)\n",
+    )
 
 old_scroll_reader = '''        proxy.scrollToAction = { anyID, anchor in
             guard let widget = lookupViewID(anyID) as? UnsafeMutablePointer<GtkWidget> else { return }
@@ -7052,7 +7168,10 @@ elif "gtkScheduleOnAppear(boundAction, on: widget)" not in text:
 '''
     if current_on_appear_rebuild in text:
         text = text.replace(current_on_appear_rebuild, current_on_appear_scheduled, 1)
-    elif current_on_appear_scheduled not in text:
+    elif (
+        current_on_appear_scheduled not in text
+        and "gtkCollectOnAppearPayload(GTK4OnAppearPayload(action: boundAction))" not in text
+    ):
         raise SystemExit("SwiftOpenUI OnAppear lifecycle rebuild shape was not recognized")
 
 mapped_on_disappear_marker = "GTK OnDisappear requires a prior map before firing"
@@ -7969,6 +8088,86 @@ if menu_marker in text:
         if required not in menu_renderer:
             raise SystemExit(f"SwiftOpenUI Menu GTK renderer patch missing: {required}")
 
+old_row_render = """    let child = gtkWithRowTextRenderContext(includeShortPlainText: includeShortPlainText) {
+        widgetFromOpaque(gtkRenderAnyView(view))
+    }
+"""
+new_row_render = """    let child = gtkWithSuppressedDescriptorLifecyclePayloads {
+        gtkWithRowTextRenderContext(includeShortPlainText: includeShortPlainText) {
+            widgetFromOpaque(gtkRenderAnyView(view))
+        }
+    }
+"""
+if old_row_render in text:
+    text = text.replace(old_row_render, new_row_render, 1)
+elif "let child = gtkWithSuppressedDescriptorLifecyclePayloads" not in text:
+    raise SystemExit("SwiftOpenUI row lifecycle render suppression shape was not recognized")
+
+old_task_render = """        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                lifecycleID: lifecycleID,
+                action: boundAction
+            )
+        }
+        return opaqueFromWidget(widget)
+"""
+new_task_render = """        if GTKViewHost.getCurrentRebuilding() == nil {
+            gtkAttachStandaloneTaskLifecycle(
+                to: widget,
+                priority: priority,
+                lifecycleID: lifecycleID,
+                action: boundAction
+            )
+        } else {
+            gtkCollectTaskPayload(
+                GTK4TaskPayload(
+                    priority: priority,
+                    lifecycleID: lifecycleID,
+                    action: boundAction
+                )
+            )
+        }
+        return opaqueFromWidget(widget)
+"""
+if old_task_render in text:
+    text = text.replace(old_task_render, new_task_render, 1)
+elif "gtkCollectTaskPayload(\n                GTK4TaskPayload(" not in text:
+    raise SystemExit("SwiftOpenUI TaskView render lifecycle payload shape was not recognized")
+
+old_on_appear_render = """                },
+                GConnectFlags(rawValue: 0)
+            )
+        }
+
+        return opaqueFromWidget(widget)
+"""
+new_on_appear_render = """                },
+                GConnectFlags(rawValue: 0)
+            )
+        } else {
+            gtkCollectOnAppearPayload(GTK4OnAppearPayload(action: boundAction))
+        }
+
+        return opaqueFromWidget(widget)
+"""
+if old_on_appear_render in text and "gtkCollectOnAppearPayload(GTK4OnAppearPayload(action: boundAction))" not in text:
+    text = text.replace(old_on_appear_render, new_on_appear_render, 1)
+elif "gtkCollectOnAppearPayload(GTK4OnAppearPayload(action: boundAction))" not in text:
+    raise SystemExit("SwiftOpenUI OnAppearView render lifecycle payload shape was not recognized")
+
+text = text.replace(
+    "onAppearPayloads: described.onAppearPayloads",
+    "onAppearPayloads: host.renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)",
+)
+text = text.replace(
+    "taskPayloads: described.taskPayloads",
+    "taskPayloads: host.renderCapturedTaskPayloads(fallback: described.taskPayloads)",
+)
+if "host.renderCapturedTaskPayloads(fallback: described.taskPayloads)" not in text:
+    raise SystemExit("SwiftOpenUI initial render task lifecycle reconciliation shape was not recognized")
+
 path.write_text(text)
 PY
 
@@ -7978,6 +8177,36 @@ from pathlib import Path
 
 path = Path(sys.argv[1])
 text = path.read_text()
+
+render_lifecycle_capture_helper = '''public func gtkCaptureRenderLifecyclePayloads<T>(
+    _ render: () -> T
+) -> (
+    value: T,
+    onAppearPayloads: [GTK4OnAppearPayload],
+    taskPayloads: [GTK4TaskPayload]
+) {
+    let collector = GTK4DescriptorPayloadCollector()
+    let retained = Unmanaged.passRetained(collector)
+    let previous = pthread_getspecific(gtkDescriptorPayloadCollectorKey)
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, retained.toOpaque())
+    let value = render()
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, previous)
+    retained.release()
+    return (
+        value,
+        collector.onAppearPayloads,
+        collector.taskPayloads
+    )
+}
+
+'''
+if "gtkCaptureRenderLifecyclePayloads" not in text:
+    marker = "private func gtkDescriptorChildViews(from view: any View"
+    if marker not in text:
+        marker = "/// Build a GTK4-local descriptor tree without creating widgets."
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor render lifecycle capture insertion point was not recognized")
+    text = text.replace(marker, render_lifecycle_capture_helper + marker, 1)
 
 descriptor_child_helper = '''private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
@@ -8182,25 +8411,84 @@ if "stateIdentityNamespace" not in text:
         )
     else:
         raise SystemExit("SwiftOpenUI GTKViewHost state identity namespace insertion point was not recognized")
-if "gtkBeginStateIdentityPass()" not in text:
-    observation_old = """            withObservationTracking {
-                result = buildBody()
-            } onChange: { [weak self] in
+
+if "lastRenderTaskPayloads" not in text:
+    marker = """    private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
+    private var activeTasksByIdentity: [GTK4DescriptorIdentity: GTKActiveTask] = [:]
 """
-    observation_new = """            withObservationTracking {
+    replacement = marker + """    var lastRenderOnAppearPayloads: [GTK4OnAppearPayload] = []
+    var lastRenderTaskPayloads: [GTK4TaskPayload] = []
+"""
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle payload storage shape was not recognized")
+    text = text.replace(marker, replacement, 1)
+
+if "buildBodyCapturingRenderLifecyclePayloads" not in text:
+    observation_old = """            withObservationTracking {
                 gtkBeginStateIdentityPass()
                 result = buildBody()
             } onChange: { [weak self] in
 """
-    fallback_old = """        let result = buildBody()
+    observation_old_without_state_pass = """            withObservationTracking {
+                result = buildBody()
+            } onChange: { [weak self] in
 """
-    fallback_new = """        gtkBeginStateIdentityPass()
+    observation_new = """            withObservationTracking {
+                result = buildBodyCapturingRenderLifecyclePayloads()
+            } onChange: { [weak self] in
+"""
+    fallback_old = """        gtkBeginStateIdentityPass()
         let result = buildBody()
 """
+    fallback_old_without_state_pass = """        let result = buildBody()
+"""
+    fallback_new = """        let result = buildBodyCapturingRenderLifecyclePayloads()
+"""
+    if observation_old not in text:
+        observation_old = observation_old_without_state_pass
+    if fallback_old not in text:
+        fallback_old = fallback_old_without_state_pass
     if observation_old not in text or fallback_old not in text:
         raise SystemExit("SwiftOpenUI GTKViewHost state identity pass shape was not recognized")
     text = text.replace(observation_old, observation_new, 1)
     text = text.replace(fallback_old, fallback_new, 1)
+    helper_marker = """    /// Re-runs the describe pass under a fresh withObservationTracking
+"""
+    helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkBeginStateIdentityPass()
+        let captured = gtkCaptureRenderLifecyclePayloads {
+            buildBody()
+        }
+        lastRenderOnAppearPayloads = captured.onAppearPayloads
+        lastRenderTaskPayloads = captured.taskPayloads
+        return captured.value
+    }
+
+    func renderCapturedOnAppearPayloads(fallback described: [GTK4OnAppearPayload]) -> [GTK4OnAppearPayload] {
+        lastRenderOnAppearPayloads.count == described.count ? lastRenderOnAppearPayloads : described
+    }
+
+    func renderCapturedTaskPayloads(fallback described: [GTK4TaskPayload]) -> [GTK4TaskPayload] {
+        lastRenderTaskPayloads.count == described.count ? lastRenderTaskPayloads : described
+    }
+
+"""
+    if helper_marker not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle helper insertion point was not recognized")
+    text = text.replace(helper_marker, helper + helper_marker, 1)
+elif "renderCapturedTaskPayloads(fallback described" not in text:
+    raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle helper shape was not recognized")
+
+text = text.replace(
+    "onAppearPayloads: described.onAppearPayloads",
+    "onAppearPayloads: renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)",
+)
+text = text.replace(
+    "taskPayloads: described.taskPayloads",
+    "taskPayloads: renderCapturedTaskPayloads(fallback: described.taskPayloads)",
+)
+if "renderCapturedTaskPayloads(fallback: described.taskPayloads)" not in text:
+    raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle reconciliation shape was not recognized")
 if "resumeLifecycleAfterProgrammaticVisibilityChange" not in text:
     old = '''    fileprivate func restoreLifecycleSnapshot(_ snapshot: GTKViewHostLifecycleSnapshot) {
         lock.lock()

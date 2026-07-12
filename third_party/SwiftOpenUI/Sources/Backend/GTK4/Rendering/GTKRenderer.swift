@@ -6804,6 +6804,14 @@ extension TaskView: GTKRenderable, GTKDescribable {
                 lifecycleID: lifecycleID,
                 action: boundAction
             )
+        } else {
+            gtkCollectTaskPayload(
+                GTK4TaskPayload(
+                    priority: priority,
+                    lifecycleID: lifecycleID,
+                    action: boundAction
+                )
+            )
         }
         return opaqueFromWidget(widget)
     }
@@ -6843,6 +6851,8 @@ extension OnAppearView: GTKRenderable, GTKDescribable {
                 },
                 GConnectFlags(rawValue: 0)
             )
+        } else {
+            gtkCollectOnAppearPayload(GTK4OnAppearPayload(action: boundAction))
         }
 
         return opaqueFromWidget(widget)
@@ -9242,7 +9252,6 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         }
 
         let child = widgetFromOpaque(gtkRenderView(content))
-        let childWantsVerticalFill = gtkHasVerticalFillIntent(child)
         if axes.contains(.vertical) {
             gtk_widget_set_vexpand(child, 0)
         }
@@ -9261,21 +9270,21 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             // A horizontal-only SwiftUI ScrollView has the natural height of
             // its content. If it advertises vertical expansion, fixed-height
             // rows such as IceCubes' status summary buttons allocate the
-            // scroller as the row's fill child and clip neighboring labels.
-            // Keep explicit container-relative/full-height pagers fillable.
-            gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
+            // scroller as the row's fill child and push neighboring sections
+            // below the fold. External FrameView constraints can still make
+            // the scroller taller; the primitive itself should fit content.
+            gtk_widget_set_vexpand(child, 0)
+            gtk_widget_set_valign(child, GTK_ALIGN_START)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
+            fillHeight: false
         )
 
         let scrollerWantsVerticalFill = axes.contains(.vertical)
-            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)
         gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
         gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if scrollerWantsVerticalFill {
@@ -10036,8 +10045,10 @@ private func gtkRenderRowContent(
     let includeShortPlainText = gtkViewIsPlainTextRow(view)
     let primaryAction = installPrimaryActionFallback ? gtkPrimaryTapAction(inAny: view) : nil
     let primaryActionAllowsButtonTarget = view is any GTKNavigationPrimaryActionProvider
-    let child = gtkWithRowTextRenderContext(includeShortPlainText: includeShortPlainText) {
-        widgetFromOpaque(gtkRenderAnyView(view))
+    let child = gtkWithSuppressedDescriptorLifecyclePayloads {
+        gtkWithRowTextRenderContext(includeShortPlainText: includeShortPlainText) {
+            widgetFromOpaque(gtkRenderAnyView(view))
+        }
     }
     if gtkIsEmptyViewWidget(child) {
         return gtkCreateEmptyViewWidget()
@@ -10091,10 +10102,18 @@ private func gtkListRowMinimumHeight(for view: any View) -> gint {
     if let explicitHeight = gtkExplicitFrameHeight(in: view) {
         return max(environmentMinimum, gtkPixelSize(explicitHeight))
     }
+    return environmentMinimum
+}
+
+private func gtkListRowEstimatedHeight(for view: any View) -> gint {
+    let minimumHeight = gtkListRowMinimumHeight(for: view)
+    if gtkExplicitFrameHeight(in: view) != nil {
+        return minimumHeight
+    }
     let contentMinimum = gtkViewIsPlainTextRow(view)
         ? gtkPlainListRowMinimumHeight
         : gtkComplexListRowMinimumHeight
-    return max(environmentMinimum, contentMinimum)
+    return max(minimumHeight, contentMinimum)
 }
 
 private func gtkExplicitFrameHeight(in value: Any, depth: Int = 0) -> Double? {
@@ -10103,7 +10122,7 @@ private func gtkExplicitFrameHeight(in value: Any, depth: Int = 0) -> Double? {
     let typeName = String(reflecting: Swift.type(of: value))
     if typeName.contains("FrameView") {
         for child in Mirror(reflecting: value).children where child.label == "height" {
-            return child.value as? Double
+            return gtkReflectedOptionalDouble(child.value)
         }
     }
 
@@ -10129,6 +10148,15 @@ private func gtkExplicitFrameHeight(in value: Any, depth: Int = 0) -> Double? {
         }
     }
     return nil
+}
+
+private func gtkReflectedOptionalDouble(_ value: Any) -> Double? {
+    if let double = value as? Double {
+        return double
+    }
+    let mirror = Mirror(reflecting: value)
+    guard mirror.displayStyle == .optional else { return nil }
+    return mirror.children.first?.value as? Double
 }
 
 private func gtkAppendRows(
@@ -11964,9 +11992,9 @@ extension List: GTKRenderable, GTKDescribable {
         let listBox = gtk_list_box_new()!
         let listBoxOp = OpaquePointer(listBox)
         gtk_widget_set_hexpand(listBox, 1)
-        gtk_widget_set_vexpand(listBox, 0)
+        gtk_widget_set_vexpand(listBox, 1)
         gtk_widget_set_halign(listBox, GTK_ALIGN_FILL)
-        gtk_widget_set_valign(listBox, GTK_ALIGN_START)
+        gtk_widget_set_valign(listBox, GTK_ALIGN_FILL)
         gtk_list_box_set_selection_mode(listBoxOp, GTK_SELECTION_NONE)
 
         ensureListCSS(listBox)
@@ -11977,6 +12005,7 @@ extension List: GTKRenderable, GTKDescribable {
         for child in gtkDirectChildViews(of: content) {
             let metadata = gtkRowMetadata(from: child)
             let minimumHeight = gtkListRowMinimumHeight(for: child)
+            let estimatedHeight = gtkListRowEstimatedHeight(for: child)
             let rowSource = String(reflecting: Swift.type(of: child))
             let widget = gtkRenderRowContent(
                 child,
@@ -11996,7 +12025,7 @@ extension List: GTKRenderable, GTKDescribable {
             gtkAttachListRowLifecycleData(to: row, view: child, source: rowSource)
             gtkAttachListRowGeometryData(
                 to: row,
-                estimatedHeight: Double(minimumHeight),
+                estimatedHeight: Double(estimatedHeight),
                 source: rowSource,
                 namespace: gtkStateIdentityNamespace()
             )
@@ -12035,10 +12064,15 @@ extension List: GTKRenderable, GTKDescribable {
         // siblings (status bars, footers) swallow the remainder.
         gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
         gtk_scrolled_window_set_child(scrolledOp, listBox)
-        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: false)
+        // A short SwiftUI List still occupies the viewport and packs rows
+        // from the top. GTK's scrolled-window viewport can otherwise center
+        // the natural-height listbox vertically, which made IceCubes'
+        // Explore quick-access row appear halfway down the screen.
+        gtkInstallScrollViewCrossAxisFill(on: scrolled, child: listBox, fillWidth: true, fillHeight: true)
         gtkInstallListViewportLifecycleController(on: scrolled, listBox: listBox)
         gtk_widget_set_vexpand(scrolled, 1)
         gtk_widget_set_hexpand(scrolled, 1)
+        gtkMarkVerticalFillIntent(scrolled)
 
         return opaqueFromWidget(scrolled)
     }
@@ -14333,6 +14367,11 @@ extension SearchableView: GTKRenderable, GTKDescribable {
         let box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
         let boxPtr = boxPointer(box)
         gtk_widget_set_can_target(box, 1)
+        gtk_widget_set_hexpand(box, 1)
+        gtk_widget_set_vexpand(box, 1)
+        gtk_widget_set_halign(box, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(box, GTK_ALIGN_FILL)
+        gtkMarkVerticalFillIntent(box)
         let binding = text
         let presentedBinding = isPresented
 
@@ -14568,7 +14607,10 @@ extension SearchableView: GTKRenderable, GTKDescribable {
         }
 
         let contentWidget = widgetFromOpaque(gtkRenderView(content))
+        gtk_widget_set_hexpand(contentWidget, 1)
         gtk_widget_set_vexpand(contentWidget, 1)
+        gtk_widget_set_halign(contentWidget, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(contentWidget, GTK_ALIGN_FILL)
         gtk_swift_search_entry_set_key_capture_widget(entry, box)
         gtk_box_append(boxPtr, contentWidget)
 
@@ -16054,11 +16096,11 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         )
         host.updateOnAppearLifecycle(
             descriptorRoot: identified,
-            onAppearPayloads: described.onAppearPayloads
+            onAppearPayloads: host.renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)
         )
         host.updateTaskLifecycle(
             descriptorRoot: identified,
-            taskPayloads: described.taskPayloads
+            taskPayloads: host.renderCapturedTaskPayloads(fallback: described.taskPayloads)
         )
         gtkTagFocusableInputIdentities(in: child, descriptorRoot: identified)
         host.lastRetainedDescriptor = gtkRetainDescriptorTree(identified)
@@ -16143,11 +16185,11 @@ func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> 
         )
         host.updateOnAppearLifecycle(
             descriptorRoot: identified,
-            onAppearPayloads: described.onAppearPayloads
+            onAppearPayloads: host.renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)
         )
         host.updateTaskLifecycle(
             descriptorRoot: identified,
-            taskPayloads: described.taskPayloads
+            taskPayloads: host.renderCapturedTaskPayloads(fallback: described.taskPayloads)
         )
         gtkTagFocusableInputIdentities(in: child, descriptorRoot: identified)
         host.lastRetainedDescriptor = gtkRetainDescriptorTree(identified)

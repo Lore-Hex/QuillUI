@@ -263,6 +263,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     private var appearedOnAppearIdentities: Set<GTK4DescriptorIdentity> = []
     private var taskPayloadsByIdentity: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
     private var activeTasksByIdentity: [GTK4DescriptorIdentity: GTKActiveTask] = [:]
+    var lastRenderOnAppearPayloads: [GTK4OnAppearPayload] = []
+    var lastRenderTaskPayloads: [GTK4TaskPayload] = []
     private var taskLifecycleSuspended = true
     /// True when the pending/next rebuild was requested by withObservationTracking's
     /// onChange callback. withObservationTracking is one-shot: once it fires, the
@@ -676,8 +678,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         if #available(macOS 14.0, iOS 17.0, *) {
             var result: OpaquePointer!
             withObservationTracking {
-                gtkBeginStateIdentityPass()
-                result = buildBody()
+                result = buildBodyCapturingRenderLifecyclePayloads()
             } onChange: { [weak self] in
                 guard let self else { return }
                 self.lock.lock()
@@ -692,12 +693,29 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         }
         #endif
 
-        gtkBeginStateIdentityPass()
-        let result = buildBody()
+        let result = buildBodyCapturingRenderLifecyclePayloads()
         if let reads = endEnvironmentReadTracking() {
             capturedInjectedObjects = reads
         }
         return result
+    }
+
+    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkBeginStateIdentityPass()
+        let captured = gtkCaptureRenderLifecyclePayloads {
+            buildBody()
+        }
+        lastRenderOnAppearPayloads = captured.onAppearPayloads
+        lastRenderTaskPayloads = captured.taskPayloads
+        return captured.value
+    }
+
+    func renderCapturedOnAppearPayloads(fallback described: [GTK4OnAppearPayload]) -> [GTK4OnAppearPayload] {
+        lastRenderOnAppearPayloads.count == described.count ? lastRenderOnAppearPayloads : described
+    }
+
+    func renderCapturedTaskPayloads(fallback described: [GTK4TaskPayload]) -> [GTK4TaskPayload] {
+        lastRenderTaskPayloads.count == described.count ? lastRenderTaskPayloads : described
     }
 
     /// Re-runs the describe pass under a fresh withObservationTracking
@@ -830,7 +848,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
                         // Success — update retained state, skip full rebuild
                         updateOnAppearLifecycle(
                             descriptorRoot: newIdentified,
-                            onAppearPayloads: described.onAppearPayloads
+                            onAppearPayloads: renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)
                         )
                         lastRetainedDescriptor = gtkRetainDescriptorTree(newIdentified)
                         retainedExecutor = action.resultingNode
@@ -1036,11 +1054,11 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             )
             updateOnAppearLifecycle(
                 descriptorRoot: identified,
-                onAppearPayloads: described.onAppearPayloads
+                onAppearPayloads: renderCapturedOnAppearPayloads(fallback: described.onAppearPayloads)
             )
             updateTaskLifecycle(
                 descriptorRoot: identified,
-                taskPayloads: described.taskPayloads
+                taskPayloads: renderCapturedTaskPayloads(fallback: described.taskPayloads)
             )
             gtkTagFocusableInputIdentities(in: newChild, descriptorRoot: identified)
             rebuiltDescriptorState = RebuiltDescriptorState(

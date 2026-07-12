@@ -5426,9 +5426,9 @@ def validate_icecubes_linux_authenticated_explore(image: Screenshot) -> str:
     suggested_accounts_pixels = dark_pixel_count(
         image,
         left + 250,
-        top + 230,
+        top + 420,
         right - 20,
-        top + 430,
+        bottom - 20,
     )
     explore_content_pixels = pixel_count(
         image,
@@ -5441,9 +5441,9 @@ def validate_icecubes_linux_authenticated_explore(image: Screenshot) -> str:
     placeholder_avatar_pixels = pixel_count(
         image,
         left + 255,
-        top + 72,
-        left + 305,
-        top + 122,
+        top + 210,
+        left + 315,
+        top + 285,
         icecubes_placeholder_avatar_pixel,
     )
 

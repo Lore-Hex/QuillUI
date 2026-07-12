@@ -53,6 +53,14 @@ struct IceCubesSeedAccount {
         for store in stores {
             store.removeObject(forKey: "chosen_font")
             store.set(1.0, forKey: "font_size_scale")
+            store.set(true, forKey: "is_previously_set")
+            store.set("light", forKey: "selectedScheme")
+            store.set("Ice Cube - Light", forKey: "selectedSet")
+            store.set(false, forKey: "followSystemColorSchme")
+            store.set(0xBB3BE2, forKey: "tint")
+            store.set(0xFFFFFF, forKey: "primaryBackground")
+            store.set(0xF0F1F2, forKey: "secondaryBackground")
+            store.set(0x000000, forKey: "label")
             store.synchronize()
         }
     }

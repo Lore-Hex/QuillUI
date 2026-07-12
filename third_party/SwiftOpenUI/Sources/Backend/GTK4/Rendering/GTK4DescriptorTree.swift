@@ -647,6 +647,27 @@ public func gtkDescribeCapturingCanvasPayloads(
     )
 }
 
+public func gtkCaptureRenderLifecyclePayloads<T>(
+    _ render: () -> T
+) -> (
+    value: T,
+    onAppearPayloads: [GTK4OnAppearPayload],
+    taskPayloads: [GTK4TaskPayload]
+) {
+    let collector = GTK4DescriptorPayloadCollector()
+    let retained = Unmanaged.passRetained(collector)
+    let previous = pthread_getspecific(gtkDescriptorPayloadCollectorKey)
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, retained.toOpaque())
+    let value = render()
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, previous)
+    retained.release()
+    return (
+        value,
+        collector.onAppearPayloads,
+        collector.taskPayloads
+    )
+}
+
 private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
 

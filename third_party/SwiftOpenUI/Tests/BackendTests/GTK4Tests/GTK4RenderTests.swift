@@ -397,6 +397,201 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testListHonorsOptionalExplicitFrameHeightThroughLifecycleWrappers() throws {
+        try requireGTK()
+
+        var appeared = false
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                GTKOnePixelListAnchor()
+                    .frame(height: 1)
+                    .onAppear { appeared = true }
+                    .onDisappear {}
+                Text("Visible row")
+            }
+            .environment(\.defaultMinListRowHeight, 1)
+            .frame(width: 360, height: 180)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 180))
+        drainGTKMainContext(maxIterations: 100)
+
+        let firstRow = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: wrapper)
+        let firstRowSize = allocatedSize(of: firstRow)
+        XCTAssertLessThanOrEqual(
+            firstRowSize.height,
+            4,
+            "A one-pixel framed List anchor row should not fall back to the complex-row minimum height."
+        )
+
+        let visibleLabel = try unwrapFirstDescendant(ofType: "GtkLabel", in: wrapper)
+        let labelOrigin = translatedChildOrigin(child: visibleLabel, in: wrapper)
+        XCTAssertLessThan(
+            labelOrigin.y,
+            80,
+            "The visible row should remain near the top instead of being pushed down by an expanded hidden anchor."
+        )
+        XCTAssertTrue(appeared)
+    }
+
+    func testListDefaultMinRowHeightControlsCompactComplexRows() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Explore Fixture").font(.headline)
+                    Text("@explorer").font(.subheadline)
+                }
+            }
+            .environment(\.defaultMinListRowHeight, 1)
+            .frame(width: 360, height: 180)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 180))
+        drainGTKMainContext(maxIterations: 100)
+
+        let row = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: wrapper)
+        let rowSize = allocatedSize(of: row)
+        XCTAssertLessThan(
+            rowSize.height,
+            80,
+            "Compact multi-label List rows must respect defaultMinListRowHeight instead of using the status-row estimate as a hard minimum."
+        )
+        XCTAssertGreaterThan(
+            rowSize.height,
+            20,
+            "The compact row should still allocate enough natural height for its labels."
+        )
+    }
+
+    func testHorizontalScrollViewListRowUsesContentHeight() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                ScrollView(.horizontal) {
+                    HStack {
+                        Button("News") {}
+                        Button("Trending Posts") {}
+                        Button("Suggested Users") {}
+                        Button("Trending Tags") {}
+                    }
+                    .padding(16)
+                }
+                .listRowInsets(.init())
+                .listRowSeparator(.hidden)
+
+                Text("Visible section")
+            }
+            .frame(width: 360, height: 180)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 180))
+        drainGTKMainContext(maxIterations: 100)
+
+        let firstRow = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: wrapper)
+        let firstRowSize = allocatedSize(of: firstRow)
+        XCTAssertLessThan(
+            firstRowSize.height,
+            100,
+            "A horizontal-only ScrollView row should fit its content height, not expand to the vertical viewport."
+        )
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let visibleSection = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "Visible section"
+        })
+        let sectionOrigin = translatedChildOrigin(child: visibleSection, in: wrapper)
+        XCTAssertLessThan(
+            sectionOrigin.y,
+            150,
+            "Rows following a horizontal ScrollView should remain visible near the top of the List."
+        )
+    }
+
+    func testShortListRowsRemainTopPackedInViewport() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                Text("Top row")
+                Text("Second row")
+            }
+            .frame(width: 360, height: 320)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 320))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let topRow = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "Top row"
+        })
+        let topRowOrigin = translatedChildOrigin(child: topRow, in: wrapper)
+        XCTAssertLessThan(
+            topRowOrigin.y,
+            80,
+            "A short List should pack rows from the top of the scroll viewport, not center them vertically."
+        )
+    }
+
+    func testSearchableListContentFillsBelowSearchField() throws {
+        try requireGTK()
+
+        var searchText = ""
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                Text("Top result")
+                Text("Second result")
+            }
+            .searchable(text: Binding(get: { searchText }, set: { searchText = $0 }))
+            .frame(width: 360, height: 360)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 360))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let topResult = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == "Top result"
+        })
+        let topResultOrigin = translatedChildOrigin(child: topResult, in: wrapper)
+        XCTAssertLessThan(
+            topResultOrigin.y,
+            130,
+            "Searchable content should fill the area below the search field; the first row must not be vertically centered."
+        )
+    }
+
     func testListRowsExposeNestedTapGesturesAsVisualTapTargets() throws {
         try requireGTK()
 
@@ -732,6 +927,26 @@ final class GTK4RenderTests: XCTestCase {
         // Verify: different widget (full rebuild happened)
         let childAfter = gtk_widget_get_first_child(host.container)!
         XCTAssertNotEqual(UnsafeRawPointer(childAfter), labelBefore, "Widget should be different (full rebuild)")
+    }
+
+    func testTaskStateMutationUsesRenderCapturedStateStorage() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(GTKTaskStateUpdateProbe()))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: widget, size: ViewSize(width: 240, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { labels in
+                labels.contains("Loaded")
+            },
+            ".task state writes should schedule the declaring host rebuild instead of mutating hostless descriptor storage."
+        )
     }
 
     func testFullPipelineColorMutation() throws {
@@ -5022,6 +5237,27 @@ private struct GTKEmptyStatefulRowProbe: View {
         if isVisible {
             Text("Hidden state row")
         }
+    }
+}
+
+private struct GTKOnePixelListAnchor: View {
+    var body: some View {
+        HStack { EmptyView() }
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(.init())
+            .id("top")
+    }
+}
+
+private struct GTKTaskStateUpdateProbe: View {
+    @State private var loaded = false
+
+    var body: some View {
+        Text(loaded ? "Loaded" : "Loading")
+            .task {
+                loaded = true
+            }
     }
 }
 
