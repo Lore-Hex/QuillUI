@@ -1324,6 +1324,7 @@ case "$INTERACTION" in
   seeded-authenticated-shell)
     VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
     wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
     ;;
   seeded-authenticated-home-pagination)
     VERIFY_PRODUCT="icecubes-linux-authenticated-home-pagination"

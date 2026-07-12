@@ -10422,6 +10422,7 @@ struct SourceHygieneTests {
         #expect(script.contains("redirect_uri\") == [\"icecubesapp://\"]"))
         #expect(script.contains("{\"read\", \"write\", \"follow\", \"push\"}.issubset(scope)"))
         #expect(script.contains("seeded-authenticated-shell)"))
+        #expect(script.contains("seeded-authenticated-shell)\n    VERIFY_PRODUCT=\"icecubes-linux-authenticated-shell\"\n    wait_for_authenticated_timeline_activity\n    wait_for_authenticated_home_row_visual"))
         #expect(script.contains("QUILLUI_KEYCHAINSWIFT_STORE_PATH=\"$KEYCHAIN_STORE_PATH\""))
         #expect(script.contains("VERIFY_PRODUCT=\"icecubes-linux-authenticated-shell\""))
         #expect(script.contains("QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_X"))
