@@ -7590,6 +7590,17 @@ private func gtkScheduleSheetDismissal(_ action: @escaping () -> Void) {
     }, box)
 }
 
+private func gtkSheetPresentationEnvironment(
+    from previous: EnvironmentValues,
+    dismissAction: @escaping () -> Void,
+    debugName: String
+) -> EnvironmentValues {
+    var env = previous
+    env.dismiss = DismissAction(handler: dismissAction, debugName: debugName)
+    env.isPresentedInSheet = true
+    return env
+}
+
 extension SheetModifierView: GTKDescribable {
     /// Describe through to the anchor content; the sheet panel lives on the
     /// root overlay (or a dialog window), not in this widget tree.
@@ -7658,7 +7669,11 @@ extension SheetModifierView: GTKRenderable {
                     userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool window")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet bool window"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -7690,7 +7705,11 @@ extension SheetModifierView: GTKRenderable {
                     userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool root overlay")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet bool root overlay"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -7780,7 +7799,11 @@ extension SheetModifierView: GTKRenderable {
                     gtk_window_destroy(dialogWin)
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet bool dialog")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet bool dialog"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -7915,7 +7938,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item window")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet item window"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -7959,7 +7986,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     userOnDismiss?()
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item root overlay")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet item root overlay"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {
@@ -8064,7 +8095,11 @@ extension ItemSheetModifierView: GTKRenderable {
                     gtk_window_destroy(dialogWin)
                 }
             }
-            env.dismiss = DismissAction(handler: dismissAction, debugName: "gtk sheet item dialog")
+            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "gtk sheet item dialog"
+            )
             setCurrentEnvironment(env)
             let sheetWidget = widgetFromOpaque(
                 swiftOpenUIWithPresentationDismissAction(dismissAction) {

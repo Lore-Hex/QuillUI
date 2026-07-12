@@ -4843,6 +4843,25 @@ if "private func gtkScheduleSheetDismissal" not in text:
         raise SystemExit("SwiftOpenUI sheet dismissal scheduler insertion shape was not recognized")
     text = text.replace(marker, "\n\n" + sheet_dismissal_scheduler + marker, 1)
 
+sheet_presentation_environment = '''private func gtkSheetPresentationEnvironment(
+    from previous: EnvironmentValues,
+    dismissAction: @escaping () -> Void,
+    debugName: String
+) -> EnvironmentValues {
+    var env = previous
+    env.dismiss = DismissAction(handler: dismissAction, debugName: debugName)
+    env.isPresentedInSheet = true
+    return env
+}
+'''
+if "private func gtkSheetPresentationEnvironment(" not in text:
+    marker = "\n\nextension SheetModifierView: GTKDescribable"
+    if marker not in text:
+        marker = "\n\nextension SheetModifierView: GTKRenderable"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet presentation environment insertion shape was not recognized")
+    text = text.replace(marker, "\n\n" + sheet_presentation_environment + marker, 1)
+
 text = text.replace(
     "                env.dismiss = DismissAction { gtk_window_destroy(dialogWin) }",
     """                env.dismiss = DismissAction {
@@ -5765,6 +5784,23 @@ while '''            presentedLayer = layer
 ''',
 '''            presentedLayer = layer
 ''',
+    )
+
+for debug_name in [
+    "gtk sheet bool window",
+    "gtk sheet bool root overlay",
+    "gtk sheet bool dialog",
+    "gtk sheet item window",
+    "gtk sheet item root overlay",
+    "gtk sheet item dialog",
+]:
+    text = text.replace(
+        f'''            env.dismiss = DismissAction(handler: dismissAction, debugName: "{debug_name}")''',
+        f'''            env = gtkSheetPresentationEnvironment(
+                from: previous,
+                dismissAction: dismissAction,
+                debugName: "{debug_name}"
+            )''',
     )
 
 legacy_item_sheet_window_or_root_condition = (

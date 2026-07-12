@@ -3806,6 +3806,42 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testRootOverlaySheetNavigationStackUsesInlineSheetChrome() throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        let wrapper = widgetFromOpaque(gtkRenderView(GTKSheetNavigationChromeProbeView()))
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        drainGTKMainContext(maxIterations: 100)
+
+        let labels = gtkLabelTexts(in: rootContainer)
+        XCTAssertTrue(
+            labels.contains("Sheet Title"),
+            "A NavigationStack inside a sheet should render an inline sheet title, got: \(labels)"
+        )
+        XCTAssertTrue(
+            labels.contains("Cancel"),
+            "A NavigationStack inside a sheet should render leading toolbar items inline, got: \(labels)"
+        )
+        XCTAssertTrue(
+            labels.contains("Sheet Body"),
+            "Sheet body content should remain visible with inline navigation chrome, got: \(labels)"
+        )
+    }
+
     func testWindowRootHostInstallsAppStateForCapturedSheetBindings() throws {
         try requireGTK()
 
@@ -4553,6 +4589,27 @@ private struct GTKItemSheetRootOverlayDismissSheet: View {
                 dismiss()
             }
         }
+    }
+}
+
+private struct GTKSheetNavigationChromeProbeView: View {
+    @State private var isPresented = true
+
+    var body: some View {
+        Text("Host")
+            .sheet(isPresented: $isPresented) {
+                NavigationStack {
+                    Text("Sheet Body")
+                        .navigationTitle("Sheet Title")
+                        .toolbar {
+                            ToolbarItem(placement: .leading) {
+                                Button("Cancel") {
+                                    isPresented = false
+                                }
+                            }
+                        }
+                }
+            }
     }
 }
 
