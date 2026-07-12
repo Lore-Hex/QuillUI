@@ -9232,6 +9232,9 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         if axes.contains(.horizontal) {
             gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
             gtk_scrolled_window_set_min_content_width(scrolledOp, 1)
+            if !axes.contains(.vertical) {
+                gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 1)
+            }
         }
         if axes.contains(.vertical) {
             gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
@@ -9261,19 +9264,20 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             // scroller as the row's fill child and clip neighboring labels.
             // Keep explicit container-relative/full-height pagers fillable.
             gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 
         let scrollerWantsVerticalFill = axes.contains(.vertical)
             || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)
         gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
+        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if scrollerWantsVerticalFill {
             gtkMarkVerticalFillIntent(scrolled)
         }

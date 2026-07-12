@@ -5851,7 +5851,7 @@ new_scroll = '''        let child = widgetFromOpaque(gtkRenderView(content))
             // scroller as the row's fill child and clip neighboring labels.
             // Keep explicit container-relative/full-height pagers fillable.
             gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
 '''
@@ -5871,6 +5871,9 @@ if "gtk_scrolled_window_set_min_content_height(scrolledOp, 1)" not in text:
     new_scroll_natural_size = '''        if axes.contains(.horizontal) {
             gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
             gtk_scrolled_window_set_min_content_width(scrolledOp, 1)
+            if !axes.contains(.vertical) {
+                gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 1)
+            }
         }
         if axes.contains(.vertical) {
             gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 0)
@@ -5880,6 +5883,21 @@ if "gtk_scrolled_window_set_min_content_height(scrolledOp, 1)" not in text:
     if old_scroll_natural_size not in text:
         raise SystemExit("SwiftOpenUI ScrollView natural-size clamp shape was not recognized")
     text = text.replace(old_scroll_natural_size, new_scroll_natural_size, 1)
+elif "gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 1)" not in text:
+    horizontal_scroll_natural_width_marker = '''            gtk_scrolled_window_set_propagate_natural_width(scrolledOp, 0)
+            gtk_scrolled_window_set_min_content_width(scrolledOp, 1)
+'''
+    if horizontal_scroll_natural_width_marker not in text:
+        raise SystemExit("SwiftOpenUI horizontal ScrollView natural-height shape was not recognized")
+    text = text.replace(
+        horizontal_scroll_natural_width_marker,
+        horizontal_scroll_natural_width_marker
+        + '''            if !axes.contains(.vertical) {
+                gtk_scrolled_window_set_propagate_natural_height(scrolledOp, 1)
+            }
+''',
+        1,
+    )
 
 if "let childWantsVerticalFill = gtkHasVerticalFillIntent(child)" not in text:
     scroll_child_marker_anchor = "        let child = widgetFromOpaque(gtkRenderView(content))\n        if axes.contains(.vertical) {\n"
@@ -5903,7 +5921,7 @@ horizontal_scroll_child_sizing = '''        if axes.contains(.horizontal) && !ax
             // scroller as the row's fill child and clip neighboring labels.
             // Keep explicit container-relative/full-height pagers fillable.
             gtk_widget_set_vexpand(child, childWantsVerticalFill ? 1 : 0)
-            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
+            gtk_widget_set_valign(child, childWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         }
 '''
 if legacy_horizontal_scroll_child_sizing in text:
@@ -5925,20 +5943,20 @@ duplicate_scroll_cross_axis_install = '''        gtkInstallScrollViewCrossAxisFi
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 '''
 single_scroll_cross_axis_install = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 '''
 if duplicate_scroll_cross_axis_install in text:
@@ -6779,7 +6797,7 @@ if "gtkInstallScrollViewCrossAxisFill(on: scrolled" not in text:
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 """,
         1,
@@ -6789,7 +6807,7 @@ legacy_scroll_view_expansion = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 
         gtk_widget_set_vexpand(scrolled, 1)
@@ -6799,12 +6817,13 @@ scroll_view_expansion = '''        gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical)
+            fillHeight: axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill
         )
 
         let scrollerWantsVerticalFill = axes.contains(.vertical)
             || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)
         gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
+        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if scrollerWantsVerticalFill {
             gtkMarkVerticalFillIntent(scrolled)
         }
@@ -6816,11 +6835,17 @@ if legacy_scroll_view_expansion in text:
 elif legacy_axis_vexpand in text:
     text = text.replace(
         "        " + legacy_axis_vexpand + "\n        gtk_widget_set_hexpand(scrolled, 1)\n",
-        "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)\n        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        if scrollerWantsVerticalFill {\n            gtkMarkVerticalFillIntent(scrolled)\n        }\n        gtk_widget_set_hexpand(scrolled, 1)\n",
+        "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n            || (axes.contains(.horizontal) && !axes.contains(.vertical) && childWantsVerticalFill)\n        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)\n        if scrollerWantsVerticalFill {\n            gtkMarkVerticalFillIntent(scrolled)\n        }\n        gtk_widget_set_hexpand(scrolled, 1)\n",
         1,
     )
 elif "gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)" not in text:
     raise SystemExit("SwiftOpenUI ScrollView expansion shape was not recognized")
+elif "gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)" not in text:
+    text = text.replace(
+        "        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        if scrollerWantsVerticalFill {\n",
+        "        gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)\n        gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)\n        if scrollerWantsVerticalFill {\n",
+        1,
+    )
 
 legacy_lazy_list_expansion = '''    gtk_widget_set_vexpand(scrolled, 1)
     gtk_widget_set_hexpand(scrolled, 1)
