@@ -3409,7 +3409,8 @@ struct QuillDataSourceLoweringTests {
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
         #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))
-        #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()\n                result = buildBody()"))
+        #expect(patchedViewHost.contains("result = buildBodyCapturingRenderLifecyclePayloads()"))
+        #expect(patchedViewHost.contains("private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer"))
         #expect(patchedViewHost.contains("var rebuildPresentationRoot: gpointer?"))
         #expect(patchedViewHost.contains("var stateIdentityNamespace = \"root\""))
         #expect(patchedViewHost.contains("let presentationRoot = gtk_widget_get_root(container).map { gpointer($0) }"))
