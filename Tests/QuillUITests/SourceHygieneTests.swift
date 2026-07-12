@@ -10562,6 +10562,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("\"inline-sheet\""))
         #expect(verifier.contains("def validate_icecubes_linux_authenticated_shell"))
         #expect(verifier.contains("icecubes_sign_in_button_pixel"))
+        #expect(verifier.contains("sign_in_button_pixels >= 20_000"))
         #expect(verifier.contains("neutral_placeholder"))
         #expect(verifier.contains("top_left_blank_artifact_pixels"))
         #expect(verifier.contains("IceCubes Add Account has a leaked blank top-left root-content artifact"))

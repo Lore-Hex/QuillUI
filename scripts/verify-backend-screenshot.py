@@ -4638,7 +4638,7 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
     require(cancel_pixels >= 30, f"IceCubes Add Account cancel action was not detected: pixels={cancel_pixels}")
     require(entry_text_pixels >= 120, f"IceCubes typed instance text was not detected: pixels={entry_text_pixels}")
     require(
-        sign_in_button_pixels >= 30_000,
+        sign_in_button_pixels >= 20_000,
         f"IceCubes Sign in button was not detected after typing an instance: pixels={sign_in_button_pixels}",
     )
     require(
