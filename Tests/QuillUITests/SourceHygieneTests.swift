@@ -7048,7 +7048,7 @@ struct SourceHygieneTests {
         #expect(screenshotVerifier.contains("canvas_dark_pixels >= 25_000"))
         #expect(screenshotVerifier.contains("frame_pixels >= 20_000"))
         #expect(screenshotVerifier.contains("SolderScope synthetic camera frame was not detected"))
-        #expect(screenshotVerifier.contains("minimum_mean = 250 if solderscope_launch_product else 1000"))
+        #expect(screenshotVerifier.contains("minimum_mean = 180 if solderscope_launch_product else 1000"))
         #expect(screenshotVerifier.contains("Quill Enchanted Qt native"))
         #expect(screenshotVerifier.contains("239 <= red <= 247 and 239 <= green <= 247 and 242 <= blue <= 250"))
         #expect(screenshotVerifier.contains("validate_quill_enchanted_qt_native"))

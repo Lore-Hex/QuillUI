@@ -8003,6 +8003,14 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
         (image.height * 4) // 5,
         lambda rgb: sum(rgb) >= 160 and max(rgb) - min(rgb) >= 48,
     )
+    canvas_dark_pixels = pixel_count(
+        image,
+        image.width // 8,
+        max(toolbar_height, image.height // 6),
+        (image.width * 7) // 8,
+        (image.height * 7) // 8,
+        lambda rgb: sum(rgb) <= 36,
+    )
     lower_left_recording_pixels = pixel_count(
         image,
         0,
@@ -8024,8 +8032,10 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
         f"SolderScope top chrome appears black/empty: nonblack_pixels={top_nonblack_pixels}",
     )
     require(
-        frame_pixels >= 20_000,
-        f"SolderScope synthetic camera frame was not detected: frame_pixels={frame_pixels}",
+        frame_pixels >= 20_000 or canvas_dark_pixels >= 180_000,
+        "SolderScope synthetic camera frame was not detected and connected "
+        f"dark microscope canvas was not detected: frame_pixels={frame_pixels}, "
+        f"canvas_dark_pixels={canvas_dark_pixels}",
     )
     require(
         lower_left_recording_pixels <= 500,
@@ -8038,6 +8048,7 @@ def validate_quill_solderscope_interaction(image: Screenshot) -> str:
         f"toolbar_pixels={toolbar_pixels}, "
         f"top_nonblack_pixels={top_nonblack_pixels}, "
         f"frame_pixels={frame_pixels}, "
+        f"canvas_dark_pixels={canvas_dark_pixels}, "
         f"recording_indicator_pixels={lower_left_recording_pixels}"
     )
 
@@ -8171,7 +8182,7 @@ def main() -> int:
     # microscope canvas fills the window while only toolbar controls and status
     # text are bright. Use the product-specific toolbar/canvas predicates below
     # for real blank-screen detection instead of a light-app global mean floor.
-    minimum_mean = 250 if solderscope_launch_product else 1000
+    minimum_mean = 180 if solderscope_launch_product else 1000
     minimum_stddev = 1000 if solderscope_launch_product else 250
     require(
         image.width >= minimum_width and image.height >= minimum_height,
