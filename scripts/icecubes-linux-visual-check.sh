@@ -46,6 +46,7 @@ AUTH_EXPLORE_SUGGESTED_USERS_X="${QUILLUI_ICECUBES_VISUAL_AUTH_EXPLORE_SUGGESTED
 AUTH_EXPLORE_SUGGESTED_USERS_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_EXPLORE_SUGGESTED_USERS_Y:-94}"
 AUTH_EXPLORE_TAGS_X="${QUILLUI_ICECUBES_VISUAL_AUTH_EXPLORE_TAGS_X:-682}"
 AUTH_EXPLORE_TAGS_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_EXPLORE_TAGS_Y:-94}"
+AUTH_EXPLORE_SUGGESTED_RELATIONSHIPS_ENDPOINT="/api/v1/accounts/relationships?id%5B%5D=suggested-account-1&id%5B%5D=suggested-account-2"
 AUTH_NOTIFICATIONS_X="${QUILLUI_ICECUBES_VISUAL_AUTH_NOTIFICATIONS_X:-82}"
 AUTH_NOTIFICATIONS_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_NOTIFICATIONS_Y:-312}"
 AUTH_NOTIFICATIONS_INITIAL_ENDPOINT="/api/v2/notifications?grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full"
@@ -1066,16 +1067,18 @@ open_authenticated_status_detail() {
 open_authenticated_explore_route() {
   wait_for_authenticated_timeline_activity
   wait_for_authenticated_home_row_visual
-  local previous_suggestions_count previous_tags_count previous_trending_statuses_count previous_links_count
+  local previous_suggestions_count previous_tags_count previous_trending_statuses_count previous_links_count previous_suggested_relationships_count
   previous_suggestions_count="$(count_app_log_occurrences "/api/v1/suggestions")"
   previous_tags_count="$(count_app_log_occurrences "/api/v1/trends/tags")"
   previous_trending_statuses_count="$(count_app_log_occurrences "/api/v1/trends/statuses")"
   previous_links_count="$(count_app_log_occurrences "/api/v1/trends/links")"
+  previous_suggested_relationships_count="$(count_app_log_occurrences "$AUTH_EXPLORE_SUGGESTED_RELATIONSHIPS_ENDPOINT")"
   click_app_window_point "$AUTH_EXPLORE_X" "$AUTH_EXPLORE_Y"
   wait_for_authenticated_api_activity "/api/v1/suggestions" "authenticated Explore suggestions" "$((previous_suggestions_count + 1))"
   wait_for_authenticated_api_activity "/api/v1/trends/tags" "authenticated Explore trending tags" "$((previous_tags_count + 1))"
   wait_for_authenticated_api_activity "/api/v1/trends/statuses" "authenticated Explore trending posts" "$((previous_trending_statuses_count + 1))"
   wait_for_authenticated_api_activity "/api/v1/trends/links" "authenticated Explore trending links" "$((previous_links_count + 1))"
+  wait_for_authenticated_api_activity "$AUTH_EXPLORE_SUGGESTED_RELATIONSHIPS_ENDPOINT" "authenticated Explore suggested account relationships" "$((previous_suggested_relationships_count + 1))"
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-explore" "authenticated Explore route"
 }
 
@@ -1391,9 +1394,9 @@ case "$INTERACTION" in
   seeded-authenticated-explore-suggested-users)
     VERIFY_PRODUCT="icecubes-linux-authenticated-explore-suggested-users"
     open_authenticated_explore_route
-    previous_suggested_relationships_count="$(count_app_log_occurrences "/api/v1/accounts/relationships?id%5B%5D=suggested-account-1&id%5B%5D=suggested-account-2")"
+    previous_suggested_relationships_count="$(count_app_log_occurrences "$AUTH_EXPLORE_SUGGESTED_RELATIONSHIPS_ENDPOINT")"
     click_app_window_point "$AUTH_EXPLORE_SUGGESTED_USERS_X" "$AUTH_EXPLORE_SUGGESTED_USERS_Y"
-    wait_for_authenticated_api_activity "/api/v1/accounts/relationships?id%5B%5D=suggested-account-1&id%5B%5D=suggested-account-2" "authenticated Explore Suggested Users relationships" "$((previous_suggested_relationships_count + 1))"
+    wait_for_authenticated_api_activity "$AUTH_EXPLORE_SUGGESTED_RELATIONSHIPS_ENDPOINT" "authenticated Explore Suggested Users relationships" "$((previous_suggested_relationships_count + 1))"
     wait_for_authenticated_route_visual "$VERIFY_PRODUCT" "authenticated Explore Suggested Users quick-access route"
     ;;
   seeded-authenticated-explore-search)
