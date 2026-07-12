@@ -989,7 +989,7 @@ quillui_drive_solderscope_interaction() {
     local recording_start_fallback_sent=0
     local recording_start_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_START_FALLBACK_TICK:-12}"
     local recording_start_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_FALLBACK_RETRY_INTERVAL_TICKS:-0}"
-    local recording_start_indicator_probe_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_INDICATOR_PROBE_INTERVAL_TICKS:-4}"
+    local recording_start_indicator_probe_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_INDICATOR_PROBE_INTERVAL_TICKS:-1}"
     sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
     quillui_solderscope_drive_recording_action "$recording_start_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-start start
     local recording_started_count="$recording_started_before"
@@ -1061,7 +1061,7 @@ quillui_drive_solderscope_interaction() {
     local recording_stop_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_RETRY_INTERVAL_TICKS:-8}"
     local recording_stop_fallback_sent=0
     local recording_stop_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_TICK:-12}"
-    local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-0}"
+    local recording_stop_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_STOP_FALLBACK_RETRY_INTERVAL_TICKS:-8}"
     local recording_stop_observed_idle=0
     local recording_indicator_visible_after_stop=1
     for ((attempt = 1; attempt <= recording_save_attempts; attempt += 1)); do
