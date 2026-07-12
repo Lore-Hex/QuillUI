@@ -1342,6 +1342,7 @@ case "$INTERACTION" in
   seeded-authenticated-trending)
     VERIFY_PRODUCT="icecubes-linux-authenticated-trending"
     wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
     previous_trending_count="$(count_app_log_occurrences "/api/v1/trends/statuses")"
     click_app_window_point "$AUTH_TRENDING_X" "$AUTH_TRENDING_Y"
     wait_for_authenticated_api_activity "/api/v1/trends/statuses" "authenticated Trending sidebar navigation" "$((previous_trending_count + 1))"
@@ -1350,6 +1351,7 @@ case "$INTERACTION" in
   seeded-authenticated-local)
     VERIFY_PRODUCT="icecubes-linux-authenticated-local"
     wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
     previous_local_count="$(count_app_log_occurrences "/api/v1/timelines/public?local=true&limit=50")"
     click_app_window_point "$AUTH_LOCAL_X" "$AUTH_LOCAL_Y"
     wait_for_authenticated_api_activity "/api/v1/timelines/public?local=true&limit=50" "authenticated Local sidebar navigation" "$((previous_local_count + 1))"
@@ -1358,6 +1360,7 @@ case "$INTERACTION" in
   seeded-authenticated-federated)
     VERIFY_PRODUCT="icecubes-linux-authenticated-federated"
     wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
     previous_federated_count="$(count_app_log_occurrences "/api/v1/timelines/public?local=false&limit=50")"
     click_app_window_point "$AUTH_FEDERATED_X" "$AUTH_FEDERATED_Y"
     wait_for_authenticated_api_activity "/api/v1/timelines/public?local=false&limit=50" "authenticated Federated sidebar navigation" "$((previous_federated_count + 1))"
