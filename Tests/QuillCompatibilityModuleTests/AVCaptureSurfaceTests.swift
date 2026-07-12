@@ -240,6 +240,55 @@ struct AVCaptureSurfaceTests {
         #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
     }
 
+    @Test("real-time writer primes from the latest capture frame",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterPrimesFromLatestCaptureFrame() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-preroll-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        try await withSyntheticCameraEnvironment(width: 96, height: 64, fps: 20) {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external],
+                mediaType: .video,
+                position: .unspecified
+            )
+            let device = try #require(discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" })
+
+            let session = AVCaptureSession()
+            session.beginConfiguration()
+            session.addInput(try AVCaptureDeviceInput(device: device))
+            session.addOutput(AVCaptureVideoDataOutput())
+            session.commitConfiguration()
+            session.startRunning()
+            try await Task.sleep(nanoseconds: 200_000_000)
+            session.stopRunning()
+
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 96,
+                AVVideoHeightKey: 64,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 400_000,
+                    AVVideoExpectedSourceFrameRateKey: 20,
+                ],
+            ])
+            input.expectsMediaDataInRealTime = true
+            #expect(writer.canAdd(input))
+            writer.add(input)
+            #expect(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+            input.markAsFinished()
+            await writer.finishWriting()
+            #expect(writer.status == .completed)
+        }
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
     @Test func ciImagePixelPipelineRoundTrips() {
         // Synthetic 4x2 BGRA frame with a recognizable gradient.
         let width = 4, height = 2
