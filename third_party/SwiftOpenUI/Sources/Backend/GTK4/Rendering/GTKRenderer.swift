@@ -11909,7 +11909,7 @@ private func ensureListCSS(_ widget: UnsafeMutablePointer<GtkWidget>) {
     let provider = gtk_css_provider_new()!
     let css = """
         .swiftopenui-list { background: @view_bg_color; border-radius: 10px; padding: 0; }
-        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); min-height: 56px; padding: 0; }
+        .swiftopenui-list row { border-bottom: 1px solid alpha(currentColor, 0.18); padding: 0; }
         .swiftopenui-list row.separator-hidden { border-bottom: none; }
         .swiftopenui-list row:last-child { border-bottom: none; }
         """
@@ -11938,7 +11938,9 @@ extension List: GTKRenderable, GTKDescribable {
         let listBox = gtk_list_box_new()!
         let listBoxOp = OpaquePointer(listBox)
         gtk_widget_set_hexpand(listBox, 1)
+        gtk_widget_set_vexpand(listBox, 0)
         gtk_widget_set_halign(listBox, GTK_ALIGN_FILL)
+        gtk_widget_set_valign(listBox, GTK_ALIGN_START)
         gtk_list_box_set_selection_mode(listBoxOp, GTK_SELECTION_NONE)
 
         ensureListCSS(listBox)
