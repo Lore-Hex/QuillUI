@@ -280,11 +280,11 @@ quillui_solderscope_drive_recording_action() {
       ;;
     shortcut)
       echo "SolderScope interaction smoke: shortcut $label key r" >&2
-      local recording_key_driver="${QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-active}"
+      local recording_key_driver="${QUILLUI_SOLDERSCOPE_RECORDING_KEY_DRIVER:-window}"
       QUILLUI_SOLDERSCOPE_KEY_DRIVER="$recording_key_driver" \
         quillui_solderscope_send_key "$window_id" r
       if [[ "$recording_key_driver" != "active" ]] \
-        && quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_RECORDING_ACTIVE_SHORTCUT_FALLBACK:-0}"; then
+        && quillui_solderscope_truthy "${QUILLUI_SOLDERSCOPE_RECORDING_ACTIVE_SHORTCUT_FALLBACK:-1}"; then
         echo "SolderScope interaction smoke: shortcut $label active key r" >&2
         QUILLUI_SOLDERSCOPE_KEY_DRIVER=active quillui_solderscope_send_key "$window_id" r
       fi
@@ -988,7 +988,7 @@ quillui_drive_solderscope_interaction() {
     local recording_start_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_RETRY_INTERVAL_TICKS:-8}"
     local recording_start_fallback_sent=0
     local recording_start_fallback_tick="${QUILLUI_SOLDERSCOPE_RECORDING_START_FALLBACK_TICK:-12}"
-    local recording_start_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_FALLBACK_RETRY_INTERVAL_TICKS:-0}"
+    local recording_start_fallback_retry_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_FALLBACK_RETRY_INTERVAL_TICKS:-8}"
     local recording_start_indicator_probe_interval="${QUILLUI_SOLDERSCOPE_RECORDING_START_INDICATOR_PROBE_INTERVAL_TICKS:-1}"
     sleep "${QUILLUI_SOLDERSCOPE_PRE_RECORDING_SETTLE_SECONDS:-0.5}"
     quillui_solderscope_drive_recording_action "$recording_start_driver" "$window_id" "$window_x" "$window_y" "$window_width" record-start start
