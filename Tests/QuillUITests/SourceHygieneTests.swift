@@ -10550,6 +10550,8 @@ struct SourceHygieneTests {
         #expect(script.contains("authenticated Settings Display system-color mutation"))
         #expect(verifier.contains("def validate_icecubes_linux_add_account"))
         #expect(verifier.contains("def validate_icecubes_linux_add_account_instance"))
+        #expect(verifier.contains("def icecubes_add_account_chrome_metrics"))
+        #expect(verifier.contains("\"inline-sheet\""))
         #expect(verifier.contains("def validate_icecubes_linux_authenticated_shell"))
         #expect(verifier.contains("icecubes_sign_in_button_pixel"))
         #expect(verifier.contains("neutral_placeholder"))

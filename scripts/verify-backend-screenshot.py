@@ -4416,6 +4416,45 @@ def validate_quill_backend_interaction_sheet(image: Screenshot) -> str:
     return f"Quill backend sheet smoke: sheet={app_width}x{app_height}, dark_pixels={dark_pixels}"
 
 
+def icecubes_add_account_chrome_metrics(
+    image: Screenshot,
+    left: int,
+    top: int,
+    app_width: int,
+) -> tuple[int, int, str, str]:
+    title_candidates = [
+        (
+            "root-titlebar",
+            left + int(app_width * 0.33),
+            top + 8,
+            left + int(app_width * 0.67),
+            top + 44,
+        ),
+        (
+            "inline-sheet",
+            left + int(app_width * 0.33),
+            top + 64,
+            left + int(app_width * 0.67),
+            top + 142,
+        ),
+    ]
+    cancel_candidates = [
+        ("root-titlebar", left + 4, top + 8, left + 128, top + 44),
+        ("inline-sheet", left + 20, top + 64, left + 160, top + 142),
+    ]
+
+    def best_dark_count(candidates: list[tuple[str, int, int, int, int]]) -> tuple[int, str]:
+        measured = [
+            (dark_pixel_count(image, x0, y0, x1, y1), label)
+            for label, x0, y0, x1, y1 in candidates
+        ]
+        return max(measured, key=lambda item: item[0])
+
+    title_pixels, title_region = best_dark_count(title_candidates)
+    cancel_pixels, cancel_region = best_dark_count(cancel_candidates)
+    return title_pixels, cancel_pixels, title_region, cancel_region
+
+
 def validate_icecubes_linux_add_account(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -4426,14 +4465,12 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         f"IceCubes Add Account window has unexpected size: {app_width}x{app_height}",
     )
 
-    header_text_pixels = dark_pixel_count(
+    header_text_pixels, cancel_pixels, title_region, cancel_region = icecubes_add_account_chrome_metrics(
         image,
-        left + int(app_width * 0.33),
-        top + 8,
-        left + int(app_width * 0.67),
-        top + 44,
+        left,
+        top,
+        app_width,
     )
-    cancel_pixels = dark_pixel_count(image, left + 4, top + 8, left + 128, top + 44)
     row_title_pixels = dark_pixel_count(
         image,
         left + 12,
@@ -4508,6 +4545,8 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         f"app={app_width}x{app_height}, "
         f"title_pixels={header_text_pixels}, "
         f"cancel_pixels={cancel_pixels}, "
+        f"title_region={title_region}, "
+        f"cancel_region={cancel_region}, "
         f"row_text_pixels={row_title_pixels}, "
         f"stats_pixels={stats_pixels}, "
         f"media_pixels={media_pixels}, "
@@ -4526,14 +4565,12 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         f"IceCubes Add Account instance window has unexpected size: {app_width}x{app_height}",
     )
 
-    header_text_pixels = dark_pixel_count(
+    header_text_pixels, cancel_pixels, title_region, cancel_region = icecubes_add_account_chrome_metrics(
         image,
-        left + int(app_width * 0.33),
-        top + 8,
-        left + int(app_width * 0.67),
-        top + 44,
+        left,
+        top,
+        app_width,
     )
-    cancel_pixels = dark_pixel_count(image, left + 4, top + 8, left + 128, top + 44)
     entry_text_pixels = dark_pixel_count(
         image,
         left + 48,
@@ -4635,6 +4672,8 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         f"app={app_width}x{app_height}, "
         f"title_pixels={header_text_pixels}, "
         f"cancel_pixels={cancel_pixels}, "
+        f"title_region={title_region}, "
+        f"cancel_region={cancel_region}, "
         f"entry_text_pixels={entry_text_pixels}, "
         f"sign_in_button_pixels={sign_in_button_pixels}, "
         f"instance_info_surface_pixels={instance_info_surface_pixels}, "
