@@ -3880,7 +3880,15 @@ extension ForEach: GTKRenderable, GTKDescribable {
     }
 }
 
-extension AnyView: GTKRenderable {
+extension AnyView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "AnyView",
+            children: [gtkDescribeAnyView(wrapped)]
+        )
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         gtkRenderAnyView(wrapped)
     }
@@ -9502,20 +9510,23 @@ private final class GTKListRowLifecycleBox {
         } else if isVisible {
             gtkListDebugLog("row lifecycle hidden source=\(source)")
             isVisible = false
-            cancelActiveTasks()
         }
     }
 
     private func startTask(identity: GTK4DescriptorIdentity, payload: GTK4TaskPayload) {
-        if activeTasksByIdentity[identity]?.lifecycleID == payload.lifecycleID {
+        if let activeTask = activeTasksByIdentity[identity],
+           activeTask.lifecycleID == payload.lifecycleID {
+            gtkListDebugLog("row lifecycle task reuse source=\(source) identity=\(identity) lifecycleID=\(payload.lifecycleID ?? "<none>")")
             return
         }
         activeTasksByIdentity[identity]?.task.cancel()
         let action = payload.action
+        gtkListDebugLog("row lifecycle task start source=\(source) identity=\(identity) lifecycleID=\(payload.lifecycleID ?? "<none>")")
         activeTasksByIdentity[identity] = GTKListRowActiveTask(
             lifecycleID: payload.lifecycleID,
             task: Task(priority: payload.priority) {
                 await action()
+                gtkListDebugLog("row lifecycle task finish source=\(source) identity=\(identity) lifecycleID=\(payload.lifecycleID ?? "<none>")")
             }
         )
     }
@@ -9773,9 +9784,10 @@ private func gtkListRowIsVisible(
 
     let rowHeight = Double(max(1, gtk_widget_get_height(row)))
     let viewportHeight = Double(max(1, gtk_widget_get_height(scrolled)))
-    let margin = 8.0
-    return Double(rowY) < viewportHeight + margin
-        && Double(rowY) + rowHeight > -margin
+    let topMargin = 8.0
+    let bottomPrefetchMargin = max(8.0, min(320.0, viewportHeight * 0.5))
+    return Double(rowY) < viewportHeight + bottomPrefetchMargin
+        && Double(rowY) + rowHeight > -topMargin
 }
 
 private func gtkInstallListViewportLifecycleController(
