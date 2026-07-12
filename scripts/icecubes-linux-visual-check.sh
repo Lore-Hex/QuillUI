@@ -20,6 +20,7 @@ TYPE_Y="${QUILLUI_ICECUBES_VISUAL_TYPE_Y:-220}"
 TYPE_KEYS="${QUILLUI_ICECUBES_VISUAL_TYPE_INSTANCE_KEYS:-m a s t o d o n period s o c i a l}"
 TYPE_FOCUS_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_TYPE_FOCUS_SETTLE_SECONDS:-0.6}"
 TYPE_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_TYPE_KEY_DELAY_MS:-25}"
+TYPE_INSTANCE_READY_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_TYPE_INSTANCE_READY_TIMEOUT_SECONDS:-20}"
 SIGN_IN_X="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_X:-410}"
 SIGN_IN_Y="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_Y:-286}"
 AUTH_TRENDING_X="${QUILLUI_ICECUBES_VISUAL_AUTH_TRENDING_X:-82}"
@@ -461,6 +462,45 @@ type_instance_name() {
   fi
   DISPLAY="$DISPLAY_ID" xdotool key --delay "$TYPE_KEY_DELAY_MS" --clearmodifiers "${type_key_sequence[@]}"
   sleep "${QUILLUI_ICECUBES_VISUAL_AFTER_TYPE_SETTLE_SECONDS:-6}"
+}
+
+wait_for_add_account_selected_instance_visual() {
+  case "$TYPE_INSTANCE_READY_TIMEOUT_SECONDS" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_TYPE_INSTANCE_READY_TIMEOUT_SECONDS must be a non-negative integer, got: $TYPE_INSTANCE_READY_TIMEOUT_SECONDS" >&2
+      exit 2
+      ;;
+  esac
+
+  local deadline output probe_path
+  deadline="$((SECONDS + TYPE_INSTANCE_READY_TIMEOUT_SECONDS))"
+  output=""
+  probe_path="${SCREENSHOT_PATH%.*}.selected-instance-ready.png"
+
+  while true; do
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      echo "IceCubes app exited while waiting for selected-instance Add Account pixels." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    if DISPLAY="$DISPLAY_ID" timeout 10 import -window "$window_id" "$probe_path"; then
+      if output="$("$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "icecubes-linux-add-account-instance" 2>&1)"; then
+        printf '%s\n' "$output"
+        return 0
+      fi
+    else
+      output="IceCubes selected-instance readiness screenshot capture failed: $probe_path"
+    fi
+
+    if ((SECONDS >= deadline)); then
+      echo "Timed out waiting for IceCubes selected-instance Add Account pixels." >&2
+      printf '%s\n' "$output" >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    sleep 0.5
+  done
 }
 
 type_authenticated_composer_text() {
@@ -1269,9 +1309,11 @@ case "$INTERACTION" in
   type-instance)
     type_instance_name
     VERIFY_PRODUCT="icecubes-linux-add-account-instance"
+    wait_for_add_account_selected_instance_visual
     ;;
   sign-in-open)
     type_instance_name
+    wait_for_add_account_selected_instance_visual
     click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
     wait_for_oauth_open_url_log
     VERIFY_PRODUCT="icecubes-linux-add-account-instance"

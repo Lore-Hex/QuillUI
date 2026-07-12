@@ -113,6 +113,82 @@
     },
     {
       "method": "GET",
+      "host": "instances.social",
+      "path": "/api/1.0/instances/list",
+      "query": "count=1000&include_closed=false&include_dead=false&min_active_users=500",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "instances": [
+          {
+            "id": "fixture-mastodon-social",
+            "name": "mastodon.social",
+            "dead": false,
+            "users": "1460000",
+            "active_users": 1460000,
+            "statuses": "81200000",
+            "thumbnail": "https://mastodon.social/headers/quill-instance.png",
+            "info": {
+              "short_description": "Fixture instance for QuillUI IceCubes Add Account parity."
+            }
+          },
+          {
+            "id": "fixture-swift-linux",
+            "name": "swiftlinux.social",
+            "dead": false,
+            "users": "42000",
+            "active_users": 12000,
+            "statuses": "760000",
+            "thumbnail": "https://mastodon.social/headers/swift-linux-instance.png",
+            "info": {
+              "short_description": "A deterministic Swift-on-Linux fixture row for Add Account suggestions."
+            }
+          },
+          {
+            "id": "fixture-quill-lab",
+            "name": "quill-lab.social",
+            "dead": false,
+            "users": "12000",
+            "active_users": 6400,
+            "statuses": "240000",
+            "thumbnail": "https://mastodon.social/headers/quill-lab-instance.png",
+            "info": {
+              "short_description": "A smaller fixture instance that keeps multiple suggestion cards visible."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "host": "instances.social",
+      "path": "/api/1.0/instances/search",
+      "query": "q=mastodon.social",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "instances": [
+          {
+            "id": "fixture-mastodon-social",
+            "name": "mastodon.social",
+            "dead": false,
+            "users": "1460000",
+            "active_users": 1460000,
+            "statuses": "81200000",
+            "thumbnail": "https://mastodon.social/headers/quill-instance.png",
+            "info": {
+              "short_description": "Fixture instance for QuillUI IceCubes Add Account parity."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
       "host": "mastodon.social",
       "path": "/api/v1/instance/peers",
       "status": 200,
