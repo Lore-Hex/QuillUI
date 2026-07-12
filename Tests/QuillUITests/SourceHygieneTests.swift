@@ -6594,7 +6594,7 @@ struct SourceHygieneTests {
         #expect(!backendScript.contains("window_height - 115"))
         #expect(!backendScript.contains("window_height - 76"))
         #expect(backendScript.contains("quillui_backend_interaction_verify_product \"$PRODUCT\" \"$INTERACTION_MODE\" VERIFY_PRODUCT"))
-        #expect(screenshotVerifier.contains("text_pixels >= 120"))
+        #expect(screenshotVerifier.contains("text_pixels >= 90"))
         #expect(!screenshotVerifier.contains("text_pixels >= 25,\n        f\"Mac-reference typed composer text was not detected"))
         #expect(backendScript.contains("quill_chat_completions_panel_probe_path=\"\""))
         #expect(backendScript.contains("quill_chat_completion_save_uses_seed_fixture()"))

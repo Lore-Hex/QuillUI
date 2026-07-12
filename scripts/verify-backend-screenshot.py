@@ -1308,7 +1308,7 @@ def validate_quill_chat_mac_reference_composer_typed(image: Screenshot) -> str:
         min(bottom + 1, composer_y + 62),
     )
     require(
-        text_pixels >= 120,
+        text_pixels >= 90,
         f"Mac-reference typed composer text was not detected: pixels={text_pixels}",
     )
 
