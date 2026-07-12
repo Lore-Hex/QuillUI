@@ -158,4 +158,12 @@ final class Phase3ViewTests: XCTestCase {
         let children = (list.content as! any MultiChildView).children
         XCTAssertEqual(children.count, 2)
     }
+
+    func testListRowBackgroundCarriesMetadata() throws {
+        let row = Text("Explore").listRowBackground(Color.white)
+        let provider = try XCTUnwrap(row as? any ListRowBackgroundProvider)
+
+        XCTAssertTrue(provider.listRowBackground is Color)
+        XCTAssertTrue(provider.listRowBackgroundContent is Text)
+    }
 }

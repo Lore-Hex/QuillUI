@@ -913,6 +913,10 @@ extension SwiftOpenUI.ListRowSeparatorView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }
 
+extension SwiftOpenUI.ListRowBackgroundView: QuillWrappedViewRepresentable {
+    fileprivate var quillWrappedContent: any View { content }
+}
+
 extension ScrollIndicatorsView: QuillWrappedViewRepresentable {
     fileprivate var quillWrappedContent: any View { content }
 }

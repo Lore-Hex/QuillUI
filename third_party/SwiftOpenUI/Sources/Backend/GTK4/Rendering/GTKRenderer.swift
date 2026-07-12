@@ -9428,6 +9428,7 @@ private struct GTKRowMetadata {
     var insets: EdgeInsets?
     var separatorVisibility: Visibility = .automatic
     var separatorEdges: Edge.Set = .all
+    var background: (any View)?
 }
 
 private let gtkDefaultRowInsets = EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16)
@@ -9855,6 +9856,12 @@ private func gtkCollectRowMetadata(from value: Any, into metadata: inout GTKRowM
         return
     }
 
+    if let backgroundProvider = value as? any ListRowBackgroundProvider {
+        metadata.background = backgroundProvider.listRowBackground
+        gtkCollectRowMetadata(from: backgroundProvider.listRowBackgroundContent, into: &metadata, depth: depth + 1)
+        return
+    }
+
     let mirror = Mirror(reflecting: value)
     for child in mirror.children {
         guard child.label == "content" || child.label == "wrapped" || child.label == "base" else {
@@ -9911,6 +9918,9 @@ private func gtkViewIsPlainTextRow(_ value: Any, depth: Int = 0) -> Bool {
     }
     if let separatorProvider = value as? any ListRowSeparatorProvider {
         return gtkViewIsPlainTextRow(separatorProvider.listRowSeparatorContent, depth: depth + 1)
+    }
+    if let backgroundProvider = value as? any ListRowBackgroundProvider {
+        return gtkViewIsPlainTextRow(backgroundProvider.listRowBackgroundContent, depth: depth + 1)
     }
 
     for child in mirror.children {
@@ -10045,6 +10055,18 @@ private func gtkRenderRowContent(
     gtk_widget_set_valign(wrapper, GTK_ALIGN_START)
     if let minimumHeight {
         gtk_widget_set_size_request(wrapper, -1, minimumHeight)
+    }
+    if let color = resolvedMetadata.background as? Color {
+        applyCSSToWidget(
+            wrapper,
+            properties: String(
+                format: "background-color: rgba(%d, %d, %d, %.3f);",
+                Int(color.red * 255),
+                Int(color.green * 255),
+                Int(color.blue * 255),
+                color.alpha
+            )
+        )
     }
     gtkInstallRowWidthFill(on: wrapper, child: child)
     if let primaryAction {

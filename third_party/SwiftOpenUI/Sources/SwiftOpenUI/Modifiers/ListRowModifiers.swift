@@ -26,6 +26,12 @@ public protocol ListRowSeparatorProvider {
     var listRowSeparatorContent: any View { get }
 }
 
+/// Protocol for views that carry SwiftUI list/form row background metadata.
+public protocol ListRowBackgroundProvider {
+    var listRowBackground: (any View)? { get }
+    var listRowBackgroundContent: any View { get }
+}
+
 /// A wrapper that carries per-row inset metadata for List/Form renderers.
 public struct ListRowInsetsView<Content: View>: View, ListRowInsetsProvider {
     public let content: Content
@@ -61,6 +67,22 @@ public struct ListRowSeparatorView<Content: View>: View, ListRowSeparatorProvide
     public var listRowSeparatorContent: any View { content }
 }
 
+/// A wrapper that carries per-row background metadata for List/Form renderers.
+public struct ListRowBackgroundView<Content: View, Background: View>: View, ListRowBackgroundProvider {
+    public let content: Content
+    public let background: Background?
+
+    public init(content: Content, background: Background?) {
+        self.content = content
+        self.background = background
+    }
+
+    public var body: Content { content }
+
+    public var listRowBackground: (any View)? { background }
+    public var listRowBackgroundContent: any View { content }
+}
+
 public extension View {
     /// Sets the insets for this row when rendered inside a List or Form.
     func listRowInsets(_ insets: EdgeInsets?) -> ListRowInsetsView<Self> {
@@ -78,5 +100,14 @@ public extension View {
             message: "listRowSeparator is preserved as list row separator metadata on Linux."
         )
         return ListRowSeparatorView(content: self, visibility: visibility, edges: edges)
+    }
+
+    /// Sets the background for this row when rendered inside a List or Form.
+    func listRowBackground<V: View>(_ view: V?) -> ListRowBackgroundView<Self, V> {
+        swiftOpenUIRecordCompatibilityFallback(
+            "listRowBackground",
+            message: "listRowBackground is preserved as list row background metadata on Linux."
+        )
+        return ListRowBackgroundView(content: self, background: view)
     }
 }
