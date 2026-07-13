@@ -835,6 +835,7 @@ if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
     --backend gtk \
     --scratch-path "$SCRATCH_PATH"
 
+  QUILLUI_SOLDERSCOPE=1 \
   QUILLUI_LINUX_BACKEND=gtk \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
     swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --product QuillSolderScope
@@ -842,6 +843,7 @@ if [[ "${QUILLUI_SOLDERSCOPE_SKIP_BUILD:-0}" != "1" ]]; then
 fi
 
 BIN_PATH="$(
+  QUILLUI_SOLDERSCOPE=1 \
   QUILLUI_LINUX_BACKEND=gtk \
     "$ROOT_DIR/scripts/swiftpm-preserve-package-resolved.sh" \
     swift build --disable-index-store --scratch-path "$SCRATCH_PATH" --show-bin-path
@@ -1176,6 +1178,11 @@ if [[ "$SMOKE_MODE" == "interaction" ]]; then
     QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT="${QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT:-480}"
     QUILL_AVFOUNDATION_SYNTHETIC_FPS="${QUILL_AVFOUNDATION_SYNTHETIC_FPS:-12}"
   )
+  if [[ "$SOLDERSCOPE_DRIVE_RECORDING" == "1" ]]; then
+    app_env+=(
+      QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE="${QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE:-6}"
+    )
+  fi
 fi
 
 env "${app_env[@]}" "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &

@@ -268,9 +268,19 @@ public class AVAssetWriter: @unchecked Sendable {
     private var quillEncoder: QuillFFmpegMovieEncoder?
     private let quillFrameAppendLock = NSLock()
     private var quillManualFrameAppendCount = 0
+    private var quillAutomaticCaptureFrameCount = 0
     private var quillEncodedFrameCount = 0
     private var quillVideoWidth: Int?
     private var quillVideoHeight: Int?
+
+    private static func quillAutomaticCaptureFrameStride() -> Int {
+        guard let value = ProcessInfo.processInfo.environment["QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE"],
+              let stride = Int(value),
+              stride > 1 else {
+            return 1
+        }
+        return stride
+    }
     #endif
 
     public func canAdd(_ input: AVAssetWriterInput) -> Bool { status == .unknown }
@@ -353,7 +363,13 @@ public class AVAssetWriter: @unchecked Sendable {
         if countsAsManualAppend {
             quillManualFrameAppendCount += 1
         }
-        let shouldAppend = countsAsManualAppend || quillManualFrameAppendCount == 0
+        var shouldAppend = countsAsManualAppend || quillManualFrameAppendCount == 0
+        if shouldAppend && !countsAsManualAppend {
+            quillAutomaticCaptureFrameCount += 1
+            let stride = Self.quillAutomaticCaptureFrameStride()
+            shouldAppend = quillAutomaticCaptureFrameCount == 1
+                || (quillAutomaticCaptureFrameCount - 1) % stride == 0
+        }
         quillFrameAppendLock.unlock()
         guard shouldAppend else { return false }
 
