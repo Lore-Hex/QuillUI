@@ -4760,6 +4760,8 @@ extension LineLimitView: GTKRenderable {
                     gtk_label_set_wrap(labelOp, 1)
                     gtk_label_set_wrap_mode(labelOp, PANGO_WRAP_WORD_CHAR)
                     gtk_label_set_lines(labelOp, gint(limit))
+                    gtk_widget_set_hexpand(label, 1)
+                    gtk_widget_set_halign(label, GTK_ALIGN_FILL)
                     // Default tail truncation for multi-line overflow, but
                     // don't overwrite an explicit truncation mode already set.
                     if gtk_label_get_ellipsize(labelOp) == PANGO_ELLIPSIZE_NONE {
@@ -4772,6 +4774,8 @@ extension LineLimitView: GTKRenderable {
                 gtk_label_set_wrap_mode(labelOp, PANGO_WRAP_WORD_CHAR)
                 gtk_label_set_lines(labelOp, -1)
                 gtk_label_set_ellipsize(labelOp, PANGO_ELLIPSIZE_NONE)
+                gtk_widget_set_hexpand(label, 1)
+                gtk_widget_set_halign(label, GTK_ALIGN_FILL)
             }
         }
         return opaqueFromWidget(widget)

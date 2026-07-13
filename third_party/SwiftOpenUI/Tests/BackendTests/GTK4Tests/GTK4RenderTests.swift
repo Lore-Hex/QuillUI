@@ -3400,6 +3400,43 @@ final class GTK4RenderTests: XCTestCase {
         }
     }
 
+    func testConversationBubbleLineLimitNilWinsSpaceBeforeTrailingSpacer() throws {
+        try requireGTK()
+
+        let message = "Conversation fixture: Alice sent a direct message that should render in a Linux Messages detail bubble."
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            HStack(alignment: .bottom, spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(message)
+                        .lineLimit(nil)
+                        .padding(6)
+                }
+                .background(Color.gray)
+                .cornerRadius(8)
+                .padding(.trailing, 24)
+
+                Spacer()
+            }
+            .frame(width: 520)
+        ))
+
+        gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        gtk_widget_set_hexpand(wrapper, 1)
+        allocate(widget: wrapper, size: ViewSize(width: 520, height: 96))
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let messageLabel = try XCTUnwrap(labels.first { label in
+            String(cString: gtk_label_get_text(OpaquePointer(label))) == message
+        })
+        let labelSize = allocatedSize(of: messageLabel)
+        XCTAssertGreaterThan(
+            labelSize.width,
+            300,
+            "A multiline message label before a trailing Spacer should receive the available bubble width instead of collapsing to a couple of characters."
+        )
+    }
+
     func testStatusActionRowKeepsLeadingActionsInsideAllocatedRow() throws {
         try requireGTK()
 

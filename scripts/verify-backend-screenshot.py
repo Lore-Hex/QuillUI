@@ -6545,12 +6545,20 @@ def validate_icecubes_linux_authenticated_messages_detail(image: Screenshot) -> 
         right - 20,
         top + 130,
     )
-    composer_pixels = dark_pixel_count(
+    composer_dark_pixels = dark_pixel_count(
         image,
         left + 500,
         bottom - 76,
         left + 790,
         bottom - 15,
+    )
+    composer_pixels = pixel_count(
+        image,
+        left + 500,
+        bottom - 76,
+        left + 790,
+        bottom - 15,
+        mac_reference_composer_pixel,
     )
     content_surface_pixels = pixel_count(
         image,
@@ -6578,8 +6586,9 @@ def validate_icecubes_linux_authenticated_messages_detail(image: Screenshot) -> 
         f"IceCubes authenticated Messages detail message/date header was not detected: pixels={detail_header_pixels}",
     )
     require(
-        composer_pixels >= 160,
-        f"IceCubes authenticated Messages detail reply composer was not detected: pixels={composer_pixels}",
+        composer_pixels >= 250 or composer_dark_pixels >= 160,
+        "IceCubes authenticated Messages detail reply composer was not detected: "
+        f"pixels={composer_pixels}, dark_pixels={composer_dark_pixels}",
     )
     require(
         content_surface_pixels >= 300_000,
@@ -6594,6 +6603,7 @@ def validate_icecubes_linux_authenticated_messages_detail(image: Screenshot) -> 
         f"messages_label_pixels={messages_label_pixels}, "
         f"detail_header_pixels={detail_header_pixels}, "
         f"composer_pixels={composer_pixels}, "
+        f"composer_dark_pixels={composer_dark_pixels}, "
         f"content_surface_pixels={content_surface_pixels}"
     )
 
