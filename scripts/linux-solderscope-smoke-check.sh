@@ -58,6 +58,31 @@ if [[ ! -d "$UPSTREAM_DIR" ]]; then
   exit 0
 fi
 
+quillui_solderscope_prepare_linux_upstream() {
+  local logger="$UPSTREAM_DIR/Utilities/Logger.swift"
+  if [[ "$(uname -s)" != "Linux" || ! -f "$logger" ]]; then
+    return
+  fi
+  if ! grep -qE '^import os\.log$' "$logger" 2>/dev/null; then
+    return
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "SolderScope smoke found unlowered import os.log but python3 is unavailable" >&2
+    exit 66
+  fi
+  echo "SolderScope smoke: preparing Linux upstream import os.log -> import os" >&2
+  python3 - "$logger" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+path.write_text(text.replace("import os.log\n", "import os\n", 1))
+PY
+}
+
+quillui_solderscope_prepare_linux_upstream
+
 quillui_install_linux_backend_smoke_packages
 
 for required_command in swift Xvfb import identify convert xdotool; do

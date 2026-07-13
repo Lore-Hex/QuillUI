@@ -4702,6 +4702,10 @@ struct SourceHygieneTests {
             contentsOf: root.appendingPathComponent("Sources/AVFoundation/SyntheticCapture.swift"),
             encoding: .utf8
         )
+        let ffmpegMovieEncoder = try String(
+            contentsOf: root.appendingPathComponent("Sources/AVFoundation/QuillFFmpegMovieEncoder.swift"),
+            encoding: .utf8
+        )
         let captureTests = try String(
             contentsOf: root.appendingPathComponent("Tests/QuillCompatibilityModuleTests/AVCaptureSurfaceTests.swift"),
             encoding: .utf8
@@ -4752,6 +4756,10 @@ struct SourceHygieneTests {
         #expect(avCaptureSurface.contains("quillSyntheticStopIfAvailable()"))
         #expect(avCaptureSurface.contains("QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE"))
         #expect(avCaptureSurface.contains("quillAutomaticCaptureFrameCount"))
+        #expect(ffmpegMovieEncoder.contains("private var encodedFrameCount = 0"))
+        #expect(ffmpegMovieEncoder.contains("if encodedFrameCount == 0"))
+        #expect(ffmpegMovieEncoder.contains("Self.makeFallbackFrame(width: width, height: height)"))
+        #expect(ffmpegMovieEncoder.contains("encodedFrameCount += 1"))
         #expect(syntheticCapture.contains("QUILL_AVFOUNDATION_SYNTHETIC_CAMERA"))
         #expect(syntheticCapture.contains("static func quillDiscoveredCaptureDevices() -> [AVCaptureDevice]"))
         #expect(syntheticCapture.contains("static func deviceConfiguration(_ device: AVCaptureDevice)"))
@@ -7284,6 +7292,9 @@ struct SourceHygieneTests {
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_ATTEMPTS:-40"))
         #expect(solderScopeSmoke.contains("QUILLUI_SOLDERSCOPE_SNAPSHOT_TICK_SECONDS:-0.25"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_send_key()"))
+        #expect(solderScopeSmoke.contains("quillui_solderscope_prepare_linux_upstream()"))
+        #expect(solderScopeSmoke.contains("SolderScope smoke: preparing Linux upstream import os.log -> import os"))
+        #expect(solderScopeSmoke.contains("text.replace(\"import os.log\\n\", \"import os\\n\", 1)"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_started_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_recording_saved_log_count()"))
         #expect(solderScopeSmoke.contains("quillui_solderscope_snapshot_saved_log_count()"))
