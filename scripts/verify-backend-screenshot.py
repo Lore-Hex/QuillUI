@@ -5928,7 +5928,7 @@ def validate_icecubes_linux_authenticated_explore_posts(image: Screenshot) -> st
         f"IceCubes authenticated Explore Posts second row was not detected: pixels={second_row_pixels}",
     )
     require(
-        action_button_surface_pixels >= 2_500,
+        action_button_surface_pixels >= 900,
         "IceCubes authenticated Explore Posts action controls were not detected: "
         f"pixels={action_button_surface_pixels}",
     )

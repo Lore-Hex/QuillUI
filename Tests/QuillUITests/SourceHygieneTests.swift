@@ -10661,6 +10661,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("\"icecubes-linux-authenticated-explore-posts\""))
         #expect(verifier.contains("def validate_icecubes_linux_authenticated_explore_posts"))
         #expect(verifier.contains("action_button_surface_pixels"))
+        #expect(verifier.contains("action_button_surface_pixels >= 900"))
         #expect(verifier.contains("IceCubes authenticated Explore Posts timeline rows were not detected"))
         #expect(verifier.contains("IceCubes authenticated Explore Posts action controls were not detected"))
         #expect(verifier.contains("\"icecubes-linux-authenticated-explore-tags\""))
