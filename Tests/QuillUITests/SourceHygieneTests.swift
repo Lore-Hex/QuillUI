@@ -10756,6 +10756,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("IceCubes authenticated Settings Display lower controls were not detected"))
         #expect(verifier.contains("IceCubes authenticated Settings Display font scaling control was not detected"))
         #expect(verifier.contains("IceCubes authenticated Settings Display row stack was not detected"))
+        #expect(verifier.contains("bottom - 25"))
         #expect(verifier.contains("slider_right_accent_pixels >= 180"))
         #expect(verifier.contains("IceCubes authenticated Settings Display font-scale slider did not move right"))
         #expect(verifier.contains("font_picker_surface_pixels >= 240_000"))

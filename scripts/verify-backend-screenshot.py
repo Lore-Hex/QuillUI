@@ -7034,7 +7034,7 @@ def validate_icecubes_linux_authenticated_settings_display_font_scale(image: Scr
         left + 540,
         top + 575,
         left + 665,
-        top + 606,
+        bottom - 25,
         icecubes_authenticated_accent_pixel,
     )
     slider_left_accent_pixels = pixel_count(
@@ -7042,7 +7042,7 @@ def validate_icecubes_linux_authenticated_settings_display_font_scale(image: Scr
         left + 285,
         top + 575,
         left + 520,
-        top + 606,
+        bottom - 25,
         icecubes_authenticated_accent_pixel,
     )
 
@@ -7162,7 +7162,7 @@ def validate_icecubes_linux_authenticated_settings_display_font_picker(image: Sc
         left + 285,
         top + 575,
         left + 665,
-        top + 606,
+        bottom - 25,
         icecubes_authenticated_accent_pixel,
     )
 
