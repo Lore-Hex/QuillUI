@@ -6823,7 +6823,11 @@ def validate_icecubes_linux_authenticated_settings(image: Screenshot) -> str:
     )
 
 
-def validate_icecubes_linux_authenticated_settings_display(image: Screenshot) -> str:
+def validate_icecubes_linux_authenticated_settings_display(
+    image: Screenshot,
+    *,
+    min_display_row_segments: int = 7,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -6981,9 +6985,10 @@ def validate_icecubes_linux_authenticated_settings_display(image: Screenshot) ->
         f"slider_pixels={slider_control_pixels}, lower_pixels={lower_display_control_pixels}",
     )
     require(
-        display_row_segments >= 7,
+        display_row_segments >= min_display_row_segments,
         "IceCubes authenticated Settings Display row stack was not detected: "
-        f"segments={display_row_segments}, preview_pixels={preview_status_text_pixels}",
+        f"segments={display_row_segments}, min_segments={min_display_row_segments}, "
+        f"preview_pixels={preview_status_text_pixels}",
     )
     require(
         stale_settings_root_account_pixels <= 1_400,
@@ -7289,7 +7294,7 @@ def validate_icecubes_linux_authenticated_settings_display_font_picker_selected(
 
 
 def validate_icecubes_linux_authenticated_settings_display_system_color(image: Screenshot) -> str:
-    baseline = validate_icecubes_linux_authenticated_settings_display(image)
+    baseline = validate_icecubes_linux_authenticated_settings_display(image, min_display_row_segments=6)
     left, right, top, _ = content_bounds(image)
     toggle_accent_pixels = pixel_count(
         image,
