@@ -97,6 +97,8 @@ AUTH_TIMELINE_PAGINATION_SCROLL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_PAGIN
 AUTH_TIMELINE_PAGINATION_SCROLL_CLICKS="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_PAGINATION_SCROLL_CLICKS:-12}"
 AUTH_TIMELINE_PAGINATION_SCROLL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_PAGINATION_SCROLL_SETTLE_SECONDS:-0.1}"
 AUTH_REFRESH_KEY_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_REFRESH_KEY_SETTLE_SECONDS:-0.25}"
+AUTH_REFRESH_KEY_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_REFRESH_KEY_RETRIES:-5}"
+AUTH_REFRESH_KEY_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_REFRESH_KEY_RETRY_SECONDS:-0.75}"
 AUTH_STATUS_DETAIL_REFRESH_KEY_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REFRESH_KEY_RETRIES:-5}"
 AUTH_STATUS_DETAIL_REFRESH_KEY_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REFRESH_KEY_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_X:-663}"
@@ -1261,17 +1263,27 @@ trigger_authenticated_refresh_shortcut() {
   local endpoint_pattern="$1"
   local label="$2"
   local expected_count="$3"
-  local previous_refresh_trigger_count
+  local previous_refresh_trigger_count expected_refresh_trigger_count attempt
 
   previous_refresh_trigger_count="$(count_app_log_occurrences "[QuillUI GTK Refreshable] trigger source=keyboard")"
+  expected_refresh_trigger_count="$((previous_refresh_trigger_count + 1))"
 
-  DISPLAY="$DISPLAY_ID" xdotool windowraise "$window_id" 2>/dev/null || true
-  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
-  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
-  DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+r
-  sleep "$AUTH_REFRESH_KEY_SETTLE_SECONDS"
+  for attempt in $(seq 1 "$AUTH_REFRESH_KEY_RETRIES"); do
+    DISPLAY="$DISPLAY_ID" xdotool windowraise "$window_id" 2>/dev/null || true
+    DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+    DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+    DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers ctrl+r
+    sleep "$AUTH_REFRESH_KEY_SETTLE_SECONDS"
+
+    if (( $(count_app_log_occurrences "$endpoint_pattern") >= expected_count )) \
+      && (( $(count_app_log_occurrences "[QuillUI GTK Refreshable] trigger source=keyboard") >= expected_refresh_trigger_count )); then
+      return 0
+    fi
+    sleep "$AUTH_REFRESH_KEY_RETRY_SECONDS"
+  done
+
   wait_for_authenticated_api_activity "$endpoint_pattern" "$label" "$expected_count"
-  wait_for_app_log_activity "[QuillUI GTK Refreshable] trigger source=keyboard" "$label shortcut" "$((previous_refresh_trigger_count + 1))"
+  wait_for_app_log_activity "[QuillUI GTK Refreshable] trigger source=keyboard" "$label shortcut" "$expected_refresh_trigger_count"
 }
 
 trigger_authenticated_home_refresh() {
