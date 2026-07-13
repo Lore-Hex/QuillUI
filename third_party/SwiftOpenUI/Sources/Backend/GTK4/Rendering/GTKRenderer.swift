@@ -57,12 +57,21 @@ private func gtkSetLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: 
     g_object_set_data(gobject, key, UnsafeMutableRawPointer(bitPattern: 1))
 }
 
+private func gtkClearLayoutMarker(_ widget: UnsafeMutablePointer<GtkWidget>, key: String) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(gobject, key, nil)
+}
+
 private func gtkMarkVerticalFillIntent(_ widget: UnsafeMutablePointer<GtkWidget>) {
     gtkSetLayoutMarker(widget, key: gtkSwiftVerticalFillIntentMarker)
 }
 
 private func gtkHasVerticalFillIntent(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
     gtkHasLayoutMarker(widget, key: gtkSwiftVerticalFillIntentMarker)
+}
+
+private func gtkClearVerticalFillIntent(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtkClearLayoutMarker(widget, key: gtkSwiftVerticalFillIntentMarker)
 }
 
 private func gtkMarkEmptyView(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -4612,6 +4621,13 @@ private func gtkRenderFallbackBackground<Background: View>(
     if gtkIsEmptyViewWidget(backgroundWidget) {
         return opaqueFromWidget(contentWidget)
     }
+    gtk_widget_set_hexpand(backgroundWidget, gtk_widget_get_hexpand(contentWidget))
+    gtk_widget_set_vexpand(backgroundWidget, gtk_widget_get_vexpand(contentWidget))
+    gtk_widget_set_halign(backgroundWidget, GTK_ALIGN_FILL)
+    gtk_widget_set_valign(backgroundWidget, GTK_ALIGN_FILL)
+    if !gtkHasVerticalFillIntent(contentWidget) {
+        gtkClearVerticalFillIntent(backgroundWidget)
+    }
     return gtkRenderFallbackZStack([backgroundWidget, contentWidget], alignment: alignment)
 }
 
@@ -8841,11 +8857,207 @@ private func gtkAlignFromAlignment(_ alignment: Alignment) -> (GtkAlign, GtkAlig
 
 // MARK: - Toggle GTK extension
 
+private let gtkToggleActionDataKey = "gtk-swift-toggle-action"
+private let gtkToggleGlobalDispatcherDataKey = "gtk-swift-toggle-global-dispatcher"
+
+private final class GTKToggleActionBox {
+    let getValue: () -> Bool
+    let setValue: (Bool) -> Void
+    let applyValue: (Bool) -> Void
+
+    init(
+        getValue: @escaping () -> Bool,
+        setValue: @escaping (Bool) -> Void,
+        applyValue: @escaping (Bool) -> Void
+    ) {
+        self.getValue = getValue
+        self.setValue = setValue
+        self.applyValue = applyValue
+    }
+
+    func activate(_ value: Bool, source: String, applyVisualState: Bool = false) {
+        gtkDebugLog("toggle binding set \(source) active=\(value ? 1 : 0)")
+        setValue(value)
+        if applyVisualState {
+            applyValue(value)
+        }
+    }
+
+    func toggle(source: String) {
+        activate(!getValue(), source: source, applyVisualState: true)
+    }
+}
+
+private final class GTKToggleGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
+private final class GTKToggleRootInstallContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
+private func gtkToggleActionBox(from widget: UnsafeMutablePointer<GtkWidget>?) -> GTKToggleActionBox? {
+    guard let widget,
+          let data = g_object_get_data(
+              UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
+              gtkToggleActionDataKey
+          ) else {
+        return nil
+    }
+    return Unmanaged<GTKToggleActionBox>.fromOpaque(data).takeUnretainedValue()
+}
+
+private func gtkAttachToggleActionData(
+    to widget: UnsafeMutablePointer<GtkWidget>,
+    box: GTKToggleActionBox
+) {
+    let object = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data_full(
+        object,
+        gtkToggleActionDataKey,
+        Unmanaged.passRetained(box).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKToggleActionBox>.fromOpaque(userData).release()
+        }
+    )
+}
+
+private func gtkToggleActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+
+    if gtkToggleActionBox(from: widget) != nil,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkToggleActionWidgetAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkInstallGlobalToggleRootDispatcher(for widget: UnsafeMutablePointer<GtkWidget>) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkToggleGlobalDispatcherDataKey) == nil else { return }
+
+    let dispatcher = GTKToggleGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkToggleGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKToggleGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("toggle global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            guard gtk_swift_event_is_primary_button_press(event) != 0 else { return 0 }
+            let dispatcher = Unmanaged<GTKToggleGlobalRootDispatcher>.fromOpaque(userData).takeUnretainedValue()
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+            if gtkActivateToggleControlAtRootPoint(
+                root: dispatcher.root,
+                x: rootX,
+                y: rootY,
+                source: "toggle-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
+            gtkDebugLog("toggle root dispatch miss root@\(Int(rootX)),\(Int(rootY))")
+            return 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkToggleRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKToggleRootInstallContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallGlobalToggleRootDispatcher(for: context.widget)
+    return gtk_swift_widget_root_widget(context.widget) == nil ? 1 : 0
+}
+
+private func gtkInstallToggleRootDispatcherWhenMapped(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    let context = GTKToggleRootInstallContext(widget: widget)
+    let mapContext = Unmanaged.passRetained(context).toOpaque()
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKToggleRootInstallContext>.fromOpaque(userData).takeUnretainedValue()
+            gtkInstallGlobalToggleRootDispatcher(for: context.widget)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        mapContext,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKToggleRootInstallContext>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let tickContext = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkToggleRootInstallTickCallback,
+        tickContext,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKToggleRootInstallContext>.fromOpaque(userData).release()
+        }
+    )
+}
+
 extension Toggle: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let environment = getCurrentEnvironment()
 
         if let customToggleStyle = environment.customToggleStyle {
+            gtkDebugLog("toggle custom style label='\(label)'")
             let configuration = ToggleStyleConfiguration(label: AnyView(Text(label)), isOn: isOn)
             return gtkRenderView(customToggleStyle.makeBody(configuration: configuration))
         }
@@ -8853,9 +9065,11 @@ extension Toggle: GTKRenderable {
         let toggleStyleType = environment.toggleStyle
 
         if toggleStyleType == .switch {
+            gtkDebugLog("toggle create switch label='\(label)' active=\(isOn.wrappedValue ? 1 : 0)")
             return gtkCreateSwitchWidget()
         }
         // .automatic and .checkbox use GtkCheckButton
+        gtkDebugLog("toggle create check label='\(label)' active=\(isOn.wrappedValue ? 1 : 0)")
         return gtkCreateCheckButtonWidget()
     }
 
@@ -8868,23 +9082,32 @@ extension Toggle: GTKRenderable {
         gtk_check_button_set_active(checkPtr, isOn.wrappedValue ? 1 : 0)
 
         let binding = isOn
-        let box = Unmanaged.passRetained(BoolClosureBox { newValue in
-            if newValue != binding.wrappedValue {
-                binding.wrappedValue = newValue
+        let actionBox = GTKToggleActionBox(
+            getValue: { binding.wrappedValue },
+            setValue: { newValue in
+                if newValue != binding.wrappedValue {
+                    binding.wrappedValue = newValue
+                }
+            },
+            applyValue: { newValue in
+                gtk_check_button_set_active(checkPtr, newValue ? 1 : 0)
             }
-        }).toOpaque()
+        )
+        gtkAttachToggleActionData(to: check, box: actionBox)
+        gtkInstallToggleRootDispatcherWhenMapped(check)
+        let box = Unmanaged.passRetained(actionBox).toOpaque()
         g_signal_connect_data(
             gpointer(check),
             "toggled",
             unsafeBitCast({ (widget: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<BoolClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let box = Unmanaged<GTKToggleActionBox>.fromOpaque(userData!).takeUnretainedValue()
                 let ptr = UnsafeMutableRawPointer(widget!).assumingMemoryBound(to: GtkCheckButton.self)
                 let active = gtk_check_button_get_active(ptr) != 0
-                box.closure(active)
+                box.activate(active, source: "native-check-toggled")
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             box,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<BoolClosureBox>.fromOpaque(userData!).release()
+                Unmanaged<GTKToggleActionBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
         )
@@ -8896,6 +9119,9 @@ extension Toggle: GTKRenderable {
             false,
             label
         ) {
+            let paintedWidget = widgetFromOpaque(paintedToggle)
+            gtkAttachToggleActionData(to: paintedWidget, box: actionBox)
+            gtkInstallToggleRootDispatcherWhenMapped(paintedWidget)
             return paintedToggle
         }
         return opaqueFromWidget(check)
@@ -8906,23 +9132,32 @@ extension Toggle: GTKRenderable {
         gtk_swift_switch_set_active(sw, isOn.wrappedValue ? 1 : 0)
 
         let binding = isOn
-        let box = Unmanaged.passRetained(BoolClosureBox { newValue in
-            if newValue != binding.wrappedValue {
-                binding.wrappedValue = newValue
+        let actionBox = GTKToggleActionBox(
+            getValue: { binding.wrappedValue },
+            setValue: { newValue in
+                if newValue != binding.wrappedValue {
+                    binding.wrappedValue = newValue
+                }
+            },
+            applyValue: { newValue in
+                gtk_swift_switch_set_active(sw, newValue ? 1 : 0)
             }
-        }).toOpaque()
+        )
+        gtkAttachToggleActionData(to: sw, box: actionBox)
+        gtkInstallToggleRootDispatcherWhenMapped(sw)
+        let box = Unmanaged.passRetained(actionBox).toOpaque()
         g_signal_connect_data(
             gpointer(sw),
             "notify::active",
             unsafeBitCast({ (widget: gpointer?, _: gpointer?, userData: gpointer?) in
-                let box = Unmanaged<BoolClosureBox>.fromOpaque(userData!).takeUnretainedValue()
+                let box = Unmanaged<GTKToggleActionBox>.fromOpaque(userData!).takeUnretainedValue()
                 let w = UnsafeMutableRawPointer(widget!).assumingMemoryBound(to: GtkWidget.self)
                 let active = gtk_swift_switch_get_active(w) != 0
-                box.closure(active)
+                box.activate(active, source: "native-switch-active")
             } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
             box,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<BoolClosureBox>.fromOpaque(userData!).release()
+                Unmanaged<GTKToggleActionBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
         )
@@ -8934,6 +9169,9 @@ extension Toggle: GTKRenderable {
             true,
             label
         ) {
+            let paintedWidget = widgetFromOpaque(paintedToggle)
+            gtkAttachToggleActionData(to: paintedWidget, box: actionBox)
+            gtkInstallToggleRootDispatcherWhenMapped(paintedWidget)
             return paintedToggle
         }
 
@@ -8952,20 +9190,19 @@ extension Toggle: GTKRenderable {
         // toggles the switch. Attaching to the box would double-toggle when
         // the click lands directly on the GtkSwitch.
         let gesture = gtk_gesture_click_new()!
-        let toggleBox = Unmanaged.passRetained(ClosureBox {
-            let active = gtk_swift_switch_get_active(sw) != 0
-            gtk_swift_switch_set_active(sw, active ? 0 : 1)
-        }).toOpaque()
+        let toggleBox = Unmanaged.passRetained(actionBox).toOpaque()
         g_signal_connect_data(
             gpointer(gesture),
             "released",
             unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
                 guard let userData = userData else { return }
-                Unmanaged<ClosureBox>.fromOpaque(userData).takeUnretainedValue().closure()
+                Unmanaged<GTKToggleActionBox>.fromOpaque(userData).takeUnretainedValue().toggle(
+                    source: "label-switch-gesture"
+                )
             } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
             toggleBox,
             { (userData: gpointer?, _: UnsafeMutablePointer<GClosure>?) in
-                Unmanaged<ClosureBox>.fromOpaque(userData!).release()
+                Unmanaged<GTKToggleActionBox>.fromOpaque(userData!).release()
             },
             GConnectFlags(rawValue: 0)
         )
@@ -8973,6 +9210,8 @@ extension Toggle: GTKRenderable {
 
         // Apply enabled state to the whole wrapper so label dims too
         gtkApplyEnabledState(to: hbox)
+        gtkAttachToggleActionData(to: hbox, box: actionBox)
+        gtkInstallToggleRootDispatcherWhenMapped(hbox)
         return opaqueFromWidget(hbox)
     }
 }
@@ -10244,6 +10483,108 @@ private final class GTKCollapsedRowControlsBox {
     }
 }
 
+private func gtkVisualToggleControlAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+
+    if (gtk_swift_widget_is_check_button(widget) != 0 || gtk_swift_widget_is_switch(widget) != 0),
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualToggleControlAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkToggleControlAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    if let picked = gtk_swift_root_point_pick_toggle_control(root, x, y) {
+        return picked
+    }
+
+    if let visual = gtkVisualToggleControlAtRootPoint(root, root: root, x: x, y: y) {
+        gtkDebugLog("toggle visual fallback root@\(Int(x)),\(Int(y))")
+        return visual
+    }
+
+    return nil
+}
+
+private func gtkActivateToggleControlAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    if let control = gtkToggleControlAtRootPoint(root: root, x: x, y: y),
+       gtk_widget_get_sensitive(control) != 0 {
+
+        if gtk_swift_widget_is_check_button(control) != 0 {
+            let check = checkButtonPointer(control)
+            let active = gtk_check_button_get_active(check) != 0
+            let next = !active
+            if let box = gtkToggleActionBox(from: control) {
+                box.activate(next, source: "\(source) check", applyVisualState: true)
+            } else {
+                gtk_check_button_set_active(check, next ? 1 : 0)
+            }
+            gtkDebugLog("toggle control check activated \(source) active=\(next ? 1 : 0)")
+            return true
+        }
+
+        if gtk_swift_widget_is_switch(control) != 0 {
+            let active = gtk_swift_switch_get_active(control) != 0
+            let next = !active
+            if let box = gtkToggleActionBox(from: control) {
+                box.activate(next, source: "\(source) switch", applyVisualState: true)
+            } else {
+                gtk_swift_switch_set_active(control, next ? 1 : 0)
+            }
+            gtkDebugLog("toggle control switch activated \(source) active=\(next ? 1 : 0)")
+            return true
+        }
+    }
+
+    if let actionWidget = gtkToggleActionWidgetAtRootPoint(root, root: root, x: x, y: y),
+       gtk_widget_get_sensitive(actionWidget) != 0,
+       let box = gtkToggleActionBox(from: actionWidget) {
+        box.toggle(source: "\(source) action-widget")
+        gtkDebugLog("toggle action widget activated \(source)")
+        return true
+    }
+
+    return false
+}
+
+private func gtkActivateToggleControlAtWidgetPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    gtkActivateToggleControlAtRootPoint(root: widget, x: x, y: y, source: source)
+}
+
 private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"
 private let gtkListRowGeometryDataKey = "gtk-swift-list-row-geometry"
 private let gtkCollapsedListRowControlsDataKey = "gtk-swift-collapsed-list-row-controls"
@@ -11406,6 +11747,14 @@ private func gtkInstallGlobalListRowRootDispatcher(for widget: UnsafeMutablePoin
             ) {
                 return 1
             }
+            if gtkActivateToggleControlAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "list-row-root-dispatch@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
             guard gtk_swift_root_point_picks_button(root, rootX, rootY) == 0 else {
                 gtkDebugLog("list row global dispatch skipped button root@\(Int(rootX)),\(Int(rootY))")
                 return 0
@@ -11559,6 +11908,14 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
             ) {
                 return 1
             }
+            if gtkActivateToggleControlAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "listbox-root@\(Int(rootX)),\(Int(rootY))"
+            ) {
+                return 1
+            }
             guard gtk_swift_root_point_picks_button(root, rootX, rootY) == 0 else {
                 gtkDebugLog("list row tap skipped button listbox-root@\(Int(rootX)),\(Int(rootY))")
                 return 0
@@ -11656,6 +12013,14 @@ private func gtkInstallListRowRootEventFallback(_ context: GTKListRowRootEventCo
             }
             let source = isTopmost ? "root" : "root-visual"
             if gtkOpenVisualMenuButtonAtRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                source: "\(source)@\(Int(x)),\(Int(y)) \(context.box.source)"
+            ) {
+                return 1
+            }
+            if gtkActivateToggleControlAtRootPoint(
                 root: root,
                 x: x,
                 y: y,
@@ -11815,6 +12180,15 @@ private func gtkInstallListRowTapFallback(
                 gtk_swift_gesture_claim(gesture)
                 return
             }
+            if gtkActivateToggleControlAtWidgetPoint(
+                row,
+                x: x,
+                y: y,
+                source: "gesture@\(Int(x)),\(Int(y)) \(box.source)"
+            ) {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
             if !box.allowButtonTarget {
                 guard gtk_swift_root_point_picks_button(row, x, y) == 0 else {
                     gtkDebugLog("list row tap skipped button gesture@\(Int(x)),\(Int(y)) \(box.source)")
@@ -11908,6 +12282,15 @@ private func gtkInstallListBoxTapFallback(on listBox: UnsafeMutablePointer<GtkWi
                 return
             }
             if gtkOpenVisualMenuButtonAtWidgetPoint(listBox, x: x, y: y, source: "listbox@\(Int(x)),\(Int(y))") {
+                gtk_swift_gesture_claim(gesture)
+                return
+            }
+            if gtkActivateToggleControlAtWidgetPoint(
+                listBox,
+                x: x,
+                y: y,
+                source: "listbox@\(Int(x)),\(Int(y))"
+            ) {
                 gtk_swift_gesture_claim(gesture)
                 return
             }

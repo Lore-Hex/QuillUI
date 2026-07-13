@@ -7299,7 +7299,7 @@ def validate_icecubes_linux_authenticated_settings_display_system_color(image: S
         top + 306,
         icecubes_authenticated_accent_pixel,
     )
-    enabled_color_row_text_pixels = dark_pixel_count(
+    active_color_row_text_pixels = dark_pixel_count(
         image,
         left + 275,
         top + 374,
@@ -7308,21 +7308,21 @@ def validate_icecubes_linux_authenticated_settings_display_system_color(image: S
     )
 
     require(
-        toggle_accent_pixels <= 60,
-        "IceCubes authenticated Settings Display system-color toggle still appears enabled: "
-        f"toggle_accent_pixels={toggle_accent_pixels}, enabled_color_row_text_pixels={enabled_color_row_text_pixels}",
+        toggle_accent_pixels >= 72,
+        "IceCubes authenticated Settings Display system-color toggle did not become checked: "
+        f"toggle_accent_pixels={toggle_accent_pixels}, active_color_row_text_pixels={active_color_row_text_pixels}",
     )
     require(
-        enabled_color_row_text_pixels >= 240,
-        "IceCubes authenticated Settings Display color rows did not become enabled after system-color toggle: "
-        f"enabled_color_row_text_pixels={enabled_color_row_text_pixels}, toggle_accent_pixels={toggle_accent_pixels}",
+        active_color_row_text_pixels <= 120,
+        "IceCubes authenticated Settings Display color rows did not become disabled after system-color toggle: "
+        f"active_color_row_text_pixels={active_color_row_text_pixels}, toggle_accent_pixels={toggle_accent_pixels}",
     )
 
     return (
         baseline
         + ", "
         + f"system_color_toggle_accent_pixels={toggle_accent_pixels}, "
-        + f"enabled_color_row_text_pixels={enabled_color_row_text_pixels}"
+        + f"active_color_row_text_pixels={active_color_row_text_pixels}"
     )
 
 

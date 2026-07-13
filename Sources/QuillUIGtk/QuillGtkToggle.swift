@@ -18,24 +18,24 @@ public func installQuillToggleHook() {
 public func setupQuillToggleChrome(control: OpaquePointer, isSwitch: Bool, label: String) -> OpaquePointer {
     let controlWidget = quillToggleGTKWidgetPointer(control)
     let box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, isSwitch ? 8 : 6)!
-    let chromeOverlay = gtk_overlay_new()!
+    let chromeButton = gtk_button_new()!
     let chrome = gtk_drawing_area_new()!
+    quillToggleDebugLog("setup isSwitch=\(isSwitch) label='\(label)' active=\(quillToggleControlActive(controlWidget, isSwitch: isSwitch))")
 
     configureQuillToggleContainer(box, control: controlWidget)
-    configureQuillToggleChromeOverlay(chromeOverlay, isSwitch: isSwitch)
+    configureQuillToggleChromeButton(chromeButton, control: controlWidget, isSwitch: isSwitch)
     configureQuillToggleChromeWidget(chrome, isSwitch: isSwitch)
     configureQuillToggleNativeControl(controlWidget, isSwitch: isSwitch)
-
-    gtk_overlay_set_child(OpaquePointer(chromeOverlay), chrome)
-    gtk_overlay_add_overlay(OpaquePointer(chromeOverlay), controlWidget)
+    gtk_button_set_child(quillToggleButtonPointer(chromeButton), chrome)
+    installQuillToggleButtonAction(chromeButton, control: controlWidget, isSwitch: isSwitch)
 
     if isSwitch, !label.isEmpty {
         let labelWidget = quillToggleLabel(label)
         gtk_box_append(quillToggleBoxPointer(box), labelWidget)
-        gtk_box_append(quillToggleBoxPointer(box), chromeOverlay)
+        gtk_box_append(quillToggleBoxPointer(box), chromeButton)
         installQuillToggleLabelGesture(labelWidget, control: controlWidget, isSwitch: isSwitch)
     } else {
-        gtk_box_append(quillToggleBoxPointer(box), chromeOverlay)
+        gtk_box_append(quillToggleBoxPointer(box), chromeButton)
         if !label.isEmpty {
             let labelWidget = quillToggleLabel(label)
             gtk_box_append(quillToggleBoxPointer(box), labelWidget)
@@ -46,10 +46,13 @@ public func setupQuillToggleChrome(control: OpaquePointer, isSwitch: Bool, label
     let chromeBox = QuillGTKToggleChromeBox(
         control: controlWidget,
         chrome: chrome,
+        interaction: chromeButton,
         isSwitch: isSwitch
     )
     installQuillToggleDrawFunc(chrome: chrome, chromeBox: chromeBox)
     connectQuillToggleRedrawSignals(control: controlWidget, isSwitch: isSwitch, chromeBox: chromeBox)
+    connectQuillToggleButtonRedrawSignals(button: chromeButton, chromeBox: chromeBox)
+    connectQuillToggleControlSensitivity(control: controlWidget, button: chromeButton, chromeBox: chromeBox)
 
     return OpaquePointer(box)
 }
@@ -57,11 +60,18 @@ public func setupQuillToggleChrome(control: OpaquePointer, isSwitch: Bool, label
 private final class QuillGTKToggleChromeBox {
     let control: UnsafeMutablePointer<GtkWidget>
     let chrome: UnsafeMutablePointer<GtkWidget>
+    let interaction: UnsafeMutablePointer<GtkWidget>
     let isSwitch: Bool
 
-    init(control: UnsafeMutablePointer<GtkWidget>, chrome: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) {
+    init(
+        control: UnsafeMutablePointer<GtkWidget>,
+        chrome: UnsafeMutablePointer<GtkWidget>,
+        interaction: UnsafeMutablePointer<GtkWidget>,
+        isSwitch: Bool
+    ) {
         self.control = control
         self.chrome = chrome
+        self.interaction = interaction
         self.isSwitch = isSwitch
     }
 
@@ -73,12 +83,12 @@ private final class QuillGTKToggleChromeBox {
     }
 
     var paintState: PaintControlState {
-        let flags = gtk_widget_get_state_flags(control)
+        let flags = gtk_widget_get_state_flags(interaction)
         return PaintControlState(
             isPressed: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_ACTIVE),
             isFocused: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUS_WITHIN)
                 || quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_FOCUSED),
-            isDisabled: gtk_widget_get_sensitive(control) == 0,
+            isDisabled: gtk_widget_get_sensitive(interaction) == 0 || gtk_widget_get_sensitive(control) == 0,
             isHovered: quillToggleGTKStateFlagsContain(flags, GTK_STATE_FLAG_PRELIGHT),
             isSelected: isActive
         )
@@ -91,9 +101,34 @@ private final class QuillGTKToggleChromeBox {
 
 private final class QuillGTKToggleActionBox {
     let closure: () -> Void
+    private var lastActivation = Date.distantPast
 
     init(_ closure: @escaping () -> Void) {
         self.closure = closure
+    }
+
+    func activate() {
+        let now = Date()
+        guard now.timeIntervalSince(lastActivation) > 0.15 else { return }
+        lastActivation = now
+        quillToggleDebugLog("action activate")
+        closure()
+    }
+}
+
+private final class QuillGTKToggleSensitivityBox {
+    let control: UnsafeMutablePointer<GtkWidget>
+    let button: UnsafeMutablePointer<GtkWidget>
+    let chromeBox: QuillGTKToggleChromeBox
+
+    init(
+        control: UnsafeMutablePointer<GtkWidget>,
+        button: UnsafeMutablePointer<GtkWidget>,
+        chromeBox: QuillGTKToggleChromeBox
+    ) {
+        self.control = control
+        self.button = button
+        self.chromeBox = chromeBox
     }
 }
 
@@ -107,14 +142,19 @@ private func configureQuillToggleContainer(
     gtk_widget_set_sensitive(box, gtk_widget_get_sensitive(control))
 }
 
-private func configureQuillToggleChromeOverlay(
-    _ overlay: UnsafeMutablePointer<GtkWidget>,
+private func configureQuillToggleChromeButton(
+    _ button: UnsafeMutablePointer<GtkWidget>,
+    control: UnsafeMutablePointer<GtkWidget>,
     isSwitch: Bool
 ) {
     let size = quillToggleControlSize(isSwitch: isSwitch)
-    gtk_widget_set_size_request(overlay, gint(size.width), gint(size.height))
-    gtk_widget_set_halign(overlay, GTK_ALIGN_CENTER)
-    gtk_widget_set_valign(overlay, GTK_ALIGN_CENTER)
+    gtk_widget_set_size_request(button, gint(size.width), gint(size.height))
+    gtk_widget_set_halign(button, GTK_ALIGN_CENTER)
+    gtk_widget_set_valign(button, GTK_ALIGN_CENTER)
+    gtk_widget_set_can_target(button, 1)
+    gtk_widget_set_can_focus(button, 1)
+    gtk_widget_set_sensitive(button, gtk_widget_get_sensitive(control))
+    applyQuillToggleButtonCSS(to: button, isSwitch: isSwitch)
 }
 
 private func configureQuillToggleChromeWidget(
@@ -140,8 +180,38 @@ private func configureQuillToggleNativeControl(
     gtk_widget_set_halign(control, GTK_ALIGN_CENTER)
     gtk_widget_set_valign(control, GTK_ALIGN_CENTER)
     gtk_widget_set_opacity(control, 0.001)
-    gtk_widget_set_can_target(control, 1)
-    gtk_widget_set_can_focus(control, 1)
+    gtk_widget_set_can_target(control, 0)
+    gtk_widget_set_can_focus(control, 0)
+}
+
+private func applyQuillToggleButtonCSS(to button: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) {
+    let size = quillToggleControlSize(isSwitch: isSwitch)
+    let css = """
+    button.quill-paint-toggle-button {
+        background: transparent;
+        background-color: transparent;
+        background-image: none;
+        border: none;
+        border-radius: 0;
+        box-shadow: none;
+        margin: 0;
+        min-height: \(size.height)px;
+        min-width: \(size.width)px;
+        outline: none;
+        padding: 0;
+    }
+    """
+    let provider = gtk_css_provider_new()!
+    gtk_css_provider_load_from_string(provider, css)
+    if let display = gtk_widget_get_display(button) {
+        gtk_swift_add_css_provider_to_display(
+            display,
+            provider,
+            UInt32(GTK_STYLE_PROVIDER_PRIORITY_USER)
+        )
+    }
+    gtk_widget_add_css_class(button, "quill-paint-toggle-button")
+    g_object_unref(gpointer(provider))
 }
 
 private func quillToggleLabel(_ text: String) -> UnsafeMutablePointer<GtkWidget> {
@@ -227,6 +297,44 @@ private func connectQuillToggleRedrawSignals(
     }
 }
 
+private func connectQuillToggleButtonRedrawSignals(
+    button: UnsafeMutablePointer<GtkWidget>,
+    chromeBox: QuillGTKToggleChromeBox
+) {
+    connectQuillToggleStateFlagsChanged(control: button, chromeBox: chromeBox)
+    connectQuillToggleNotifySignal(control: button, signal: "notify::sensitive", chromeBox: chromeBox)
+}
+
+private func connectQuillToggleControlSensitivity(
+    control: UnsafeMutablePointer<GtkWidget>,
+    button: UnsafeMutablePointer<GtkWidget>,
+    chromeBox: QuillGTKToggleChromeBox
+) {
+    let retainedBox = Unmanaged.passRetained(QuillGTKToggleSensitivityBox(
+        control: control,
+        button: button,
+        chromeBox: chromeBox
+    )).toOpaque()
+    g_signal_connect_data(
+        gpointer(control),
+        "notify::sensitive",
+        unsafeBitCast({ (_: gpointer?, _: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let box = Unmanaged<QuillGTKToggleSensitivityBox>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            gtk_widget_set_sensitive(box.button, gtk_widget_get_sensitive(box.control))
+            box.chromeBox.queueDraw()
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        retainedBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<QuillGTKToggleSensitivityBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+}
+
 private func connectQuillToggleStateFlagsChanged(
     control: UnsafeMutablePointer<GtkWidget>,
     chromeBox: QuillGTKToggleChromeBox
@@ -305,6 +413,15 @@ private func installQuillToggleLabelGesture(
     control: UnsafeMutablePointer<GtkWidget>,
     isSwitch: Bool
 ) {
+    installQuillToggleActivationGesture(label, control: control, isSwitch: isSwitch)
+}
+
+private func installQuillToggleActivationGesture(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    control: UnsafeMutablePointer<GtkWidget>,
+    isSwitch: Bool
+) {
+    gtk_widget_set_can_target(widget, 1)
     let gesture = gtk_gesture_click_new()!
     let toggleBox = Unmanaged.passRetained(QuillGTKToggleActionBox {
         quillToggleNativeControl(control, isSwitch: isSwitch)
@@ -323,18 +440,72 @@ private func installQuillToggleLabelGesture(
         },
         GConnectFlags(rawValue: 0)
     )
-    gtk_swift_add_gesture(label, gesture)
+    gtk_swift_add_capture_gesture(widget, gesture)
+}
+
+private func installQuillToggleButtonAction(
+    _ button: UnsafeMutablePointer<GtkWidget>,
+    control: UnsafeMutablePointer<GtkWidget>,
+    isSwitch: Bool
+) {
+    let actionBox = QuillGTKToggleActionBox {
+        guard gtk_widget_get_sensitive(control) != 0 else { return }
+        quillToggleNativeControl(control, isSwitch: isSwitch)
+    }
+    let clickedBox = Unmanaged.passRetained(actionBox).toOpaque()
+    g_signal_connect_data(
+        gpointer(button),
+        "clicked",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            quillToggleDebugLog("button clicked")
+            Unmanaged<QuillGTKToggleActionBox>.fromOpaque(userData).takeUnretainedValue().activate()
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        clickedBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<QuillGTKToggleActionBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let gesture = gtk_gesture_click_new()!
+    gtk_swift_gesture_single_set_button(gesture, 1)
+    let gestureBox = Unmanaged.passRetained(actionBox).toOpaque()
+    g_signal_connect_data(
+        gpointer(gesture),
+        "pressed",
+        unsafeBitCast({ (_: gpointer?, _: gint, _: Double, _: Double, userData: gpointer?) in
+            guard let userData else { return }
+            quillToggleDebugLog("button gesture pressed")
+            Unmanaged<QuillGTKToggleActionBox>.fromOpaque(userData).takeUnretainedValue().activate()
+        } as @convention(c) (gpointer?, gint, Double, Double, gpointer?) -> Void, to: GCallback.self),
+        gestureBox,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<QuillGTKToggleActionBox>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_capture_gesture(button, gesture)
 }
 
 private func quillToggleNativeControl(_ control: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) {
+    let before = quillToggleControlActive(control, isSwitch: isSwitch)
     if isSwitch {
-        let active = gtk_swift_switch_get_active(control) != 0
-        gtk_swift_switch_set_active(control, active ? 0 : 1)
+        gtk_swift_switch_set_active(control, before ? 0 : 1)
     } else {
         let check = quillToggleCheckButtonPointer(control)
-        let active = gtk_check_button_get_active(check) != 0
-        gtk_check_button_set_active(check, active ? 0 : 1)
+        gtk_check_button_set_active(check, before ? 0 : 1)
     }
+    quillToggleDebugLog("native toggle before=\(before) after=\(quillToggleControlActive(control, isSwitch: isSwitch))")
+}
+
+private func quillToggleControlActive(_ control: UnsafeMutablePointer<GtkWidget>, isSwitch: Bool) -> Bool {
+    if isSwitch {
+        return gtk_swift_switch_get_active(control) != 0
+    }
+    return gtk_check_button_get_active(quillToggleCheckButtonPointer(control)) != 0
 }
 
 private func quillToggleControlSize(isSwitch: Bool) -> (width: Int, height: Int) {
@@ -354,6 +525,12 @@ private func quillToggleCheckButtonPointer(
     UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: GtkCheckButton.self)
 }
 
+private func quillToggleButtonPointer(
+    _ ptr: UnsafeMutablePointer<GtkWidget>
+) -> UnsafeMutablePointer<GtkButton> {
+    UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: GtkButton.self)
+}
+
 private func quillToggleBoxPointer(
     _ ptr: UnsafeMutablePointer<GtkWidget>
 ) -> UnsafeMutablePointer<GtkBox> {
@@ -370,5 +547,10 @@ private func quillToggleCSSRGBA(_ color: PaintColor) -> String {
     let blue = Int(round(max(0, min(1, color.blue)) * 255))
     let alpha = max(0, min(1, color.alpha))
     return "rgba(\(red), \(green), \(blue), \(alpha))"
+}
+
+private func quillToggleDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    FileHandle.standardError.write(Data("[QuillGtkToggle] \(message)\n".utf8))
 }
 #endif

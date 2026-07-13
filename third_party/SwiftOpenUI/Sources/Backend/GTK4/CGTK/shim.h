@@ -771,6 +771,63 @@ gtk_swift_root_point_pick_widget(GtkWidget *root, double x, double y) {
     );
 }
 
+static inline gboolean
+gtk_swift_widget_is_check_button(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_CHECK_BUTTON(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_switch(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_SWITCH(widget);
+}
+
+static inline GtkWidget *
+gtk_swift_root_point_pick_toggle_control(GtkWidget *root, double x, double y) {
+    if (root == NULL) {
+        return NULL;
+    }
+
+    GtkWidget *picked = gtk_widget_pick(root, x, y, GTK_PICK_DEFAULT);
+    while (picked != NULL) {
+        if (GTK_IS_CHECK_BUTTON(picked) || GTK_IS_SWITCH(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(root, x, y, GTK_PICK_NON_TARGETABLE);
+    while (picked != NULL) {
+        if (GTK_IS_CHECK_BUTTON(picked) || GTK_IS_SWITCH(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    picked = gtk_widget_pick(
+        root,
+        x,
+        y,
+        (GtkPickFlags)(GTK_PICK_NON_TARGETABLE | GTK_PICK_INSENSITIVE)
+    );
+    while (picked != NULL) {
+        if (GTK_IS_CHECK_BUTTON(picked) || GTK_IS_SWITCH(picked)) {
+            return picked;
+        }
+        if (picked == root) {
+            break;
+        }
+        picked = gtk_widget_get_parent(picked);
+    }
+
+    return NULL;
+}
+
 static inline GtkWidget *
 gtk_swift_root_point_pick_menu_button(GtkWidget *root, double x, double y) {
     if (root == NULL) {

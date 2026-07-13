@@ -39,6 +39,18 @@ private func gtkNavigationDebugLabelPreview(
     return labels
 }
 
+private func gtkNavigationRestoreSignature(
+    title: String,
+    rootWidget: UnsafeMutablePointer<GtkWidget>
+) -> String? {
+    let labels = gtkNavigationDebugLabelPreview(in: rootWidget, limit: 32)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedTitle.isEmpty || !labels.isEmpty else { return nil }
+    return ([normalizedTitle] + labels.prefix(24)).joined(separator: "|")
+}
+
 /// Box for passing a widget pointer through a C callback.
 private class WidgetRef {
     let widget: UnsafeMutablePointer<GtkWidget>
@@ -72,24 +84,52 @@ private struct GTKPendingPresentedNavigationDestination {
     let route: GTKNavigationPersistedRoute
 }
 
+private struct GTKNavigationPersistedRouteSnapshot {
+    let stateNamespace: String
+    let routes: [GTKNavigationPersistedRoute]
+}
+
 private let gtkNavigationPersistedRoutesLock = NSLock()
 private var gtkNavigationPersistedRoutesByNamespace: [String: [GTKNavigationPersistedRoute]] = [:]
+private var gtkNavigationPersistedRoutesBySignature: [String: GTKNavigationPersistedRouteSnapshot] = [:]
 
-private func gtkNavigationPersistedRoutes(for stateNamespace: String) -> [GTKNavigationPersistedRoute] {
+private func gtkNavigationPersistedRoutes(
+    for stateNamespace: String,
+    restoreSignature: String?
+) -> [GTKNavigationPersistedRoute] {
     gtkNavigationPersistedRoutesLock.lock()
     defer { gtkNavigationPersistedRoutesLock.unlock() }
-    return gtkNavigationPersistedRoutesByNamespace[stateNamespace] ?? []
+    if let routes = gtkNavigationPersistedRoutesByNamespace[stateNamespace], !routes.isEmpty {
+        return routes
+    }
+    guard let restoreSignature,
+          let snapshot = gtkNavigationPersistedRoutesBySignature[restoreSignature] else {
+        return []
+    }
+    return snapshot.routes
 }
 
 private func gtkNavigationSetPersistedRoutes(
     _ routes: [GTKNavigationPersistedRoute],
-    for stateNamespace: String
+    for stateNamespace: String,
+    restoreSignature: String?
 ) {
     gtkNavigationPersistedRoutesLock.lock()
     if routes.isEmpty {
         gtkNavigationPersistedRoutesByNamespace.removeValue(forKey: stateNamespace)
+        if let restoreSignature,
+           let snapshot = gtkNavigationPersistedRoutesBySignature.removeValue(forKey: restoreSignature),
+           snapshot.stateNamespace != stateNamespace {
+            gtkNavigationPersistedRoutesByNamespace.removeValue(forKey: snapshot.stateNamespace)
+        }
     } else {
         gtkNavigationPersistedRoutesByNamespace[stateNamespace] = routes
+        if let restoreSignature {
+            gtkNavigationPersistedRoutesBySignature[restoreSignature] = GTKNavigationPersistedRouteSnapshot(
+                stateNamespace: stateNamespace,
+                routes: routes
+            )
+        }
     }
     gtkNavigationPersistedRoutesLock.unlock()
 }
@@ -142,6 +182,7 @@ class GTKNavigationContext {
     let headerBar: OpaquePointer      // GtkHeaderBar
     let backButton: UnsafeMutablePointer<GtkWidget>
     let stateNamespace: String
+    var restoreSignature: String?
     var entries: [GTKNavigationEntry] = []
     var nameCounter = 0
 
@@ -322,12 +363,17 @@ class GTKNavigationContext {
         guard representedPath.isEmpty, entries.count == 1 else {
             return
         }
-        let routes = gtkNavigationPersistedRoutes(for: stateNamespace)
+        let routes = gtkNavigationPersistedRoutes(for: stateNamespace, restoreSignature: restoreSignature)
         guard !routes.isEmpty else { return }
 
         gtkNavigationDebugLog("restore persisted routes count=\(routes.count)")
         isSyncing = true
         persistedRoutes = routes
+        gtkNavigationSetPersistedRoutes(
+            routes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
         for route in routes {
             switch route {
             case .value(let value):
@@ -341,7 +387,11 @@ class GTKNavigationContext {
 
     private func appendPersistedRoute(_ route: GTKNavigationPersistedRoute) {
         persistedRoutes.append(route)
-        gtkNavigationSetPersistedRoutes(persistedRoutes, for: stateNamespace)
+        gtkNavigationSetPersistedRoutes(
+            persistedRoutes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
     }
 
     private func removeLastPersistedRouteAfterPop() {
@@ -349,7 +399,11 @@ class GTKNavigationContext {
         if !persistedRoutes.isEmpty {
             persistedRoutes.removeLast()
         }
-        gtkNavigationSetPersistedRoutes(persistedRoutes, for: stateNamespace)
+        gtkNavigationSetPersistedRoutes(
+            persistedRoutes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
     }
 
     func hasPresentedDestination(stateNamespace: String) -> Bool {
@@ -998,6 +1052,7 @@ extension NavigationStack: GTKRenderable {
         let title = gtkExtractTitle(from: content)
         let rootWidget = widgetFromOpaque(gtkRenderView(content))
         gtkConfigureNavigationPageToFillAllocation(rootWidget)
+        context.restoreSignature = gtkNavigationRestoreSignature(title: title, rootWidget: rootWidget)
 
         // Extract and install root toolbar items while the same navigation and
         // presentation environment is active. Toolbar button actions capture
