@@ -16063,6 +16063,11 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
     host.describeBody = {
         MainActor.assumeIsolated { gtkDescribeView(view.body) }
     }
+    host.navigationToolbarSnapshot = {
+        gtkAssumeMainActorIsolated {
+            gtkNavigationToolbarSnapshot(from: view.body)
+        }
+    }
 
     gtkRestoreAndInstallState(view, host: host)
     gtkRestoreViewHostLifecycleIfAvailable(host)
@@ -16075,6 +16080,7 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
         host.lastReadSet = tracking.readSet
         host.lastInputSnapshot = tracking.snapshots
     }
+    host.refreshNavigationToolbarFromBodyIfNeeded()
     GTKViewHost.setCurrentRebuilding(previousHost)
 
     let child = widgetFromOpaque(widget)

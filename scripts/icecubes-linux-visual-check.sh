@@ -62,6 +62,9 @@ AUTH_MESSAGES_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRI
 AUTH_MESSAGES_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_PROFILE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_X:-82}"
 AUTH_PROFILE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_Y:-430}"
+AUTH_PROFILE_STATUSES_ENDPOINT="/api/v1/accounts/quill-account/statuses"
+AUTH_PROFILE_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_CLICK_RETRIES:-5}"
+AUTH_PROFILE_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_SETTINGS_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_X:-82}"
 AUTH_SETTINGS_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_Y:-625}"
 AUTH_SETTINGS_SCROLL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_SCROLL_X:-520}"
@@ -808,6 +811,21 @@ click_authenticated_messages_sidebar_row() {
   return 1
 }
 
+click_authenticated_profile_sidebar_row() {
+  local expected_count="$1"
+  local attempt
+
+  for attempt in $(seq 1 "$AUTH_PROFILE_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_PROFILE_X" "$AUTH_PROFILE_Y"
+    sleep "$AUTH_PROFILE_CLICK_RETRY_SECONDS"
+    if (( $(count_app_log_occurrences "$AUTH_PROFILE_STATUSES_ENDPOINT") >= expected_count )); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 wait_for_authenticated_route_visual() {
   local product="$1"
   local label="$2"
@@ -1440,7 +1458,11 @@ case "$INTERACTION" in
   seeded-authenticated-profile)
     VERIFY_PRODUCT="icecubes-linux-authenticated-profile"
     wait_for_authenticated_timeline_activity
-    click_app_window_point "$AUTH_PROFILE_X" "$AUTH_PROFILE_Y"
+    previous_profile_statuses_count="$(count_app_log_occurrences "$AUTH_PROFILE_STATUSES_ENDPOINT")"
+    expected_profile_statuses_count="$((previous_profile_statuses_count + 1))"
+    if ! click_authenticated_profile_sidebar_row "$expected_profile_statuses_count"; then
+      echo "IceCubes authenticated Profile sidebar click did not trigger $AUTH_PROFILE_STATUSES_ENDPOINT after $AUTH_PROFILE_CLICK_RETRIES attempts" >&2
+    fi
     wait_for_authenticated_route_visual "$VERIFY_PRODUCT" "authenticated Profile route"
     ;;
   seeded-authenticated-messages)

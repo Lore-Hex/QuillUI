@@ -98,11 +98,17 @@ private func gtkNavigationSetPersistedRoutes(
 
 /// Entry in the navigation stack.
 struct GTKNavigationEntry {
-    let title: String
+    var title: String
     let name: String
     let stateNamespace: String
     let widget: UnsafeMutablePointer<GtkWidget>
     var toolbarWidgets: [(widget: UnsafeMutablePointer<GtkWidget>, placement: ToolbarItemPlacement)] = []
+}
+
+struct GTKNavigationToolbarSnapshot {
+    let title: String
+    let toolbarItems: [AnyToolbarItem]
+    let hidden: Bool
 }
 
 /// Manages the navigation stack state for GTK4.
@@ -500,6 +506,40 @@ class GTKNavigationContext {
         }
     }
 
+    private func installToolbarItems(
+        _ toolbarItems: [AnyToolbarItem],
+        into entry: inout GTKNavigationEntry
+    ) {
+        for item in toolbarItems {
+            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
+            switch item.placement {
+            case .leading:
+                gtk_header_bar_pack_start(headerBar, itemWidget)
+            case .center:
+                gtk_header_bar_set_title_widget(headerBar, itemWidget)
+            case .primaryAction, .trailing:
+                gtk_header_bar_pack_end(headerBar, itemWidget)
+            }
+            g_object_ref(gpointer(itemWidget))
+            entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
+        }
+    }
+
+    func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {
+        guard !entries.isEmpty else { return }
+        removeCurrentToolbarWidgets()
+        var entry = entries.removeLast()
+        entry.toolbarWidgets.removeAll()
+        if !snapshot.title.isEmpty {
+            entry.title = snapshot.title
+        }
+        if !snapshot.hidden {
+            installToolbarItems(snapshot.toolbarItems, into: &entry)
+        }
+        entries.append(entry)
+        updateHeaderBar()
+    }
+
     private func updateHeaderBar() {
         let title = entries.last?.title ?? ""
         if let principal = entries.last?.toolbarWidgets.first(where: { $0.placement == .center })?.widget {
@@ -648,7 +688,7 @@ func getCurrentNavigationContext() -> GTKNavigationContext? {
 /// Walks the view tree recursively so .navigationTitle() works regardless
 /// of modifier ordering or nesting depth.
 func gtkExtractTitle<V: View>(from view: V) -> String {
-    return gtkExtractTitleAny(from: view)
+    return gtkExtractTitleTyped(from: view)
 }
 
 private func gtkExtractTitleAny(from view: Any, depth: Int = 0) -> String {
@@ -671,13 +711,37 @@ private func gtkExtractTitleAny(from view: Any, depth: Int = 0) -> String {
     return ""
 }
 
+private func gtkExtractTitleAnyView(_ view: any View, depth: Int) -> String {
+    func extract<V: View>(_ value: V) -> String {
+        gtkExtractTitleTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractTitleTyped<V: View>(from view: V, depth: Int = 0) -> String {
+    guard depth < 20 else { return "" }
+
+    let reflected = gtkExtractTitleAny(from: view, depth: depth)
+    if !reflected.isEmpty {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractTitleTyped(from: view.body, depth: depth + 1)
+        }
+    }
+
+    return ""
+}
+
 // MARK: - Toolbar extraction
 
 /// Extract toolbar items from a view tree via ToolbarProvider protocol.
 /// Walks Mirror children recursively (depth-limited) to find ToolbarProvider
 /// regardless of modifier ordering.
 func gtkExtractToolbarItems<V: View>(from view: V) -> [AnyToolbarItem] {
-    return gtkExtractToolbarItemsAny(from: view)
+    return gtkExtractToolbarItemsTyped(from: view)
 }
 
 private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyToolbarItem] {
@@ -695,9 +759,36 @@ private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyTo
     }
 
     for child in mirror.children {
-        if child.value is any View {
-            let result = gtkExtractToolbarItemsAny(from: child.value, depth: depth + 1)
+        if let childView = child.value as? any View {
+            let result = gtkExtractToolbarItemsAnyView(childView, depth: depth + 1)
             if !result.isEmpty { return result }
+        }
+    }
+
+    return []
+}
+
+private func gtkExtractToolbarItemsAnyView(_ view: any View, depth: Int) -> [AnyToolbarItem] {
+    func extract<V: View>(_ value: V) -> [AnyToolbarItem] {
+        gtkExtractToolbarItemsTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractToolbarItemsTyped<V: View>(
+    from view: V,
+    depth: Int = 0
+) -> [AnyToolbarItem] {
+    guard depth < 20 else { return [] }
+
+    let reflected = gtkExtractToolbarItemsAny(from: view, depth: depth)
+    if !reflected.isEmpty {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractToolbarItemsTyped(from: view.body, depth: depth + 1)
         }
     }
 
@@ -706,7 +797,7 @@ private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyTo
 
 /// Extract toolbar configuration from a view tree via ToolbarConfigurationProvider.
 func gtkExtractToolbarConfiguration<V: View>(from view: V) -> ToolbarConfiguration? {
-    return gtkExtractToolbarConfigurationAny(from: view)
+    return gtkExtractToolbarConfigurationTyped(from: view)
 }
 
 private func gtkExtractToolbarConfigurationAny(from view: Any, depth: Int = 0) -> ToolbarConfiguration? {
@@ -724,10 +815,36 @@ private func gtkExtractToolbarConfigurationAny(from view: Any, depth: Int = 0) -
     }
 
     for child in mirror.children {
-        if child.value is any View {
-            if let result = gtkExtractToolbarConfigurationAny(from: child.value, depth: depth + 1) {
+        if let childView = child.value as? any View {
+            if let result = gtkExtractToolbarConfigurationAnyView(childView, depth: depth + 1) {
                 return result
             }
+        }
+    }
+
+    return nil
+}
+
+private func gtkExtractToolbarConfigurationAnyView(_ view: any View, depth: Int) -> ToolbarConfiguration? {
+    func extract<V: View>(_ value: V) -> ToolbarConfiguration? {
+        gtkExtractToolbarConfigurationTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractToolbarConfigurationTyped<V: View>(
+    from view: V,
+    depth: Int = 0
+) -> ToolbarConfiguration? {
+    guard depth < 20 else { return nil }
+
+    if let reflected = gtkExtractToolbarConfigurationAny(from: view, depth: depth) {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractToolbarConfigurationTyped(from: view.body, depth: depth + 1)
         }
     }
 
@@ -748,6 +865,24 @@ func gtkApplyToolbarConfiguration(
     let hidden = config.visibility == .hidden && targetAppliesToGTK
     let filtered = items.filter { !config.removedPlacements.contains($0.placement) }
     return (filtered, hidden)
+}
+
+func gtkNavigationToolbarSnapshot<V: View>(from view: V) -> GTKNavigationToolbarSnapshot? {
+    let title = gtkExtractTitle(from: view)
+    let rawToolbarItems = gtkExtractToolbarItems(from: view)
+    let toolbarConfig = gtkExtractToolbarConfiguration(from: view)
+    guard !rawToolbarItems.isEmpty || toolbarConfig != nil || !title.isEmpty else {
+        return nil
+    }
+    let (toolbarItems, hidden) = gtkApplyToolbarConfiguration(
+        items: rawToolbarItems,
+        configuration: toolbarConfig
+    )
+    return GTKNavigationToolbarSnapshot(
+        title: title,
+        toolbarItems: toolbarItems,
+        hidden: hidden
+    )
 }
 
 // MARK: - GTK rendering extensions

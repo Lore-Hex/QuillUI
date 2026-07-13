@@ -246,6 +246,8 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     let buildBody: () -> OpaquePointer
     /// Describes the body as a descriptor tree without creating widgets.
     var describeBody: (() -> GTK4DescriptorNode)?
+    /// Captures navigation toolbar state from the latest body.
+    var navigationToolbarSnapshot: (() -> GTKNavigationToolbarSnapshot?)?
     /// Retained descriptor state for narrow mutation path.
     var lastRetainedDescriptor: GTK4RetainedDescriptorNode?
     var retainedExecutor: GTK4RetainedExecutorNode?
@@ -300,6 +302,14 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             env.setLatestObjectByID(typeID, fallback: object)
         }
         setCurrentEnvironment(env)
+    }
+
+    func refreshNavigationToolbarFromBodyIfNeeded() {
+        guard let navigationContext = getCurrentNavigationContext(),
+              let snapshot = navigationToolbarSnapshot?()
+        else { return }
+
+        navigationContext.replaceCurrentToolbar(with: snapshot)
     }
 
     public init(buildBody: @escaping () -> OpaquePointer) {
@@ -945,6 +955,7 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
             lastReadSet = tracking.readSet
             lastInputSnapshot = tracking.snapshots
         }
+        refreshNavigationToolbarFromBodyIfNeeded()
         setCurrentEnvironment(previousEnv)
 
         GTKViewHost.setCurrentRebuilding(previousHost)

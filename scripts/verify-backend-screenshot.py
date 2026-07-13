@@ -6323,7 +6323,7 @@ def validate_icecubes_linux_authenticated_profile(image: Screenshot) -> str:
         top + 52,
         icecubes_authenticated_titlebar_pixel,
     )
-    compose_button_pixels = dark_pixel_count(
+    profile_options_button_pixels = dark_pixel_count(
         image,
         left + int(app_width * 0.78),
         top + 8,
@@ -6369,7 +6369,10 @@ def validate_icecubes_linux_authenticated_profile(image: Screenshot) -> str:
     )
 
     require(titlebar_pixels >= 25_000, f"IceCubes authenticated Profile titlebar chrome was not detected: pixels={titlebar_pixels}")
-    require(compose_button_pixels >= 60, f"IceCubes authenticated Profile compose toolbar button was not detected: pixels={compose_button_pixels}")
+    require(
+        profile_options_button_pixels >= 24,
+        f"IceCubes authenticated Profile options toolbar button was not detected: pixels={profile_options_button_pixels}",
+    )
     require(
         profile_selected_pixels >= 5_000,
         f"IceCubes authenticated Profile sidebar row was not selected: pixels={profile_selected_pixels}",
@@ -6395,7 +6398,7 @@ def validate_icecubes_linux_authenticated_profile(image: Screenshot) -> str:
         "IceCubes authenticated Profile: "
         f"app={app_width}x{app_height}, "
         f"titlebar_pixels={titlebar_pixels}, "
-        f"compose_button_pixels={compose_button_pixels}, "
+        f"profile_options_button_pixels={profile_options_button_pixels}, "
         f"profile_selected_pixels={profile_selected_pixels}, "
         f"profile_label_pixels={profile_label_pixels}, "
         f"account_header_pixels={account_header_pixels}, "
