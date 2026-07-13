@@ -103,12 +103,36 @@ struct GTKNavigationEntry {
     let stateNamespace: String
     let widget: UnsafeMutablePointer<GtkWidget>
     var toolbarWidgets: [(widget: UnsafeMutablePointer<GtkWidget>, placement: ToolbarItemPlacement)] = []
+    var toolbarSignature: GTKNavigationToolbarSignature?
 }
 
 struct GTKNavigationToolbarSnapshot {
     let title: String
     let toolbarItems: [AnyToolbarItem]
     let hidden: Bool
+}
+
+struct GTKNavigationToolbarSignature: Equatable {
+    let title: String
+    let hidden: Bool
+    let items: [String]
+}
+
+private func gtkNavigationToolbarSignature(
+    title: String,
+    toolbarItems: [AnyToolbarItem],
+    hidden: Bool
+) -> GTKNavigationToolbarSignature {
+    GTKNavigationToolbarSignature(
+        title: title,
+        hidden: hidden,
+        items: hidden ? [] : toolbarItems.map { item in
+            let renderedTypes = item.renderedViews
+                .map { String(reflecting: type(of: $0)) }
+                .joined(separator: "+")
+            return "\(item.placement):\(renderedTypes)"
+        }
+    )
 }
 
 /// Manages the navigation stack state for GTK4.
@@ -183,18 +207,24 @@ class GTKNavigationContext {
 
         // Install new toolbar items into header bar
         for item in toolbarItems {
-            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-            switch item.placement {
-            case .leading:
-                gtk_header_bar_pack_start(headerBar, itemWidget)
-            case .center:
-                gtk_header_bar_set_title_widget(headerBar, itemWidget)
-            case .primaryAction, .trailing:
-                gtk_header_bar_pack_end(headerBar, itemWidget)
+            for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                switch item.placement {
+                case .leading:
+                    gtk_header_bar_pack_start(headerBar, itemWidget)
+                case .center:
+                    gtk_header_bar_set_title_widget(headerBar, itemWidget)
+                case .primaryAction, .trailing:
+                    gtk_header_bar_pack_end(headerBar, itemWidget)
+                }
+                g_object_ref(gpointer(itemWidget))
+                entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
             }
-            g_object_ref(gpointer(itemWidget))
-            entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
         }
+        entry.toolbarSignature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: toolbarItems,
+            hidden: false
+        )
 
         entries.append(entry)
 
@@ -511,31 +541,40 @@ class GTKNavigationContext {
         into entry: inout GTKNavigationEntry
     ) {
         for item in toolbarItems {
-            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-            switch item.placement {
-            case .leading:
-                gtk_header_bar_pack_start(headerBar, itemWidget)
-            case .center:
-                gtk_header_bar_set_title_widget(headerBar, itemWidget)
-            case .primaryAction, .trailing:
-                gtk_header_bar_pack_end(headerBar, itemWidget)
+            for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                switch item.placement {
+                case .leading:
+                    gtk_header_bar_pack_start(headerBar, itemWidget)
+                case .center:
+                    gtk_header_bar_set_title_widget(headerBar, itemWidget)
+                case .primaryAction, .trailing:
+                    gtk_header_bar_pack_end(headerBar, itemWidget)
+                }
+                g_object_ref(gpointer(itemWidget))
+                entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
             }
-            g_object_ref(gpointer(itemWidget))
-            entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
         }
     }
 
     func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {
-        guard !entries.isEmpty else { return }
+        guard let current = entries.last else { return }
+        guard current.toolbarWidgets.isEmpty else { return }
+        let title = snapshot.title.isEmpty ? current.title : snapshot.title
+        let signature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: snapshot.toolbarItems,
+            hidden: snapshot.hidden
+        )
+        guard current.toolbarSignature != signature else { return }
+
         removeCurrentToolbarWidgets()
         var entry = entries.removeLast()
         entry.toolbarWidgets.removeAll()
-        if !snapshot.title.isEmpty {
-            entry.title = snapshot.title
-        }
+        entry.title = title
         if !snapshot.hidden {
             installToolbarItems(snapshot.toolbarItems, into: &entry)
         }
+        entry.toolbarSignature = signature
         entries.append(entry)
         updateHeaderBar()
     }
@@ -974,20 +1013,26 @@ extension NavigationStack: GTKRenderable {
             widget: rootWidget
         )
         if !toolbarHidden {
-        for item in toolbarItems {
-            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-            switch item.placement {
-            case .leading:
-                gtk_header_bar_pack_start(headerBarOp, itemWidget)
-            case .center:
-                gtk_header_bar_set_title_widget(headerBarOp, itemWidget)
-            case .primaryAction, .trailing:
-                gtk_header_bar_pack_end(headerBarOp, itemWidget)
+            for item in toolbarItems {
+                for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                    switch item.placement {
+                    case .leading:
+                        gtk_header_bar_pack_start(headerBarOp, itemWidget)
+                    case .center:
+                        gtk_header_bar_set_title_widget(headerBarOp, itemWidget)
+                    case .primaryAction, .trailing:
+                        gtk_header_bar_pack_end(headerBarOp, itemWidget)
+                    }
+                    g_object_ref(gpointer(itemWidget))
+                    rootEntry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
+                }
             }
-            g_object_ref(gpointer(itemWidget))
-            rootEntry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
         }
-        } // end if !toolbarHidden
+        rootEntry.toolbarSignature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: toolbarItems,
+            hidden: toolbarHidden
+        )
         setCurrentEnvironment(prevEnv)
         setCurrentNavigationContext(nil)
 
