@@ -110,6 +110,8 @@ AUTH_STATUS_DETAIL_REFRESH_KEY_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STA
 AUTH_COMPOSE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_X:-663}"
 AUTH_COMPOSE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_Y:-28}"
 AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS:-20}"
+AUTH_COMPOSE_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRIES:-3}"
+AUTH_COMPOSE_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSER_TYPE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT:-hello from linux}"
 AUTH_COMPOSER_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_DELAY_MS:-25}"
 AUTH_COMPOSER_TYPE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_X:-320}"
@@ -780,9 +782,41 @@ wait_for_authenticated_compose_surface() {
       fi
       trace_visual_window "compose-surface-main-capture" "$capture_window_id"
       trace_visual_windows_for_pid "compose-surface-visible"
-      return 0
+      return 1
     fi
     sleep 0.25
+  done
+}
+
+open_authenticated_composer_surface() {
+  case "$AUTH_COMPOSE_CLICK_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSE_CLICK_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_COMPOSE_CLICK_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSE_CLICK_RETRIES" >&2
+    exit 2
+  fi
+
+  wait_for_authenticated_timeline_activity
+
+  local attempt=1
+  while true; do
+    click_app_window_point "$AUTH_COMPOSE_X" "$AUTH_COMPOSE_Y"
+    if wait_for_authenticated_compose_surface; then
+      return 0
+    fi
+
+    if ((attempt >= AUTH_COMPOSE_CLICK_RETRIES)); then
+      echo "IceCubes authenticated compose button did not open the composer after $attempt attempts." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_COMPOSE_CLICK_RETRY_SECONDS"
   done
 }
 
@@ -1553,22 +1587,16 @@ case "$INTERACTION" in
     ;;
   seeded-authenticated-composer)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer"
-    wait_for_authenticated_timeline_activity
-    click_app_window_point "$AUTH_COMPOSE_X" "$AUTH_COMPOSE_Y"
-    wait_for_authenticated_compose_surface
+    open_authenticated_composer_surface
     ;;
   seeded-authenticated-composer-type)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer-typed"
-    wait_for_authenticated_timeline_activity
-    click_app_window_point "$AUTH_COMPOSE_X" "$AUTH_COMPOSE_Y"
-    wait_for_authenticated_compose_surface
+    open_authenticated_composer_surface
     type_authenticated_composer_text
     ;;
   seeded-authenticated-composer-submit)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer-submitted"
-    wait_for_authenticated_timeline_activity
-    click_app_window_point "$AUTH_COMPOSE_X" "$AUTH_COMPOSE_Y"
-    wait_for_authenticated_compose_surface
+    open_authenticated_composer_surface
     submit_authenticated_composer_text
     wait_for_authenticated_route_visual "$VERIFY_PRODUCT" "authenticated composer submitted shell"
     ;;
