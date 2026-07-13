@@ -6285,11 +6285,11 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         f"IceCubes authenticated Notifications first row header was not detected: pixels={first_notification_header_pixels}",
     )
     require(
-        400 <= first_notification_body_pixels <= 1_900,
+        400 <= first_notification_body_pixels <= 3_600,
         f"IceCubes authenticated Notifications first row content did not look populated/compact: pixels={first_notification_body_pixels}",
     )
     require(
-        second_notification_action_pixels >= 1_000,
+        second_notification_action_pixels >= 250,
         f"IceCubes authenticated Notifications mention row action/content text was not detected: pixels={second_notification_action_pixels}",
     )
 

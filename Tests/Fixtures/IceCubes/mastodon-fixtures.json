@@ -439,6 +439,17 @@
     {
       "method": "GET",
       "host": "mastodon.social",
+      "path": "/api/v2/notifications",
+      "query": "max_id=1001&grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "bodyBase64": "eyJhY2NvdW50cyI6W10sIm5vdGlmaWNhdGlvbl9ncm91cHMiOltdLCJzdGF0dXNlcyI6W119"
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
       "path": "/api/v1/notifications",
       "query": "limit=30",
       "status": 200,
