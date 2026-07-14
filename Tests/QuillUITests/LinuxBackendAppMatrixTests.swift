@@ -1092,6 +1092,69 @@ struct LinuxBackendAppMatrixTests {
         #expect(badGenerated.output.contains("runtime_backend=gtk does not match requested_backend=qt expected_runtime=qt"))
     }
 
+    @Test("profile budget separates startup and steady CPU limits")
+    func profileBudgetSeparatesStartupAndSteadyCPULimits() throws {
+        let root = try packageRoot()
+        let script = root.appendingPathComponent("scripts/check-linux-backend-profile-budget.sh")
+        let fileManager = FileManager.default
+        let temporaryDirectory = fileManager.temporaryDirectory
+            .appendingPathComponent("quillui-profile-cpu-budget-\(UUID().uuidString)")
+        try fileManager.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: temporaryDirectory) }
+
+        let startupSpikeCSV = temporaryDirectory.appendingPathComponent("startup-spike.csv")
+        try """
+        \(Self.profileCSVHeader)
+        quill-code-desktop-linux,gtk,gtk,native,1,2,3,30.6,5.4,ok
+
+        """.write(to: startupSpikeCSV, atomically: true, encoding: .utf8)
+
+        let startupSpike = try runScript(
+            script,
+            arguments: [
+                startupSpikeCSV.path,
+                "--max-rss-kb", "400000",
+                "--max-startup-ms", "10000",
+                "--max-cpu-pct", "25",
+                "--max-cpu-initial-pct", "40",
+            ]
+        )
+        #expect(startupSpike.status == 0, Comment(rawValue: startupSpike.output))
+
+        let highSteadyCPUCSV = temporaryDirectory.appendingPathComponent("high-steady.csv")
+        try """
+        \(Self.profileCSVHeader)
+        quill-code-desktop-linux,gtk,gtk,native,1,2,3,10.0,30.0,ok
+
+        """.write(to: highSteadyCPUCSV, atomically: true, encoding: .utf8)
+
+        let highSteadyCPU = try runScript(
+            script,
+            arguments: [
+                highSteadyCPUCSV.path,
+                "--max-rss-kb", "400000",
+                "--max-startup-ms", "10000",
+                "--max-cpu-pct", "25",
+                "--max-cpu-initial-pct", "40",
+            ]
+        )
+        #expect(highSteadyCPU.status != 0)
+        #expect(highSteadyCPU.output.contains("cpu_pct_steady=30.0 max=25"))
+
+        let highInitialCPU = try runScript(
+            script,
+            arguments: [
+                startupSpikeCSV.path,
+                "--max-rss-kb", "400000",
+                "--max-startup-ms", "10000",
+                "--max-cpu-pct", "25",
+                "--max-cpu-initial-pct", "30",
+            ]
+        )
+        #expect(highInitialCPU.status != 0)
+        #expect(highInitialCPU.output.contains("cpu_pct_initial=30.6 max=30"))
+    }
+
     @Test("profile CSV runner expands canonical backend matrix")
     func profileCSVRunnerExpandsCanonicalBackendMatrix() throws {
         let root = try packageRoot()

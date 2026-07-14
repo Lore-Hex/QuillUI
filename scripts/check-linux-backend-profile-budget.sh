@@ -6,6 +6,7 @@ source "$ROOT_DIR/scripts/quillui-backend-products.sh"
 quillui_alias_backend_profile_env
 
 MAX_CPU_PCT="${QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT:-25}"
+MAX_CPU_INITIAL_PCT="${QUILLUI_BACKEND_PROFILE_MAX_CPU_INITIAL_PCT:-40}"
 MAX_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_RSS_KB:-300000}"
 MAX_QUILL_CHAT_RSS_KB="${QUILLUI_BACKEND_PROFILE_MAX_QUILL_CHAT_RSS_KB:-340000}"
 MAX_STARTUP_MS="${QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS:-5000}"
@@ -14,7 +15,7 @@ REQUIRE_BACKEND_MATRIX=0
 CSV_PATH=""
 
 usage() {
-  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-rss-kb N] [--max-startup-ms N] [--require-backend-matrix] [--allow-profile-timeouts]" >&2
+  echo "Usage: $(basename "$0") CSV [--max-cpu-pct N] [--max-cpu-initial-pct N] [--max-rss-kb N] [--max-startup-ms N] [--require-backend-matrix] [--allow-profile-timeouts]" >&2
 }
 
 while [[ $# -gt 0 ]]; do
@@ -26,6 +27,15 @@ while [[ $# -gt 0 ]]; do
         exit 64
       }
       MAX_CPU_PCT="$2"
+      shift 2
+      ;;
+    --max-cpu-initial-pct)
+      [[ $# -ge 2 && "${2:-}" != --* ]] || {
+        echo "--max-cpu-initial-pct requires a value" >&2
+        usage
+        exit 64
+      }
+      MAX_CPU_INITIAL_PCT="$2"
       shift 2
       ;;
     --max-rss-kb)
@@ -75,6 +85,10 @@ fi
 
 [[ "$MAX_CPU_PCT" =~ ^[0-9]+([.][0-9]+)?$ ]] || {
   echo "--max-cpu-pct must be a non-negative number, got: $MAX_CPU_PCT" >&2
+  exit 64
+}
+[[ "$MAX_CPU_INITIAL_PCT" =~ ^[0-9]+([.][0-9]+)?$ ]] || {
+  echo "--max-cpu-initial-pct must be a non-negative number, got: $MAX_CPU_INITIAL_PCT" >&2
   exit 64
 }
 [[ "$MAX_RSS_KB" =~ ^[1-9][0-9]*$ ]] || {
@@ -141,6 +155,7 @@ fi
 
 awk \
   -v max_cpu="$MAX_CPU_PCT" \
+  -v max_cpu_initial="$MAX_CPU_INITIAL_PCT" \
   -v max_rss="$MAX_RSS_KB" \
   -v max_quill_chat_rss="$MAX_QUILL_CHAT_RSS_KB" \
   -v max_startup="$MAX_STARTUP_MS" \
@@ -259,8 +274,8 @@ NF != 10 {
     printf "profile budget failed: %s rss_kb=%s max=%s\n", product, rss_kb, max_rss_for_row > "/dev/stderr"
     row_failed = 1
   }
-  if (cpu_initial_value > max_cpu) {
-    printf "profile budget failed: %s cpu_pct_initial=%s max=%s\n", product, cpu_initial, max_cpu > "/dev/stderr"
+  if (cpu_initial_value > max_cpu_initial) {
+    printf "profile budget failed: %s cpu_pct_initial=%s max=%s\n", product, cpu_initial, max_cpu_initial > "/dev/stderr"
     row_failed = 1
   }
   if (cpu_steady_value > max_cpu) {
