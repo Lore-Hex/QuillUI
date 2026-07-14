@@ -368,6 +368,11 @@ def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
     return colorful_thumbnail or neutral_placeholder
 
 
+def icecubes_submitted_media_placeholder_pixel(rgb: tuple[int, int, int]) -> bool:
+    red, green, blue = rgb
+    return 120 <= red <= 170 and 120 <= green <= 170 and 120 <= blue <= 170 and max(rgb) - min(rgb) <= 8
+
+
 def icecubes_blank_artifact_pixel(rgb: tuple[int, int, int]) -> bool:
     return sum(rgb) >= 750 and max(rgb) - min(rgb) <= 8
 
@@ -7456,6 +7461,126 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
     )
 
 
+def validate_icecubes_linux_authenticated_composer_submitted(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes authenticated submitted composer shell has unexpected size: {app_width}x{app_height}",
+    )
+
+    content_left = left + int(app_width * 0.30)
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    timeline_menu_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.43),
+        top + 8,
+        left + int(app_width * 0.56),
+        top + 45,
+    )
+    timeline_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 56,
+        max(left + 9, content_left - 8),
+        min(bottom, top + 112),
+        icecubes_sidebar_selected_pixel,
+    )
+    stale_send_button_pixels = pixel_count(
+        image,
+        max(left, right - 100),
+        top + 70,
+        right - 20,
+        min(bottom, top + 150),
+        icecubes_sign_in_button_pixel,
+    )
+    submitted_header_dark_pixels = dark_pixel_count(
+        image,
+        content_left + 12,
+        top + 56,
+        right - 24,
+        min(bottom, top + 106),
+    )
+    submitted_media_pixels = pixel_count(
+        image,
+        content_left + 16,
+        top + 106,
+        right - 20,
+        min(bottom, top + 410),
+        icecubes_submitted_media_placeholder_pixel,
+    )
+    submitted_action_pixels = dark_pixel_count(
+        image,
+        content_left + 12,
+        top + 410,
+        right - 24,
+        min(bottom, top + 462),
+    )
+    content_surface_pixels = pixel_count(
+        image,
+        content_left,
+        top + 54,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(titlebar_pixels >= 25_000, f"IceCubes submitted composer titlebar chrome was not detected: pixels={titlebar_pixels}")
+    require(timeline_menu_pixels >= 120, f"IceCubes submitted composer Timeline menu was not detected: pixels={timeline_menu_pixels}")
+    require(
+        timeline_selected_pixels >= 4_000,
+        "IceCubes submitted composer did not return to the selected Timeline sidebar row: "
+        f"pixels={timeline_selected_pixels}",
+    )
+    require(
+        stale_send_button_pixels <= 500,
+        "IceCubes submitted composer capture still appears to show the composer send button: "
+        f"pixels={stale_send_button_pixels}",
+    )
+    require(
+        submitted_header_dark_pixels >= 900,
+        "IceCubes submitted composer top timeline post text was not detected: "
+        f"pixels={submitted_header_dark_pixels}",
+    )
+    require(
+        submitted_media_pixels >= 80_000,
+        "IceCubes submitted composer media placeholder was not detected: "
+        f"pixels={submitted_media_pixels}",
+    )
+    require(
+        submitted_action_pixels >= 120,
+        "IceCubes submitted composer status action row was not detected: "
+        f"pixels={submitted_action_pixels}",
+    )
+    require(
+        content_surface_pixels >= 90_000,
+        "IceCubes submitted composer timeline surface was not detected: "
+        f"pixels={content_surface_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated composer submitted: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"timeline_menu_pixels={timeline_menu_pixels}, "
+        f"timeline_selected_pixels={timeline_selected_pixels}, "
+        f"stale_send_button_pixels={stale_send_button_pixels}, "
+        f"submitted_header_dark_pixels={submitted_header_dark_pixels}, "
+        f"submitted_media_pixels={submitted_media_pixels}, "
+        f"submitted_action_pixels={submitted_action_pixels}, "
+        f"content_surface_pixels={content_surface_pixels}"
+    )
+
+
 def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -8572,7 +8697,7 @@ def main() -> int:
     elif product == "icecubes-linux-authenticated-composer-typed":
         print(validate_icecubes_linux_authenticated_composer(image, typed=True))
     elif product == "icecubes-linux-authenticated-composer-submitted":
-        print(validate_icecubes_linux_authenticated_shell(image))
+        print(validate_icecubes_linux_authenticated_composer_submitted(image))
     elif product == "icecubes-linux-authenticated-status-detail":
         print(validate_icecubes_linux_authenticated_status_detail(image))
     elif product == "icecubes-linux-authenticated-status-detail-refresh":
