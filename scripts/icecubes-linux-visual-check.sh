@@ -134,17 +134,17 @@ AUTH_STATUS_DETAIL_CLICK_RETRY_POLL_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STAT
 AUTH_STATUS_DETAIL_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003"
 AUTH_STATUS_DETAIL_CONTEXT_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/context"
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
-AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-170}"
+AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
-AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-170}"
+AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-335}"
-AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-215}"
+AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-505}"
 AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_X:-335}"
-AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-258}"
+AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-557}"
 AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-398}"
-AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-170}"
+AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-462}"
 AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X:-584}"
-AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y:-170}"
+AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y:-462}"
 AUTH_MEDIA_VIEWER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_X:-520}"
 AUTH_MEDIA_VIEWER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_Y:-330}"
 AUTH_MEDIA_VIEWER_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_TIMEOUT_SECONDS:-20}"
@@ -1089,6 +1089,99 @@ click_authenticated_status_detail_row() {
   return 1
 }
 
+click_authenticated_status_detail_boost_action() {
+  local expected_boost_count="$1"
+  local y menu_y
+
+  for layout in media legacy; do
+    if [[ "$layout" == "media" ]]; then
+      y="$AUTH_STATUS_DETAIL_BOOST_Y"
+      menu_y="$AUTH_STATUS_DETAIL_BOOST_MENU_Y"
+    else
+      y="170"
+      menu_y="215"
+    fi
+
+    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$y"
+    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
+    if [[ -n "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT:-}" ]]; then
+      DISPLAY="$DISPLAY_ID" import -window root "$QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT"
+    fi
+    if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_BOOST_MENU_OPEN:-0}" == "1" ]]; then
+      exit 0
+    fi
+    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_BOOST_MENU_X" "$menu_y"
+    sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
+    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog") >= expected_boost_count )); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+click_authenticated_status_detail_quote_action() {
+  local y menu_y
+
+  for layout in media legacy; do
+    if [[ "$layout" == "media" ]]; then
+      y="$AUTH_STATUS_DETAIL_BOOST_Y"
+      menu_y="$AUTH_STATUS_DETAIL_QUOTE_MENU_Y"
+    else
+      y="170"
+      menu_y="258"
+    fi
+
+    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$y"
+    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
+    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_QUOTE_MENU_X" "$menu_y"
+    if wait_for_authenticated_compose_surface; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+click_authenticated_status_detail_reply_action() {
+  for y in "$AUTH_STATUS_DETAIL_REPLY_Y" 170; do
+    click_app_window_point "$AUTH_STATUS_DETAIL_REPLY_X" "$y"
+    if wait_for_authenticated_compose_surface; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+click_authenticated_status_detail_favorite_action() {
+  local expected_favorite_count="$1"
+
+  for y in "$AUTH_STATUS_DETAIL_FAVORITE_Y" 170; do
+    click_app_window_point "$AUTH_STATUS_DETAIL_FAVORITE_X" "$y"
+    sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
+    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/favourite") >= expected_favorite_count )); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+click_authenticated_status_detail_bookmark_action() {
+  local expected_bookmark_count="$1"
+
+  for y in "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y" 170; do
+    click_app_window_point "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X" "$y"
+    sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
+    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/bookmark") >= expected_bookmark_count )); then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 open_authenticated_status_detail() {
   wait_for_authenticated_timeline_activity
   local previous_status_count previous_context_count target_status_count target_context_count
@@ -1617,45 +1710,44 @@ case "$INTERACTION" in
   seeded-authenticated-status-detail-reply)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer"
     open_authenticated_status_detail
-    click_app_window_point "$AUTH_STATUS_DETAIL_REPLY_X" "$AUTH_STATUS_DETAIL_REPLY_Y"
-    wait_for_authenticated_compose_surface
+    if ! click_authenticated_status_detail_reply_action; then
+      echo "IceCubes authenticated status reply action did not open the composer." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
     ;;
   seeded-authenticated-status-detail-boost)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-boost"
     open_authenticated_status_detail
     previous_boost_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog")"
-    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$AUTH_STATUS_DETAIL_BOOST_Y"
-    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
-    if [[ -n "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT:-}" ]]; then
-      DISPLAY="$DISPLAY_ID" import -window root "$QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT"
+    if ! click_authenticated_status_detail_boost_action "$((previous_boost_count + 1))"; then
+      wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/reblog" "authenticated status boost action" "$((previous_boost_count + 1))"
     fi
-    if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_BOOST_MENU_OPEN:-0}" == "1" ]]; then
-      exit 0
-    fi
-    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_BOOST_MENU_X" "$AUTH_STATUS_DETAIL_BOOST_MENU_Y"
-    wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/reblog" "authenticated status boost action" "$((previous_boost_count + 1))"
     ;;
   seeded-authenticated-status-detail-quote)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer"
     open_authenticated_status_detail
-    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$AUTH_STATUS_DETAIL_BOOST_Y"
-    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
-    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_QUOTE_MENU_X" "$AUTH_STATUS_DETAIL_QUOTE_MENU_Y"
-    wait_for_authenticated_compose_surface
+    if ! click_authenticated_status_detail_quote_action; then
+      echo "IceCubes authenticated status quote action did not open the composer." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
     ;;
   seeded-authenticated-status-detail-favorite)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-favorite"
     open_authenticated_status_detail
     previous_favorite_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/favourite")"
-    click_app_window_point "$AUTH_STATUS_DETAIL_FAVORITE_X" "$AUTH_STATUS_DETAIL_FAVORITE_Y"
-    wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/favourite" "authenticated status favorite action" "$((previous_favorite_count + 1))"
+    if ! click_authenticated_status_detail_favorite_action "$((previous_favorite_count + 1))"; then
+      wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/favourite" "authenticated status favorite action" "$((previous_favorite_count + 1))"
+    fi
     ;;
   seeded-authenticated-status-detail-bookmark)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-bookmark"
     open_authenticated_status_detail
     previous_bookmark_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/bookmark")"
-    click_app_window_point "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X" "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y"
-    wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/bookmark" "authenticated status bookmark action" "$((previous_bookmark_count + 1))"
+    if ! click_authenticated_status_detail_bookmark_action "$((previous_bookmark_count + 1))"; then
+      wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/bookmark" "authenticated status bookmark action" "$((previous_bookmark_count + 1))"
+    fi
     ;;
   seeded-authenticated-media-viewer)
     VERIFY_PRODUCT="icecubes-linux-authenticated-media-viewer"

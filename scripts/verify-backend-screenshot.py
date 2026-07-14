@@ -7506,12 +7506,23 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         bottom - 4,
     )
     detail_action_pixels = max(detail_top_action_pixels, detail_media_action_pixels, detail_bottom_action_pixels)
-    detail_media_action_count_pixels = dark_pixel_count(
+    detail_left_media_action_count_pixels = dark_pixel_count(
         image,
         left + 255,
         top + 420,
         left + 430,
         top + 505,
+    )
+    detail_centered_media_action_count_pixels = dark_pixel_count(
+        image,
+        left + 390,
+        top + 420,
+        min(right - 20, left + 650),
+        top + 505,
+    )
+    detail_media_action_count_pixels = max(
+        detail_left_media_action_count_pixels,
+        detail_centered_media_action_count_pixels,
     )
     detail_bottom_action_count_pixels = dark_pixel_count(
         image,
@@ -7538,7 +7549,6 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
     detail_body_pixels = max(detail_upper_body_pixels, detail_lower_body_pixels)
     detail_action_count_pixels = max(detail_media_action_count_pixels, detail_bottom_action_count_pixels, detail_summary_pixels)
     detail_has_media = detail_media_pixels >= 80_000
-    detail_has_summary = detail_summary_pixels >= 350
 
     require(titlebar_pixels >= 25_000, f"IceCubes authenticated Status detail titlebar chrome was not detected: pixels={titlebar_pixels}")
     require(
@@ -7556,8 +7566,8 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"IceCubes authenticated Status detail body text was not detected: pixels={detail_body_pixels}",
     )
     require(
-        detail_has_media or detail_has_summary,
-        "IceCubes authenticated Status detail media attachment or summary rows were not detected: "
+        detail_has_media,
+        "IceCubes authenticated Status detail media attachment was not detected: "
         f"media_pixels={detail_media_pixels}, summary_pixels={detail_summary_pixels}, app_width={app_width}",
     )
     require(
@@ -7585,6 +7595,8 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"detail_top_action_pixels={detail_top_action_pixels}, "
         f"detail_media_action_pixels={detail_media_action_pixels}, "
         f"detail_bottom_action_pixels={detail_bottom_action_pixels}, "
+        f"detail_left_media_action_count_pixels={detail_left_media_action_count_pixels}, "
+        f"detail_centered_media_action_count_pixels={detail_centered_media_action_count_pixels}, "
         f"detail_media_action_count_pixels={detail_media_action_count_pixels}, "
         f"detail_action_count_pixels={detail_action_count_pixels}"
     )
@@ -7592,13 +7604,13 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
 
 def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screenshot) -> str:
     base = validate_icecubes_linux_authenticated_status_detail(image)
-    left, _, top, _ = content_bounds(image)
+    left, _, top, bottom = content_bounds(image)
 
     def favorite_accent_pixel(rgb: tuple[int, int, int]) -> bool:
         r, g, b = rgb
         return r >= 180 and g >= 130 and b <= 90 and r >= g and g > b
 
-    favorite_accent_pixels = pixel_count(
+    favorite_top_accent_pixels = pixel_count(
         image,
         left + 370,
         top + 145,
@@ -7606,13 +7618,40 @@ def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screensh
         top + 196,
         favorite_accent_pixel,
     )
-    favorite_summary_pixels = dark_pixel_count(
+    favorite_media_accent_pixels = pixel_count(
+        image,
+        left + 370,
+        top + 420,
+        left + 430,
+        top + 505,
+        favorite_accent_pixel,
+    )
+    favorite_top_action_guard_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        left + 450,
+        top + 205,
+    )
+    favorite_effective_top_accent_pixels = (
+        favorite_top_accent_pixels if favorite_top_action_guard_pixels >= 120 else 0
+    )
+    favorite_accent_pixels = max(favorite_effective_top_accent_pixels, favorite_media_accent_pixels)
+    favorite_top_summary_pixels = dark_pixel_count(
         image,
         left + 255,
         top + 260,
         left + 370,
         top + 292,
     )
+    favorite_media_summary_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 535,
+        left + 390,
+        min(bottom, top + 590),
+    )
+    favorite_summary_pixels = max(favorite_top_summary_pixels, favorite_media_summary_pixels)
 
     require(
         favorite_accent_pixels >= 45,
@@ -7629,13 +7668,16 @@ def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screensh
         base
         + "\nIceCubes authenticated Status detail favorite: "
         f"favorite_accent_pixels={favorite_accent_pixels}, "
+        f"favorite_top_accent_pixels={favorite_top_accent_pixels}, "
+        f"favorite_media_accent_pixels={favorite_media_accent_pixels}, "
+        f"favorite_top_action_guard_pixels={favorite_top_action_guard_pixels}, "
         f"favorite_summary_pixels={favorite_summary_pixels}"
     )
 
 
 def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot) -> str:
     base = validate_icecubes_linux_authenticated_status_detail(image)
-    left, _, top, _ = content_bounds(image)
+    left, _, top, bottom = content_bounds(image)
 
     def boost_accent_pixel(rgb: tuple[int, int, int]) -> bool:
         r, g, b = rgb
@@ -7655,7 +7697,7 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
         )
         return legacy_blue or icecubes_purple
 
-    boost_accent_pixels = pixel_count(
+    boost_top_accent_pixels = pixel_count(
         image,
         left + 305,
         top + 145,
@@ -7663,13 +7705,40 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
         top + 196,
         boost_accent_pixel,
     )
-    boost_summary_pixels = dark_pixel_count(
+    boost_media_accent_pixels = pixel_count(
+        image,
+        left + 305,
+        top + 420,
+        left + 372,
+        top + 505,
+        boost_accent_pixel,
+    )
+    boost_top_action_guard_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        left + 450,
+        top + 205,
+    )
+    boost_effective_top_accent_pixels = (
+        boost_top_accent_pixels if boost_top_action_guard_pixels >= 120 else 0
+    )
+    boost_accent_pixels = max(boost_effective_top_accent_pixels, boost_media_accent_pixels)
+    boost_top_summary_pixels = dark_pixel_count(
         image,
         left + 255,
         top + 306,
         left + 350,
         top + 338,
     )
+    boost_media_summary_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 588,
+        left + 380,
+        min(bottom, top + 640),
+    )
+    boost_summary_pixels = max(boost_top_summary_pixels, boost_media_summary_pixels)
 
     require(
         boost_accent_pixels >= 35,
@@ -7686,6 +7755,9 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
         base
         + "\nIceCubes authenticated Status detail boost: "
         f"boost_accent_pixels={boost_accent_pixels}, "
+        f"boost_top_accent_pixels={boost_top_accent_pixels}, "
+        f"boost_media_accent_pixels={boost_media_accent_pixels}, "
+        f"boost_top_action_guard_pixels={boost_top_action_guard_pixels}, "
         f"boost_summary_pixels={boost_summary_pixels}"
     )
 
@@ -7704,7 +7776,7 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
             and b >= g + 15
         )
 
-    bookmark_accent_pixels = pixel_count(
+    bookmark_top_accent_pixels = pixel_count(
         image,
         left + 550,
         top + 145,
@@ -7712,6 +7784,25 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
         top + 196,
         bookmark_accent_pixel,
     )
+    bookmark_media_accent_pixels = pixel_count(
+        image,
+        left + 550,
+        top + 420,
+        left + 610,
+        top + 505,
+        bookmark_accent_pixel,
+    )
+    bookmark_top_action_guard_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        left + 650,
+        top + 205,
+    )
+    bookmark_effective_top_accent_pixels = (
+        bookmark_top_accent_pixels if bookmark_top_action_guard_pixels >= 120 else 0
+    )
+    bookmark_accent_pixels = max(bookmark_effective_top_accent_pixels, bookmark_media_accent_pixels)
 
     require(
         bookmark_accent_pixels >= 30,
@@ -7722,7 +7813,10 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
     return (
         base
         + "\nIceCubes authenticated Status detail bookmark: "
-        f"bookmark_accent_pixels={bookmark_accent_pixels}"
+        f"bookmark_accent_pixels={bookmark_accent_pixels}, "
+        f"bookmark_top_accent_pixels={bookmark_top_accent_pixels}, "
+        f"bookmark_media_accent_pixels={bookmark_media_accent_pixels}, "
+        f"bookmark_top_action_guard_pixels={bookmark_top_action_guard_pixels}"
     )
 
 
