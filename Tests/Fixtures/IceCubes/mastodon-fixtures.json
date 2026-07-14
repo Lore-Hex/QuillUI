@@ -2268,7 +2268,23 @@
         "created_at": "2026-06-16T12:00:00.000Z",
         "edited_at": null,
         "reblog": null,
-        "media_attachments": [],
+        "media_attachments": [
+          {
+            "id": "media-home-1003",
+            "type": "image",
+            "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+            "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+            "remote_url": null,
+            "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+            "blurhash": null,
+            "meta": {
+              "original": {
+                "width": 640,
+                "height": 360
+              }
+            }
+          }
+        ],
         "mentions": [],
         "replies_count": 4,
         "reblogs_count": 8,
@@ -2337,7 +2353,23 @@
         "created_at": "2026-06-16T12:00:00.000Z",
         "edited_at": null,
         "reblog": null,
-        "media_attachments": [],
+        "media_attachments": [
+          {
+            "id": "media-home-1003",
+            "type": "image",
+            "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+            "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+            "remote_url": null,
+            "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+            "blurhash": null,
+            "meta": {
+              "original": {
+                "width": 640,
+                "height": 360
+              }
+            }
+          }
+        ],
         "mentions": [],
         "replies_count": 4,
         "reblogs_count": 8,
@@ -2406,7 +2438,23 @@
         "created_at": "2026-06-16T12:00:00.000Z",
         "edited_at": null,
         "reblog": null,
-        "media_attachments": [],
+        "media_attachments": [
+          {
+            "id": "media-home-1003",
+            "type": "image",
+            "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+            "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+            "remote_url": null,
+            "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+            "blurhash": null,
+            "meta": {
+              "original": {
+                "width": 640,
+                "height": 360
+              }
+            }
+          }
+        ],
         "mentions": [],
         "replies_count": 4,
         "reblogs_count": 9,
@@ -2475,7 +2523,23 @@
         "created_at": "2026-06-16T12:00:00.000Z",
         "edited_at": null,
         "reblog": null,
-        "media_attachments": [],
+        "media_attachments": [
+          {
+            "id": "media-home-1003",
+            "type": "image",
+            "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+            "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+            "remote_url": null,
+            "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+            "blurhash": null,
+            "meta": {
+              "original": {
+                "width": 640,
+                "height": 360
+              }
+            }
+          }
+        ],
         "mentions": [],
         "replies_count": 4,
         "reblogs_count": 8,

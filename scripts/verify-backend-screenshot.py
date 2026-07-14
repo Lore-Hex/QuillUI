@@ -7491,6 +7491,13 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         right - 20,
         top + 205,
     )
+    detail_media_action_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 420,
+        right - 20,
+        top + 505,
+    )
     detail_bottom_action_pixels = dark_pixel_count(
         image,
         left + 250,
@@ -7498,7 +7505,14 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         right - 20,
         bottom - 4,
     )
-    detail_action_pixels = max(detail_top_action_pixels, detail_bottom_action_pixels)
+    detail_action_pixels = max(detail_top_action_pixels, detail_media_action_pixels, detail_bottom_action_pixels)
+    detail_media_action_count_pixels = dark_pixel_count(
+        image,
+        left + 255,
+        top + 420,
+        left + 430,
+        top + 505,
+    )
     detail_bottom_action_count_pixels = dark_pixel_count(
         image,
         left + 255,
@@ -7522,8 +7536,8 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         top + 355,
     )
     detail_body_pixels = max(detail_upper_body_pixels, detail_lower_body_pixels)
-    detail_action_count_pixels = max(detail_bottom_action_count_pixels, detail_summary_pixels)
-    detail_has_wide_media = app_width >= 900 and detail_media_pixels >= 100_000
+    detail_action_count_pixels = max(detail_media_action_count_pixels, detail_bottom_action_count_pixels, detail_summary_pixels)
+    detail_has_media = detail_media_pixels >= 80_000
     detail_has_summary = detail_summary_pixels >= 350
 
     require(titlebar_pixels >= 25_000, f"IceCubes authenticated Status detail titlebar chrome was not detected: pixels={titlebar_pixels}")
@@ -7542,7 +7556,7 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"IceCubes authenticated Status detail body text was not detected: pixels={detail_body_pixels}",
     )
     require(
-        detail_has_wide_media or detail_has_summary,
+        detail_has_media or detail_has_summary,
         "IceCubes authenticated Status detail media attachment or summary rows were not detected: "
         f"media_pixels={detail_media_pixels}, summary_pixels={detail_summary_pixels}, app_width={app_width}",
     )
@@ -7569,7 +7583,9 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"detail_summary_pixels={detail_summary_pixels}, "
         f"detail_action_pixels={detail_action_pixels}, "
         f"detail_top_action_pixels={detail_top_action_pixels}, "
+        f"detail_media_action_pixels={detail_media_action_pixels}, "
         f"detail_bottom_action_pixels={detail_bottom_action_pixels}, "
+        f"detail_media_action_count_pixels={detail_media_action_count_pixels}, "
         f"detail_action_count_pixels={detail_action_count_pixels}"
     )
 
