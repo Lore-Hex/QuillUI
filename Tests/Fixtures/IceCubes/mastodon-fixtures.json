@@ -2397,6 +2397,112 @@
       }
     },
     {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/1003/favourited_by",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "alice-account",
+          "username": "alice",
+          "display_name": "Alice Fixture",
+          "avatar": "https://mastodon.social/avatars/alice-account.png",
+          "header": "https://mastodon.social/headers/alice-account.png",
+          "acct": "alice",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@alice",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        {
+          "id": "bob-account",
+          "username": "bob",
+          "display_name": "Bob Fixture",
+          "avatar": "https://mastodon.social/avatars/bob-account.png",
+          "header": "https://mastodon.social/headers/bob-account.png",
+          "acct": "bob",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@bob",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/1003/reblogged_by",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": [
+        {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        }
+      ]
+    },
+    {
       "method": "POST",
       "host": "mastodon.social",
       "path": "/api/v1/statuses/1003/reblog",

@@ -133,6 +133,8 @@ AUTH_STATUS_DETAIL_CLICK_RETRY_POLLS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETA
 AUTH_STATUS_DETAIL_CLICK_RETRY_POLL_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_CLICK_RETRY_POLL_SECONDS:-0.25}"
 AUTH_STATUS_DETAIL_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003"
 AUTH_STATUS_DETAIL_CONTEXT_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/context"
+AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/favourited_by"
+AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/reblogged_by"
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
 AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
@@ -1184,11 +1186,16 @@ click_authenticated_status_detail_bookmark_action() {
 
 open_authenticated_status_detail() {
   wait_for_authenticated_timeline_activity
-  local previous_status_count previous_context_count target_status_count target_context_count
+  local previous_status_count previous_context_count previous_favorited_by_count previous_reblogged_by_count
+  local target_status_count target_context_count target_favorited_by_count target_reblogged_by_count
   previous_status_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_GET_LOG")"
   previous_context_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_CONTEXT_GET_LOG")"
+  previous_favorited_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG")"
+  previous_reblogged_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG")"
   target_status_count="$((previous_status_count + 1))"
   target_context_count="$((previous_context_count + 1))"
+  target_favorited_by_count="$((previous_favorited_by_count + 1))"
+  target_reblogged_by_count="$((previous_reblogged_by_count + 1))"
   sleep "$AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS"
 
   case "$AUTH_STATUS_DETAIL_NAVIGATION_TIMEOUT_SECONDS" in
@@ -1207,6 +1214,8 @@ open_authenticated_status_detail() {
 
   wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_GET_LOG" "authenticated status detail fetch" "$target_status_count"
   wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_CONTEXT_GET_LOG" "authenticated status context fetch" "$target_context_count"
+  wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG" "authenticated status detail favorited-by fetch" "$target_favorited_by_count"
+  wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG" "authenticated status detail reblogged-by fetch" "$target_reblogged_by_count"
   wait_for_authenticated_status_detail_visual
   if [[ -n "${QUILLUI_ICECUBES_VISUAL_STATUS_DETAIL_OPEN_SCREENSHOT:-}" ]]; then
     DISPLAY="$DISPLAY_ID" import -window "$window_id" "$QUILLUI_ICECUBES_VISUAL_STATUS_DETAIL_OPEN_SCREENSHOT"
