@@ -4858,6 +4858,7 @@ struct SourceHygieneTests {
         #expect(manifest.contains("? [\"QuillAppKitGTK\", \"Observation\", swiftUIShimBackendDependency]"))
         #expect(manifest.contains("quillUILinuxBuildBackend == .qt && quillUIQtGenericEnabled ? [\"QuillAppKitQt\", \"Observation\", swiftUIShimBackendDependency] : []"))
         #expect(manifest.contains(".product(name: \"SwiftOpenUISymbols\", package: \"SwiftOpenUI\"),\n                    \"QuillSwiftUICompatibility\",\n                    \"Observation\",\n                    \"CQtBridge\""))
+        #expect(manifest.contains("path: \"Sources/BackendQt\",\n                swiftSettings: appSwiftSettings + [\n                    .define(\"QUILLUI_QT_GENERIC\")\n                ] + [\n                    .unsafeFlags(gdkPixbufSwiftImporterFlags)\n                ]"))
         #expect(quillUI.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(swiftUIShim.contains("@_exported import QuillSwiftUICompatibility"))
         #expect(compatibility.contains("typealias Weight = FontWeight"))

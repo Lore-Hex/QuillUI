@@ -3928,6 +3928,8 @@ if quillUILinuxBuildBackend == .qt {
                 path: "Sources/BackendQt",
                 swiftSettings: appSwiftSettings + [
                     .define("QUILLUI_QT_GENERIC")
+                ] + [
+                    .unsafeFlags(gdkPixbufSwiftImporterFlags)
                 ]
             )
         )
