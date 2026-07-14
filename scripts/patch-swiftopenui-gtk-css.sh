@@ -2020,6 +2020,10 @@ private func gtkInstallSearchRootEventFallback(_ context: GTKSearchRootEventCont
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
             }
+            if gtkRootSheetLayerOccludesRootPoint(root: root, x: rootX, y: rootY) {
+                gtkDebugLog("searchable root skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
             if gtkFocusSearchEntryAtRootPoint(
                 root: root,
                 x: rootX,
@@ -2220,6 +2224,21 @@ insert_search_focus_guard(
     "SwiftOpenUI tap root dispatcher searchable guard shape was not recognized",
 )
 insert_search_focus_guard(
+    '''            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "tap-root-dispatch@\\(Int(rootX)),\\(Int(rootY))"
+            ) {
+''',
+    '''            if gtkRootSheetLayerOccludesRootPoint(root: root, x: rootX, y: rootY) {
+                gtkDebugLog("tap gesture global dispatch skipped root sheet root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+''',
+    "SwiftOpenUI tap root dispatcher root sheet guard shape was not recognized",
+)
+insert_search_focus_guard(
     '''            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)
 ''',
     '''            if gtkFocusSearchEntryAtRootPoint(
@@ -2233,6 +2252,26 @@ insert_search_focus_guard(
 
 ''',
     "SwiftOpenUI tap root fallback searchable guard shape was not recognized",
+)
+insert_search_focus_guard(
+    '''            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                source: "tap-root@\\(Int(x)),\\(Int(y))"
+            ) {
+''',
+    '''            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                excludingDescendant: context.widget
+            ) {
+                gtkDebugLog("tap gesture root skipped root sheet root@\\(Int(x)),\\(Int(y)) \\(context.source)")
+                return 0
+            }
+''',
+    "SwiftOpenUI tap root fallback root sheet guard shape was not recognized",
 )
 insert_search_focus_guard(
     '''            if gtkOpenVisualMenuButtonAtRootPoint(
@@ -3295,6 +3334,15 @@ private func gtkDispatchButtonRootPress(
     if gtkActiveMenuOverlayState != nil {
         return gtkHandleActiveMenuOverlayClick(x: x, y: y)
     }
+    if gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: context.widget
+    ) {
+        gtkDebugLog("button root skipped root sheet root@\\(Int(x)),\\(Int(y))")
+        return 0
+    }
     let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
     let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
     gtkDebugButtonRootHitTest(
@@ -3575,6 +3623,15 @@ private func gtkDispatchButtonRootPress(
     if gtkActiveMenuOverlayState != nil {
         return gtkHandleActiveMenuOverlayClick(x: x, y: y)
     }
+    if gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: context.widget
+    ) {
+        gtkDebugLog("button root skipped root sheet root@\\(Int(x)),\\(Int(y))")
+        return 0
+    }
     let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
     let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
     gtkDebugButtonRootHitTest(
@@ -3782,6 +3839,15 @@ private func gtkInstallGlobalButtonRootDispatcher(for widget: UnsafeMutablePoint
                 gtkDebugLog("button global dispatch miss root@\\(Int(rootX)),\\(Int(rootY))")
                 return 0
             }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                excludingDescendant: target.widget
+            ) {
+                gtkDebugLog("button global dispatch skipped root sheet root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
             gtkDebugLog(
                 "button global root-hit root@\\(Int(rootX)),\\(Int(rootY)) "
                 + gtkDebugVisualFrameDescription(target.widget, root: root)
@@ -3808,11 +3874,63 @@ private func gtkInstallGlobalButtonRootDispatcher(for widget: UnsafeMutablePoint
         raise SystemExit("SwiftOpenUI global button dispatcher insertion point was not recognized")
     text = text.replace(root_fallback_marker, global_button_dispatcher_helper + root_fallback_marker, 1)
 
+old_button_global_root_sheet_guard = '''            guard let target = gtkPreferredButtonActionAtRootPoint(root: root, x: rootX, y: rootY) else {
+                gtkDebugPickedWidgetChain(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "button global dispatch"
+                )
+                gtkDebugLog("button global dispatch miss root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+            gtkDebugLog(
+                "button global root-hit root@\\(Int(rootX)),\\(Int(rootY)) "
+'''
+new_button_global_root_sheet_guard = '''            guard let target = gtkPreferredButtonActionAtRootPoint(root: root, x: rootX, y: rootY) else {
+                gtkDebugPickedWidgetChain(
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "button global dispatch"
+                )
+                gtkDebugLog("button global dispatch miss root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                excludingDescendant: target.widget
+            ) {
+                gtkDebugLog("button global dispatch skipped root sheet root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+            gtkDebugLog(
+                "button global root-hit root@\\(Int(rootX)),\\(Int(rootY)) "
+'''
+if old_button_global_root_sheet_guard in text:
+    text = text.replace(old_button_global_root_sheet_guard, new_button_global_root_sheet_guard, 1)
+elif (
+    "button global dispatch skipped root sheet root@" not in text
+    and "gtkInstallGlobalButtonRootDispatcher" in text
+):
+    raise SystemExit("SwiftOpenUI Button global root sheet guard shape was not recognized")
+
 old_button_root_guard = '''            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
             guard isTopmost else { return 0 }
             gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("root-legacy@\\(Int(x)),\\(Int(y))", widget: context.widget))
 '''
-new_button_root_guard = '''            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+new_button_root_guard = '''            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                excludingDescendant: context.widget
+            ) {
+                gtkDebugLog("button root skipped root sheet root@\\(Int(x)),\\(Int(y))")
+                return 0
+            }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
             let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
             guard isTopmost || isVisualHit else { return 0 }
             let source = isTopmost ? "root-legacy" : "root-visual"
@@ -3822,6 +3940,33 @@ if old_button_root_guard in text:
     text = text.replace(old_button_root_guard, new_button_root_guard, 1)
 elif "let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)" not in text:
     raise SystemExit("SwiftOpenUI Button root visual hit-test guard shape was not recognized")
+
+old_button_root_sheet_guard = '''    if gtkActiveMenuOverlayState != nil {
+        return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+    }
+    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+'''
+new_button_root_sheet_guard = '''    if gtkActiveMenuOverlayState != nil {
+        return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+    }
+    if gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: context.widget
+    ) {
+        gtkDebugLog("button root skipped root sheet root@\\(Int(x)),\\(Int(y))")
+        return 0
+    }
+    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
+'''
+if old_button_root_sheet_guard in text:
+    text = text.replace(old_button_root_sheet_guard, new_button_root_sheet_guard, 1)
+elif (
+    "button root skipped root sheet root@" not in text
+    and "gtkDispatchButtonRootPress" in text
+):
+    raise SystemExit("SwiftOpenUI Button root sheet guard shape was not recognized")
 
 old_list_row_root_button_guard = '''            guard gtk_swift_root_point_picks_button(root, x, y) == 0 else {
                 gtkDebugLog("list row tap skipped button root@\\(Int(x)),\\(Int(y)) \\(context.box.source)")
@@ -3846,6 +3991,94 @@ elif (
     and "gtkInstallListRowRootEventFallback" in text
 ):
     raise SystemExit("SwiftOpenUI List row root visual button guard shape was not recognized")
+
+old_list_row_global_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "list-row-root-dispatch@\\(Int(rootX)),\\(Int(rootY))"
+            ) {
+'''
+new_list_row_global_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkRootSheetLayerOccludesRootPoint(root: root, x: rootX, y: rootY) {
+                gtkDebugLog("list row global dispatch skipped root sheet root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+            if gtkFocusSearchEntryAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                source: "list-row-root-dispatch@\\(Int(rootX)),\\(Int(rootY))"
+            ) {
+'''
+if old_list_row_global_root_sheet_guard in text:
+    text = text.replace(old_list_row_global_root_sheet_guard, new_list_row_global_root_sheet_guard, 1)
+elif (
+    "list row global dispatch skipped root sheet root@" not in text
+    and "GTKListRowGlobalRootDispatcher" in text
+):
+    raise SystemExit("SwiftOpenUI List row global root sheet guard shape was not recognized")
+
+old_listbox_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+
+            let visibleContainer = gtk_widget_get_parent(context.listBox) ?? context.listBox
+'''
+new_listbox_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
+            }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                excludingDescendant: context.listBox
+            ) {
+                gtkDebugLog("listbox-root skipped root sheet root@\\(Int(rootX)),\\(Int(rootY))")
+                return 0
+            }
+
+            let visibleContainer = gtk_widget_get_parent(context.listBox) ?? context.listBox
+'''
+if old_listbox_root_sheet_guard in text:
+    text = text.replace(old_listbox_root_sheet_guard, new_listbox_root_sheet_guard, 1)
+elif (
+    "listbox-root skipped root sheet root@" not in text
+    and "gtkInstallListBoxRootEventFallback" in text
+):
+    raise SystemExit("SwiftOpenUI List box root sheet guard shape was not recognized")
+
+old_list_row_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.row, x, y) != 0
+'''
+new_list_row_root_sheet_guard = '''            if gtkActiveMenuOverlayState != nil {
+                return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                excludingDescendant: context.row
+            ) {
+                gtkDebugLog("list row tap skipped root sheet root@\\(Int(x)),\\(Int(y)) \\(context.box.source)")
+                return 0
+            }
+            let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.row, x, y) != 0
+'''
+if old_list_row_root_sheet_guard in text:
+    text = text.replace(old_list_row_root_sheet_guard, new_list_row_root_sheet_guard, 1)
+elif (
+    "list row tap skipped root sheet root@" not in text
+    and "gtkInstallListRowRootEventFallback" in text
+):
+    raise SystemExit("SwiftOpenUI List row root sheet guard shape was not recognized")
 
 old_listbox_button_guard = '''            guard gtk_swift_root_point_picks_button(listBox, x, y) == 0 else {
                 gtkDebugLog("list row tap skipped button listbox@\\(Int(x)),\\(Int(y))")
@@ -5070,6 +5303,42 @@ private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: ()
     return body()
 }
 
+private func gtkWidgetIsDescendant(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    of ancestor: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 160 {
+        if node == ancestor {
+            return true
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+    return false
+}
+
+private func gtkRootSheetLayerOccludesRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    excludingDescendant excluded: UnsafeMutablePointer<GtkWidget>? = nil
+) -> Bool {
+    for layer in gtkRootSheetLayers.values {
+        guard gtk_swift_is_widget(layer) != 0 else { continue }
+        guard let layerRoot = gtk_widget_get_root(layer),
+              gpointer(layerRoot) == gpointer(root) else { continue }
+        if let excluded, gtkWidgetIsDescendant(excluded, of: layer) {
+            continue
+        }
+        if gtkWidgetOrDescendantVisuallyContainsRootPoint(layer, root: root, x: x, y: y) {
+            return true
+        }
+    }
+    return false
+}
+
 private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer? {
     if let rootOverlay = gtkCurrentRootSheetOverlay() {
         return rootOverlay
@@ -5135,6 +5404,7 @@ private func gtkCreateSheetOverlayPanel(
     )
     gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
     gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_can_target(panel, 1)
     applyCSSToWidget(
         panel,
         properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
@@ -5242,9 +5512,12 @@ private func gtkFocusSheetEditable(
     guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
         return
     }
-    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
+        ?? gtkFindFirstSheetEditable(in: panel) else {
+        gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
         return
     }
+    gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
     gtkScheduleSheetEditableFocus(editable)
 }
 
@@ -5399,9 +5672,12 @@ text = text.replace(
     gtkFocusSheetEditableWidget(editable)
 }
 """,
-    """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+    """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
+        ?? gtkFindFirstSheetEditable(in: panel) else {
+        gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
         return
     }
+    gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
     gtkScheduleSheetEditableFocus(editable)
 }
 """,

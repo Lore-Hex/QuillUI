@@ -2735,6 +2735,15 @@ private func gtkInstallGlobalButtonRootDispatcher(for widget: UnsafeMutablePoint
                 gtkDebugLog("button global dispatch miss root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                excludingDescendant: target.widget
+            ) {
+                gtkDebugLog("button global dispatch skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
             gtkDebugLog(
                 "button global root-hit root@\(Int(rootX)),\(Int(rootY)) "
                 + gtkDebugVisualFrameDescription(target.widget, root: root)
@@ -2810,6 +2819,15 @@ private func gtkDispatchButtonRootPress(
 ) -> gboolean {
     if gtkActiveMenuOverlayState != nil {
         return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+    }
+    if gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: context.widget
+    ) {
+        gtkDebugLog("button root skipped root sheet root@\(Int(x)),\(Int(y))")
+        return 0
     }
     let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0
     let isVisualHit = gtkWidgetVisuallyContainsRootPoint(context.widget, root: root, x: x, y: y)
@@ -6085,6 +6103,10 @@ private func gtkInstallGlobalTapGestureRootDispatcher(for widget: UnsafeMutableP
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
             }
+            if gtkRootSheetLayerOccludesRootPoint(root: root, x: rootX, y: rootY) {
+                gtkDebugLog("tap gesture global dispatch skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
             if gtkFocusSearchEntryAtRootPoint(
                 root: root,
                 x: rootX,
@@ -6165,6 +6187,15 @@ private func gtkInstallTapGestureRootEventFallback(_ context: GTKTapGestureRootE
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                excludingDescendant: context.widget
+            ) {
+                gtkDebugLog("tap gesture root skipped root sheet root@\(Int(x)),\(Int(y)) \(context.source)")
+                return 0
             }
             if gtkFocusSearchEntryAtRootPoint(
                 root: root,
@@ -7244,6 +7275,42 @@ private func gtkWithRootSheetOverlay<T>(_ rootOverlay: OpaquePointer, _ body: ()
     return body()
 }
 
+private func gtkWidgetIsDescendant(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    of ancestor: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 160 {
+        if node == ancestor {
+            return true
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+    return false
+}
+
+private func gtkRootSheetLayerOccludesRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    excludingDescendant excluded: UnsafeMutablePointer<GtkWidget>? = nil
+) -> Bool {
+    for layer in gtkRootSheetLayers.values {
+        guard gtk_swift_is_widget(layer) != 0 else { continue }
+        guard let layerRoot = gtk_widget_get_root(layer),
+              gpointer(layerRoot) == gpointer(root) else { continue }
+        if let excluded, gtkWidgetIsDescendant(excluded, of: layer) {
+            continue
+        }
+        if gtkWidgetOrDescendantVisuallyContainsRootPoint(layer, root: root, x: x, y: y) {
+            return true
+        }
+    }
+    return false
+}
+
 private func gtkSheetRootOverlay(for anchor: UnsafeMutablePointer<GtkWidget>) -> OpaquePointer? {
     if let rootOverlay = gtkCurrentRootSheetOverlay() {
         return rootOverlay
@@ -7331,6 +7398,7 @@ private func gtkCreateSheetOverlayPanel(
     )
     gtk_widget_set_halign(panel, GTK_ALIGN_CENTER)
     gtk_widget_set_valign(panel, GTK_ALIGN_CENTER)
+    gtk_widget_set_can_target(panel, 1)
     applyCSSToWidget(
         panel,
         properties: "background: #f8f8fb; border: 1px solid rgba(0,0,0,0.12); border-radius: 12px; box-shadow: 0 18px 48px rgba(0,0,0,0.18);"
@@ -7438,9 +7506,12 @@ private func gtkFocusSheetEditable(
     guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
         return
     }
-    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
+    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
+        ?? gtkFindFirstSheetEditable(in: panel) else {
+        gtkDebugLog("sheet focus found NO editable at root@\(Int(rootX)),\(Int(rootY))")
         return
     }
+    gtkDebugLog("sheet focus bridge editable root@\(Int(rootX)),\(Int(rootY))")
     gtkScheduleSheetEditableFocus(editable)
 }
 
@@ -11730,6 +11801,10 @@ private func gtkInstallGlobalListRowRootDispatcher(for widget: UnsafeMutablePoin
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
             }
+            if gtkRootSheetLayerOccludesRootPoint(root: root, x: rootX, y: rootY) {
+                gtkDebugLog("list row global dispatch skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
             if gtkFocusSearchEntryAtRootPoint(
                 root: root,
                 x: rootX,
@@ -11872,6 +11947,15 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: rootX, y: rootY)
             }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY,
+                excludingDescendant: context.listBox
+            ) {
+                gtkDebugLog("listbox-root skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
 
             let visibleContainer = gtk_widget_get_parent(context.listBox) ?? context.listBox
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.listBox, rootX, rootY) != 0
@@ -12001,6 +12085,15 @@ private func gtkInstallListRowRootEventFallback(_ context: GTKListRowRootEventCo
             guard gtk_swift_event_get_position(event, &x, &y) != 0 else { return 0 }
             if gtkActiveMenuOverlayState != nil {
                 return gtkHandleActiveMenuOverlayClick(x: x, y: y)
+            }
+            if gtkRootSheetLayerOccludesRootPoint(
+                root: root,
+                x: x,
+                y: y,
+                excludingDescendant: context.row
+            ) {
+                gtkDebugLog("list row tap skipped root sheet root@\(Int(x)),\(Int(y)) \(context.box.source)")
+                return 0
             }
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.row, x, y) != 0
             let isVisualHit = gtkWidgetOrDescendantVisuallyContainsRootPoint(context.row, root: root, x: x, y: y)

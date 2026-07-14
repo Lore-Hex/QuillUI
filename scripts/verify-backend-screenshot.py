@@ -7381,6 +7381,15 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         min(bottom, top + 125),
         icecubes_notification_text_pixel,
     )
+    typed_leading_editor_pixels = pixel_count(
+        image,
+        left + 30,
+        top + 208,
+        min(right, left + 170),
+        min(bottom, top + 230),
+        icecubes_notification_text_pixel,
+    )
+    typed_text_pixels = max(typed_body_pixels, typed_leading_editor_pixels)
     stale_timeline_sidebar_pixels = pixel_count(
         image,
         left + 8,
@@ -7410,8 +7419,9 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
     )
     if typed:
         require(
-            typed_body_pixels >= 90,
-            f"IceCubes authenticated composer typed text was not detected in the editor: pixels={typed_body_pixels}",
+            typed_text_pixels >= 200,
+            "IceCubes authenticated composer typed text was not detected in the editor: "
+            f"pixels={typed_text_pixels}",
         )
 
     return (
@@ -7422,6 +7432,7 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         f"composer_text_pixels={composer_text_pixels}, "
         f"composer_field_pixels={composer_field_pixels}, "
         f"typed_body_pixels={typed_body_pixels}, "
+        f"typed_leading_editor_pixels={typed_leading_editor_pixels}, "
         f"stale_timeline_sidebar_pixels={stale_timeline_sidebar_pixels}"
     )
 
