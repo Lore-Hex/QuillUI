@@ -10896,6 +10896,7 @@ struct SourceHygieneTests {
         #expect(verifier.contains("\"icecubes-linux-authenticated-composer-submitted\""))
         #expect(verifier.contains("def validate_icecubes_linux_authenticated_composer_submitted"))
         #expect(verifier.contains("icecubes_submitted_media_placeholder_pixel"))
+        #expect(verifier.contains("return dimmed_placeholder or icecubes_fixture_media_pixel(rgb)"))
         #expect(verifier.contains("timeline_selected_pixels >= 4_000"))
         #expect(verifier.contains("stale_send_button_pixels <= 500"))
         #expect(verifier.contains("submitted_media_pixels >= 80_000"))

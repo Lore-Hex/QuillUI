@@ -370,7 +370,13 @@ def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
 
 def icecubes_submitted_media_placeholder_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
-    return 120 <= red <= 170 and 120 <= green <= 170 and 120 <= blue <= 170 and max(rgb) - min(rgb) <= 8
+    dimmed_placeholder = (
+        120 <= red <= 170
+        and 120 <= green <= 170
+        and 120 <= blue <= 170
+        and max(rgb) - min(rgb) <= 8
+    )
+    return dimmed_placeholder or icecubes_fixture_media_pixel(rgb)
 
 
 def icecubes_blank_artifact_pixel(rgb: tuple[int, int, int]) -> bool:
