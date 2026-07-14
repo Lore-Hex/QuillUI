@@ -282,6 +282,21 @@ def generic_qt_detail_surface_pixel(rgb: tuple[int, int, int]) -> bool:
     )
 
 
+def generic_qt_splitter_pixel(rgb: tuple[int, int, int]) -> bool:
+    if gray_line_pixel(rgb):
+        return True
+
+    red, green, blue = rgb
+    total = red + green + blue
+    return (
+        635 <= total <= 670
+        and 208 <= red <= 224
+        and 212 <= green <= 228
+        and 204 <= blue <= 220
+        and max(rgb) - min(rgb) <= 18
+    )
+
+
 def generic_qt_card_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     return (
@@ -522,6 +537,10 @@ def content_bounds(image: Screenshot) -> tuple[int, int, int, int]:
 
 def line_column_score(image: Screenshot, x: int, y0: int, y1: int) -> int:
     return sum(1 for y in range(y0, y1) if gray_line_pixel(image.rgb(x, y)))
+
+
+def generic_qt_splitter_column_score(image: Screenshot, x: int, y0: int, y1: int) -> int:
+    return sum(1 for y in range(y0, y1) if generic_qt_splitter_pixel(image.rgb(x, y)))
 
 
 def line_row_score(image: Screenshot, y: int, x0: int, x1: int) -> int:
@@ -3993,9 +4012,9 @@ def validate_quill_generic_qt_list_selection(image: Screenshot, product: str) ->
     divider_search = range(left + 270, min(right + 1, left + 390))
     divider_x = max(
         divider_search,
-        key=lambda x: line_column_score(image, x, top + 20, bottom - 20),
+        key=lambda x: generic_qt_splitter_column_score(image, x, top + 20, bottom - 20),
     )
-    divider_score = line_column_score(image, divider_x, top + 20, bottom - 20)
+    divider_score = generic_qt_splitter_column_score(image, divider_x, top + 20, bottom - 20)
     require(
         divider_score >= int(app_height * 0.24),
         f"{palette_label} splitter was not detected: x={divider_x}, score={divider_score}",
