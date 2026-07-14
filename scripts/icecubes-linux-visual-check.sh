@@ -157,6 +157,7 @@ CLICK_FOCUS_PRIME_X="${QUILLUI_ICECUBES_VISUAL_CLICK_FOCUS_PRIME_X:-260}"
 CLICK_FOCUS_PRIME_Y="${QUILLUI_ICECUBES_VISUAL_CLICK_FOCUS_PRIME_Y:-30}"
 CLICK_TRACE="${QUILLUI_ICECUBES_VISUAL_TRACE_CLICKS:-0}"
 WINDOW_TRACE="${QUILLUI_ICECUBES_VISUAL_TRACE_WINDOWS:-0}"
+FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS:-8}"
 SIGN_IN_OPEN_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS:-25}"
 OPEN_URL_LOG_PATH="${QUILLUI_ICECUBES_VISUAL_OPEN_URL_LOG:-$(dirname "$SCREENSHOT_PATH")/icecubes-open-url.log}"
 SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_SETTLE_SECONDS:-}"
@@ -912,6 +913,73 @@ wait_for_authenticated_route_visual() {
       quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
       exit 1
     fi
+    sleep 0.5
+  done
+}
+
+should_retry_final_visual_capture() {
+  case "$INTERACTION" in
+    seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+capture_and_verify_final_visual() {
+  local retry="$1"
+  local deadline output verify_status traced
+  output=""
+  verify_status=1
+  traced=0
+
+  if [[ "$retry" == "1" ]]; then
+    case "$FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS" in
+      ''|*[!0-9]*)
+        echo "QUILLUI_ICECUBES_VISUAL_FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS must be a non-negative integer, got: $FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS" >&2
+        exit 2
+        ;;
+    esac
+    deadline="$(($(date +%s) + FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS))"
+  else
+    deadline="$(date +%s)"
+  fi
+
+  while true; do
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      echo "IceCubes app exited before screenshot capture." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    if [[ "$traced" == "0" ]]; then
+      trace_visual_window "final-capture" "$capture_window_id"
+      trace_visual_windows_for_pid "final-visible"
+      traced=1
+    fi
+
+    if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$SCREENSHOT_PATH"; then
+      echo "IceCubes screenshot capture failed." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    if output="$("$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT" 2>&1)"; then
+      printf '%s\n' "$output"
+      echo "IceCubes visual screenshot: $SCREENSHOT_PATH"
+      return 0
+    else
+      verify_status=$?
+    fi
+
+    if [[ "$retry" != "1" || $(date +%s) -ge "$deadline" ]]; then
+      printf '%s\n' "$output" >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit "$verify_status"
+    fi
+
     sleep 0.5
   done
 }
@@ -1817,24 +1885,8 @@ if [[ -n "$SETTLE_SECONDS" && "$SETTLE_SECONDS" != "0" ]]; then
   sleep "$SETTLE_SECONDS"
 fi
 
-if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-  echo "IceCubes app exited before screenshot capture." >&2
-  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
-  exit 1
-fi
-
-trace_visual_window "final-capture" "$capture_window_id"
-trace_visual_windows_for_pid "final-visible"
-if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$SCREENSHOT_PATH"; then
-  echo "IceCubes screenshot capture failed." >&2
-  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
-  exit 1
-fi
-
-if "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$SCREENSHOT_PATH" "$VERIFY_PRODUCT"; then
-  echo "IceCubes visual screenshot: $SCREENSHOT_PATH"
+if should_retry_final_visual_capture; then
+  capture_and_verify_final_visual 1
 else
-  verify_status=$?
-  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
-  exit "$verify_status"
+  capture_and_verify_final_visual 0
 fi
