@@ -10537,6 +10537,8 @@ struct SourceHygieneTests {
         #expect(script.contains("verify_oauth_open_url_log"))
         #expect(script.contains("QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS"))
         #expect(script.contains("wait_for_oauth_open_url_log"))
+        #expect(script.contains("wait_for_oauth_open_url_log retry-click"))
+        #expect(script.contains("IceCubes OAuth open URL log is not ready yet; retrying Sign In click."))
         #expect(script.contains("redirect_uri\") == [\"icecubesapp://\"]"))
         #expect(script.contains("{\"read\", \"write\", \"follow\", \"push\"}.issubset(scope)"))
         #expect(script.contains("seeded-authenticated-shell)"))

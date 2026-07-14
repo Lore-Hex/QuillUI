@@ -636,6 +636,7 @@ PY
 }
 
 wait_for_oauth_open_url_log() {
+  local retry_click="${1:-0}"
   case "$SIGN_IN_OPEN_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS must be a non-negative integer, got: $SIGN_IN_OPEN_TIMEOUT_SECONDS" >&2
@@ -643,13 +644,19 @@ wait_for_oauth_open_url_log() {
       ;;
   esac
 
-  local deadline output
+  local deadline next_retry_click output
   deadline="$(($(date +%s) + SIGN_IN_OPEN_TIMEOUT_SECONDS))"
+  next_retry_click=$((SECONDS + 2))
   output=""
   while true; do
     if output="$(verify_oauth_open_url_log 2>&1)"; then
       printf '%s\n' "$output"
       return 0
+    fi
+    if [[ "$retry_click" == "retry-click" ]] && ((SECONDS >= next_retry_click)); then
+      echo "IceCubes OAuth open URL log is not ready yet; retrying Sign In click." >&2
+      click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+      next_retry_click=$((SECONDS + 2))
     fi
     if (($(date +%s) >= deadline)); then
       printf '%s\n' "$output" >&2
@@ -1509,7 +1516,7 @@ case "$INTERACTION" in
     type_instance_name
     wait_for_add_account_selected_instance_visual
     click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
-    wait_for_oauth_open_url_log
+    wait_for_oauth_open_url_log retry-click
     VERIFY_PRODUCT="icecubes-linux-add-account-instance"
     ;;
   seeded-authenticated-shell)
