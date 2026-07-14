@@ -5890,31 +5890,33 @@ private final class GTKTapGestureIdleActionContext {
     }
 }
 
-private func gtkVisualTapActionWidgetAtRootPoint(
-    _ widget: UnsafeMutablePointer<GtkWidget>,
+private typealias GTKVisualTapActionCandidate = (
+    widget: UnsafeMutablePointer<GtkWidget>,
+    box: GTKTapGestureActionBox,
+    depth: Int,
+    area: Double
+)
+
+private func gtkPreferredVisualTapActionCandidate(
+    _ current: GTKVisualTapActionCandidate?,
+    _ proposed: GTKVisualTapActionCandidate
+) -> GTKVisualTapActionCandidate {
+    guard let current else { return proposed }
+    if proposed.depth > current.depth { return proposed }
+    if proposed.depth == current.depth && proposed.area < current.area { return proposed }
+    return current
+}
+
+private func gtkTapActionCandidate(
+    for widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
     x: Double,
     y: Double,
-    depth: Int = 0
-) -> UnsafeMutablePointer<GtkWidget>? {
-    guard depth < 160 else { return nil }
-    guard gtk_widget_get_visible(widget) != 0, gtk_widget_get_mapped(widget) != 0 else { return nil }
-
-    var child = gtk_widget_get_first_child(widget)
-    while let current = child {
-        if let match = gtkVisualTapActionWidgetAtRootPoint(
-            current,
-            root: root,
-            x: x,
-            y: y,
-            depth: depth + 1
-        ) {
-            return match
-        }
-        child = gtk_widget_get_next_sibling(current)
-    }
-
-    guard gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
+    depth: Int
+) -> GTKVisualTapActionCandidate? {
+    guard gtk_swift_widget_is_button(widget) == 0,
+          gtk_swift_widget_is_menu_button(widget) == 0,
+          gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y),
           let actionData = g_object_get_data(
               UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
               gtkTapGestureActionDataKey
@@ -5922,8 +5924,59 @@ private func gtkVisualTapActionWidgetAtRootPoint(
     else {
         return nil
     }
+
     let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
-    return box.requiredCount == 1 ? widget : nil
+    guard box.requiredCount == 1 else { return nil }
+    let area = gtkWidgetVisualFrameInRoot(widget, root: root)
+        .map { max(1, $0.width * $0.height) }
+        ?? Double.greatestFiniteMagnitude
+    return (widget, box, depth, area)
+}
+
+private func gtkVisualTapActionCandidateAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> GTKVisualTapActionCandidate? {
+    guard depth < 160 else { return nil }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_mapped(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return nil }
+
+    var best = gtkTapActionCandidate(for: widget, root: root, x: x, y: y, depth: depth)
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualTapActionCandidateAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            best = gtkPreferredVisualTapActionCandidate(best, match)
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return best
+}
+
+private func gtkVisualTapActionWidgetAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkVisualTapActionCandidateAtRootPoint(
+        widget,
+        root: root,
+        x: x,
+        y: y,
+        depth: depth
+    )?.widget
 }
 
 private func gtkTapGestureActionBox(
@@ -5971,15 +6024,17 @@ private func gtkPreferredTapGestureActionBoxAtRootPoint(
     x: Double,
     y: Double
 ) -> GTKTapGestureActionBox? {
-    if let widget = gtkPickedTapActionWidgetAtRootPoint(root: root, x: x, y: y),
-       let box = gtkTapGestureActionBox(from: widget) {
-        return box
+    let pickedBox = gtkPickedTapActionWidgetAtRootPoint(root: root, x: x, y: y)
+        .flatMap { gtkTapGestureActionBox(from: $0) }
+    let visualBox = gtkVisualTapActionCandidateAtRootPoint(root, root: root, x: x, y: y)?.box
+
+    if let pickedBox, let visualBox {
+        if gtkTapGestureBoxIsLayoutBackground(visualBox), !gtkTapGestureBoxIsLayoutBackground(pickedBox) {
+            return pickedBox
+        }
+        return visualBox
     }
-    if let widget = gtkVisualTapActionWidgetAtRootPoint(root, root: root, x: x, y: y),
-       let box = gtkTapGestureActionBox(from: widget) {
-        return box
-    }
-    return nil
+    return pickedBox ?? visualBox
 }
 
 private func gtkPointPrefersDifferentTapGestureAction(
@@ -6133,18 +6188,11 @@ private func gtkInstallGlobalTapGestureRootDispatcher(for widget: UnsafeMutableP
                 return 0
             }
 
-            var widget = gtkPickedTapActionWidgetAtRootPoint(root: root, x: rootX, y: rootY)
-            if widget != nil {
-                gtkDebugLog("tap gesture global dispatch picked fallback root@\(Int(rootX)),\(Int(rootY))")
-            } else {
-                widget = gtkVisualTapActionWidgetAtRootPoint(root, root: root, x: rootX, y: rootY)
-            }
-            guard let widget,
-                  let actionData = g_object_get_data(
-                      UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self),
-                      gtkTapGestureActionDataKey
-                  )
-            else {
+            guard let box = gtkPreferredTapGestureActionBoxAtRootPoint(
+                root: root,
+                x: rootX,
+                y: rootY
+            ) else {
                 gtkDebugPickedWidgetChain(
                     root: root,
                     x: rootX,
@@ -6154,7 +6202,6 @@ private func gtkInstallGlobalTapGestureRootDispatcher(for widget: UnsafeMutableP
                 gtkDebugLog("tap gesture global dispatch miss root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
-            let box = Unmanaged<GTKTapGestureActionBox>.fromOpaque(actionData).takeUnretainedValue()
             gtkScheduleTapGestureAction(box, source: "root-dispatch@\(Int(rootX)),\(Int(rootY))")
             return 1
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
