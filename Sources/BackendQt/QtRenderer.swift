@@ -979,6 +979,12 @@ extension HelpView: QtRenderable {
 
 extension DisabledView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
+        let previous = getCurrentEnvironment()
+        var environment = previous
+        environment.isEnabled = environment.isEnabled && !isDisabled
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previous) }
+
         let widget = qtRenderView(content)
         if isDisabled {
             quill_qt_widget_set_enabled_recursive(qtHandle(widget), 0)
@@ -1764,18 +1770,6 @@ extension HiddenView: QtRenderable {
     }
 }
 
-extension DisabledView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer {
-        var env = getCurrentEnvironment()
-        env.isEnabled = env.isEnabled && !isDisabled
-        let previous = getCurrentEnvironment()
-        setCurrentEnvironment(env)
-        let child = qtRenderView(content)
-        setCurrentEnvironment(previous)
-        return child
-    }
-}
-
 extension BorderView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let child = qtRenderView(content)
@@ -1900,12 +1894,6 @@ extension LazyHStack: QtRenderable {
 
 // MARK: - Async / geometry
 
-extension ProgressView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer {
-        qtOpaque(quill_qt_bridge_label_create("Loading…"))
-    }
-}
-
 extension GeometryReader: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         qtRenderView(content(GeometryProxy(size: CGSize(width: 300, height: 300))))
@@ -2007,7 +1995,7 @@ extension NavigationDestinationModifier: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
 
-extension Group: QtRenderable {
+extension Group: QtRenderable where Content: View {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
 
@@ -2089,10 +2077,6 @@ extension ClipShapeView: QtRenderable {
     }
 }
 
-extension HelpView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
-}
-
 extension PositionView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let child = qtRenderView(content)
@@ -2111,18 +2095,6 @@ extension ToggleStyleModifier: QtRenderable {
         let prev = getCurrentEnvironment()
         var env = prev
         env.toggleStyle = style
-        setCurrentEnvironment(env)
-        let widget = qtRenderView(content)
-        setCurrentEnvironment(prev)
-        return widget
-    }
-}
-
-extension KeyboardShortcutView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer {
-        let prev = getCurrentEnvironment()
-        var env = prev
-        env.keyboardShortcut = shortcut
         setCurrentEnvironment(env)
         let widget = qtRenderView(content)
         setCurrentEnvironment(prev)
@@ -2154,10 +2126,6 @@ extension StrokedShape: QtRenderable {
 }
 
 extension FullScreenCoverView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
-}
-
-extension PopoverView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
 
@@ -2277,6 +2245,7 @@ extension FontWeightView: QtRenderable {
         case .bold:       cssWeight = 700
         case .heavy:      cssWeight = 800
         case .black:      cssWeight = 900
+        case .none:       cssWeight = 400
         }
         quill_qt_bridge_widget_set_stylesheet(qtHandle(child), "font-weight: \(cssWeight);")
         return child
@@ -2522,14 +2491,6 @@ extension ToolbarConfigurationView: QtRenderable {
 }
 
 extension AlertModifierView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
-}
-
-extension SheetModifierView: QtRenderable {
-    public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
-}
-
-extension ItemSheetModifierView: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer { qtRenderView(content) }
 }
 

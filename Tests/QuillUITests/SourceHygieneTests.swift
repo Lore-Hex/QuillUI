@@ -4975,6 +4975,30 @@ struct SourceHygieneTests {
         #expect(!renderer.contains("extension DatePicker: QtRenderable {\n    public func qtCreateWidget() -> OpaquePointer {\n        qtOpaque(quill_qt_bridge_label_create(title))"))
     }
 
+    @Test("BackendQt keeps QtRenderable conformances unique")
+    func backendQtKeepsQtRenderableConformancesUnique() throws {
+        let renderer = try packageSource("Sources/BackendQt/QtRenderer.swift")
+        let uniqueTypes = [
+            "ProgressView",
+            "HelpView",
+            "DisabledView",
+            "KeyboardShortcutView",
+            "SheetModifierView",
+            "ItemSheetModifierView",
+            "PopoverView",
+        ]
+
+        for type in uniqueTypes {
+            #expect(
+                renderer.occurrences(of: "extension \(type): QtRenderable") == 1,
+                Comment(rawValue: "Expected one QtRenderable conformance for \(type)")
+            )
+        }
+        #expect(renderer.contains("extension Group: QtRenderable where Content: View"))
+        #expect(renderer.contains("environment.isEnabled = environment.isEnabled && !isDisabled"))
+        #expect(renderer.contains("case .none:       cssWeight = 400"))
+    }
+
     @Test("ImageRenderer comments describe the current GTK offscreen path")
     func imageRendererCommentsDescribeCurrentOffscreenPath() throws {
         let root = try packageRoot()
