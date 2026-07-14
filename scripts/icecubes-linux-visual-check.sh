@@ -1186,16 +1186,11 @@ click_authenticated_status_detail_bookmark_action() {
 
 open_authenticated_status_detail() {
   wait_for_authenticated_timeline_activity
-  local previous_status_count previous_context_count previous_favorited_by_count previous_reblogged_by_count
-  local target_status_count target_context_count target_favorited_by_count target_reblogged_by_count
+  local previous_status_count previous_context_count target_status_count target_context_count
   previous_status_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_GET_LOG")"
   previous_context_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_CONTEXT_GET_LOG")"
-  previous_favorited_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG")"
-  previous_reblogged_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG")"
   target_status_count="$((previous_status_count + 1))"
   target_context_count="$((previous_context_count + 1))"
-  target_favorited_by_count="$((previous_favorited_by_count + 1))"
-  target_reblogged_by_count="$((previous_reblogged_by_count + 1))"
   sleep "$AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS"
 
   case "$AUTH_STATUS_DETAIL_NAVIGATION_TIMEOUT_SECONDS" in
@@ -1214,14 +1209,29 @@ open_authenticated_status_detail() {
 
   wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_GET_LOG" "authenticated status detail fetch" "$target_status_count"
   wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_CONTEXT_GET_LOG" "authenticated status context fetch" "$target_context_count"
-  wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG" "authenticated status detail favorited-by fetch" "$target_favorited_by_count"
-  wait_for_app_log_exact_activity "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG" "authenticated status detail reblogged-by fetch" "$target_reblogged_by_count"
   wait_for_authenticated_status_detail_visual
   if [[ -n "${QUILLUI_ICECUBES_VISUAL_STATUS_DETAIL_OPEN_SCREENSHOT:-}" ]]; then
     DISPLAY="$DISPLAY_ID" import -window "$window_id" "$QUILLUI_ICECUBES_VISUAL_STATUS_DETAIL_OPEN_SCREENSHOT"
   fi
   if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_STATUS_DETAIL_OPEN:-0}" == "1" ]]; then
     exit 0
+  fi
+}
+
+wait_for_authenticated_status_detail_action_accounts() {
+  local target_favorited_by_count="$1"
+  local target_reblogged_by_count="${2:-}"
+
+  wait_for_app_log_exact_activity \
+    "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG" \
+    "authenticated status detail favorited-by fetch" \
+    "$target_favorited_by_count"
+
+  if [[ -n "$target_reblogged_by_count" ]]; then
+    wait_for_app_log_exact_activity \
+      "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG" \
+      "authenticated status detail reblogged-by fetch" \
+      "$target_reblogged_by_count"
   fi
 }
 
@@ -1727,11 +1737,14 @@ case "$INTERACTION" in
     ;;
   seeded-authenticated-status-detail-boost)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-boost"
+    previous_favorited_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG")"
+    previous_reblogged_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG")"
     open_authenticated_status_detail
     previous_boost_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog")"
     if ! click_authenticated_status_detail_boost_action "$((previous_boost_count + 1))"; then
       wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/reblog" "authenticated status boost action" "$((previous_boost_count + 1))"
     fi
+    wait_for_authenticated_status_detail_action_accounts "$((previous_favorited_by_count + 1))" "$((previous_reblogged_by_count + 1))"
     ;;
   seeded-authenticated-status-detail-quote)
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer"
@@ -1744,11 +1757,13 @@ case "$INTERACTION" in
     ;;
   seeded-authenticated-status-detail-favorite)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-favorite"
+    previous_favorited_by_count="$(count_app_log_exact_occurrences "$AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG")"
     open_authenticated_status_detail
     previous_favorite_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/favourite")"
     if ! click_authenticated_status_detail_favorite_action "$((previous_favorite_count + 1))"; then
       wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/favourite" "authenticated status favorite action" "$((previous_favorite_count + 1))"
     fi
+    wait_for_authenticated_status_detail_action_accounts "$((previous_favorited_by_count + 1))"
     ;;
   seeded-authenticated-status-detail-bookmark)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-bookmark"
