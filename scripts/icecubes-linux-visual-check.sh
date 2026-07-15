@@ -143,7 +143,7 @@ AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET ht
 AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1003/bookmark"
 AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1001/bookmark"
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
-AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-444}"
+AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
 AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-335}"
@@ -949,6 +949,8 @@ wait_for_authenticated_api_activity() {
 }
 
 wait_for_authenticated_compose_surface() {
+  local verify_product="${1:-icecubes-linux-authenticated-composer}"
+
   case "$AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS must be a non-negative integer, got: $AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS" >&2
@@ -970,17 +972,24 @@ wait_for_authenticated_compose_surface() {
     candidate="$(quillui_find_visible_window_for_pid_except "$DISPLAY_ID" "$app_pid" "$window_id")"
     trace_visual_window "compose-surface-candidate" "$candidate"
     if quillui_window_is_plausible_capture_target "$DISPLAY_ID" "$candidate" "$window_id"; then
-      capture_window_id="$candidate"
-      DISPLAY="$DISPLAY_ID" xdotool windowraise "$capture_window_id" 2>/dev/null || true
-      DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$capture_window_id" 2>/dev/null || true
-      DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$capture_window_id" 2>/dev/null || true
-      trace_visual_window "compose-surface-capture" "$capture_window_id"
-      trace_visual_windows_for_pid "compose-surface-visible"
-      return 0
+      if DISPLAY="$DISPLAY_ID" timeout 10 import -window "$candidate" "$probe_path"; then
+        if output="$("$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$verify_product" 2>&1)"; then
+          printf '%s\n' "$output"
+          capture_window_id="$candidate"
+          DISPLAY="$DISPLAY_ID" xdotool windowraise "$capture_window_id" 2>/dev/null || true
+          DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$capture_window_id" 2>/dev/null || true
+          DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$capture_window_id" 2>/dev/null || true
+          trace_visual_window "compose-surface-capture" "$capture_window_id"
+          trace_visual_windows_for_pid "compose-surface-visible"
+          return 0
+        fi
+      else
+        output="IceCubes authenticated composer candidate screenshot capture failed: $probe_path"
+      fi
     fi
 
     if DISPLAY="$DISPLAY_ID" timeout 10 import -window "$window_id" "$probe_path"; then
-      if output="$("$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "icecubes-linux-authenticated-composer" 2>&1)"; then
+      if output="$("$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$verify_product" 2>&1)"; then
         printf '%s\n' "$output"
         capture_window_id="$window_id"
         trace_visual_window "compose-surface-main-capture" "$capture_window_id"
@@ -1427,9 +1436,9 @@ click_authenticated_status_detail_quote_action() {
 }
 
 click_authenticated_status_detail_reply_action() {
-  for y in "$AUTH_STATUS_DETAIL_REPLY_Y" 462 170; do
+  for y in "$AUTH_STATUS_DETAIL_REPLY_Y" 444 170; do
     click_app_window_point "$AUTH_STATUS_DETAIL_REPLY_X" "$y"
-    if wait_for_authenticated_compose_surface; then
+    if wait_for_authenticated_compose_surface "icecubes-linux-authenticated-reply-composer"; then
       return 0
     fi
     DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape 2>/dev/null || true
