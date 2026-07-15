@@ -3,6 +3,10 @@ import CGTKBridge
 import SwiftOpenUI
 import Foundation
 
+private let gtkSwiftNavigationPageInteractivityMarker = "gtk-swift-navigation-page-interactive"
+private let gtkSwiftNavigationPageInteractiveValue = UnsafeMutableRawPointer(bitPattern: 1)
+private let gtkSwiftNavigationPageInactiveValue = UnsafeMutableRawPointer(bitPattern: 2)
+
 // MARK: - Helpers
 
 private func gtkNavigationDebugLog(_ message: String) {
@@ -1180,6 +1184,12 @@ private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutableP
 }
 
 private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(
+        gobject,
+        gtkSwiftNavigationPageInteractivityMarker,
+        isInteractive ? gtkSwiftNavigationPageInteractiveValue : gtkSwiftNavigationPageInactiveValue
+    )
     gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)
 }
 

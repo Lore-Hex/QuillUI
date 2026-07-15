@@ -9590,6 +9590,31 @@ if "gtkSetNavigationPageInteractive" not in text:
         "private func gtkNavigationDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {",
         1,
     )
+if "gtkSwiftNavigationPageInteractivityMarker" not in text:
+    text = text.replace(
+        "import SwiftOpenUI\nimport Foundation\n\n",
+        "import SwiftOpenUI\nimport Foundation\n\n"
+        "private let gtkSwiftNavigationPageInteractivityMarker = \"gtk-swift-navigation-page-interactive\"\n"
+        "private let gtkSwiftNavigationPageInteractiveValue = UnsafeMutableRawPointer(bitPattern: 1)\n"
+        "private let gtkSwiftNavigationPageInactiveValue = UnsafeMutableRawPointer(bitPattern: 2)\n\n",
+        1,
+    )
+if "g_object_set_data(\n        gobject,\n        gtkSwiftNavigationPageInteractivityMarker" not in text:
+    text = text.replace(
+        "private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {\n"
+        "    gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)\n"
+        "}\n",
+        "private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {\n"
+        "    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)\n"
+        "    g_object_set_data(\n"
+        "        gobject,\n"
+        "        gtkSwiftNavigationPageInteractivityMarker,\n"
+        "        isInteractive ? gtkSwiftNavigationPageInteractiveValue : gtkSwiftNavigationPageInactiveValue\n"
+        "    )\n"
+        "    gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)\n"
+        "}\n",
+        1,
+    )
 if "env.refreshInjectedObjectsFromRegistry()" not in text:
     text = text.replace(
         "            var env = capturedEnv\n"
@@ -10288,6 +10313,76 @@ if "gtk_widget_set_size_request(detailWidget, -1, gtkRequestedDefaultWindowHeigh
         1,
     )
 text = text.replace("        gtkInstallToolbar(from: detail, on: paned)\n\n", "")
+path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+if "gtkSwiftNavigationPageInteractivityMarker" not in text:
+    text = text.replace(
+        "/// Marker string for indeterminate SwiftUI ProgressView widgets.\n"
+        "let gtkSwiftIndeterminateProgressMarker = \"gtk-swift-indeterminate-progress\"\n",
+        "/// Marker string for indeterminate SwiftUI ProgressView widgets.\n"
+        "let gtkSwiftIndeterminateProgressMarker = \"gtk-swift-indeterminate-progress\"\n"
+        "private let gtkSwiftNavigationPageInteractivityMarker = \"gtk-swift-navigation-page-interactive\"\n"
+        "private let gtkSwiftNavigationPageInactiveValue = UnsafeMutableRawPointer(bitPattern: 2)\n",
+        1,
+    )
+
+if "gtkWidgetIsInsideInactiveNavigationPage" not in text:
+    text = text.replace(
+        "private func gtkIsEmptyViewWidget(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {\n"
+        "    gtkHasLayoutMarker(widget, key: gtkSwiftEmptyViewMarker)\n"
+        "}\n\n"
+        "private func gtkCreateEmptyViewWidget() -> UnsafeMutablePointer<GtkWidget> {\n",
+        "private func gtkIsEmptyViewWidget(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {\n"
+        "    gtkHasLayoutMarker(widget, key: gtkSwiftEmptyViewMarker)\n"
+        "}\n\n"
+        "private func gtkWidgetIsInsideInactiveNavigationPage(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {\n"
+        "    var current: UnsafeMutablePointer<GtkWidget>? = widget\n"
+        "    var depth = 0\n"
+        "    while let node = current, depth < 160 {\n"
+        "        let gobject = UnsafeMutableRawPointer(node).assumingMemoryBound(to: GObject.self)\n"
+        "        if let raw = g_object_get_data(gobject, gtkSwiftNavigationPageInteractivityMarker) {\n"
+        "            if raw == gtkSwiftNavigationPageInactiveValue {\n"
+        "                return true\n"
+        "            }\n"
+        "        }\n"
+        "        current = gtk_widget_get_parent(node)\n"
+        "        depth += 1\n"
+        "    }\n"
+        "    return false\n"
+        "}\n\n"
+        "private func gtkCreateEmptyViewWidget() -> UnsafeMutablePointer<GtkWidget> {\n",
+        1,
+    )
+
+if "guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }" not in text:
+    text = text.replace(
+        "    guard depth < 160 else { return nil }\n"
+        "    guard gtk_widget_get_visible(widget) != 0,\n",
+        "    guard depth < 160 else { return nil }\n"
+        "    guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }\n"
+        "    guard gtk_widget_get_visible(widget) != 0,\n",
+        1,
+    )
+
+if "button root skipped inactive navigation page" not in text:
+    text = text.replace(
+        "    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0\n",
+        "    if gtkWidgetIsInsideInactiveNavigationPage(context.widget) {\n"
+        "        gtkDebugLog(\"button root skipped inactive navigation page root@\\(Int(x)),\\(Int(y))\")\n"
+        "        return 0\n"
+        "    }\n"
+        "    let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0\n",
+        1,
+    )
+
 path.write_text(text)
 PY
 

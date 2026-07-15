@@ -29,6 +29,8 @@ private let gtkSwiftVerticalFillIntentMarker = "gtk-swift-vertical-fill-intent"
 private let gtkSwiftHorizontallyCompressibleFixedSizeMarker = "gtk-swift-horizontal-compressible-fixed-size"
 /// Marker string for indeterminate SwiftUI ProgressView widgets.
 let gtkSwiftIndeterminateProgressMarker = "gtk-swift-indeterminate-progress"
+private let gtkSwiftNavigationPageInteractivityMarker = "gtk-swift-navigation-page-interactive"
+private let gtkSwiftNavigationPageInactiveValue = UnsafeMutableRawPointer(bitPattern: 2)
 
 private final class GTKMainActorIsolatedResult<Value>: @unchecked Sendable {
     var value: Value!
@@ -82,6 +84,22 @@ private func gtkMarkEmptyView(_ widget: UnsafeMutablePointer<GtkWidget>) {
 
 private func gtkIsEmptyViewWidget(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
     gtkHasLayoutMarker(widget, key: gtkSwiftEmptyViewMarker)
+}
+
+private func gtkWidgetIsInsideInactiveNavigationPage(_ widget: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var depth = 0
+    while let node = current, depth < 160 {
+        let gobject = UnsafeMutableRawPointer(node).assumingMemoryBound(to: GObject.self)
+        if let raw = g_object_get_data(gobject, gtkSwiftNavigationPageInteractivityMarker) {
+            if raw == gtkSwiftNavigationPageInactiveValue {
+                return true
+            }
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+    return false
 }
 
 private func gtkCreateEmptyViewWidget() -> UnsafeMutablePointer<GtkWidget> {
@@ -2295,6 +2313,7 @@ private func gtkVisualButtonActionCandidateAtRootPoint(
     depth: Int = 0
 ) -> GTKVisualButtonActionCandidate? {
     guard depth < 160 else { return nil }
+    guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }
     guard gtk_widget_get_visible(widget) != 0,
           gtk_widget_get_sensitive(widget) != 0,
           gtk_widget_get_opacity(widget) > 0.001 else { return nil }
@@ -2827,6 +2846,10 @@ private func gtkDispatchButtonRootPress(
         excludingDescendant: context.widget
     ) {
         gtkDebugLog("button root skipped root sheet root@\(Int(x)),\(Int(y))")
+        return 0
+    }
+    if gtkWidgetIsInsideInactiveNavigationPage(context.widget) {
+        gtkDebugLog("button root skipped inactive navigation page root@\(Int(x)),\(Int(y))")
         return 0
     }
     let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y) != 0

@@ -3397,6 +3397,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkButtonDebugSource(\"\\(resolvedSource)@"))
         #expect(patchedRenderer.contains("private func gtkButtonDebugSource(_ source: String, widget: UnsafeMutablePointer<GtkWidget>) -> String"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, context.widget, x, y)"))
+        #expect(patchedRenderer.contains("gtkWidgetIsInsideInactiveNavigationPage"))
+        #expect(patchedRenderer.contains("guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }"))
+        #expect(patchedRenderer.contains("button root skipped inactive navigation page"))
         #expect(patchedRenderer.contains("private typealias GTKVisualButtonActionCandidate"))
         #expect(patchedRenderer.contains("private func gtkPreferredVisualButtonActionCandidate"))
         #expect(patchedRenderer.contains("if proposed.depth > current.depth { return proposed }"))
@@ -3514,6 +3517,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedLayout.contains("expandsToFillHeight && height == nil ? maxHeight"))
 
         let patchedNavigation = try String(contentsOf: navigation, encoding: .utf8)
+        #expect(patchedNavigation.contains("gtkSwiftNavigationPageInteractivityMarker"))
+        #expect(patchedNavigation.contains("gtkSwiftNavigationPageInactiveValue"))
+        #expect(patchedNavigation.contains("g_object_set_data(\n        gobject,\n        gtkSwiftNavigationPageInteractivityMarker"))
         let vendoredNavigation = try String(
             contentsOf: root.appendingPathComponent("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"),
             encoding: .utf8

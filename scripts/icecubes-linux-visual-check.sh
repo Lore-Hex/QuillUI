@@ -142,7 +142,6 @@ AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET ht
 AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/reblogged_by"
 AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1003/bookmark"
 AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1001/bookmark"
-AUTH_STATUS_DETAIL_PAGINATED_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/999/bookmark"
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
 AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-444}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
@@ -869,11 +868,10 @@ count_app_log_exact_occurrences() {
 }
 
 count_authenticated_status_detail_bookmark_actions() {
-  local primary_count secondary_count paginated_count
+  local primary_count secondary_count
   primary_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG")"
   secondary_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_POST_LOG")"
-  paginated_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_PAGINATED_BOOKMARK_POST_LOG")"
-  echo "$((primary_count + secondary_count + paginated_count))"
+  echo "$((primary_count + secondary_count))"
 }
 
 wait_for_authenticated_status_detail_bookmark_action() {
