@@ -7403,6 +7403,14 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         min(bottom, top + int(app_height * 0.72)),
         icecubes_authenticated_content_surface_pixel,
     )
+    composer_media_viewer_pixels = pixel_count(
+        image,
+        left + 16,
+        top + int(app_height * 0.22),
+        right - 16,
+        min(bottom, top + int(app_height * 0.86)),
+        icecubes_fixture_media_pixel,
+    )
     typed_body_pixels = pixel_count(
         image,
         left + 48,
@@ -7447,6 +7455,11 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         "IceCubes authenticated composer capture still appears to show the main Timeline sidebar: "
         f"pixels={stale_timeline_sidebar_pixels}",
     )
+    require(
+        composer_media_viewer_pixels <= 30_000,
+        "IceCubes authenticated composer capture appears to show a media viewer instead of the editor: "
+        f"pixels={composer_media_viewer_pixels}",
+    )
     if typed:
         require(
             typed_text_pixels >= 200,
@@ -7461,6 +7474,7 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         f"composer_send_button_pixels={composer_send_button_pixels}, "
         f"composer_text_pixels={composer_text_pixels}, "
         f"composer_field_pixels={composer_field_pixels}, "
+        f"composer_media_viewer_pixels={composer_media_viewer_pixels}, "
         f"typed_body_pixels={typed_body_pixels}, "
         f"typed_leading_editor_pixels={typed_leading_editor_pixels}, "
         f"stale_timeline_sidebar_pixels={stale_timeline_sidebar_pixels}"
