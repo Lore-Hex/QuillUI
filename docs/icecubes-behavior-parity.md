@@ -561,9 +561,9 @@ estimates, not release claims.
   verifies the favorited star/summary repaint. `seeded-authenticated-status-detail-boost`
   adds the matching `POST /api/v1/statuses/1003/reblog` fixture path and pins
   the boosted tint plus boosts summary row. `seeded-authenticated-status-detail-bookmark`
-  now clicks the secondary bookmark action, waits for
-  `POST /api/v1/statuses/1003/bookmark`, and verifies the bookmarked accent
-  repaint. These smokes cover `StatusDataController.toggleFavorite`,
+  now clicks the secondary bookmark action, waits for a fixture-backed bookmark
+  mutation on the detail or rebuilt pagination row, and verifies the bookmarked
+  accent repaint. These smokes cover `StatusDataController.toggleFavorite`,
   `toggleReblog`, and `toggleBookmark` through the upstream
   `StatusRowActionsView`; menu visual chrome, pagination, and exact macOS
   visual parity remain open.

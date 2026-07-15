@@ -2742,6 +2742,91 @@
       }
     },
     {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/statuses/999/bookmark",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "999",
+        "content": "<p>QuillUI fixture status detail: the selected home timeline row navigated into IceCubes' real status detail screen on Linux.</p>",
+        "account": {
+          "id": "quill-account",
+          "username": "quill",
+          "display_name": "Quill UI",
+          "avatar": "https://mastodon.social/avatars/quill-account.png",
+          "header": "https://mastodon.social/headers/quill-account.png",
+          "acct": "quill",
+          "note": "<p>Fixture account for QuillUI parity.</p>",
+          "created_at": "2024-01-01T00:00:00.000Z",
+          "followers_count": 1200,
+          "following_count": 80,
+          "statuses_count": 340,
+          "last_status_at": "2026-06-16",
+          "fields": [],
+          "locked": false,
+          "emojis": [],
+          "url": "https://mastodon.social/@quill",
+          "source": {
+            "privacy": "public",
+            "sensitive": false,
+            "language": "en",
+            "note": "Fixture account for QuillUI parity.",
+            "fields": []
+          },
+          "bot": false,
+          "discoverable": true,
+          "moved": null
+        },
+        "created_at": "2026-06-16T12:00:00.000Z",
+        "edited_at": null,
+        "reblog": null,
+        "media_attachments": [
+          {
+            "id": "media-home-1003",
+            "type": "image",
+            "url": "https://files.mastodon.social/media_attachments/home-1003.png",
+            "preview_url": "https://files.mastodon.social/media_attachments/home-1003-preview.png",
+            "remote_url": null,
+            "description": "QuillUI fixture media attachment for IceCubes viewer parity.",
+            "blurhash": null,
+            "meta": {
+              "original": {
+                "width": 640,
+                "height": 360
+              }
+            }
+          }
+        ],
+        "mentions": [],
+        "replies_count": 4,
+        "reblogs_count": 8,
+        "quotes_count": 0,
+        "favourites_count": 42,
+        "card": null,
+        "favourited": false,
+        "reblogged": false,
+        "pinned": false,
+        "bookmarked": true,
+        "emojis": [],
+        "url": "https://mastodon.social/@quill/999",
+        "application": null,
+        "in_reply_to_id": null,
+        "in_reply_to_account_id": null,
+        "visibility": "public",
+        "poll": null,
+        "spoiler_text": "",
+        "filtered": [],
+        "sensitive": false,
+        "language": "en",
+        "tags": [],
+        "quote": null,
+        "quote_approval": null
+      }
+    },
+    {
       "method": "GET",
       "host": "mastodon.social",
       "pathPattern": "/api/v1/statuses/{id}/context",
