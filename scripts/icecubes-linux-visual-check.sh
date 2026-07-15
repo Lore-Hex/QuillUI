@@ -135,6 +135,8 @@ AUTH_STATUS_DETAIL_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodo
 AUTH_STATUS_DETAIL_CONTEXT_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/context"
 AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/favourited_by"
 AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/reblogged_by"
+AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1003/bookmark"
+AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1001/bookmark"
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
 AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
@@ -687,6 +689,34 @@ count_app_log_exact_occurrences() {
   else
     echo 0
   fi
+}
+
+count_authenticated_status_detail_bookmark_actions() {
+  local primary_count secondary_count
+  primary_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG")"
+  secondary_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_POST_LOG")"
+  echo "$((primary_count + secondary_count))"
+}
+
+wait_for_authenticated_status_detail_bookmark_action() {
+  local expected_bookmark_count="$1"
+  local deadline=$((SECONDS + ${QUILLUI_ICECUBES_VISUAL_AUTH_WAIT_SECONDS:-12}))
+  while true; do
+    if (( $(count_authenticated_status_detail_bookmark_actions) >= expected_bookmark_count )); then
+      return 0
+    fi
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      echo "IceCubes app exited while waiting for authenticated status bookmark action activity." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for IceCubes authenticated status bookmark action activity." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    sleep 0.25
+  done
 }
 
 wait_for_app_log_activity() {
@@ -1251,7 +1281,7 @@ click_authenticated_status_detail_bookmark_action() {
   for y in "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y" 170; do
     click_app_window_point "$AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X" "$y"
     sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
-    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/bookmark") >= expected_bookmark_count )); then
+    if (( $(count_authenticated_status_detail_bookmark_actions) >= expected_bookmark_count )); then
       return 0
     fi
   done
@@ -1843,9 +1873,9 @@ case "$INTERACTION" in
   seeded-authenticated-status-detail-bookmark)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail-bookmark"
     open_authenticated_status_detail
-    previous_bookmark_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/bookmark")"
+    previous_bookmark_count="$(count_authenticated_status_detail_bookmark_actions)"
     if ! click_authenticated_status_detail_bookmark_action "$((previous_bookmark_count + 1))"; then
-      wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/bookmark" "authenticated status bookmark action" "$((previous_bookmark_count + 1))"
+      wait_for_authenticated_status_detail_bookmark_action "$((previous_bookmark_count + 1))"
     fi
     ;;
   seeded-authenticated-media-viewer)
