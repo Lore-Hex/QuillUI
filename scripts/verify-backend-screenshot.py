@@ -7381,10 +7381,10 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
     )
     composer_send_button_pixels = pixel_count(
         image,
-        max(left, right - 100),
-        top + 70,
-        right - 20,
-        min(bottom, top + 150),
+        max(left + int(app_width * 0.55), right - 320),
+        top + 58,
+        min(right - 80, left + int(app_width * 0.88)),
+        min(bottom, top + 132),
         icecubes_sign_in_button_pixel,
     )
     composer_text_pixels = pixel_count(
