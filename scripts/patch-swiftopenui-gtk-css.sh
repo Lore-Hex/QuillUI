@@ -9541,6 +9541,55 @@ if "gtkResumeViewHostLifecycleForVisibleSubtree(widget)" not in text:
         "        updateHeaderBar()",
         1,
     )
+if "gtkSetNavigationPageInteractive" not in text:
+    text = text.replace(
+        "        gtkConfigureNavigationPageToFillAllocation(widget)\n"
+        "        gtk_stack_add_named(stack, widget, name)",
+        "        gtkConfigureNavigationPageToFillAllocation(widget)\n"
+        "        if let current = entries.last {\n"
+        "            gtkSetNavigationPageInteractive(current.widget, false)\n"
+        "        }\n"
+        "        gtkSetNavigationPageInteractive(widget, true)\n"
+        "        gtk_stack_add_named(stack, widget, name)",
+        1,
+    )
+    text = text.replace(
+        "        let previous = entries.last!\n\n"
+        "        // Restore previous entry's toolbar widgets",
+        "        let previous = entries.last!\n"
+        "        gtkSetNavigationPageInteractive(removed.widget, false)\n"
+        "        gtkSetNavigationPageInteractive(previous.widget, true)\n\n"
+        "        // Restore previous entry's toolbar widgets",
+        1,
+    )
+    text = text.replace(
+        "        // Add root as first stack entry\n"
+        "        gtk_stack_add_named(stackOp, rootWidget, \"nav-root\")",
+        "        // Add root as first stack entry\n"
+        "        gtkSetNavigationPageInteractive(rootWidget, true)\n"
+        "        gtk_stack_add_named(stackOp, rootWidget, \"nav-root\")",
+        1,
+    )
+    text = text.replace(
+        "private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutablePointer<GtkWidget>) {\n"
+        "    gtk_widget_set_hexpand(widget, 1)\n"
+        "    gtk_widget_set_vexpand(widget, 1)\n"
+        "    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)\n"
+        "    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)\n"
+        "}\n\n"
+        "private func gtkNavigationDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {",
+        "private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutablePointer<GtkWidget>) {\n"
+        "    gtk_widget_set_hexpand(widget, 1)\n"
+        "    gtk_widget_set_vexpand(widget, 1)\n"
+        "    gtk_widget_set_halign(widget, GTK_ALIGN_FILL)\n"
+        "    gtk_widget_set_valign(widget, GTK_ALIGN_FILL)\n"
+        "}\n\n"
+        "private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {\n"
+        "    gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)\n"
+        "}\n\n"
+        "private func gtkNavigationDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {",
+        1,
+    )
 if "env.refreshInjectedObjectsFromRegistry()" not in text:
     text = text.replace(
         "            var env = capturedEnv\n"

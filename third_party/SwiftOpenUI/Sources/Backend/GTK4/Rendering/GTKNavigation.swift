@@ -237,6 +237,10 @@ class GTKNavigationContext {
             }
         )
         gtkConfigureNavigationPageToFillAllocation(widget)
+        if let current = entries.last {
+            gtkSetNavigationPageInteractive(current.widget, false)
+        }
+        gtkSetNavigationPageInteractive(widget, true)
         gtk_stack_add_named(stack, widget, name)
 
         var entry = GTKNavigationEntry(
@@ -462,6 +466,8 @@ class GTKNavigationContext {
         }
         removeLastPersistedRouteAfterPop()
         let previous = entries.last!
+        gtkSetNavigationPageInteractive(removed.widget, false)
+        gtkSetNavigationPageInteractive(previous.widget, true)
 
         // Restore previous entry's toolbar widgets
         for item in previous.toolbarWidgets {
@@ -1092,6 +1098,7 @@ extension NavigationStack: GTKRenderable {
         setCurrentNavigationContext(nil)
 
         // Add root as first stack entry
+        gtkSetNavigationPageInteractive(rootWidget, true)
         gtk_stack_add_named(stackOp, rootWidget, "nav-root")
         gtk_stack_set_visible_child_name(stackOp, "nav-root")
         context.entries.append(rootEntry)
@@ -1162,6 +1169,10 @@ private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutableP
     gtk_widget_set_vexpand(widget, 1)
     gtk_widget_set_halign(widget, GTK_ALIGN_FILL)
     gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
+}
+
+private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {
+    gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)
 }
 
 private func gtkNavigationDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {
