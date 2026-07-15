@@ -4623,9 +4623,9 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
     sign_in_button_pixels = pixel_count(
         image,
         left + 32,
-        top + 250,
+        top + 205,
         right - 32,
-        top + 316,
+        top + 280,
         icecubes_sign_in_button_pixel,
     )
     instance_info_surface_pixels = pixel_count(

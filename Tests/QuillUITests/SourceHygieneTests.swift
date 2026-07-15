@@ -10743,6 +10743,8 @@ struct SourceHygieneTests {
         #expect(verifier.contains("icecubes_sign_in_button_pixel"))
         #expect(verifier.contains("dimmed_gtk_table"))
         #expect(verifier.contains("130 <= red <= 170"))
+        #expect(verifier.contains("top + 205"))
+        #expect(verifier.contains("top + 280"))
         #expect(verifier.contains("sign_in_button_pixels >= 20_000"))
         #expect(verifier.contains("neutral_placeholder"))
         #expect(verifier.contains("top_left_blank_artifact_pixels"))
