@@ -115,11 +115,16 @@ AUTH_COMPOSE_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_R
 AUTH_COMPOSER_TYPE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT:-hello from linux}"
 AUTH_COMPOSER_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_DELAY_MS:-25}"
 AUTH_COMPOSER_TYPE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_X:-320}"
-AUTH_COMPOSER_TYPE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_Y:-285}"
+AUTH_COMPOSER_TYPE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_Y:-180}"
+AUTH_COMPOSER_TYPE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_POINTS:-$AUTH_COMPOSER_TYPE_X,$AUTH_COMPOSER_TYPE_Y 320,150 320,285}"
 AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS:-0.5}"
 AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS:-2.5}"
-AUTH_COMPOSER_SEND_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_X:-755}"
-AUTH_COMPOSER_SEND_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_Y:-111}"
+AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS:-80}"
+AUTH_COMPOSER_SEND_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_X:-672}"
+AUTH_COMPOSER_SEND_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_Y:-60}"
+AUTH_COMPOSER_SEND_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_POINTS:-$AUTH_COMPOSER_SEND_X,$AUTH_COMPOSER_SEND_Y 606,93 755,111}"
+AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS:-20}"
+AUTH_COMPOSER_SEND_CLICK_RETRY_POLL_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_CLICK_RETRY_POLL_SECONDS:-0.25}"
 AUTH_COMPOSER_DISMISS_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_DISMISS_TIMEOUT_SECONDS:-12}"
 AUTH_STATUS_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_X:-360}"
 AUTH_STATUS_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_Y:-92}"
@@ -520,16 +525,131 @@ wait_for_add_account_selected_instance_visual() {
   done
 }
 
+composer_typed_change_pixels() {
+  local before_path="$1"
+  local after_path="$2"
+
+  python3 - "$before_path" "$after_path" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+
+before_path = Path(sys.argv[1])
+after_path = Path(sys.argv[2])
+geometry = subprocess.run(
+    ["identify", "-format", "%w %h", str(after_path)],
+    check=True,
+    text=True,
+    stdout=subprocess.PIPE,
+).stdout.split()
+width, height = int(geometry[0]), int(geometry[1])
+before_geometry = subprocess.run(
+    ["identify", "-format", "%w %h", str(before_path)],
+    check=True,
+    text=True,
+    stdout=subprocess.PIPE,
+).stdout.split()
+if before_geometry != geometry:
+    print(0)
+    raise SystemExit
+
+x0 = 0
+x1 = max(0, min(width, width - 40))
+y0 = min(height, 84)
+y1 = min(height, 260)
+crop_width = x1 - x0
+crop_height = y1 - y0
+if crop_width <= 0 or crop_height <= 0:
+    print(0)
+    raise SystemExit
+crop = f"{crop_width}x{crop_height}+{x0}+{y0}"
+before_bytes = subprocess.run(
+    ["convert", str(before_path), "-crop", crop, "rgb:-"],
+    check=True,
+    stdout=subprocess.PIPE,
+).stdout
+after_bytes = subprocess.run(
+    ["convert", str(after_path), "-crop", crop, "rgb:-"],
+    check=True,
+    stdout=subprocess.PIPE,
+).stdout
+if len(before_bytes) != len(after_bytes):
+    print(0)
+    raise SystemExit
+
+changed = 0
+for offset in range(0, len(after_bytes), 3):
+    br, bg, bb = before_bytes[offset], before_bytes[offset + 1], before_bytes[offset + 2]
+    ar, ag, ab = after_bytes[offset], after_bytes[offset + 1], after_bytes[offset + 2]
+    if (br + bg + bb) - (ar + ag + ab) >= 45 and (ar + ag + ab) <= 560:
+        changed += 1
+print(changed)
+PY
+}
+
 type_authenticated_composer_text() {
   if [[ -z "$AUTH_COMPOSER_TYPE_TEXT" ]]; then
     echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT must not be empty." >&2
     exit 2
   fi
+  case "$AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS must be a non-negative integer, got: $AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" >&2
+      exit 2
+      ;;
+  esac
 
-  click_capture_window_point "$AUTH_COMPOSER_TYPE_X" "$AUTH_COMPOSER_TYPE_Y"
-  sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
-  DISPLAY="$DISPLAY_ID" xdotool type --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
-  sleep "$AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS"
+  local baseline_path probe_path point point_x point_y change_pixels
+  baseline_path="${SCREENSHOT_PATH%.*}.composer-before-type.png"
+  probe_path="${SCREENSHOT_PATH%.*}.composer-typed-probe.png"
+  mkdir -p "$(dirname "$baseline_path")"
+  if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$baseline_path"; then
+    echo "IceCubes authenticated composer pre-type screenshot capture failed: $baseline_path" >&2
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+    exit 1
+  fi
+
+  for point in $AUTH_COMPOSER_TYPE_POINTS; do
+    if [[ "$point" != *,* ]]; then
+      echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_POINTS entry: $point" >&2
+      exit 2
+    fi
+    point_x="${point%,*}"
+    point_y="${point#*,}"
+    case "$point_x" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+    case "$point_y" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+
+    click_capture_window_point "$point_x" "$point_y"
+    sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
+    DISPLAY="$DISPLAY_ID" xdotool type --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
+    sleep "$AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS"
+    if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$probe_path"; then
+      echo "IceCubes authenticated composer post-type screenshot capture failed: $probe_path" >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    change_pixels="$(composer_typed_change_pixels "$baseline_path" "$probe_path")"
+    echo "IceCubes authenticated composer typed text change pixels at $point: $change_pixels"
+    if ((change_pixels >= AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS)); then
+      return 0
+    fi
+  done
+
+  echo "IceCubes authenticated composer did not visibly accept typed text at any configured point." >&2
+  echo "Minimum changed pixels: $AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" >&2
+  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+  exit 1
 }
 
 type_authenticated_explore_search_text() {
@@ -592,15 +712,71 @@ wait_for_authenticated_composer_dismissal() {
   done
 }
 
+wait_for_authenticated_composer_submit_after_click() {
+  local min_count="$1"
+  local polls="$AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS"
+
+  case "$polls" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS must be a non-negative integer, got: $polls" >&2
+      exit 2
+      ;;
+  esac
+
+  if ((polls == 0)); then
+    polls=1
+  fi
+
+  for _ in $(seq 1 "$polls"); do
+    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses") >= min_count )); then
+      return 0
+    fi
+    sleep "$AUTH_COMPOSER_SEND_CLICK_RETRY_POLL_SECONDS"
+  done
+
+  (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses") >= min_count ))
+}
+
+click_authenticated_composer_send_button() {
+  local min_count="$1"
+  local point point_x point_y
+
+  for point in $AUTH_COMPOSER_SEND_POINTS; do
+    if [[ "$point" != *,* ]]; then
+      echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_POINTS entry: $point" >&2
+      exit 2
+    fi
+    point_x="${point%,*}"
+    point_y="${point#*,}"
+    case "$point_x" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+    case "$point_y" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+
+    click_capture_window_point "$point_x" "$point_y"
+    if wait_for_authenticated_composer_submit_after_click "$min_count"; then
+      return 0
+    fi
+  done
+
+  echo "Timed out waiting for IceCubes authenticated composer status create activity." >&2
+  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+  exit 1
+}
+
 submit_authenticated_composer_text() {
   local previous_submit_count
   previous_submit_count="$(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses")"
   type_authenticated_composer_text
-  click_capture_window_point "$AUTH_COMPOSER_SEND_X" "$AUTH_COMPOSER_SEND_Y"
-  wait_for_authenticated_api_activity \
-    "POST https://mastodon.social/api/v1/statuses" \
-    "authenticated composer status create" \
-    "$((previous_submit_count + 1))"
+  click_authenticated_composer_send_button "$((previous_submit_count + 1))"
   wait_for_authenticated_composer_dismissal
 }
 
