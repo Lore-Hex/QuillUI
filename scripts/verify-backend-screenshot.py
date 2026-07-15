@@ -7361,7 +7361,12 @@ def validate_icecubes_linux_authenticated_settings_display_system_color(image: S
     )
 
 
-def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: bool = False) -> str:
+def validate_icecubes_linux_authenticated_composer(
+    image: Screenshot,
+    *,
+    typed: bool = False,
+    allow_quoted_media: bool = False,
+) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
     app_height = bottom - top + 1
@@ -7455,11 +7460,18 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         "IceCubes authenticated composer capture still appears to show the main Timeline sidebar: "
         f"pixels={stale_timeline_sidebar_pixels}",
     )
-    require(
-        composer_media_viewer_pixels <= 30_000,
-        "IceCubes authenticated composer capture appears to show a media viewer instead of the editor: "
-        f"pixels={composer_media_viewer_pixels}",
-    )
+    if allow_quoted_media:
+        require(
+            composer_media_viewer_pixels <= 230_000,
+            "IceCubes authenticated reply composer quoted media overwhelmed the editor surface: "
+            f"pixels={composer_media_viewer_pixels}",
+        )
+    else:
+        require(
+            composer_media_viewer_pixels <= 30_000,
+            "IceCubes authenticated composer capture appears to show a media viewer instead of the editor: "
+            f"pixels={composer_media_viewer_pixels}",
+        )
     if typed:
         require(
             typed_text_pixels >= 200,
@@ -7475,6 +7487,7 @@ def validate_icecubes_linux_authenticated_composer(image: Screenshot, *, typed: 
         f"composer_text_pixels={composer_text_pixels}, "
         f"composer_field_pixels={composer_field_pixels}, "
         f"composer_media_viewer_pixels={composer_media_viewer_pixels}, "
+        f"allow_quoted_media={allow_quoted_media}, "
         f"typed_body_pixels={typed_body_pixels}, "
         f"typed_leading_editor_pixels={typed_leading_editor_pixels}, "
         f"stale_timeline_sidebar_pixels={stale_timeline_sidebar_pixels}"
@@ -8450,6 +8463,7 @@ def main() -> int:
         "icecubes-linux-authenticated-settings-display-system-color",
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-reply-composer",
         "icecubes-linux-authenticated-composer-submitted",
         "icecubes-linux-authenticated-status-detail",
         "icecubes-linux-authenticated-status-detail-refresh",
@@ -8716,6 +8730,8 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-composer-typed":
         print(validate_icecubes_linux_authenticated_composer(image, typed=True))
+    elif product == "icecubes-linux-authenticated-reply-composer":
+        print(validate_icecubes_linux_authenticated_composer(image, allow_quoted_media=True))
     elif product == "icecubes-linux-authenticated-composer-submitted":
         print(validate_icecubes_linux_authenticated_composer_submitted(image))
     elif product == "icecubes-linux-authenticated-status-detail":

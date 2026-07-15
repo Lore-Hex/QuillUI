@@ -2012,7 +2012,7 @@ case "$INTERACTION" in
     wait_for_authenticated_route_visual "$VERIFY_PRODUCT" "authenticated Status detail refresh"
     ;;
   seeded-authenticated-status-detail-reply)
-    VERIFY_PRODUCT="icecubes-linux-authenticated-composer"
+    VERIFY_PRODUCT="icecubes-linux-authenticated-reply-composer"
     open_authenticated_status_detail
     if ! click_authenticated_status_detail_reply_action; then
       echo "IceCubes authenticated status reply action did not open the composer." >&2
