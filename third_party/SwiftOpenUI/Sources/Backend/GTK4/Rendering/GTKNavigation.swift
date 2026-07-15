@@ -1139,16 +1139,24 @@ extension NavigationStack: GTKRenderable {
 
         if getCurrentEnvironment().isPresentedInSheet {
             let container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-            let inlineBar = gtkCreateInlineNavigationBar(
-                title: title,
-                toolbarItems: toolbarItems,
-                hidden: toolbarHidden
+            // Keep the navigation context and installed sheet chrome pointed at
+            // the same live GtkHeaderBar. Creating a separate inline toolbar
+            // leaves later toolbar refreshes mutating an unparented bar that
+            // GTK can invalidate during sheet rebuilds.
+            gtk_widget_set_size_request(headerBar, -1, 52)
+            gtk_widget_set_hexpand(headerBar, 1)
+            gtk_widget_set_vexpand(headerBar, 0)
+            gtk_widget_set_halign(headerBar, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(headerBar, GTK_ALIGN_START)
+            applyCSSToWidget(
+                headerBar,
+                properties: "background: #f8f8fb; border-bottom: 1px solid rgba(0,0,0,0.12); min-height: 52px;"
             )
             gtk_widget_set_hexpand(container, 1)
             gtk_widget_set_vexpand(container, 1)
             gtk_widget_set_halign(container, GTK_ALIGN_FILL)
             gtk_widget_set_valign(container, GTK_ALIGN_FILL)
-            gtk_box_append(boxPointer(container), inlineBar)
+            gtk_box_append(boxPointer(container), headerBar)
             gtk_box_append(boxPointer(container), stack)
             return opaqueFromWidget(container)
         } else {
