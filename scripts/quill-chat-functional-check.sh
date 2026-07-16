@@ -125,6 +125,15 @@ quillui_functional_enter_text() {
   case "$input_mode" in
     auto|paste-first|paste)
       if quillui_functional_paste_text "$text"; then
+        if [[ "${QUILLUI_FUNCTIONAL_TYPE_AFTER_PASTE:-0}" == "1" ]] \
+          || {
+            [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]] \
+            && [[ "${QUILLUI_FUNCTIONAL_ATTACHMENT_TYPE_AFTER_PASTE:-1}" == "1" ]]
+          }; then
+          sleep "${QUILLUI_FUNCTIONAL_TYPE_AFTER_PASTE_SLEEP:-0.15}"
+          quillui_functional_xdotool type --clearmodifiers --delay "${QUILLUI_FUNCTIONAL_TYPE_DELAY:-60}" "$text" \
+            || true
+        fi
         return
       fi
       ;;
@@ -276,6 +285,11 @@ app_environment+=(
   "QUILLUI_BACKEND_HIDE_WINDOW_MENUBAR_LABEL=$hide_window_menubar_label"
 )
 quillui_append_enchanted_reference_mode_environment app_environment
+if [[ "$VERIFY_RELAUNCH" == "1" ]] && quillui_is_quill_chat_mac_reference_product "$PRODUCT"; then
+  app_environment+=(
+    "QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START=${QUILLUI_FUNCTIONAL_RELAUNCH_SELECTED_INDEX:-${QUILLUI_ENCHANTED_SELECTED_CONVERSATION_INDEX_ON_START:-0}}"
+  )
+fi
 if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
   quillui_write_functional_attachment_fixture "$ATTACHMENT_PATH"
   app_environment+=("QUILLUI_FILE_IMPORTER_SELECTION=$ATTACHMENT_PATH")
@@ -711,6 +725,14 @@ PY
 }
 
 quill_chat_functional_composer_click_points() {
+  local default_max_points=8
+  local max_points
+
+  if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
+    default_max_points=4
+  fi
+  max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-$default_max_points}"
+
   if [[ "$FUNCTIONAL_MODE" == "attachment-send" || "$FUNCTIONAL_MODE" == "image-attachment-send" ]]; then
     {
       quill_chat_functional_detected_composer_click_points
@@ -722,7 +744,7 @@ quill_chat_functional_composer_click_points() {
       quill_chat_functional_detected_composer_click_points
       quill_chat_functional_static_composer_click_points
     }
-  fi | awk -v max_points="${QUILLUI_FUNCTIONAL_COMPOSER_MAX_POINTS:-8}" '
+  fi | awk -v max_points="$max_points" '
     !seen[$1 "," $2]++ {
       print
       emitted += 1
@@ -774,8 +796,10 @@ divider_x = max(
 )
 sidebar_left = left + 16
 sidebar_right = max(sidebar_left + 1, divider_x - 16)
-scan_top = top + int(app_height * 0.18)
-scan_bottom = bottom - int(app_height * 0.12)
+# Relaunch starts with the newest saved chat near the top of the mac-reference
+# sidebar. Keep the scan below the titlebar, but do not skip the first section.
+scan_top = top + int(app_height * 0.06)
+scan_bottom = bottom - int(app_height * 0.18)
 
 rows: list[tuple[int, int]] = []
 for y in range(scan_top, scan_bottom):
@@ -802,8 +826,16 @@ groups.append(current)
 
 group = max(groups, key=lambda item: sum(count for _, count in item))
 click_y = (group[0][0] + group[-1][0]) // 2
-sidebar_width = divider_x - left
-click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
+text_columns = [
+    x
+    for x in range(sidebar_left, sidebar_right)
+    if any(sum(image.rgb(x, y)) < 430 for y, _ in group)
+]
+if text_columns:
+    click_x = (min(text_columns) + max(text_columns)) // 2
+else:
+    sidebar_width = divider_x - left
+    click_x = left + min(max(int(sidebar_width * 0.38), 140), max(140, sidebar_width - 40))
 print(f"{window_x + click_x} {window_y + click_y}")
 PY
 }

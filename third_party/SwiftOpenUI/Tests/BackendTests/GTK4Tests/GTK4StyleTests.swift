@@ -34,6 +34,71 @@ final class GTK4StyleTests: XCTestCase {
         )
     }
 
+    func testPlainButtonFixedHeightHStackAllocatesLabelInsideRow() throws {
+        try requireGTK()
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button {} label: {
+                HStack {
+                    Text("status.summary.n-favorites 42")
+                        .font(.system(size: 16))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                }
+                .frame(height: 20)
+            }
+            .buttonStyle(.plain)
+        ))
+
+        _ = measuredSize(of: widget)
+        allocate(widget: widget, size: ViewSize(width: 560, height: 20))
+
+        let label = try XCTUnwrap(findFirstDescendant(ofType: "GtkLabel", in: widget))
+        let labelOrigin = translatedChildOrigin(child: label, in: widget)
+        let labelSize = allocatedSize(of: label)
+        let buttonSize = allocatedSize(of: widget)
+        let tree = dumpWidgetTree(widget)
+
+        XCTAssertGreaterThanOrEqual(labelOrigin.y, -0.01, tree)
+        XCTAssertGreaterThan(labelSize.height, 10, tree)
+        XCTAssertLessThanOrEqual(labelOrigin.y + labelSize.height, buttonSize.height + 0.01, tree)
+    }
+
+    func testBorderlessButtonFixedHeightHStackWithHorizontalScrollerAllocatesLabelInsideRow() throws {
+        try requireGTK()
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button {} label: {
+                HStack {
+                    Text("status.summary.n-boosts 7")
+                        .font(.system(size: 16))
+                    Spacer()
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack([Int]()) { value in
+                            Text("\(value)")
+                        }
+                        .padding(.leading, 8)
+                    }
+                    Image(systemName: "chevron.right")
+                }
+                .frame(height: 20)
+            }
+            .buttonStyle(.plain)
+        ))
+
+        _ = measuredSize(of: widget)
+        allocate(widget: widget, size: ViewSize(width: 560, height: 20))
+
+        let label = try XCTUnwrap(findFirstDescendant(ofType: "GtkLabel", in: widget))
+        XCTAssertEqual(String(cString: gtk_label_get_text(OpaquePointer(label))), "status.summary.n-boosts 7")
+        let labelOrigin = translatedChildOrigin(child: label, in: widget)
+        let labelSize = allocatedSize(of: label)
+        let buttonSize = allocatedSize(of: widget)
+        let tree = dumpWidgetTree(widget)
+
+        XCTAssertGreaterThanOrEqual(labelOrigin.y, -0.01, tree)
+        XCTAssertGreaterThan(labelSize.height, 10, tree)
+        XCTAssertLessThanOrEqual(labelOrigin.y + labelSize.height, buttonSize.height + 0.01, tree)
+    }
+
     func testButtonStyleBorderedProminentRendersContent() throws {
         try requireGTK()
         let widget = widgetFromOpaque(gtkRenderView(
@@ -183,6 +248,41 @@ private func widgetTypeName(_ widget: UnsafeMutablePointer<GtkWidget>) -> String
     String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
 }
 
+private func measuredSize(of widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {
+    var widthMin: Int32 = 0
+    var widthNat: Int32 = 0
+    var heightMin: Int32 = 0
+    var heightNat: Int32 = 0
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &widthMin, &widthNat)
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &heightMin, &heightNat)
+    return ViewSize(
+        width: Double(max(widthMin, widthNat)),
+        height: Double(max(heightMin, heightNat))
+    )
+}
+
+private func allocate(widget: UnsafeMutablePointer<GtkWidget>, size: ViewSize) {
+    gtk_widget_allocate(widget, Int32(size.width), Int32(size.height), -1, nil)
+}
+
+private func allocatedSize(of widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {
+    ViewSize(
+        width: Double(gtk_widget_get_width(widget)),
+        height: Double(gtk_widget_get_height(widget))
+    )
+}
+
+private func translatedChildOrigin(
+    child: UnsafeMutablePointer<GtkWidget>,
+    in wrapper: UnsafeMutablePointer<GtkWidget>
+) -> ViewPoint {
+    var sourcePoint = graphene_point_t()
+    graphene_point_init(&sourcePoint, 0, 0)
+    var translatedPoint = graphene_point_t()
+    _ = gtk_widget_compute_point(child, wrapper, &sourcePoint, &translatedPoint)
+    return ViewPoint(x: Double(translatedPoint.x), y: Double(translatedPoint.y))
+}
+
 private func findFirstDescendant(ofType typeName: String, in widget: UnsafeMutablePointer<GtkWidget>) -> UnsafeMutablePointer<GtkWidget>? {
     guard gtk_swift_is_widget(widget) != 0 else { return nil }
     if widgetTypeName(widget) == typeName { return widget }
@@ -192,4 +292,35 @@ private func findFirstDescendant(ofType typeName: String, in widget: UnsafeMutab
         child = gtk_widget_get_next_sibling(c)
     }
     return nil
+}
+
+private func dumpWidgetTree(_ widget: UnsafeMutablePointer<GtkWidget>) -> String {
+    var lines: [String] = []
+    collectWidgetTreeLines(widget, depth: 0, lines: &lines)
+    return lines.joined(separator: "\n")
+}
+
+private func collectWidgetTreeLines(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    depth: Int,
+    lines: inout [String]
+) {
+    guard depth < 10 else { return }
+    var minWidth: Int32 = 0
+    var naturalWidth: Int32 = 0
+    var minHeight: Int32 = 0
+    var naturalHeight: Int32 = 0
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_HORIZONTAL, -1, &minWidth, &naturalWidth)
+    gtk_swift_widget_measure(widget, GTK_ORIENTATION_VERTICAL, -1, &minHeight, &naturalHeight)
+
+    let indent = String(repeating: "  ", count: depth)
+    lines.append(
+        "\(indent)\(widgetTypeName(widget)) alloc=\(gtk_widget_get_width(widget))x\(gtk_widget_get_height(widget)) nat=\(naturalWidth)x\(naturalHeight) min=\(minWidth)x\(minHeight) hex=\(gtk_widget_get_hexpand(widget)) vex=\(gtk_widget_get_vexpand(widget))"
+    )
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        collectWidgetTreeLines(current, depth: depth + 1, lines: &lines)
+        child = gtk_widget_get_next_sibling(current)
+    }
 }

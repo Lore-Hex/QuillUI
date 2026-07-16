@@ -5,6 +5,23 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH=".build-linux"
 SWIFT_TEST_ARGS=()
 
+# Run view-constructing tests on the Linux Swift 6.2 runtime without the strict
+# main-actor executor assertion hard-crashing the whole test process.
+#
+# SwiftUI's View/ViewBuilder are `@MainActor @preconcurrency` (Apple's exact
+# shape). Many compatibility/unit tests build views or read `.children`/`.body`
+# synchronously, and Swift Testing runs suites on the global concurrent executor.
+# Under Swift 6.2 on Linux, invoking that @MainActor content off the main actor
+# trips `swift_task_isCurrentExecutorWithFlags` -> `_dispatch_assert_queue_fail`
+# (SIGILL, signal 4) — aborting the entire run, not just the one test. macOS CI
+# runs the same `swift test` green because Apple's runtime resolves the same
+# call without the libdispatch hard-assert. `legacy` is Apple's own migration
+# override: `isCurrentExecutor` returns the lenient result instead of trapping,
+# making Linux behave like macOS for these synchronous off-actor view builds.
+# This is a process-wide safety net so the fix scales to every view-building
+# suite (current and future) rather than annotating each one @MainActor.
+export SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE="${SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE:-legacy}"
+
 # Focused library/test loops should not accidentally compile every fetched
 # upstream app checkout. Generated app checks opt back in when they need the
 # real app graph.

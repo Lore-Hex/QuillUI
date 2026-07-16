@@ -700,9 +700,10 @@ internal enum QuartzCoreAnimationEngine {
             // gone and the removal path owns the callbacks.
             guard let entry = takeEntry(for: animation) else { return }
             let blocks = takeDueBlocks(entry.transactions)
-            // Drop the layer's bookkeeping entry BEFORE the delegate fires:
-            // didStop handlers routinely re-add an animation under the same
-            // key, and removal-after would silently strip the new one.
+            // This work item is scheduled on DispatchQueue.main. Drop the
+            // layer's bookkeeping entry BEFORE the delegate fires: didStop
+            // handlers routinely re-add an animation under the same key, and
+            // removal-after would silently strip the new one.
             if animation.isRemovedOnCompletion {
                 layer?._animationDidComplete(key: key)
             }

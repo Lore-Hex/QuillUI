@@ -80,15 +80,33 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         lock.unlock()
     }
 
+    private func scheduleObservableStateMutationRebuild() {
+        lock.lock()
+        generation &+= 1
+        let forwarded = forwardedStorage
+        let currentHost = host
+        lock.unlock()
+
+        forwarded?.bumpGeneration()
+        let targetHost = forwarded?.host ?? currentHost
+        let hostDescription = currentHost.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        let forwardedHostDescription = forwarded?.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        swiftOpenUIStateDebugLog(
+            "observable state change type=\(Value.self) host=\(hostDescription) forwardedHost=\(forwardedHostDescription)"
+        )
+        targetHost?.scheduleRebuildAfterObservableObjectMutation()
+    }
+
     public init(_ value: Value) {
         _value = value
     }
 
     public var value: Value {
         lock.lock()
-        defer { lock.unlock() }
+        let value = _value
+        lock.unlock()
         recordDependencyRead(self)
-        return _value
+        return value
     }
 
     public func setValue(_ newValue: Value) {
@@ -116,14 +134,17 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     public func forwardMutations(to other: AnyStateStorage) {
         lock.lock()
-        defer { lock.unlock() }
         guard let typed = other as? StateStorage<Value>, typed !== self else {
             forwardedStorage = nil
+            lock.unlock()
+            wireObservableStateValue()
             return
         }
         forwardedStorage = typed
         let currentHost = host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         let forwardedHost = typed.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
+        lock.unlock()
+        wireObservableStateValue()
         swiftOpenUIStateDebugLog("state forward type=\(Value.self) host=\(currentHost) forwardedHost=\(forwardedHost)")
     }
 
@@ -143,8 +164,7 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         // internal mutation even though `_value` (the reference) is unchanged.
         observableCancellable = subscribeOpaqueObservableObject(object) { [weak self] in
             guard let self else { return }
-            self.bumpGeneration()
-            self.host?.scheduleRebuild()
+            self.scheduleObservableStateMutationRebuild()
         }
     }
 }

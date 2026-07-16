@@ -242,6 +242,7 @@ public class CGImage: Hashable, @unchecked Sendable {
     /// populate it; the Cairo CGContext backend draws it.
     public var quillBGRAPixels: [UInt8]?
     public var quillBytesPerRow: Int = 0
+    public var quillUTType: String?
 
     public init() {}
 
@@ -5329,8 +5330,16 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
     public var capInsets: NSEdgeInsets = NSEdgeInsets()
     public var resizingMode: ResizingMode = .tile
     public var alignmentRect: CGRect { CGRect(origin: .zero, size: size) }
-    public func pngData() -> Data? { data }
-    public func dataRepresentation() -> Data? { data }
+    public func pngData() -> Data? {
+        #if os(Linux)
+        if let cgImage,
+           let encoded = QuillBitmapImageCodec.encode(cgImage, type: "public.png") {
+            return encoded
+        }
+        #endif
+        return data
+    }
+    public func dataRepresentation() -> Data? { pngData() ?? data }
     /// Disfavored so QuillUI's gdk-pixbuf-backed `RSImage.tiffRepresentation`
     /// extension wins wherever both modules are visible; Telegram package
     /// islands that only see QuillFoundation get this passthrough.
@@ -5524,7 +5533,19 @@ open class RSImage: NSObject, NSSecureCoding, @unchecked Sendable {
         self.size = CGSize(width: 32, height: 32)
         _ = source
     }
-    public func jpegData(compressionQuality: CGFloat) -> Data? { data }
+    public func jpegData(compressionQuality: CGFloat) -> Data? {
+        #if os(Linux)
+        if let cgImage,
+           let encoded = QuillBitmapImageCodec.encode(
+            cgImage,
+            type: "public.jpeg",
+            compressionQuality: compressionQuality
+           ) {
+            return encoded
+        }
+        #endif
+        return data
+    }
     public var cgImage: CGImage? { quillBackingCGImage }
     public func cgImage(forProposedRect rect: UnsafeMutablePointer<CGRect>?, context: Any?, hints: [AnyHashable: Any]?) -> CGImage? {
         _ = (rect, context, hints)
@@ -5924,6 +5945,23 @@ public class RSColor: NSObject, NSSecureCoding, @unchecked Sendable {
         brightness?.pointee = b
         alpha?.pointee = a
         return true
+    }
+
+    public override func isEqual(_ object: Any?) -> Bool {
+        guard let other = object as? RSColor else { return false }
+        return _red == other._red
+            && _green == other._green
+            && _blue == other._blue
+            && _alpha == other._alpha
+    }
+
+    public override var hash: Int {
+        var hasher = Hasher()
+        hasher.combine(_red)
+        hasher.combine(_green)
+        hasher.combine(_blue)
+        hasher.combine(_alpha)
+        return hasher.finalize()
     }
 }
 public typealias UIColor = RSColor

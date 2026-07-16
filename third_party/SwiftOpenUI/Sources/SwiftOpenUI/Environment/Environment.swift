@@ -61,6 +61,37 @@ public struct EnvironmentValues: @unchecked Sendable {
         objects[id] = object
         EnvironmentObjectRegistry.shared.setObject(object, id: id)
     }
+
+    /// Store the latest globally injected object for `id` when one exists,
+    /// falling back to a previously captured object. Backends use this during
+    /// ViewHost rebuilds so a child host does not pin an object that an
+    /// ancestor later replaced, such as an unauthenticated client swapped for
+    /// an authenticated one after app startup.
+    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
+        setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
+    }
+
+    /// Refresh every captured injected object from the global environment
+    /// registry when an ancestor has since replaced it. Deferred callbacks such
+    /// as NavigationStack destination factories capture an EnvironmentValues
+    /// snapshot at render time; this keeps those callbacks from pinning stale
+    /// app-wide objects like the current account client.
+    public mutating func refreshInjectedObjectsFromRegistry() {
+        for (id, object) in objects {
+            setLatestObjectByID(id, fallback: object)
+        }
+    }
+}
+
+public struct DefaultMinListRowHeightKey: EnvironmentKey {
+    public static let defaultValue = 44
+}
+
+public extension EnvironmentValues {
+    var defaultMinListRowHeight: Int {
+        get { self[DefaultMinListRowHeightKey.self] }
+        set { self[DefaultMinListRowHeightKey.self] = newValue }
+    }
 }
 
 private final class EnvironmentObjectRegistry: @unchecked Sendable {
@@ -137,6 +168,7 @@ internal func recordEnvironmentRead(typeID: ObjectIdentifier, object: AnyObject)
     guard !_envReadTrackerStack.isEmpty else { return }
     let index = _envReadTrackerStack.count - 1
     _envReadTrackerStack[index][typeID] = object
+    recordEnvironmentObservableObjectRead(object)
 }
 
 // MARK: - Thread-local environment for render pass
@@ -254,6 +286,15 @@ public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
     _presentationDismissActionStack.last
 }
 
+private func swiftOpenUIDismissDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[SwiftOpenUI] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 // MARK: - @Environment property wrapper
 
 /// Reads a value from the current environment at render time.
@@ -275,7 +316,9 @@ public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
 /// for their body evaluation — otherwise property reads on the
 /// injected object don't register with Observation and mutations
 /// never trigger rebuilds.
-public protocol AnyObjectInjectionEnvironment {}
+public protocol AnyObjectInjectionEnvironment {
+    func wireInjectedObject(to host: AnyViewHost?)
+}
 
 @propertyWrapper
 public struct Environment<Value> {
@@ -348,7 +391,13 @@ extension Environment: DynamicProperty {}
 /// its reader was constructed via `init(_ type: Value.Type)`. Every
 /// instance conforms, but the runtime check on `isInjectedObject`
 /// distinguishes the two constructors.
-extension Environment: AnyObjectInjectionEnvironment {}
+extension Environment: AnyObjectInjectionEnvironment {
+    public func wireInjectedObject(to host: AnyViewHost?) {
+        guard isInjectedObject else { return }
+        guard let object = wrappedValue as? AnyObject else { return }
+        wireEnvironmentObservableObjectRead(object, host: host)
+    }
+}
 
 // MARK: - Environment object lookup
 
@@ -394,14 +443,30 @@ extension EnvironmentValues {
 /// A callable action that opens a window by its identifier.
 public struct OpenWindowAction {
     let handler: (String) -> Void
+    let valueHandler: (String, Any) -> Void
 
-    public init(handler: @escaping (String) -> Void = { _ in }) {
+    public init(
+        handler: @escaping (String) -> Void = { _ in },
+        valueHandler: @escaping (String, Any) -> Void = { _, _ in }
+    ) {
         self.handler = handler
+        self.valueHandler = valueHandler
     }
 
     /// Open the window with the given identifier.
     public func callAsFunction(id: String) {
         handler(id)
+    }
+
+    /// Open the value-based window group registered for this value's type.
+    public func callAsFunction<Value>(value: Value) {
+        valueHandler(quillOpenWindowValueTypeKey(for: Value.self), value)
+    }
+
+    /// Open the value-based window group registered for the given id and
+    /// value type.
+    public func callAsFunction<Value>(id: String, value: Value) {
+        valueHandler(quillOpenWindowValueTypeKey(id: id, for: Value.self), value)
     }
 }
 
@@ -419,15 +484,29 @@ extension EnvironmentValues {
 
 /// A callable action that dismisses the current sheet or dialog.
 public struct DismissAction {
-    let handler: () -> Void
+    let handler: (() -> Void)?
+    let debugName: String
 
-    public init(handler: @escaping () -> Void = {}) {
+    public init(handler: (() -> Void)? = nil, debugName: String = "custom") {
         self.handler = handler
+        self.debugName = debugName
     }
 
     /// Dismiss the enclosing presentation (sheet, alert, etc.).
     public func callAsFunction() {
-        handler()
+        if let handler {
+            swiftOpenUIDismissDebugLog("dismiss handler \(debugName)")
+            handler()
+            return
+        }
+        #if os(Linux)
+        if let fallback = swiftOpenUICurrentPresentationDismissAction() {
+            swiftOpenUIDismissDebugLog("dismiss presentation fallback")
+            fallback()
+        } else {
+            swiftOpenUIDismissDebugLog("dismiss missing presentation context")
+        }
+        #endif
     }
 }
 

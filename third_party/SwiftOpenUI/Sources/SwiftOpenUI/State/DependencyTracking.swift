@@ -51,14 +51,22 @@ public func inputsUnchanged(snapshot: [StorageSnapshot]) -> Bool {
 private struct TrackingSession {
     var readSet: Set<ObjectIdentifier> = []
     var snapshots: [StorageSnapshot] = []
+    weak var host: AnyViewHost?
 }
 
 /// Stack of tracking sessions for nested stateful host renders.
 private var _trackingStack: [TrackingSession] = []
 
 /// Begin tracking reads. Call before body evaluation.
-public func beginDependencyTracking() {
-    _trackingStack.append(TrackingSession())
+public func beginDependencyTracking(host: AnyViewHost? = nil) {
+    _trackingStack.append(TrackingSession(host: host))
+}
+
+/// The host currently evaluating a dependency-tracked body, if any.
+/// Observable environment-object compatibility uses this to schedule the
+/// same host when an injected `ObservableObject` publishes a change.
+public func currentDependencyTrackingHost() -> AnyViewHost? {
+    _trackingStack.last?.host
 }
 
 /// Record a storage read. Called from StateStorage value getters and the

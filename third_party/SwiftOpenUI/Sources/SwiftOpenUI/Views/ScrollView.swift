@@ -15,10 +15,12 @@ public struct ScrollView<Content: View>: View {
     public typealias Body = Never
 
     public let axes: Axis
+    public let showsIndicators: Bool
     public let content: Content
 
     public init(_ axes: Axis = .vertical, @ViewBuilder content: () -> Content) {
         self.axes = axes
+        self.showsIndicators = true
         self.content = content()
     }
 
@@ -27,8 +29,8 @@ public struct ScrollView<Content: View>: View {
         showsIndicators: Bool,
         @ViewBuilder content: () -> Content
     ) {
-        _ = showsIndicators
         self.axes = axes
+        self.showsIndicators = showsIndicators
         self.content = content()
     }
 

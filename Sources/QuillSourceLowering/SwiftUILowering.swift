@@ -2482,7 +2482,9 @@ private final class SwiftUIRewriter: SyntaxRewriter {
         guard variable.bindingSpecifier.text == "var" else { return false }
 
         let alreadyPublished = variable.attributes.contains {
-            isAttribute($0, named: "Published") || isAttribute($0, named: "QuillPublished")
+            isAttribute($0, named: "Published")
+                || isAttribute($0, named: "QuillPublished")
+                || isAttribute($0, named: "ObservationIgnored")
         }
         if alreadyPublished {
             return false
@@ -2490,7 +2492,7 @@ private final class SwiftUIRewriter: SyntaxRewriter {
 
         if variable.modifiers.contains(where: { modifier in
             let name = modifier.name.text
-            return name == "static" || name == "class" || name == "private"
+            return name == "static" || name == "class" || name == "lazy" || name == "private"
         }) {
             return false
         }

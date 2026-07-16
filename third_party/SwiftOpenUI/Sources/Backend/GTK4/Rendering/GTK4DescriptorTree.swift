@@ -30,6 +30,7 @@ public enum GTK4DescriptorKind: Equatable {
     case frame
     case foregroundColor
     case hStack
+    case listRowLifecycleScope
     case padding
     case slider
     case spacer
@@ -199,18 +200,29 @@ public final class GTK4CanvasPayload {
 
 public final class GTK4TaskPayload {
     public let priority: TaskPriority
+    public let lifecycleID: String?
     public let action: @Sendable () async -> Void
 
     public init(
         priority: TaskPriority,
+        lifecycleID: String? = nil,
         action: @escaping @Sendable () async -> Void
     ) {
         self.priority = priority
+        self.lifecycleID = lifecycleID
         self.action = action
     }
 }
 
 public final class GTK4OnAppearPayload {
+    public let action: () -> Void
+
+    public init(action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+public final class GTK4ButtonPayload {
     public let action: () -> Void
 
     public init(action: @escaping () -> Void) {
@@ -266,12 +278,34 @@ public struct GTK4DescriptorNode: Equatable {
 
 // MARK: - Identity
 
-/// Structural identity by position. Keyed identity is a later step.
+/// Descriptor identity used for retained GTK lifecycle and mutation state.
+/// Unkeyed views use structural position; explicit SwiftUI identity wrappers
+/// replace their local child index so lifecycle survives route remounts.
 public struct GTK4DescriptorIdentity: Equatable, Hashable {
     public let path: [Int]
+    public let components: [String]
 
     public init(path: [Int]) {
         self.path = path
+        self.components = GTK4DescriptorIdentity.components(for: path)
+    }
+
+    public init(path: [Int], components: [String]) {
+        self.path = path
+        self.components = components
+    }
+
+    public static func == (lhs: GTK4DescriptorIdentity, rhs: GTK4DescriptorIdentity) -> Bool {
+        lhs.components == rhs.components
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(components)
+    }
+
+    private static func components(for path: [Int]) -> [String] {
+        guard !path.isEmpty else { return ["root"] }
+        return path.map { "#\($0)" }
     }
 }
 
@@ -503,6 +537,7 @@ private final class GTK4DescriptorPayloadCollector {
     var canvasPayloads: [GTK4CanvasPayload] = []
     var onAppearPayloads: [GTK4OnAppearPayload] = []
     var taskPayloads: [GTK4TaskPayload] = []
+    var buttonPayloads: [GTK4ButtonPayload] = []
 }
 
 private var gtkDescriptorPayloadCollectorKey: pthread_key_t = {
@@ -510,6 +545,8 @@ private var gtkDescriptorPayloadCollectorKey: pthread_key_t = {
     pthread_key_create(&key, nil)
     return key
 }()
+
+nonisolated(unsafe) private var gtkDescriptorLifecyclePayloadSuppressionDepth = 0
 
 private let gtkDescribeCycleCaptureDepth = 200
 private let gtkDescribeCycleFatalDepth = 256
@@ -560,15 +597,29 @@ public func gtkCollectCanvasPayload(_ payload: GTK4CanvasPayload) {
 }
 
 public func gtkCollectTaskPayload(_ payload: GTK4TaskPayload) {
+    guard gtkDescriptorLifecyclePayloadSuppressionDepth == 0 else { return }
     guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
     let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
     collector.taskPayloads.append(payload)
 }
 
 public func gtkCollectOnAppearPayload(_ payload: GTK4OnAppearPayload) {
+    guard gtkDescriptorLifecyclePayloadSuppressionDepth == 0 else { return }
     guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
     let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
     collector.onAppearPayloads.append(payload)
+}
+
+func gtkWithSuppressedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
+    gtkDescriptorLifecyclePayloadSuppressionDepth += 1
+    defer { gtkDescriptorLifecyclePayloadSuppressionDepth -= 1 }
+    return body()
+}
+
+public func gtkCollectButtonPayload(_ payload: GTK4ButtonPayload) {
+    guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
+    let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
+    collector.buttonPayloads.append(payload)
 }
 
 public func gtkDescribeCapturingCanvasPayloads(
@@ -577,7 +628,8 @@ public func gtkDescribeCapturingCanvasPayloads(
     descriptor: GTK4DescriptorNode,
     canvasPayloads: [GTK4CanvasPayload],
     onAppearPayloads: [GTK4OnAppearPayload],
-    taskPayloads: [GTK4TaskPayload]
+    taskPayloads: [GTK4TaskPayload],
+    buttonPayloads: [GTK4ButtonPayload]
 ) {
     let collector = GTK4DescriptorPayloadCollector()
     let retained = Unmanaged.passRetained(collector)
@@ -586,7 +638,60 @@ public func gtkDescribeCapturingCanvasPayloads(
     let descriptor = describe()
     pthread_setspecific(gtkDescriptorPayloadCollectorKey, previous)
     retained.release()
-    return (descriptor, collector.canvasPayloads, collector.onAppearPayloads, collector.taskPayloads)
+    return (
+        descriptor,
+        collector.canvasPayloads,
+        collector.onAppearPayloads,
+        collector.taskPayloads,
+        collector.buttonPayloads
+    )
+}
+
+public func gtkCaptureRenderLifecyclePayloads<T>(
+    _ render: () -> T
+) -> (
+    value: T,
+    onAppearPayloads: [GTK4OnAppearPayload],
+    taskPayloads: [GTK4TaskPayload]
+) {
+    let collector = GTK4DescriptorPayloadCollector()
+    let retained = Unmanaged.passRetained(collector)
+    let previous = pthread_getspecific(gtkDescriptorPayloadCollectorKey)
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, retained.toOpaque())
+    let value = render()
+    pthread_setspecific(gtkDescriptorPayloadCollectorKey, previous)
+    retained.release()
+    return (
+        value,
+        collector.onAppearPayloads,
+        collector.taskPayloads
+    )
+}
+
+private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
+    guard depth < 24 else { return [view] }
+
+    let mirror = Mirror(reflecting: view)
+    if mirror.displayStyle == .optional {
+        guard let child = mirror.children.first?.value as? any View else { return [] }
+        return gtkDescriptorChildViews(from: child, depth: depth + 1)
+    }
+
+    if mirror.displayStyle == .enum,
+       String(reflecting: Swift.type(of: view)).contains("_ConditionalView") {
+        for child in mirror.children {
+            if let nested = child.value as? any View {
+                return gtkDescriptorChildViews(from: nested, depth: depth + 1)
+            }
+        }
+        return []
+    }
+
+    if let transparent = view as? any TransparentMultiChildView {
+        return transparent.children.flatMap { gtkDescriptorChildViews(from: $0, depth: depth + 1) }
+    }
+
+    return [view]
 }
 
 /// Build a GTK4-local descriptor tree without creating widgets.
@@ -605,11 +710,26 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     if let describable = view as? GTKDescribable {
         return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
+    if hasReactiveProperties(view) {
+        if V.Body.self != Never.self {
+            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+            )
+        }
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>"
+        )
+    }
     if let multi = view as? MultiChildView {
         return GTK4DescriptorNode(
             kind: .composite,
             typeName: String(describing: type(of: view)),
-            children: multi.children.map(gtkDescribeAnyView)
+            children: multi.children.flatMap { child in
+                gtkDescriptorChildViews(from: child).map(gtkDescribeAnyView)
+            }
         )
     }
     if V.Body.self != Never.self {
@@ -648,18 +768,39 @@ public func gtkDescribeAnyView(_ view: any View) -> GTK4DescriptorNode {
 // MARK: - Identify
 
 public func gtkIdentifyDescriptorTree(_ descriptor: GTK4DescriptorNode) -> GTK4IdentifiedDescriptorNode {
-    gtkIdentifyNode(descriptor, path: [])
+    gtkIdentifyNode(descriptor, path: [], components: ["root"])
 }
 
 private func gtkIdentifyNode(_ descriptor: GTK4DescriptorNode,
-                              path: [Int]) -> GTK4IdentifiedDescriptorNode {
-    GTK4IdentifiedDescriptorNode(
-        identity: GTK4DescriptorIdentity(path: path),
+                              path: [Int],
+                              components: [String]) -> GTK4IdentifiedDescriptorNode {
+    let nodeComponents: [String]
+    if let semanticComponent = gtkDescriptorSemanticIdentityComponent(descriptor) {
+        nodeComponents = components + ["key:\(semanticComponent)"]
+    } else if let localIndex = path.last {
+        nodeComponents = components + ["#\(localIndex)"]
+    } else {
+        nodeComponents = components
+    }
+    return GTK4IdentifiedDescriptorNode(
+        identity: GTK4DescriptorIdentity(path: path, components: nodeComponents),
         descriptor: descriptor,
         children: descriptor.children.enumerated().map { index, child in
-            gtkIdentifyNode(child, path: path + [index])
+            gtkIdentifyNode(
+                child,
+                path: path + [index],
+                components: nodeComponents
+            )
         }
     )
+}
+
+private func gtkDescriptorSemanticIdentityComponent(_ descriptor: GTK4DescriptorNode) -> String? {
+    if descriptor.typeName.hasPrefix("IdView<")
+        || descriptor.typeName.hasPrefix("GTKStateNamespaceView<") {
+        return descriptor.typeName
+    }
+    return nil
 }
 
 // MARK: - Retain
@@ -780,6 +921,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
     case .frame:         return .frameLayout
     case .foregroundColor: return .foregroundColor
     case .hStack:        return .hStackLayout
+    case .listRowLifecycleScope: return .none
     case .padding:       return .paddingLayout
     case .slider:
         guard case let .slider(oldSlider) = old.props,
@@ -900,10 +1042,19 @@ public func gtkCanApplyTextColorHostMutation(plan: GTK4DescriptorPlan) -> Bool {
         // destroyed mid-typing. A button whose own props changed plans as
         // .update (intent .none) and still takes the full rebuild.
         if plan.newDescriptor.kind == .composite && plan.children.isEmpty {
-            return false
+            // Props-bearing leaves (TextField & co.) compare meaningfully:
+            // identical descriptors mean nothing changed, and the native
+            // widget owns its visible state, so reuse is safe. Only
+            // prop-less childless composites are opaque.
+            if case .none = plan.newDescriptor.props {
+                return false
+            }
         }
         return plan.children.allSatisfy(gtkCanApplyTextColorHostMutation)
     case .update:
+        if plan.newDescriptor.kind == .button {
+            return false
+        }
         guard plan.updateIntent == .textContent || plan.updateIntent == .colorFill
                 || plan.updateIntent == .canvasContent
                 || plan.updateIntent == .sliderValue
@@ -1127,6 +1278,7 @@ public enum GTK4HostedNodeKind: String {
 }
 
 private let gtkHostedKindKey = "gtk-swift-hosted-kind"
+public let gtkSwiftButtonActionBoxDataKey = "gtk-swift-button-action-box"
 
 /// Tag a GTK widget with its hosted kind during render.
 public func gtkMarkHostedNodeKind(_ widget: UnsafeMutablePointer<GtkWidget>,
@@ -1246,6 +1398,27 @@ public func gtkCaptureSupportedNativeSlots(
     return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
 }
 
+public func gtkCaptureButtonNativeSlots(
+    from widgetRoot: UnsafeMutablePointer<GtkWidget>,
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    executorRoot: GTK4RetainedExecutorNode
+) -> GTK4RetainedExecutorNode {
+    let buttonDescriptors = gtkCollectButtonDescriptorIdentities(from: descriptorRoot)
+    var buttonWidgets: [UnsafeMutablePointer<GtkWidget>] = []
+    gtkCollectSwiftUIButtonWidgets(from: widgetRoot, into: &buttonWidgets)
+
+    guard buttonDescriptors.count == buttonWidgets.count else {
+        return executorRoot
+    }
+
+    var slotsByIdentity: [GTK4DescriptorIdentity: Int] = [:]
+    for (identity, widget) in zip(buttonDescriptors, buttonWidgets) {
+        slotsByIdentity[identity] = gtkNativeSlotID(for: widget)
+    }
+
+    return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
+}
+
 private func gtkCollectSupportedLeafDescriptors(
     from node: GTK4IdentifiedDescriptorNode
 ) -> [(identity: GTK4DescriptorIdentity, kind: GTK4DescriptorKind)] {
@@ -1270,6 +1443,25 @@ private func gtkCollectSupportedHostedWidgets(
     var child = gtk_widget_get_first_child(widget)
     while let c = child {
         gtkCollectSupportedHostedWidgets(from: c, into: &result)
+        child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func gtkCollectSwiftUIButtonWidgets(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    into result: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if gtk_swift_widget_is_button(widget) != 0,
+       g_object_get_data(gobject, gtkSwiftButtonActionBoxDataKey) != nil {
+        result.append(widget)
+        return
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let c = child {
+        gtkCollectSwiftUIButtonWidgets(from: c, into: &result)
         child = gtk_widget_get_next_sibling(c)
     }
 }
@@ -1408,10 +1600,20 @@ public func gtkCanvasPayloadsByIdentity(
 
 public func gtkTaskPayloadsByIdentity(
     descriptorRoot: GTK4IdentifiedDescriptorNode,
-    payloads: [GTK4TaskPayload]
+    payloads: [GTK4TaskPayload],
+    includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity: GTK4TaskPayload] {
-    let identities = gtkCollectTaskDescriptorIdentities(from: descriptorRoot)
-    guard identities.count == payloads.count else { return [:] }
+    let identities = gtkCollectTaskDescriptorIdentities(
+        from: descriptorRoot,
+        includingListRowScopes: includingListRowScopes
+    )
+    guard identities.count == payloads.count else {
+        gtkDescriptorLifecycleDebugLog(
+            "task payload identity mismatch identities=\(identities.count) payloads=\(payloads.count)"
+        )
+        guard !identities.isEmpty, !payloads.isEmpty else { return [:] }
+        return Dictionary(uniqueKeysWithValues: zip(identities, payloads))
+    }
 
     var result: [GTK4DescriptorIdentity: GTK4TaskPayload] = [:]
     for (identity, payload) in zip(identities, payloads) {
@@ -1422,12 +1624,30 @@ public func gtkTaskPayloadsByIdentity(
 
 public func gtkOnAppearPayloadsByIdentity(
     descriptorRoot: GTK4IdentifiedDescriptorNode,
-    payloads: [GTK4OnAppearPayload]
+    payloads: [GTK4OnAppearPayload],
+    includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity: GTK4OnAppearPayload] {
-    let identities = gtkCollectOnAppearDescriptorIdentities(from: descriptorRoot)
+    let identities = gtkCollectOnAppearDescriptorIdentities(
+        from: descriptorRoot,
+        includingListRowScopes: includingListRowScopes
+    )
     guard identities.count == payloads.count else { return [:] }
 
     var result: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
+    for (identity, payload) in zip(identities, payloads) {
+        result[identity] = payload
+    }
+    return result
+}
+
+public func gtkButtonPayloadsByIdentity(
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    payloads: [GTK4ButtonPayload]
+) -> [GTK4DescriptorIdentity: GTK4ButtonPayload] {
+    let identities = gtkCollectButtonDescriptorIdentities(from: descriptorRoot)
+    guard identities.count == payloads.count else { return [:] }
+
+    var result: [GTK4DescriptorIdentity: GTK4ButtonPayload] = [:]
     for (identity, payload) in zip(identities, payloads) {
         result[identity] = payload
     }
@@ -1448,27 +1668,69 @@ private func gtkCollectCanvasDescriptorIdentities(
 }
 
 private func gtkCollectTaskDescriptorIdentities(
-    from node: GTK4IdentifiedDescriptorNode
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
+        return []
+    }
+
     var result: [GTK4DescriptorIdentity] = []
     if node.descriptor.kind == .task {
         result.append(node.identity)
     }
     for child in node.children {
-        result.append(contentsOf: gtkCollectTaskDescriptorIdentities(from: child))
+        result.append(
+            contentsOf: gtkCollectTaskDescriptorIdentities(
+                from: child,
+                includingListRowScopes: includingListRowScopes
+            )
+        )
     }
     return result
 }
 
+private func gtkDescriptorLifecycleDebugLog(_ message: String) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
+        return
+    }
+    if let data = ("[QuillUI GTK] " + message + "\n").data(using: .utf8) {
+        FileHandle.standardError.write(data)
+    }
+}
+
 private func gtkCollectOnAppearDescriptorIdentities(
-    from node: GTK4IdentifiedDescriptorNode
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
+        return []
+    }
+
     var result: [GTK4DescriptorIdentity] = []
     if node.descriptor.kind == .onAppear {
         result.append(node.identity)
     }
     for child in node.children {
-        result.append(contentsOf: gtkCollectOnAppearDescriptorIdentities(from: child))
+        result.append(
+            contentsOf: gtkCollectOnAppearDescriptorIdentities(
+                from: child,
+                includingListRowScopes: includingListRowScopes
+            )
+        )
+    }
+    return result
+}
+
+private func gtkCollectButtonDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode
+) -> [GTK4DescriptorIdentity] {
+    var result: [GTK4DescriptorIdentity] = []
+    if node.descriptor.kind == .button {
+        result.append(node.identity)
+    }
+    for child in node.children {
+        result.append(contentsOf: gtkCollectButtonDescriptorIdentities(from: child))
     }
     return result
 }

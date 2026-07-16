@@ -39,6 +39,13 @@ final class GTK4DescriptorTests: XCTestCase {
         XCTAssertEqual(node.children[1].kind, .text)
     }
 
+    func testDescribeStopsAtReactiveHostBoundary() {
+        let node = gtkDescribeView(GTKDescriptorStatefulBoundaryProbe())
+        XCTAssertEqual(node.kind, .composite)
+        XCTAssertTrue(node.typeName.hasPrefix("GTKStatefulHost<"))
+        XCTAssertTrue(node.children.isEmpty)
+    }
+
     // MARK: - Identify
 
     func testIdentifyAssignsPaths() {
@@ -50,6 +57,28 @@ final class GTK4DescriptorTests: XCTestCase {
         XCTAssertEqual(identified.identity.path, [])
         XCTAssertEqual(identified.children[0].identity.path, [0])
         XCTAssertEqual(identified.children[1].identity.path, [1])
+    }
+
+    func testKeyedDescriptorIdentitySurvivesSiblingInsertion() throws {
+        let oldNode = keyedOnAppearDescriptor(includePrefix: false)
+        let newNode = keyedOnAppearDescriptor(includePrefix: true)
+        let payload = GTK4OnAppearPayload {}
+
+        let oldPayloads = gtkOnAppearPayloadsByIdentity(
+            descriptorRoot: gtkIdentifyDescriptorTree(oldNode),
+            payloads: [payload]
+        )
+        let newPayloads = gtkOnAppearPayloadsByIdentity(
+            descriptorRoot: gtkIdentifyDescriptorTree(newNode),
+            payloads: [payload]
+        )
+
+        let oldIdentity = try XCTUnwrap(oldPayloads.keys.first)
+        let newIdentity = try XCTUnwrap(newPayloads.keys.first)
+
+        XCTAssertEqual(oldIdentity, newIdentity)
+        XCTAssertNotEqual(oldIdentity.path, newIdentity.path)
+        XCTAssertTrue(oldIdentity.components.contains("key:IdView<stable-list-route>"))
     }
 
     // MARK: - Match
@@ -557,5 +586,46 @@ final class GTK4DescriptorTests: XCTestCase {
             new: gtkIdentifyDescriptorTree(newTree))
 
         XCTAssertTrue(gtkCanApplyTextColorHostMutation(plan: plan))
+    }
+}
+
+private func keyedOnAppearDescriptor(includePrefix: Bool) -> GTK4DescriptorNode {
+    let keyedSubtree = GTK4DescriptorNode(
+        kind: .composite,
+        typeName: "IdView<stable-list-route>",
+        children: [
+            GTK4DescriptorNode(
+                kind: .onAppear,
+                typeName: "OnAppearView<Text>",
+                children: [
+                    GTK4DescriptorNode(
+                        kind: .text,
+                        typeName: "Text",
+                        props: .text(GTK4TextDescriptor(content: "List route"))
+                    )
+                ]
+            )
+        ]
+    )
+    var children: [GTK4DescriptorNode] = []
+    if includePrefix {
+        children.append(GTK4DescriptorNode(
+            kind: .text,
+            typeName: "Text",
+            props: .text(GTK4TextDescriptor(content: "Inserted prefix"))
+        ))
+    }
+    children.append(keyedSubtree)
+    return GTK4DescriptorNode(kind: .vStack, typeName: "VStack", children: children)
+}
+
+private struct GTKDescriptorStatefulBoundaryProbe: View {
+    @State private var appeared = false
+
+    var body: some View {
+        Text(appeared ? "appeared" : "waiting")
+            .onAppear {
+                appeared = true
+            }
     }
 }

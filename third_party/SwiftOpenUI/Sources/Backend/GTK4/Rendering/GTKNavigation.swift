@@ -3,6 +3,10 @@ import CGTKBridge
 import SwiftOpenUI
 import Foundation
 
+private let gtkSwiftNavigationPageInteractivityMarker = "gtk-swift-navigation-page-interactive"
+private let gtkSwiftNavigationPageInteractiveValue = UnsafeMutableRawPointer(bitPattern: 1)
+private let gtkSwiftNavigationPageInactiveValue = UnsafeMutableRawPointer(bitPattern: 2)
+
 // MARK: - Helpers
 
 private func gtkNavigationDebugLog(_ message: String) {
@@ -15,20 +19,164 @@ private func gtkNavigationDebugLog(_ message: String) {
     FileHandle.standardError.write(Data("[SwiftOpenUI][Navigation] \(message)\n".utf8))
 }
 
+private func gtkNavigationDebugLabelPreview(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    limit: Int = 12
+) -> [String] {
+    var labels: [String] = []
+
+    func walk(_ node: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 96, labels.count < limit else { return }
+        let typeName = String(cString: g_type_name(gtk_swift_get_widget_type(node)))
+        if typeName == "GtkLabel" {
+            labels.append(String(cString: gtk_label_get_text(OpaquePointer(node))))
+        }
+
+        var child = gtk_widget_get_first_child(node)
+        while let current = child, labels.count < limit {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(widget, depth: 0)
+    return labels
+}
+
+private func gtkNavigationRestoreSignature(
+    title: String,
+    rootWidget: UnsafeMutablePointer<GtkWidget>
+) -> String? {
+    let labels = gtkNavigationDebugLabelPreview(in: rootWidget, limit: 32)
+        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        .filter { !$0.isEmpty }
+    let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedTitle.isEmpty || !labels.isEmpty else { return nil }
+    return ([normalizedTitle] + labels.prefix(24)).joined(separator: "|")
+}
+
 /// Box for passing a widget pointer through a C callback.
 private class WidgetRef {
     let widget: UnsafeMutablePointer<GtkWidget>
     init(_ widget: UnsafeMutablePointer<GtkWidget>) { self.widget = widget }
 }
 
+/// Result from resolving a navigation destination.
+struct GTKResolvedDestination {
+    let widget: OpaquePointer
+    let title: String
+    let toolbarItems: [AnyToolbarItem]
+}
+
+private struct GTKDeferredNavigationDestination {
+    let title: String
+    let toolbarItems: [AnyToolbarItem]
+    let render: () -> OpaquePointer
+}
+
+private enum GTKNavigationPersistedRoute {
+    case value(AnyHashable)
+    case destination(
+        stateNamespace: String?,
+        makeDestination: (GTKNavigationContext) -> GTKDeferredNavigationDestination?
+    )
+}
+
+private struct GTKPendingPresentedNavigationDestination {
+    let stateNamespace: String
+    let isPresented: Binding<Bool>
+    let route: GTKNavigationPersistedRoute
+}
+
+private struct GTKNavigationPersistedRouteSnapshot {
+    let stateNamespace: String
+    let routes: [GTKNavigationPersistedRoute]
+}
+
+private let gtkNavigationPersistedRoutesLock = NSLock()
+private var gtkNavigationPersistedRoutesByNamespace: [String: [GTKNavigationPersistedRoute]] = [:]
+private var gtkNavigationPersistedRoutesBySignature: [String: GTKNavigationPersistedRouteSnapshot] = [:]
+
+private func gtkNavigationPersistedRoutes(
+    for stateNamespace: String,
+    restoreSignature: String?
+) -> [GTKNavigationPersistedRoute] {
+    gtkNavigationPersistedRoutesLock.lock()
+    defer { gtkNavigationPersistedRoutesLock.unlock() }
+    if let routes = gtkNavigationPersistedRoutesByNamespace[stateNamespace], !routes.isEmpty {
+        return routes
+    }
+    guard let restoreSignature,
+          let snapshot = gtkNavigationPersistedRoutesBySignature[restoreSignature] else {
+        return []
+    }
+    return snapshot.routes
+}
+
+private func gtkNavigationSetPersistedRoutes(
+    _ routes: [GTKNavigationPersistedRoute],
+    for stateNamespace: String,
+    restoreSignature: String?
+) {
+    gtkNavigationPersistedRoutesLock.lock()
+    if routes.isEmpty {
+        gtkNavigationPersistedRoutesByNamespace.removeValue(forKey: stateNamespace)
+        if let restoreSignature,
+           let snapshot = gtkNavigationPersistedRoutesBySignature.removeValue(forKey: restoreSignature),
+           snapshot.stateNamespace != stateNamespace {
+            gtkNavigationPersistedRoutesByNamespace.removeValue(forKey: snapshot.stateNamespace)
+        }
+    } else {
+        gtkNavigationPersistedRoutesByNamespace[stateNamespace] = routes
+        if let restoreSignature {
+            gtkNavigationPersistedRoutesBySignature[restoreSignature] = GTKNavigationPersistedRouteSnapshot(
+                stateNamespace: stateNamespace,
+                routes: routes
+            )
+        }
+    }
+    gtkNavigationPersistedRoutesLock.unlock()
+}
+
 // MARK: - Navigation context (GTK-specific)
 
 /// Entry in the navigation stack.
 struct GTKNavigationEntry {
-    let title: String
+    var title: String
     let name: String
+    let stateNamespace: String
     let widget: UnsafeMutablePointer<GtkWidget>
     var toolbarWidgets: [(widget: UnsafeMutablePointer<GtkWidget>, placement: ToolbarItemPlacement)] = []
+    var toolbarSignature: GTKNavigationToolbarSignature?
+}
+
+struct GTKNavigationToolbarSnapshot {
+    let title: String
+    let toolbarItems: [AnyToolbarItem]
+    let hidden: Bool
+}
+
+struct GTKNavigationToolbarSignature: Equatable {
+    let title: String
+    let hidden: Bool
+    let items: [String]
+}
+
+private func gtkNavigationToolbarSignature(
+    title: String,
+    toolbarItems: [AnyToolbarItem],
+    hidden: Bool
+) -> GTKNavigationToolbarSignature {
+    GTKNavigationToolbarSignature(
+        title: title,
+        hidden: hidden,
+        items: hidden ? [] : toolbarItems.map { item in
+            let renderedTypes = item.renderedViews
+                .map { String(reflecting: type(of: $0)) }
+                .joined(separator: "+")
+            return "\(item.placement):\(renderedTypes)"
+        }
+    )
 }
 
 /// Manages the navigation stack state for GTK4.
@@ -37,6 +185,8 @@ class GTKNavigationContext {
     let stack: OpaquePointer          // GtkStack
     let headerBar: OpaquePointer      // GtkHeaderBar
     let backButton: UnsafeMutablePointer<GtkWidget>
+    let stateNamespace: String
+    var restoreSignature: String?
     var entries: [GTKNavigationEntry] = []
     var nameCounter = 0
 
@@ -45,60 +195,267 @@ class GTKNavigationContext {
 
     /// Optional binding to a NavigationPath for programmatic navigation sync.
     var pathBinding: Binding<NavigationPath>?
+    var typedPathBinding: AnyNavigationPathBinding?
 
     /// Guard against re-entrant sync between path and stack.
     private var isSyncing = false
+    private var representedPath: [AnyHashable] = []
+    private var persistedRoutes: [GTKNavigationPersistedRoute] = []
+    private var presentedDestinationBindings: [String: Binding<Bool>] = [:]
+    private var pendingPresentedDestinations: [GTKPendingPresentedNavigationDestination] = []
 
-    init(stack: OpaquePointer, headerBar: OpaquePointer, backButton: UnsafeMutablePointer<GtkWidget>) {
+    private var shouldPersistUnboundValueRoutes: Bool {
+        pathBinding == nil && typedPathBinding == nil
+    }
+
+    init(
+        stack: OpaquePointer,
+        headerBar: OpaquePointer,
+        backButton: UnsafeMutablePointer<GtkWidget>,
+        stateNamespace: String
+    ) {
         self.stack = stack
         self.headerBar = headerBar
         self.backButton = backButton
+        self.stateNamespace = stateNamespace
     }
 
     /// Push a new view onto the navigation stack.
-    func push(title: String, toolbarItems: [AnyToolbarItem] = [], content: @escaping () -> OpaquePointer) {
+    @discardableResult
+    func push(
+        title: String,
+        toolbarItems: [AnyToolbarItem] = [],
+        stateNamespace: String? = nil,
+        content: @escaping () -> OpaquePointer
+    ) -> String {
         let name = "nav-\(nameCounter)"
         nameCounter += 1
 
         // Remove current entry's toolbar widgets
         removeCurrentToolbarWidgets()
 
-        let widget = widgetFromOpaque(content())
+        let pageNamespace = stateNamespace ?? "\(self.stateNamespace)::Entry[\(name)]"
+        let widget = widgetFromOpaque(
+            gtkWithForcedStateIdentityNamespace(pageNamespace) {
+                content()
+            }
+        )
         gtkConfigureNavigationPageToFillAllocation(widget)
+        if let current = entries.last {
+            gtkSetNavigationPageInteractive(current.widget, false)
+        }
+        gtkSetNavigationPageInteractive(widget, true)
         gtk_stack_add_named(stack, widget, name)
 
-        var entry = GTKNavigationEntry(title: title, name: name, widget: widget)
+        var entry = GTKNavigationEntry(
+            title: title,
+            name: name,
+            stateNamespace: pageNamespace,
+            widget: widget
+        )
 
         // Install new toolbar items into header bar
         for item in toolbarItems {
-            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-            switch item.placement {
-            case .leading:
-                gtk_header_bar_pack_start(headerBar, itemWidget)
-            case .primaryAction, .trailing:
-                gtk_header_bar_pack_end(headerBar, itemWidget)
+            for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                switch item.placement {
+                case .leading:
+                    gtk_header_bar_pack_start(headerBar, itemWidget)
+                case .center:
+                    gtk_header_bar_set_title_widget(headerBar, itemWidget)
+                case .primaryAction, .trailing:
+                    gtk_header_bar_pack_end(headerBar, itemWidget)
+                }
+                g_object_ref(gpointer(itemWidget))
+                entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
             }
-            g_object_ref(gpointer(itemWidget))
-            entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
         }
+        entry.toolbarSignature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: toolbarItems,
+            hidden: false
+        )
 
         entries.append(entry)
 
-        // Slide left for push
-        gtk_stack_set_transition_type(stack, GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT)
+        // Bound-path reconciliation can happen repeatedly during state-host
+        // rebuilds. Avoid restarting a slide transition and exposing stale
+        // root content while the path already points at the destination.
+        gtk_stack_set_transition_type(
+            stack,
+            isSyncing ? GTK_STACK_TRANSITION_TYPE_NONE : GTK_STACK_TRANSITION_TYPE_SLIDE_LEFT
+        )
         gtk_stack_set_visible_child_name(stack, name)
+        gtkResumeViewHostLifecycleForVisibleSubtree(widget)
+        g_object_ref(gpointer(widget))
+        g_idle_add({ userData -> gboolean in
+            let widgetRef = Unmanaged<WidgetRef>.fromOpaque(userData!).takeRetainedValue()
+            if gtk_swift_is_widget(widgetRef.widget) != 0 {
+                gtkResumeViewHostLifecycleForVisibleSubtree(widgetRef.widget)
+            }
+            g_object_unref(gpointer(widgetRef.widget))
+            return 0
+        }, Unmanaged.passRetained(WidgetRef(widget)).toOpaque())
         updateHeaderBar()
+        return pageNamespace
     }
 
     /// Push a hashable value, resolving destination via the registry.
-    func pushValue(_ value: AnyHashable) {
-        guard let resolved = destinationRegistry.resolve(value) else { return }
+    @discardableResult
+    func pushValue(_ value: AnyHashable, persist: Bool = true) -> Bool {
+        guard let resolved = destinationRegistry.resolve(value) else {
+            gtkNavigationDebugLog("unresolved path element type=\(type(of: value.base))")
+            return false
+        }
 
-        let title = resolved.title.isEmpty ? String(describing: value.base) : resolved.title
-        push(title: title, toolbarItems: resolved.toolbarItems) {
+        let title = resolved.title
+        gtkNavigationDebugLog(
+            "push value type=\(type(of: value.base)) title=\(title) "
+            + "labels=\(gtkNavigationDebugLabelPreview(in: widgetFromOpaque(resolved.widget)))"
+        )
+        push(
+            title: title,
+            toolbarItems: resolved.toolbarItems,
+            stateNamespace: navigationDestinationStateNamespace(for: value)
+        ) {
             resolved.widget
         }
+        representedPath.append(value)
+        if persist && shouldPersistUnboundValueRoutes && !isSyncing {
+            appendPersistedRoute(.value(value))
+        }
         syncPathAfterPush(value)
+        return true
+    }
+
+    func nextDestinationStateNamespace() -> String {
+        "\(stateNamespace)::Entry[nav-\(nameCounter)]"
+    }
+
+    @discardableResult
+    fileprivate func pushDestinationRoute(
+        _ route: GTKNavigationPersistedRoute,
+        persist: Bool = true
+    ) -> Bool {
+        guard case let .destination(routeStateNamespace, makeDestination) = route,
+              let resolved = makeDestination(self) else {
+            return false
+        }
+        let destinationStateNamespace = routeStateNamespace ?? nextDestinationStateNamespace()
+        let routeToPersist: GTKNavigationPersistedRoute
+        if routeStateNamespace == nil {
+            routeToPersist = .destination(
+                stateNamespace: destinationStateNamespace,
+                makeDestination: makeDestination
+            )
+        } else {
+            routeToPersist = route
+        }
+
+        gtkNavigationDebugLog(
+            "push destination title=\(resolved.title) stateNamespace=\(destinationStateNamespace)"
+        )
+        push(
+            title: resolved.title,
+            toolbarItems: resolved.toolbarItems,
+            stateNamespace: destinationStateNamespace
+        ) {
+            resolved.render()
+        }
+        if persist && !isSyncing {
+            appendPersistedRoute(routeToPersist)
+        }
+        return true
+    }
+
+    func restorePersistedRoutesIfNeeded() {
+        guard representedPath.isEmpty, entries.count == 1 else {
+            return
+        }
+        let routes = gtkNavigationPersistedRoutes(for: stateNamespace, restoreSignature: restoreSignature)
+        guard !routes.isEmpty else { return }
+
+        gtkNavigationDebugLog("restore persisted routes count=\(routes.count)")
+        isSyncing = true
+        persistedRoutes = routes
+        gtkNavigationSetPersistedRoutes(
+            routes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
+        for route in routes {
+            switch route {
+            case .value(let value):
+                _ = pushValue(value, persist: false)
+            case .destination:
+                _ = pushDestinationRoute(route, persist: false)
+            }
+        }
+        isSyncing = false
+    }
+
+    private func appendPersistedRoute(_ route: GTKNavigationPersistedRoute) {
+        persistedRoutes.append(route)
+        gtkNavigationSetPersistedRoutes(
+            persistedRoutes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
+    }
+
+    private func removeLastPersistedRouteAfterPop() {
+        guard !isSyncing else { return }
+        if !persistedRoutes.isEmpty {
+            persistedRoutes.removeLast()
+        }
+        gtkNavigationSetPersistedRoutes(
+            persistedRoutes,
+            for: stateNamespace,
+            restoreSignature: restoreSignature
+        )
+    }
+
+    func hasPresentedDestination(stateNamespace: String) -> Bool {
+        entries.contains { $0.stateNamespace == stateNamespace }
+    }
+
+    fileprivate func enqueuePresentedDestination(
+        stateNamespace: String,
+        isPresented: Binding<Bool>,
+        route: GTKNavigationPersistedRoute
+    ) {
+        guard isPresented.wrappedValue else { return }
+        guard !hasPresentedDestination(stateNamespace: stateNamespace) else { return }
+        guard !pendingPresentedDestinations.contains(where: { $0.stateNamespace == stateNamespace }) else {
+            return
+        }
+        pendingPresentedDestinations.append(
+            GTKPendingPresentedNavigationDestination(
+                stateNamespace: stateNamespace,
+                isPresented: isPresented,
+                route: route
+            )
+        )
+    }
+
+    func flushPendingPresentedDestinations() {
+        let pending = pendingPresentedDestinations
+        pendingPresentedDestinations.removeAll()
+
+        for destination in pending where destination.isPresented.wrappedValue {
+            guard !hasPresentedDestination(stateNamespace: destination.stateNamespace) else { continue }
+            if pushDestinationRoute(destination.route) {
+                presentedDestinationBindings[destination.stateNamespace] = destination.isPresented
+            }
+        }
+    }
+
+    private func clearPresentedDestinationBindingIfNeeded(for stateNamespace: String) {
+        guard let binding = presentedDestinationBindings.removeValue(forKey: stateNamespace) else {
+            return
+        }
+        if binding.wrappedValue {
+            binding.wrappedValue = false
+        }
     }
 
     /// Pop the top view from the navigation stack.
@@ -107,13 +464,22 @@ class GTKNavigationContext {
 
         removeCurrentToolbarWidgets()
         let removed = entries.removeLast()
+        clearPresentedDestinationBindingIfNeeded(for: removed.stateNamespace)
+        if !representedPath.isEmpty {
+            representedPath.removeLast()
+        }
+        removeLastPersistedRouteAfterPop()
         let previous = entries.last!
+        gtkSetNavigationPageInteractive(removed.widget, false)
+        gtkSetNavigationPageInteractive(previous.widget, true)
 
         // Restore previous entry's toolbar widgets
         for item in previous.toolbarWidgets {
             switch item.placement {
             case .leading:
                 gtk_header_bar_pack_start(headerBar, item.widget)
+            case .center:
+                gtk_header_bar_set_title_widget(headerBar, item.widget)
             case .primaryAction, .trailing:
                 gtk_header_bar_pack_end(headerBar, item.widget)
             }
@@ -151,6 +517,41 @@ class GTKNavigationContext {
         }
     }
 
+    func syncFromBoundPath() {
+        guard !isSyncing else { return }
+        guard pathBinding != nil || typedPathBinding != nil else { return }
+        let targetPath = pathBinding?.wrappedValue.elements
+            ?? typedPathBinding?.elements()
+            ?? []
+        guard targetPath != representedPath else { return }
+
+        var commonPrefixCount = 0
+        while commonPrefixCount < targetPath.count,
+              commonPrefixCount < representedPath.count,
+              targetPath[commonPrefixCount] == representedPath[commonPrefixCount] {
+            commonPrefixCount += 1
+        }
+
+        gtkNavigationDebugLog(
+            "sync path current=\(representedPath.count) target=\(targetPath.count) common=\(commonPrefixCount)"
+        )
+
+        isSyncing = true
+        while representedPath.count > commonPrefixCount, entries.count > 1 {
+            pop()
+        }
+        for element in targetPath.dropFirst(commonPrefixCount) {
+            if !pushValue(element) {
+                break
+            }
+        }
+        isSyncing = false
+    }
+
+    func navigationDestinationStateNamespace(for value: AnyHashable) -> String {
+        "\(stateNamespace)::NavigationDestination[\(String(reflecting: value))]"
+    }
+
     // MARK: - Path binding sync
 
     /// Suppress path sync (used during initial path consumption).
@@ -159,23 +560,31 @@ class GTKNavigationContext {
 
     /// After a UI-driven push, append the value to the bound path.
     private func syncPathAfterPush(_ value: AnyHashable) {
-        guard let pathBinding = pathBinding, !isSyncing else { return }
+        guard !isSyncing else { return }
         isSyncing = true
-        var path = pathBinding.wrappedValue
-        path.elements.append(value)
-        pathBinding.wrappedValue = path
+        if let pathBinding = pathBinding {
+            var path = pathBinding.wrappedValue
+            path.elements.append(value)
+            pathBinding.wrappedValue = path
+        } else if let typedPathBinding = typedPathBinding {
+            typedPathBinding.append(value)
+        }
         isSyncing = false
     }
 
     /// After a UI-driven pop, remove the last element from the bound path.
     private func syncPathAfterPop() {
-        guard let pathBinding = pathBinding, !isSyncing else { return }
+        guard !isSyncing else { return }
         isSyncing = true
-        var path = pathBinding.wrappedValue
-        if !path.isEmpty {
-            path.removeLast()
+        if let pathBinding = pathBinding {
+            var path = pathBinding.wrappedValue
+            if !path.isEmpty {
+                path.removeLast()
+            }
+            pathBinding.wrappedValue = path
+        } else if let typedPathBinding = typedPathBinding {
+            typedPathBinding.removeLast(1)
         }
-        pathBinding.wrappedValue = path
         isSyncing = false
     }
 
@@ -183,25 +592,146 @@ class GTKNavigationContext {
     private func removeCurrentToolbarWidgets() {
         guard let current = entries.last else { return }
         for item in current.toolbarWidgets {
-            gtk_header_bar_remove(headerBar, item.widget)
+            if item.placement == .center {
+                gtk_header_bar_set_title_widget(headerBar, gtk_label_new(""))
+            } else {
+                gtk_header_bar_remove(headerBar, item.widget)
+            }
         }
+    }
+
+    private func installToolbarItems(
+        _ toolbarItems: [AnyToolbarItem],
+        into entry: inout GTKNavigationEntry
+    ) {
+        for item in toolbarItems {
+            for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                switch item.placement {
+                case .leading:
+                    gtk_header_bar_pack_start(headerBar, itemWidget)
+                case .center:
+                    gtk_header_bar_set_title_widget(headerBar, itemWidget)
+                case .primaryAction, .trailing:
+                    gtk_header_bar_pack_end(headerBar, itemWidget)
+                }
+                g_object_ref(gpointer(itemWidget))
+                entry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
+            }
+        }
+    }
+
+    func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {
+        guard let current = entries.last else { return }
+        guard current.toolbarWidgets.isEmpty else { return }
+        let title = snapshot.title.isEmpty ? current.title : snapshot.title
+        let signature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: snapshot.toolbarItems,
+            hidden: snapshot.hidden
+        )
+        guard current.toolbarSignature != signature else { return }
+
+        removeCurrentToolbarWidgets()
+        var entry = entries.removeLast()
+        entry.toolbarWidgets.removeAll()
+        entry.title = title
+        if !snapshot.hidden {
+            installToolbarItems(snapshot.toolbarItems, into: &entry)
+        }
+        entry.toolbarSignature = signature
+        entries.append(entry)
+        updateHeaderBar()
     }
 
     private func updateHeaderBar() {
         let title = entries.last?.title ?? ""
-        gtk_header_bar_set_title_widget(headerBar, gtk_label_new(title))
+        if let principal = entries.last?.toolbarWidgets.first(where: { $0.placement == .center })?.widget {
+            gtk_header_bar_set_title_widget(headerBar, principal)
+        } else {
+            gtk_header_bar_set_title_widget(headerBar, gtk_label_new(title))
+        }
         gtk_widget_set_visible(backButton, entries.count > 1 ? 1 : 0)
     }
 }
 
-// MARK: - Destination registry
-
-/// Result from resolving a navigation destination.
-struct GTKResolvedDestination {
-    let widget: OpaquePointer
-    let title: String
-    let toolbarItems: [AnyToolbarItem]
+private struct GTKNavigationContextEnvironmentKey: EnvironmentKey {
+    static let defaultValue: GTKNavigationContext? = nil
 }
+
+private func gtkEnvironmentWithNavigationContext(
+    _ base: EnvironmentValues,
+    context: GTKNavigationContext
+) -> EnvironmentValues {
+    var env = base
+    env[GTKNavigationContextEnvironmentKey.self] = context
+    env[NavigateKey.self] = NavigateAction(
+        push: { [weak context] value in context?.pushValue(value) },
+        pop: { [weak context] in context?.pop() },
+        popToRoot: { [weak context] in context?.popToRoot() }
+    )
+    return env
+}
+
+private func gtkEnvironmentWithNavigationDestinationDismiss(
+    _ base: EnvironmentValues,
+    context: GTKNavigationContext
+) -> EnvironmentValues {
+    var env = base
+    env.dismiss = DismissAction(handler: { [weak context] in
+        context?.pop()
+    }, debugName: "gtk navigation destination")
+    return env
+}
+
+private let gtkNavigationPathSyncTickCallback: GtkTickCallback = { _, _, userData in
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKNavigationContext>.fromOpaque(userData).takeUnretainedValue()
+    context.syncFromBoundPath()
+    return 1
+}
+
+func gtkTestSyncNavigationPath(
+    in stack: UnsafeMutablePointer<GtkWidget>
+) -> Int {
+    guard let data = g_object_get_data(
+        UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self),
+        "nav-context"
+    ) else {
+        return -1
+    }
+    let context = Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()
+    context.syncFromBoundPath()
+    return context.entries.count
+}
+
+func gtkTestNavigationEntryCount(
+    in stack: UnsafeMutablePointer<GtkWidget>
+) -> Int {
+    guard let data = g_object_get_data(
+        UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self),
+        "nav-context"
+    ) else {
+        return -1
+    }
+    let context = Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()
+    return context.entries.count
+}
+
+func gtkTestPopNavigation(
+    in stack: UnsafeMutablePointer<GtkWidget>
+) -> Int {
+    guard let data = g_object_get_data(
+        UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self),
+        "nav-context"
+    ) else {
+        return -1
+    }
+    let context = Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()
+    context.pop()
+    return context.entries.count
+}
+
+// MARK: - Destination registry
 
 /// Registry of type-to-view factories for path-based navigation.
 class GTKNavigationDestinationRegistry {
@@ -238,8 +768,10 @@ func setCurrentNavigationContext(_ context: GTKNavigationContext?) {
 }
 
 func getCurrentNavigationContext() -> GTKNavigationContext? {
-    guard let ptr = pthread_getspecific(_navContextKey) else { return nil }
-    return Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()
+    if let ptr = pthread_getspecific(_navContextKey) {
+        return Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()
+    }
+    return getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
 }
 #else
 private var _currentNavContext: GTKNavigationContext?
@@ -249,7 +781,7 @@ func setCurrentNavigationContext(_ context: GTKNavigationContext?) {
 }
 
 func getCurrentNavigationContext() -> GTKNavigationContext? {
-    _currentNavContext
+    _currentNavContext ?? getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
 }
 #endif
 
@@ -259,7 +791,7 @@ func getCurrentNavigationContext() -> GTKNavigationContext? {
 /// Walks the view tree recursively so .navigationTitle() works regardless
 /// of modifier ordering or nesting depth.
 func gtkExtractTitle<V: View>(from view: V) -> String {
-    return gtkExtractTitleAny(from: view)
+    return gtkExtractTitleTyped(from: view)
 }
 
 private func gtkExtractTitleAny(from view: Any, depth: Int = 0) -> String {
@@ -282,13 +814,37 @@ private func gtkExtractTitleAny(from view: Any, depth: Int = 0) -> String {
     return ""
 }
 
+private func gtkExtractTitleAnyView(_ view: any View, depth: Int) -> String {
+    func extract<V: View>(_ value: V) -> String {
+        gtkExtractTitleTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractTitleTyped<V: View>(from view: V, depth: Int = 0) -> String {
+    guard depth < 20 else { return "" }
+
+    let reflected = gtkExtractTitleAny(from: view, depth: depth)
+    if !reflected.isEmpty {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractTitleTyped(from: view.body, depth: depth + 1)
+        }
+    }
+
+    return ""
+}
+
 // MARK: - Toolbar extraction
 
 /// Extract toolbar items from a view tree via ToolbarProvider protocol.
 /// Walks Mirror children recursively (depth-limited) to find ToolbarProvider
 /// regardless of modifier ordering.
 func gtkExtractToolbarItems<V: View>(from view: V) -> [AnyToolbarItem] {
-    return gtkExtractToolbarItemsAny(from: view)
+    return gtkExtractToolbarItemsTyped(from: view)
 }
 
 private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyToolbarItem] {
@@ -306,9 +862,36 @@ private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyTo
     }
 
     for child in mirror.children {
-        if child.value is any View {
-            let result = gtkExtractToolbarItemsAny(from: child.value, depth: depth + 1)
+        if let childView = child.value as? any View {
+            let result = gtkExtractToolbarItemsAnyView(childView, depth: depth + 1)
             if !result.isEmpty { return result }
+        }
+    }
+
+    return []
+}
+
+private func gtkExtractToolbarItemsAnyView(_ view: any View, depth: Int) -> [AnyToolbarItem] {
+    func extract<V: View>(_ value: V) -> [AnyToolbarItem] {
+        gtkExtractToolbarItemsTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractToolbarItemsTyped<V: View>(
+    from view: V,
+    depth: Int = 0
+) -> [AnyToolbarItem] {
+    guard depth < 20 else { return [] }
+
+    let reflected = gtkExtractToolbarItemsAny(from: view, depth: depth)
+    if !reflected.isEmpty {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractToolbarItemsTyped(from: view.body, depth: depth + 1)
         }
     }
 
@@ -317,7 +900,7 @@ private func gtkExtractToolbarItemsAny(from view: Any, depth: Int = 0) -> [AnyTo
 
 /// Extract toolbar configuration from a view tree via ToolbarConfigurationProvider.
 func gtkExtractToolbarConfiguration<V: View>(from view: V) -> ToolbarConfiguration? {
-    return gtkExtractToolbarConfigurationAny(from: view)
+    return gtkExtractToolbarConfigurationTyped(from: view)
 }
 
 private func gtkExtractToolbarConfigurationAny(from view: Any, depth: Int = 0) -> ToolbarConfiguration? {
@@ -335,10 +918,36 @@ private func gtkExtractToolbarConfigurationAny(from view: Any, depth: Int = 0) -
     }
 
     for child in mirror.children {
-        if child.value is any View {
-            if let result = gtkExtractToolbarConfigurationAny(from: child.value, depth: depth + 1) {
+        if let childView = child.value as? any View {
+            if let result = gtkExtractToolbarConfigurationAnyView(childView, depth: depth + 1) {
                 return result
             }
+        }
+    }
+
+    return nil
+}
+
+private func gtkExtractToolbarConfigurationAnyView(_ view: any View, depth: Int) -> ToolbarConfiguration? {
+    func extract<V: View>(_ value: V) -> ToolbarConfiguration? {
+        gtkExtractToolbarConfigurationTyped(from: value, depth: depth)
+    }
+    return extract(view)
+}
+
+private func gtkExtractToolbarConfigurationTyped<V: View>(
+    from view: V,
+    depth: Int = 0
+) -> ToolbarConfiguration? {
+    guard depth < 20 else { return nil }
+
+    if let reflected = gtkExtractToolbarConfigurationAny(from: view, depth: depth) {
+        return reflected
+    }
+
+    if V.Body.self != Never.self {
+        return gtkAssumeMainActorIsolated {
+            gtkExtractToolbarConfigurationTyped(from: view.body, depth: depth + 1)
         }
     }
 
@@ -359,6 +968,24 @@ func gtkApplyToolbarConfiguration(
     let hidden = config.visibility == .hidden && targetAppliesToGTK
     let filtered = items.filter { !config.removedPlacements.contains($0.placement) }
     return (filtered, hidden)
+}
+
+func gtkNavigationToolbarSnapshot<V: View>(from view: V) -> GTKNavigationToolbarSnapshot? {
+    let title = gtkExtractTitle(from: view)
+    let rawToolbarItems = gtkExtractToolbarItems(from: view)
+    let toolbarConfig = gtkExtractToolbarConfiguration(from: view)
+    guard !rawToolbarItems.isEmpty || toolbarConfig != nil || !title.isEmpty else {
+        return nil
+    }
+    let (toolbarItems, hidden) = gtkApplyToolbarConfiguration(
+        items: rawToolbarItems,
+        configuration: toolbarConfig
+    )
+    return GTKNavigationToolbarSnapshot(
+        title: title,
+        toolbarItems: toolbarItems,
+        hidden: hidden
+    )
 }
 
 // MARK: - GTK rendering extensions
@@ -382,9 +1009,18 @@ extension NavigationStack: GTKRenderable {
         gtk_widget_set_hexpand(stack, 1)
 
         // Create context
-        let context = GTKNavigationContext(stack: stackOp, headerBar: headerBarOp, backButton: backButton)
+        let navigationStateNamespace = gtkClaimStateIdentityNamespace("NavigationStack")
+        let context = GTKNavigationContext(
+            stack: stackOp,
+            headerBar: headerBarOp,
+            backButton: backButton,
+            stateNamespace: navigationStateNamespace
+        )
         if let pathBinding = pathBinding {
             context.pathBinding = pathBinding
+        }
+        if let typedPathBinding = typedPathBinding {
+            context.typedPathBinding = typedPathBinding
         }
 
         // Attach context to stack widget for lifetime management
@@ -393,6 +1029,12 @@ extension NavigationStack: GTKRenderable {
         g_object_set_data_full(gobject, "nav-context", retained, { userData in
             Unmanaged<GTKNavigationContext>.fromOpaque(userData!).release()
         })
+        _ = gtk_widget_add_tick_callback(
+            stack,
+            gtkNavigationPathSyncTickCallback,
+            Unmanaged.passUnretained(context).toOpaque(),
+            nil
+        )
 
         // Connect back button
         let backBox = Unmanaged.passRetained(ClosureBox { [weak context] in
@@ -414,75 +1056,111 @@ extension NavigationStack: GTKRenderable {
 
         // Set context for render pass
         setCurrentNavigationContext(context)
-        var env = getCurrentEnvironment()
-        env[NavigateKey.self] = NavigateAction(
-            push: { [weak context] value in context?.pushValue(value) },
-            pop: { [weak context] in context?.pop() },
-            popToRoot: { [weak context] in context?.popToRoot() }
-        )
         let prevEnv = getCurrentEnvironment()
+        let env = gtkEnvironmentWithNavigationContext(prevEnv, context: context)
         setCurrentEnvironment(env)
         let title = gtkExtractTitle(from: content)
         let rootWidget = widgetFromOpaque(gtkRenderView(content))
         gtkConfigureNavigationPageToFillAllocation(rootWidget)
-        setCurrentEnvironment(prevEnv)
-        setCurrentNavigationContext(nil)
+        context.restoreSignature = gtkNavigationRestoreSignature(title: title, rootWidget: rootWidget)
 
-        // Extract and install root toolbar items
+        // Extract and install root toolbar items while the same navigation and
+        // presentation environment is active. Toolbar button actions capture
+        // this environment for deferred GTK callbacks; restoring too early
+        // drops values such as WindowGroup(for:) dismiss.
         let rawToolbarItems = gtkExtractToolbarItems(from: content)
         let toolbarConfig = gtkExtractToolbarConfiguration(from: content)
         let (toolbarItems, toolbarHidden) = gtkApplyToolbarConfiguration(items: rawToolbarItems, configuration: toolbarConfig)
-        var rootEntry = GTKNavigationEntry(title: title, name: "nav-root", widget: rootWidget)
+        var rootEntry = GTKNavigationEntry(
+            title: title,
+            name: "nav-root",
+            stateNamespace: navigationStateNamespace,
+            widget: rootWidget
+        )
         if !toolbarHidden {
-        for item in toolbarItems {
-            let itemWidget = widgetFromOpaque(gtkRenderAnyView(item.wrapped))
-            switch item.placement {
-            case .leading:
-                gtk_header_bar_pack_start(headerBarOp, itemWidget)
-            case .primaryAction, .trailing:
-                gtk_header_bar_pack_end(headerBarOp, itemWidget)
+            for item in toolbarItems {
+                for itemWidget in gtkRenderToolbarItemWidgets(item) {
+                    switch item.placement {
+                    case .leading:
+                        gtk_header_bar_pack_start(headerBarOp, itemWidget)
+                    case .center:
+                        gtk_header_bar_set_title_widget(headerBarOp, itemWidget)
+                    case .primaryAction, .trailing:
+                        gtk_header_bar_pack_end(headerBarOp, itemWidget)
+                    }
+                    g_object_ref(gpointer(itemWidget))
+                    rootEntry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
+                }
             }
-            g_object_ref(gpointer(itemWidget))
-            rootEntry.toolbarWidgets.append((widget: itemWidget, placement: item.placement))
         }
-        } // end if !toolbarHidden
+        rootEntry.toolbarSignature = gtkNavigationToolbarSignature(
+            title: title,
+            toolbarItems: toolbarItems,
+            hidden: toolbarHidden
+        )
+        setCurrentEnvironment(prevEnv)
+        setCurrentNavigationContext(nil)
 
         // Add root as first stack entry
+        gtkSetNavigationPageInteractive(rootWidget, true)
         gtk_stack_add_named(stackOp, rootWidget, "nav-root")
         gtk_stack_set_visible_child_name(stackOp, "nav-root")
         context.entries.append(rootEntry)
 
         // Set initial title
-        gtk_header_bar_set_title_widget(headerBarOp, gtk_label_new(title))
+        if let principal = rootEntry.toolbarWidgets.first(where: { $0.placement == .center })?.widget {
+            gtk_header_bar_set_title_widget(headerBarOp, principal)
+        } else {
+            gtk_header_bar_set_title_widget(headerBarOp, gtk_label_new(title))
+        }
 
         // Consume any initial path elements (suppress sync — these are already in the binding)
-        if let pathBinding = pathBinding {
-            let path = pathBinding.wrappedValue
-            if !path.isEmpty {
-                context.beginSync()
-                setCurrentNavigationContext(context)
-                setCurrentEnvironment(env)
-                for element in path.elements {
-                    context.pushValue(element)
-                }
-                setCurrentEnvironment(prevEnv)
-                setCurrentNavigationContext(nil)
-                context.endSync()
+        let initialPathElements = pathBinding?.wrappedValue.elements
+            ?? typedPathBinding?.elements()
+            ?? []
+        if !initialPathElements.isEmpty {
+            context.beginSync()
+            setCurrentNavigationContext(context)
+            setCurrentEnvironment(env)
+            for element in initialPathElements {
+                context.pushValue(element)
             }
+            setCurrentEnvironment(prevEnv)
+            setCurrentNavigationContext(nil)
+            context.endSync()
+        } else {
+            setCurrentNavigationContext(context)
+            setCurrentEnvironment(env)
+            context.restorePersistedRoutesIfNeeded()
+            setCurrentEnvironment(prevEnv)
+            setCurrentNavigationContext(nil)
         }
+        setCurrentNavigationContext(context)
+        setCurrentEnvironment(env)
+        context.flushPendingPresentedDestinations()
+        setCurrentEnvironment(prevEnv)
+        setCurrentNavigationContext(nil)
 
         if getCurrentEnvironment().isPresentedInSheet {
             let container = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
-            let inlineBar = gtkCreateInlineNavigationBar(
-                title: title,
-                toolbarItems: toolbarItems,
-                hidden: toolbarHidden
+            // Keep the navigation context and installed sheet chrome pointed at
+            // the same live GtkHeaderBar. Creating a separate inline toolbar
+            // leaves later toolbar refreshes mutating an unparented bar that
+            // GTK can invalidate during sheet rebuilds.
+            gtk_widget_set_size_request(headerBar, -1, 52)
+            gtk_widget_set_hexpand(headerBar, 1)
+            gtk_widget_set_vexpand(headerBar, 0)
+            gtk_widget_set_halign(headerBar, GTK_ALIGN_FILL)
+            gtk_widget_set_valign(headerBar, GTK_ALIGN_START)
+            applyCSSToWidget(
+                headerBar,
+                properties: "background: #f8f8fb; border-bottom: 1px solid rgba(0,0,0,0.12); min-height: 52px;"
             )
             gtk_widget_set_hexpand(container, 1)
             gtk_widget_set_vexpand(container, 1)
             gtk_widget_set_halign(container, GTK_ALIGN_FILL)
             gtk_widget_set_valign(container, GTK_ALIGN_FILL)
-            gtk_box_append(boxPointer(container), inlineBar)
+            gtk_box_append(boxPointer(container), headerBar)
             gtk_box_append(boxPointer(container), stack)
             return opaqueFromWidget(container)
         } else {
@@ -505,6 +1183,101 @@ private func gtkConfigureNavigationPageToFillAllocation(_ widget: UnsafeMutableP
     gtk_widget_set_valign(widget, GTK_ALIGN_FILL)
 }
 
+private func gtkSetNavigationPageInteractive(_ widget: UnsafeMutablePointer<GtkWidget>, _ isInteractive: Bool) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(
+        gobject,
+        gtkSwiftNavigationPageInteractivityMarker,
+        isInteractive ? gtkSwiftNavigationPageInteractiveValue : gtkSwiftNavigationPageInactiveValue
+    )
+    gtk_widget_set_can_target(widget, isInteractive ? 1 : 0)
+}
+
+private func gtkNavigationDisableButtonChildTargeting(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    gtk_widget_set_can_target(widget, 0)
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkNavigationDisableButtonChildTargeting(current)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+protocol GTKNavigationPrimaryActionProvider {
+    var gtkNavigationPrimaryAction: (() -> Void)? { get }
+}
+
+private func gtkNavigationDestinationRoute<Destination: View>(
+    in context: GTKNavigationContext,
+    title: String,
+    stateNamespace: String? = nil,
+    destination: @escaping () -> Destination,
+    capturedEnvironment: EnvironmentValues
+) -> GTKNavigationPersistedRoute {
+    return .destination(stateNamespace: stateNamespace) { context in
+        let previousContext = getCurrentNavigationContext()
+        setCurrentNavigationContext(context)
+        let prevEnv = getCurrentEnvironment()
+        var env = capturedEnvironment
+        env.refreshInjectedObjectsFromRegistry()
+        env = gtkEnvironmentWithNavigationContext(env, context: context)
+        env = gtkEnvironmentWithNavigationDestinationDismiss(env, context: context)
+        setCurrentEnvironment(env)
+        let destView = destination()
+        let extracted = gtkExtractTitle(from: destView)
+        let finalTitle = extracted.isEmpty ? title : extracted
+        let rawItems = gtkExtractToolbarItems(from: destView)
+        let destConfig = gtkExtractToolbarConfiguration(from: destView)
+        let (toolbarItems, destHidden) = gtkApplyToolbarConfiguration(items: rawItems, configuration: destConfig)
+        setCurrentEnvironment(prevEnv)
+        setCurrentNavigationContext(previousContext)
+        return GTKDeferredNavigationDestination(
+            title: finalTitle,
+            toolbarItems: destHidden ? [] : toolbarItems,
+            render: {
+                let previousContext = getCurrentNavigationContext()
+                setCurrentNavigationContext(context)
+                let prevEnv = getCurrentEnvironment()
+                var env = capturedEnvironment
+                env.refreshInjectedObjectsFromRegistry()
+                env = gtkEnvironmentWithNavigationContext(env, context: context)
+                env = gtkEnvironmentWithNavigationDestinationDismiss(env, context: context)
+                setCurrentEnvironment(env)
+                let widget = gtkRenderView(destView)
+                setCurrentEnvironment(prevEnv)
+                setCurrentNavigationContext(previousContext)
+                return widget
+            }
+        )
+    }
+}
+
+extension NavigationLink: GTKNavigationPrimaryActionProvider {
+    var gtkNavigationPrimaryAction: (() -> Void)? {
+        guard let context = getCurrentNavigationContext() else {
+            return nil
+        }
+
+        if let value = pushValue {
+            return { [weak context] in
+                context?.pushValue(value)
+            }
+        }
+
+        let destTitle = title
+        let dest = destination
+        let capturedEnv = getCurrentEnvironment()
+        let route = gtkNavigationDestinationRoute(
+            in: context,
+            title: destTitle,
+            destination: dest,
+            capturedEnvironment: capturedEnv
+        )
+        return {
+            context.pushDestinationRoute(route)
+        }
+    }
+}
+
 extension NavigationLink: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
         let button: UnsafeMutablePointer<GtkWidget>
@@ -513,6 +1286,7 @@ extension NavigationLink: GTKRenderable {
             let childWidget = widgetFromOpaque(gtkRenderView(labelView))
             let btnPtr = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GtkButton.self)
             gtk_button_set_child(btnPtr, childWidget)
+            gtkNavigationDisableButtonChildTargeting(childWidget)
             applyCSSToWidget(button, properties: """
                 border: none;
                 outline: none;
@@ -523,6 +1297,8 @@ extension NavigationLink: GTKRenderable {
         } else {
             button = gtk_button_new_with_label(label)!
         }
+        gtk_widget_set_hexpand(button, 1)
+        gtk_widget_set_halign(button, GTK_ALIGN_FILL)
 
         // Capture context strongly at render time
         guard let context = getCurrentNavigationContext() else {
@@ -562,29 +1338,15 @@ extension NavigationLink: GTKRenderable {
         // restores the correct ancestor environment (not whatever is ambient
         // at dispatch time). See deferred-callback-environment-binding.md.
         let capturedEnv = getCurrentEnvironment()
+        let route = gtkNavigationDestinationRoute(
+            in: context,
+            title: destTitle,
+            destination: dest,
+            capturedEnvironment: capturedEnv
+        )
 
         let box = Unmanaged.passRetained(ClosureBox {
-            // Set context for rendering the destination
-            setCurrentNavigationContext(context)
-            let prevEnv = getCurrentEnvironment()
-            var env = capturedEnv
-            env[NavigateKey.self] = NavigateAction(
-                push: { [weak context] value in context?.pushValue(value) },
-                pop: { [weak context] in context?.pop() },
-                popToRoot: { [weak context] in context?.popToRoot() }
-            )
-            setCurrentEnvironment(env)
-            let destView = dest()
-            let extracted = gtkExtractTitle(from: destView)
-            let finalTitle = extracted.isEmpty ? destTitle : extracted
-            let rawItems = gtkExtractToolbarItems(from: destView)
-            let destConfig = gtkExtractToolbarConfiguration(from: destView)
-            let (toolbarItems, destHidden) = gtkApplyToolbarConfiguration(items: rawItems, configuration: destConfig)
-            context.push(title: finalTitle, toolbarItems: destHidden ? [] : toolbarItems) {
-                gtkRenderView(destView)
-            }
-            setCurrentEnvironment(prevEnv)
-            setCurrentNavigationContext(nil)
+            context.pushDestinationRoute(route)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -616,18 +1378,20 @@ extension NavigationDestinationModifier: GTKRenderable {
                 setCurrentNavigationContext(context)
                 let prevEnv = getCurrentEnvironment()
                 var env = capturedEnv
-                env[NavigateKey.self] = NavigateAction(
-                    push: { [weak context] value in context?.pushValue(value) },
-                    pop: { [weak context] in context?.pop() },
-                    popToRoot: { [weak context] in context?.popToRoot() }
-                )
+                env.refreshInjectedObjectsFromRegistry()
+                env = gtkEnvironmentWithNavigationContext(env, context: context)
+                env = gtkEnvironmentWithNavigationDestinationDismiss(env, context: context)
                 setCurrentEnvironment(env)
                 let destView = destinationBuilder(value)
                 let title = gtkExtractTitle(from: destView)
                 let rawItems = gtkExtractToolbarItems(from: destView)
                 let destConfig = gtkExtractToolbarConfiguration(from: destView)
                 let (filteredItems, destHidden) = gtkApplyToolbarConfiguration(items: rawItems, configuration: destConfig)
-                let widget = gtkRenderView(destView)
+                let widget = gtkWithForcedStateIdentityNamespace(
+                    context.navigationDestinationStateNamespace(for: value)
+                ) {
+                    gtkRenderView(destView)
+                }
                 setCurrentEnvironment(prevEnv)
                 setCurrentNavigationContext(nil)
                 return GTKResolvedDestination(widget: widget, title: title, toolbarItems: destHidden ? [] : filteredItems)
@@ -636,6 +1400,49 @@ extension NavigationDestinationModifier: GTKRenderable {
 
         // Render the wrapped content
         return gtkRenderView(content)
+    }
+}
+
+extension NavigationPresentedDestinationModifier: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        let presentedStateNamespace = gtkClaimStateIdentityNamespace("NavigationPresentedDestination")
+        let capturedEnv = getCurrentEnvironment()
+        let widget = gtkRenderView(content)
+
+        guard let context = getCurrentNavigationContext(), isPresented.wrappedValue else {
+            return widget
+        }
+
+        let route = gtkNavigationDestinationRoute(
+            in: context,
+            title: "",
+            stateNamespace: presentedStateNamespace,
+            destination: destination,
+            capturedEnvironment: capturedEnv
+        )
+        context.enqueuePresentedDestination(
+            stateNamespace: presentedStateNamespace,
+            isPresented: isPresented,
+            route: route
+        )
+        if !context.entries.isEmpty {
+            context.flushPendingPresentedDestinations()
+        }
+
+        return widget
+    }
+}
+
+extension NavigationPresentedDestinationModifier: GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .composite,
+            typeName: "NavigationPresentedDestinationModifier",
+            props: .text(GTK4TextDescriptor(
+                content: isPresented.wrappedValue ? "presented" : "dismissed"
+            )),
+            children: [gtkDescribeView(content)]
+        )
     }
 }
 
@@ -801,7 +1608,7 @@ private func gtkCreateToolbarRow<V: View>(from view: V) -> UnsafeMutablePointer<
     let trailingCluster = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 14)!
     gtk_widget_set_margin_start(trailingCluster, 620)
 
-    for item in toolbarItems where item.placement != .leading {
+    for item in toolbarItems where item.placement != .leading && item.placement != .center {
         for widget in gtkRenderToolbarItemWidgets(item) {
             gtk_box_append(boxPointer(trailingCluster), widget)
         }
@@ -843,19 +1650,25 @@ private func gtkCreateInlineNavigationBar(
                 gtk_box_append(boxPointer(leading), widget)
             }
         }
-        for item in toolbarItems where item.placement != .leading {
+        for item in toolbarItems where item.placement != .leading && item.placement != .center {
             for widget in gtkRenderToolbarItemWidgets(item) {
                 gtk_box_append(boxPointer(trailing), widget)
             }
         }
     }
 
-    let titleLabel = gtk_label_new(title)!
+    let titleLabel: UnsafeMutablePointer<GtkWidget>
+    if let principal = toolbarItems.first(where: { $0.placement == .center }),
+       let principalWidget = gtkRenderToolbarItemWidgets(principal).first {
+        titleLabel = principalWidget
+    } else {
+        titleLabel = gtk_label_new(title)!
+        applyCSSToWidget(titleLabel, properties: "font-weight: 600;")
+    }
     gtk_widget_set_hexpand(titleLabel, 1)
     gtk_widget_set_halign(titleLabel, GTK_ALIGN_CENTER)
     gtk_widget_set_valign(titleLabel, GTK_ALIGN_CENTER)
     gtk_widget_set_margin_top(titleLabel, 18)
-    applyCSSToWidget(titleLabel, properties: "font-weight: 600;")
 
     gtk_box_append(boxPointer(row), leading)
     gtk_box_append(boxPointer(row), titleLabel)
@@ -1040,6 +1853,8 @@ private func gtkInstallToolbar<V: View>(from view: V, on widget: UnsafeMutablePo
             switch item.placement {
             case .leading:
                 gtk_header_bar_pack_start(headerBarOp, itemWidget)
+            case .center:
+                gtk_header_bar_set_title_widget(headerBarOp, itemWidget)
             case .primaryAction, .trailing:
                 gtk_header_bar_pack_end(headerBarOp, itemWidget)
             }

@@ -107,6 +107,29 @@ final class Phase3ViewTests: XCTestCase {
         XCTAssertEqual(image.scale.pointSize, 24)
     }
 
+    func testImageStringDescriptionUsesInlineMarker() {
+        let text = String(describing: Image(systemName: "globe"))
+        XCTAssertTrue(QuillInlineImageText.containsMarker(text))
+        XCTAssertFalse(text.contains("Image(source"))
+        XCTAssertEqual(
+            QuillInlineImageText.parse(text),
+            [.image(.init(kind: .systemName, name: "globe"))]
+        )
+    }
+
+    func testImageInterpolationInTextAvoidsDebugDescription() {
+        let text = Text("\(Image(systemName: "globe")) · Public")
+        XCTAssertTrue(QuillInlineImageText.containsMarker(text.content))
+        XCTAssertFalse(text.content.contains("Image(source"))
+        XCTAssertEqual(
+            QuillInlineImageText.parse(text.content),
+            [
+                .image(.init(kind: .systemName, name: "globe")),
+                .text(" · Public"),
+            ]
+        )
+    }
+
     func testImageRendererReadsFileBackedImageBytes() throws {
         let bytes = Data("swift-openui-image-\(UUID().uuidString)".utf8)
         let url = FileManager.default.temporaryDirectory
@@ -134,5 +157,13 @@ final class Phase3ViewTests: XCTestCase {
         XCTAssertTrue(list.content is any MultiChildView)
         let children = (list.content as! any MultiChildView).children
         XCTAssertEqual(children.count, 2)
+    }
+
+    func testListRowBackgroundCarriesMetadata() throws {
+        let row = Text("Explore").listRowBackground(Color.white)
+        let provider = try XCTUnwrap(row as? any ListRowBackgroundProvider)
+
+        XCTAssertTrue(provider.listRowBackground is Color)
+        XCTAssertTrue(provider.listRowBackgroundContent is Text)
     }
 }

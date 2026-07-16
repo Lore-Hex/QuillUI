@@ -22,7 +22,11 @@ public extension View {
     }
 
     func minimumScaleFactor(_ factor: Double) -> MinimumScaleFactorView<Self> {
-        MinimumScaleFactorView(content: self, factor: factor)
+        recordSwiftUICompatibilityFallback(
+            "minimumScaleFactor",
+            message: "minimumScaleFactor is preserved as text layout metadata on Linux."
+        )
+        return MinimumScaleFactorView(content: self, factor: factor)
     }
 }
 
@@ -71,7 +75,7 @@ public extension Font {
 
 public extension ToolbarItemPlacement {
     static var automatic: ToolbarItemPlacement { .primaryAction }
-    static var principal: ToolbarItemPlacement { .primaryAction }
+    static var principal: ToolbarItemPlacement { .center }
     static var navigation: ToolbarItemPlacement { .leading }
     static var navigationBarLeading: ToolbarItemPlacement { .leading }
     static var navigationBarTrailing: ToolbarItemPlacement { .trailing }

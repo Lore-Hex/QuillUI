@@ -4,6 +4,7 @@ import Testing
 @testable import BackendGTK4
 import CGTK
 import CGTKBridge
+import QuillSwiftUICompatibility
 import SwiftUI
 
 @Suite("GTK describe cycle guard", .serialized)
@@ -26,6 +27,46 @@ struct GTKDescribeCycleGuardTests {
             capturedNames.contains { $0.contains("Cyclic") },
             "Expected cycle chain to include Cyclic, got \(capturedNames.joined(separator: " -> "))"
         )
+    }
+
+    @Test("TabView descriptor captures task payloads from tab content")
+    func tabViewDescriptorCapturesTaskPayloadsFromTabContent() {
+        let captured = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(TabTaskDescriptorProbe())
+        }
+
+        #expect(
+            captured.taskPayloads.count == 1,
+            "Expected TabView descriptor capture to include the .task payload from its selected-route content"
+        )
+    }
+
+    @Test("Explore-style modifier chain preserves task payloads")
+    func exploreStyleModifierChainPreservesTaskPayloads() {
+        let captured = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(ExploreTaskModifierProbe())
+        }
+
+        #expect(
+            captured.taskPayloads.count == 2,
+            "Expected both the load .task and search .task(id:) payloads to survive the Explore modifier chain"
+        )
+    }
+
+    @Test("task(id:) carries lifecycle identity")
+    func taskIDCarriesLifecycleIdentity() {
+        let alpha = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(TaskIDProbe(taskID: "alpha"))
+        }
+        let beta = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(TaskIDProbe(taskID: "beta"))
+        }
+
+        #expect(alpha.taskPayloads.count == 1)
+        #expect(beta.taskPayloads.count == 1)
+        #expect(alpha.taskPayloads.first?.lifecycleID?.contains("alpha") == true)
+        #expect(beta.taskPayloads.first?.lifecycleID?.contains("beta") == true)
+        #expect(alpha.taskPayloads.first?.lifecycleID != beta.taskPayloads.first?.lifecycleID)
     }
 
     @Test("SwiftUI shadow foregroundStyle reaches GTK labels through wrappers")
@@ -102,11 +143,115 @@ struct GTKDescribeCycleGuardTests {
             "Expected a hit-testing metadata wrapper, got \(typeName)"
         )
     }
+
+    @Test("SwiftUI compatibility wrappers have transparent body fallbacks")
+    func swiftUICompatibilityWrappersHaveTransparentBodyFallbacks() throws {
+        let hitTesting = QuillCompatibilityAllowsHitTestingView(
+            content: Text("Decorative transcript"),
+            enabled: false
+        )
+        let shaped = QuillCompatibilityContentShapeView(
+            content: Text("Expanded target"),
+            shape: Rectangle()
+        )
+        let selectable = QuillCompatibilityTextSelectionView(
+            content: Text("Selectable transcript"),
+            selection: .enabled
+        )
+        let hoverable = QuillCompatibilityOnHoverView(
+            content: Text("Hoverable transcript"),
+            action: { _ in }
+        )
+        let labeled = AccessibilityLabelView(
+            content: Text("Readable transcript"),
+            label: "Readable transcript"
+        )
+        let valued = AccessibilityValueView(
+            content: Text("Unread count"),
+            value: "3 unread"
+        )
+        let hinted = AccessibilityHintView(
+            content: Text("Open"),
+            hint: "Opens the selected timeline"
+        )
+        let element = AccessibilityElementView(
+            content: Text("Combined row"),
+            children: .combine
+        )
+
+        #expect(String(describing: type(of: hitTesting.body)).contains("Text"))
+        #expect(String(describing: type(of: shaped.body)).contains("Text"))
+        #expect(String(describing: type(of: selectable.body)).contains("Text"))
+        #expect(String(describing: type(of: hoverable.body)).contains("Text"))
+        #expect(String(describing: type(of: labeled.body)).contains("Text"))
+        #expect(String(describing: type(of: valued.body)).contains("Text"))
+        #expect(String(describing: type(of: hinted.body)).contains("Text"))
+        #expect(String(describing: type(of: element.body)).contains("Text"))
+    }
 }
 
 private struct Cyclic: View {
     var body: some View {
         AnyView(Cyclic())
+    }
+}
+
+private struct TabTaskDescriptorProbe: View {
+    var body: some View {
+        TabView(initialTab: 1) {
+            Tab("Timeline", id: "timeline") {
+                Text("Timeline")
+            }
+            Tab("Explore", id: "explore") {
+                List {
+                    Text("Explore row")
+                }
+                .task {}
+            }
+        }
+    }
+}
+
+private enum ExploreTaskProbeScope: Hashable {
+    case all
+}
+
+private struct ExploreTaskModifierProbe: View {
+    @State private var searchQuery = ""
+    @State private var isSearchPresented = false
+    @State private var searchScope = ExploreTaskProbeScope.all
+
+    var body: some View {
+        ScrollViewReader { _ in
+            List {
+                Text("Explore row")
+            }
+            .task {}
+            .refreshable {}
+            .listStyle(.grouped)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Explore")
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: $searchQuery,
+                isPresented: $isSearchPresented,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: Text("Search")
+            )
+            .searchScopes($searchScope) {
+                Text("All")
+            }
+            .task(id: searchQuery) {}
+        }
+    }
+}
+
+private struct TaskIDProbe: View {
+    let taskID: String
+
+    var body: some View {
+        Text("Task ID")
+            .task(id: taskID) {}
     }
 }
 

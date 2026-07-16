@@ -108,7 +108,7 @@ Direct whole-app compile on Linux is not realistic initially:
 
 - The Mac target is AppKit-centric: `NSOutlineView`, `NSTableView`, custom `NSView` cells, `NSWindowController`, menus, pasteboard, scripting, and sharing services.
 - Article rendering uses `WKWebView` and WebKit-specific configuration.
-- Several Apple services do not exist on Linux: iCloud/CloudKit, Safari extension, WidgetKit, AppleScript, Sparkle updater, UserNotifications integration, and some sharing/account integrations.
+- Several Apple services do not exist natively on Linux: iCloud/CloudKit, Safari extension, WidgetKit, AppleScript, Sparkle updater, UserNotifications integration, and some sharing/account integrations. QuillUI now has a Linux `CloudKit` compile shim, and OpenCloudKit (`https://github.com/cocologics/OpenCloudKit`) is the documented candidate backend for a future CloudKit Web Services adapter.
 - Build system is Xcode-first for the app, though several modules are SwiftPM packages.
 - Database code uses existing SQLite/FMDatabase-style wrappers, which should inform QuillData but should not block a first Linux shell.
 
@@ -182,7 +182,7 @@ If QuillUI covers this list, it becomes a credible compatibility layer for a lar
 
 ## Not In The First Milestone
 
-- iCloud/CloudKit sync.
+- iCloud/CloudKit sync. Start with the QuillUI `CloudKit` shim for source compatibility, then wire OpenCloudKit as an optional CloudKit Web Services provider once account/auth configuration is modeled.
 - Feedbin/Feedly/Inoreader/NewsBlur/FreshRSS account parity.
 - Safari extension.
 - WidgetKit.

@@ -988,44 +988,63 @@ patch_icecubes() {
     # HTTPURLResponse, which live in the FoundationNetworking module on Linux
     # (swift-corelibs-foundation). Add a conditional `import FoundationNetworking`
     # after the first `import Foundation`; canImport is false on macOS so the
-    # Apple build is unaffected. Idempotent.
+    # Apple build is unaffected. Linux fixture-backed route smokes call through
+    # QuillURLSessionFixtures directly so matched fixture requests avoid the
+    # swift-corelibs URLProtocol task-registry cancellation trap. Idempotent.
     local dir="$UPSTREAM_DIR/icecubes/Packages/NetworkClient/Sources/NetworkClient"
     if [[ ! -d "$dir" ]]; then
         return
     fi
-    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
-    python3 - "$dir" <<'PY'
-import sys, os, glob
+	    echo "==> patching IceCubes NetworkClient for the Linux FoundationNetworking split"
+	    python3 - "$dir" <<-'PY'
+	import sys, os, glob
 
-directory = sys.argv[1]
-addition = (
-    "import Foundation\n"
-    "#if canImport(FoundationNetworking)\n"
-    "import FoundationNetworking\n"
-    "#endif"
-)
-for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
-    src = open(path).read()
-    lines = src.split("\n")
-    out = []
-    fn_done = "FoundationNetworking" in src
-    for line in lines:
-        stripped = line.strip()
-        if stripped == "import OSLog":
-            # Linux: the repo `os` shim provides Logger; there is no OSLog
-            # module, and an `@_exported import os` shim retains os_log symbols
-            # that break swift-syntax's link. Rewrite to the plain os import.
-            out.append("import os")
-        elif stripped == "import Foundation" and not fn_done:
-            out.append(addition)
-            fn_done = True
-        else:
-            out.append(line)
-    new = "\n".join(out)
-    if new != src:
-        open(path, "w").write(new)
-        print("patched", os.path.basename(path))
-PY
+	directory = sys.argv[1]
+	addition = (
+	    "import Foundation\n"
+	    "#if canImport(FoundationNetworking)\n"
+	    "import FoundationNetworking\n"
+	    "#endif"
+	)
+	for path in sorted(glob.glob(os.path.join(directory, "*.swift"))):
+	    src = open(path).read()
+	    lines = src.split("\n")
+	    out = []
+	    fn_done = "FoundationNetworking" in src
+	    for line in lines:
+	        stripped = line.strip()
+	        if stripped == "import OSLog":
+	            # Linux: the repo `os` shim provides Logger; there is no OSLog
+	            # module, and an `@_exported import os` shim retains os_log symbols
+	            # that break swift-syntax's link. Rewrite to the plain os import.
+	            out.append("import os")
+	        elif stripped == "import Foundation" and not fn_done:
+	            out.append(addition)
+	            fn_done = True
+	        else:
+	            out.append(line)
+	    new = "\n".join(out)
+	    if "import QuillKit" not in new:
+	        if "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif" in new:
+	            new = new.replace(
+	                "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif",
+	                "#if canImport(FoundationNetworking)\nimport FoundationNetworking\n#endif\nimport QuillKit",
+	                1,
+	            )
+	        else:
+	            new = new.replace("import Foundation\n", "import Foundation\nimport QuillKit\n", 1)
+	    new = new.replace(
+	        "URLSession.shared.data(for: request)",
+	        "QuillURLSessionFixtures.data(for: request, fallbackSession: URLSession.shared)",
+	    )
+	    new = new.replace(
+	        "urlSession.data(for: request)",
+	        "QuillURLSessionFixtures.data(for: request, fallbackSession: urlSession)",
+	    )
+	    if new != src:
+	        open(path, "w").write(new)
+	        print("patched", os.path.basename(path))
+	PY
 
     # Env: StreamWatcher uses URLSessionWebSocketTask (FoundationNetworking on
     # Linux); Router uses UIImage/UIApplication (UIKit — on iOS these arrive
@@ -1111,6 +1130,18 @@ PY
     if [[ -d "$statusdir" ]]; then
         echo "==> lowering IceCubes StatusKit Objective-C interop syntax for Linux"
         "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$statusdir"
+    fi
+
+    local appdir="$UPSTREAM_DIR/icecubes/IceCubesApp/App"
+    if [[ -d "$appdir" ]]; then
+        echo "==> lowering IceCubes app Objective-C/CoreFoundation interop syntax for Linux"
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$appdir"
+    fi
+
+    local intentsdir="$UPSTREAM_DIR/icecubes/IceCubesAppIntents"
+    if [[ -d "$intentsdir" ]]; then
+        echo "==> lowering IceCubes app-intents Objective-C/CoreFoundation interop syntax for Linux"
+        "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$intentsdir"
     fi
 }
 
@@ -2307,6 +2338,41 @@ print("patched UnreadFeed selector observer lowering")
 PY
     fi
 
+    local article_utilities="$shared_dir/Extensions/ArticleUtilities.swift"
+    if [[ -f "$article_utilities" ]] && grep -qE '^import Images|func iconImage\(' "$article_utilities"; then
+        echo "==> lowering netnewswire Shared ArticleUtilities image-cache island"
+        python3 - "$article_utilities" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+src = path.read_text()
+# Delete the `iconImage()` + `iconImageUrl(feed:)` island that depends on the
+# `Images` module's IconImage/IconImageCache (IconImageCache.swift is excluded
+# from the NetNewsWireSharedCore target). Match the two function signatures and
+# their 1-tab-indented closing braces, with the BODIES matched non-greedily
+# (DOTALL) so upstream refactors of the body (e.g. adding a `guard let
+# imageData = ...`) don't desync this patch the way an exact-body match did.
+island = re.compile(
+    r"\n\tfunc iconImage\(\) -> IconImage\? \{.*?\n\t\}\n"
+    r"\n\tfunc iconImageUrl\(feed: Feed\) -> URL\? \{.*?\n\t\}\n",
+    re.DOTALL,
+)
+new = island.sub("\n", src, count=1)
+if new != src:
+    # Only drop the import once the functions that used it are gone, so the
+    # import and its users can never get out of sync (the prior desync left
+    # `import Images` stripped while the functions survived -> IconImage
+    # "cannot find type" on Linux).
+    new = new.replace("import Images\n", "")
+    path.write_text(new)
+    print("patched ArticleUtilities without Images/IconImageCache dependency")
+else:
+    print("WARNING: ArticleUtilities iconImage island pattern did not match; left untouched")
+PY
+    fi
+
     local smart_feed_pasteboard_writer="$shared_dir/SmartFeeds/SmartFeedPasteboardWriter.swift"
     if [[ -f "$smart_feed_pasteboard_writer" ]] && grep -q '@MainActor @objc final class SmartFeedPasteboardWriter' "$smart_feed_pasteboard_writer"; then
         echo "==> lowering netnewswire Shared SmartFeedPasteboardWriter ObjC attribute"
@@ -2691,8 +2757,9 @@ patch_solderscope() {
     # 1. `import os.log` is lowered to `import os`, which pure-Swift shims cannot
     #    express as a clang submodule.
     # 2. The Linux CoreImage/CoreVideo bridge needs frozen camera frames
-    #    materialized to CGImage; otherwise a frozen CIImage can later draw black
-    #    when its backing capture storage changes.
+    #    materialized to CGImage and cached across the freeze state flip;
+    #    otherwise a frozen CIImage can later draw black when its backing
+    #    capture storage or representable update order changes.
     if [[ "$(uname -s)" == "Linux" ]]; then
         local dir="$UPSTREAM_DIR/solderscope/SolderScope"
         local logger="$dir/Utilities/Logger.swift"
@@ -2719,7 +2786,7 @@ import sys
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
 new = text
-replacements = [
+base_replacements = [
     (
         """            if isFrozen && frozenFrame == nil {
                 frozenFrame = currentFrame
@@ -2728,7 +2795,7 @@ replacements = [
             }
 """,
         """            if isFrozen && frozenFrame == nil {
-                frozenFrame = materializedFrame(from: currentFrame)
+                frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame
                 needsDisplay = true
             } else if !isFrozen {
                 frozenFrame = nil
@@ -2740,6 +2807,18 @@ replacements = [
         """    private var frozenFrame: CIImage?
 """,
         """    private var frozenFrame: QuillFoundation.CGImage?
+    private var lastRenderedFrame: QuillFoundation.CGImage?
+""",
+    ),
+    (
+        """                self.currentFrame = frame
+                self.needsDisplay = true
+""",
+        """                self.currentFrame = frame
+                if let renderedFrame = self.materializedFrame(from: frame) {
+                    self.lastRenderedFrame = renderedFrame
+                }
+                self.needsDisplay = true
 """,
     ),
     (
@@ -2757,7 +2836,7 @@ replacements = [
             }
 """,
         """            if frozenFrame == nil {
-                frozenFrame = materializedFrame(from: image)
+                frozenFrame = materializedFrame(from: image) ?? lastRenderedFrame
                 needsDisplay = true
             }
 """,
@@ -2795,25 +2874,85 @@ replacements = [
         } else {
             guard let ciImage = currentFrame,
                   let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            lastRenderedFrame = renderedImage
             cgImage = renderedImage
         }
 """,
     ),
 ]
+upgrade_replacements = [
+    (
+        """                frozenFrame = materializedFrame(from: currentFrame)
+                needsDisplay = true
+""",
+        """                frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame
+                needsDisplay = true
+""",
+    ),
+    (
+        """    private var frozenFrame: QuillFoundation.CGImage?
+    private var ciContext: CIContext?
+""",
+        """    private var frozenFrame: QuillFoundation.CGImage?
+    private var lastRenderedFrame: QuillFoundation.CGImage?
+    private var ciContext: CIContext?
+""",
+    ),
+    (
+        """                self.currentFrame = frame
+                self.needsDisplay = true
+""",
+        """                self.currentFrame = frame
+                if let renderedFrame = self.materializedFrame(from: frame) {
+                    self.lastRenderedFrame = renderedFrame
+                }
+                self.needsDisplay = true
+""",
+    ),
+    (
+        """                frozenFrame = materializedFrame(from: image)
+                needsDisplay = true
+""",
+        """                frozenFrame = materializedFrame(from: image) ?? lastRenderedFrame
+                needsDisplay = true
+""",
+    ),
+    (
+        """            guard let ciImage = currentFrame,
+                  let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            cgImage = renderedImage
+""",
+        """            guard let ciImage = currentFrame,
+                  let renderedImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else { return }
+            lastRenderedFrame = renderedImage
+            cgImage = renderedImage
+""",
+    ),
+]
 patched_markers = [
-    "frozenFrame = materializedFrame(from: currentFrame)",
+    "frozenFrame = materializedFrame(from: currentFrame) ?? lastRenderedFrame",
     "private var frozenFrame: QuillFoundation.CGImage?",
+    "private var lastRenderedFrame: QuillFoundation.CGImage?",
     "private func materializedFrame(from image: CIImage?) -> QuillFoundation.CGImage?",
+    "lastRenderedFrame = renderedImage",
 ]
 if all(marker in new for marker in patched_markers):
     raise SystemExit(0)
-for old, replacement in replacements:
-    if old not in new:
-        raise SystemExit(f"patch_solderscope: expected MicroscopeView snippet not found in {path}: {old.splitlines()[0]}")
-    new = new.replace(old, replacement, 1)
+for old, replacement in base_replacements:
+    if old in new:
+        new = new.replace(old, replacement, 1)
+for old, replacement in upgrade_replacements:
+    if old in new:
+        new = new.replace(old, replacement, 1)
+missing_markers = [marker for marker in patched_markers if marker not in new]
+if missing_markers:
+    raise SystemExit(
+        f"patch_solderscope: expected MicroscopeView snippet not found in {path}: "
+        + ", ".join(missing_markers)
+    )
 if new != text:
     path.write_text(new)
-    print(f"patch_solderscope: materialized frozen frames in {path}")
+    print(f"patch_solderscope: materialized and cached frozen frames in {path}")
 PY
         fi
     fi

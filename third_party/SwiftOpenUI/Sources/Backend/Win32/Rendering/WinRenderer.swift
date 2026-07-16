@@ -98,7 +98,7 @@ private func winRenderStatefulView<V: View>(_ view: V, in context: RenderContext
     host.installEffectiveEnvironment()
 
     // Phase 6+7: track which storages are read during initial body evaluation
-    beginDependencyTracking()
+    beginDependencyTracking(host: host)
     let childHwnd = host.buildBodyWithTracking(containerContext)
     if let tracking = endDependencyTracking() {
         host.lastReadSet = tracking.readSet
@@ -2503,6 +2503,15 @@ extension ForegroundColorView: WinRenderable {
     }
 }
 
+extension OptionalForegroundColorView: WinRenderable {
+    public func winCreateWidget(in context: RenderContext) -> HWND? {
+        guard let color else {
+            return winRenderView(content, in: context)
+        }
+        return content.foregroundColor(color).winCreateWidget(in: context)
+    }
+}
+
 class ForegroundColorInfo {
     let child: HWND
     let colorRef: COLORREF
@@ -3554,6 +3563,15 @@ extension ForegroundColorView: WinDescribable {
             props: .foregroundColor(winColorDescriptor(color)),
             children: [winDescribeView(content)]
         )
+    }
+}
+
+extension OptionalForegroundColorView: WinDescribable {
+    public func winDescribeNode() -> Win32DescriptorNode {
+        guard let color else {
+            return winDescribeView(content)
+        }
+        return winDescribeView(content.foregroundColor(color))
     }
 }
 
@@ -5458,7 +5476,7 @@ extension ToolbarView: WinRenderable {
             case .leading:
                 SetWindowPos(itemHwnd, nil, leadingX, 0, w, barH, UINT(SWP_NOZORDER))
                 leadingX += w + 4
-            case .trailing, .primaryAction:
+            case .center, .trailing, .primaryAction:
                 trailingRendered.append((hwnd: itemHwnd, width: w))
             }
         }
@@ -5498,7 +5516,7 @@ extension ToolbarView: WinRenderable {
             case .leading:
                 SetWindowPos(itemHwnd, nil, leadingX, 2, w, 24, UINT(SWP_NOZORDER))
                 leadingX += w + 4
-            case .trailing, .primaryAction:
+            case .center, .trailing, .primaryAction:
                 trailingItems.append((hwnd: itemHwnd, width: w))
             }
         }

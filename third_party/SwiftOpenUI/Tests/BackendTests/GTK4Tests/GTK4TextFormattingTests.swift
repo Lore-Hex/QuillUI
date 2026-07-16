@@ -420,6 +420,48 @@ final class GTK4TextFormattingTests: XCTestCase {
         XCTAssertEqual(gtk_label_get_ellipsize(label), PANGO_ELLIPSIZE_MIDDLE,
                        "truncationMode should find GtkLabel through color wrapper")
     }
+
+    func testForegroundColorAppliesMarkupToPlainText() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Accent").foregroundColor(.blue)
+        ))
+        let label = try findLabel(in: widget)
+        let markup = String(cString: gtk_label_get_label(label))
+
+        XCTAssertNotEqual(gtk_label_get_use_markup(label), 0)
+        XCTAssertTrue(markup.contains("foreground=\"#0000FF\""), markup)
+        XCTAssertTrue(markup.contains("Accent"), markup)
+    }
+
+    func testOptionalForegroundColorNilIsIdentity() throws {
+        try requireGTK()
+
+        let color: Color? = nil
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Accent").foregroundColor(color)
+        ))
+        let label = try findLabel(in: widget)
+
+        XCTAssertEqual(gtk_label_get_use_markup(label), 0)
+        XCTAssertEqual(String(cString: gtk_label_get_text(label)), "Accent")
+    }
+
+    func testOptionalForegroundColorAppliesMarkupWhenPresent() throws {
+        try requireGTK()
+
+        let color: Color? = .blue
+        let widget = widgetFromOpaque(gtkRenderView(
+            Text("Accent").foregroundColor(color)
+        ))
+        let label = try findLabel(in: widget)
+        let markup = String(cString: gtk_label_get_label(label))
+
+        XCTAssertNotEqual(gtk_label_get_use_markup(label), 0)
+        XCTAssertTrue(markup.contains("foreground=\"#0000FF\""), markup)
+        XCTAssertTrue(markup.contains("Accent"), markup)
+    }
 }
 
 // MARK: - Helpers

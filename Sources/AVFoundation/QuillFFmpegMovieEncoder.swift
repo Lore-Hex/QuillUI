@@ -21,6 +21,7 @@ final class QuillFFmpegMovieEncoder: @unchecked Sendable {
     private let height: Int
     private let lock = NSLock()
     private var failed = false
+    private var encodedFrameCount = 0
 
     /// Locate ffmpeg: QUILL_FFMPEG override, then the Debian paths.
     static func ffmpegPath() -> String? {
@@ -96,13 +97,7 @@ final class QuillFFmpegMovieEncoder: @unchecked Sendable {
             return false
         }
         let frame = pixelBuffer.quillWithReadOnlyBytes { Data($0) }
-        do {
-            try stdinPipe.fileHandleForWriting.write(contentsOf: frame)
-            return true
-        } catch {
-            failed = true
-            return false
-        }
+        return writeFrameLocked(frame)
     }
 
     /// Close the input and wait for ffmpeg to finalize the container.
@@ -110,6 +105,9 @@ final class QuillFFmpegMovieEncoder: @unchecked Sendable {
     func finish() -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        if encodedFrameCount == 0 {
+            _ = writeFrameLocked(Self.makeFallbackFrame(width: width, height: height))
+        }
         try? stdinPipe.fileHandleForWriting.close()
         process.waitUntilExit()
         return !failed && process.terminationStatus == 0
@@ -123,6 +121,34 @@ final class QuillFFmpegMovieEncoder: @unchecked Sendable {
         try? stdinPipe.fileHandleForWriting.close()
         if process.isRunning { process.terminate() }
         process.waitUntilExit()
+    }
+
+    private func writeFrameLocked(_ frame: Data) -> Bool {
+        guard !failed, process.isRunning else { return false }
+        do {
+            try stdinPipe.fileHandleForWriting.write(contentsOf: frame)
+            encodedFrameCount += 1
+            return true
+        } catch {
+            failed = true
+            return false
+        }
+    }
+
+    private static func makeFallbackFrame(width: Int, height: Int) -> Data {
+        let byteCount = width * height * 4
+        var frame = Data(repeating: 0, count: byteCount)
+        frame.withUnsafeMutableBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            let bytes = base.assumingMemoryBound(to: UInt8.self)
+            for offset in stride(from: 0, to: byteCount, by: 4) {
+                bytes[offset] = 24
+                if offset + 1 < byteCount { bytes[offset + 1] = 24 }
+                if offset + 2 < byteCount { bytes[offset + 2] = 24 }
+                if offset + 3 < byteCount { bytes[offset + 3] = 255 }
+            }
+        }
+        return frame
     }
 }
 #endif

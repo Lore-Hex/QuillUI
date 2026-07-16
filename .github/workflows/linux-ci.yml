@@ -193,6 +193,129 @@ jobs:
           QUILLUI_SOLDERSCOPE_REQUIRED: "1"
         run: scripts/linux-solderscope-smoke-check.sh .qa/quill-solderscope-launch.png
 
+      - name: Upstream IceCubes GTK visual smoke
+        run: scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account.png
+
+      - name: Upstream IceCubes GTK Add Account interaction smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=type-instance scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account-instance.png
+
+      - name: Upstream IceCubes GTK OAuth open smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=sign-in-open scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account-oauth-open.png
+
+      - name: Upstream IceCubes GTK authenticated shell smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-shell scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-shell.png
+
+      - name: Upstream IceCubes GTK authenticated Home pagination smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-home-pagination scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-home-pagination.png
+
+      - name: Upstream IceCubes GTK authenticated Home refresh smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-home-refresh scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-home-refresh.png
+
+      - name: Upstream IceCubes GTK authenticated Trending smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-trending scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-trending.png
+
+      - name: Upstream IceCubes GTK authenticated Local smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-local scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-local.png
+
+      - name: Upstream IceCubes GTK authenticated Federated smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-federated scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-federated.png
+
+      - name: Upstream IceCubes GTK authenticated Explore smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore.png
+
+      - name: Upstream IceCubes GTK authenticated Explore Links quick-access smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore-links scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore-links.png
+
+      - name: Upstream IceCubes GTK authenticated Explore Trending Posts quick-access smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore-posts scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore-posts.png
+
+      - name: Upstream IceCubes GTK authenticated Explore Tags quick-access smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore-tags scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore-tags.png
+
+      - name: Upstream IceCubes GTK authenticated Explore Suggested Users quick-access smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore-suggested-users scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore-suggested-users.png
+
+      - name: Upstream IceCubes GTK authenticated Explore search smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-explore-search scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-explore-search.png
+
+      - name: Upstream IceCubes GTK authenticated Notifications smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-notifications scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-notifications.png
+
+      - name: Upstream IceCubes GTK authenticated Notifications refresh smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-notifications-refresh scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-notifications-refresh.png
+
+      - name: Upstream IceCubes GTK authenticated Profile smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-profile scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-profile.png
+
+      - name: Upstream IceCubes GTK authenticated Messages smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-messages scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-messages.png
+
+      - name: Upstream IceCubes GTK authenticated Messages refresh smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-messages-refresh scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-messages-refresh.png
+
+      - name: Upstream IceCubes GTK authenticated Messages detail smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-messages-detail scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-messages-detail.png
+
+      - name: Upstream IceCubes GTK authenticated List smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-list scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-list.png
+
+      - name: Upstream IceCubes GTK authenticated List refresh smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-list-refresh scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-list-refresh.png
+
+      - name: Upstream IceCubes GTK authenticated List pagination smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-list-pagination scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-list-pagination.png
+
+      - name: Upstream IceCubes GTK authenticated Settings smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings.png
+
+      - name: Upstream IceCubes GTK authenticated Settings Display smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display.png
+
+      - name: Upstream IceCubes GTK authenticated Settings Display font-scale smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-scale scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-scale.png
+
+      - name: Upstream IceCubes GTK authenticated Settings Display font-picker smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-picker scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-picker.png
+
+      - name: Upstream IceCubes GTK authenticated Settings Display font-picker select smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-picker-select scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-picker-selected.png
+
+      - name: Upstream IceCubes GTK authenticated Settings Display system-color smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-system-color scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-system-color.png
+
+      - name: Upstream IceCubes GTK authenticated Composer smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer.png
+
+      - name: Upstream IceCubes GTK authenticated Composer text entry smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-type scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-typed.png
+
+      - name: Upstream IceCubes GTK authenticated Composer submit smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-submit scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-submitted.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail refresh smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-refresh scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-refresh.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail boost smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-boost scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-boost.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail quote composer smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-quote scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-quote.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail favorite smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-favorite scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-favorite.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail bookmark smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-bookmark scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-bookmark.png
+
+      - name: Upstream IceCubes GTK authenticated Status detail reply composer smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail-reply scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail-reply.png
+
+      - name: Upstream IceCubes GTK authenticated media viewer smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-media-viewer scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-media-viewer.png
+
       # Generic SwiftUI→Qt backend smoke (BackendQt, behind QUILLUI_QT_GENERIC).
       # This is the ONLY step that compiles the CQtBridge C++ wrapper, links
       # SwiftOpenUI into the Qt graph, and runs the real QtBackend().run(QtSmokeApp)

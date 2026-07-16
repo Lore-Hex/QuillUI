@@ -222,6 +222,7 @@ private func configureQuillListRowOverlay(
     gtk_widget_set_vexpand(overlay, gtk_widget_get_vexpand(content))
     gtk_widget_set_halign(overlay, GTK_ALIGN_FILL)
     gtk_widget_set_valign(overlay, GTK_ALIGN_FILL)
+    gtk_widget_set_can_target(overlay, 0)
     gtk_widget_set_can_focus(overlay, 0)
 }
 

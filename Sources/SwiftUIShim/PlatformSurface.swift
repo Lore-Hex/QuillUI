@@ -1,6 +1,8 @@
+import AuthenticationServices
 import CoreTransferable
 import Foundation
 import AppKit
+import QuillSwiftUICompatibility
 import SwiftOpenUI
 import UIKit
 
@@ -31,10 +33,29 @@ public struct WebAuthenticationSessionAction: Sendable {
     public init() {}
 
     public func authenticate(using url: URL, callbackURLScheme: String?) async throws -> URL {
-        _ = url
-        _ = callbackURLScheme
-        throw URLError(.userAuthenticationRequired)
+        try await withCheckedThrowingContinuation { continuation in
+            let holder = QuillWebAuthenticationSessionHolder()
+            let session = ASWebAuthenticationSession(url: url, callbackURLScheme: callbackURLScheme) { callbackURL, error in
+                holder.session = nil
+                if let callbackURL {
+                    continuation.resume(returning: callbackURL)
+                } else {
+                    continuation.resume(throwing: error ?? URLError(.userAuthenticationRequired))
+                }
+            }
+            holder.session = session
+
+            guard session.start() else {
+                holder.session = nil
+                continuation.resume(throwing: URLError(.userAuthenticationRequired))
+                return
+            }
+        }
     }
+}
+
+private final class QuillWebAuthenticationSessionHolder: @unchecked Sendable {
+    var session: ASWebAuthenticationSession?
 }
 
 private struct WebAuthenticationSessionKey: EnvironmentKey {
@@ -185,10 +206,8 @@ public extension DropDelegate {
 }
 
 public extension View {
-    @_disfavoredOverload
-    func keyboardType(_ type: UIKeyboardType) -> Self {
-        _ = type
-        return self
+    func keyboardType(_ type: UIKeyboardType) -> KeyboardTypeView<Self, UIKeyboardType> {
+        KeyboardTypeView(content: self, keyboardType: type)
     }
 
     func onDrag(_ data: @escaping () -> NSItemProvider) -> Self {
@@ -236,17 +255,5 @@ public extension View {
         return self
     }
 
-    func fileImporter(
-        isPresented: Binding<Bool>,
-        allowedContentTypes: [UTType],
-        allowsMultipleSelection: Bool = false,
-        onCompletion: @escaping (Result<[URL], Error>) -> Void
-    ) -> Self {
-        _ = isPresented
-        _ = allowedContentTypes
-        _ = allowsMultipleSelection
-        _ = onCompletion
-        return self
-    }
 }
 #endif

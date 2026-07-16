@@ -21,10 +21,15 @@ import OllamaKit
 import AsyncAlgorithms
 import Carbon
 import CoreSpotlight
+import CloudKit
+import AuthenticationServices
+import Photos
+import PhotosUI
 // Scoped: the AppKit shadow supplies kUTTypeData (upstream Telegram pairs
 // `import Cocoa` with CoreSpotlight in packages/Spotlight); a full
 // `import AppKit` here would collide with the UIKit shim surface.
 import let AppKit.kUTTypeData
+import ImageIO
 import Vision
 import IOKit
 import IOKit.pwr_mgt
@@ -36,6 +41,264 @@ import Magnet
 import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
+
+private struct CompatibilityFixedLayout: Layout {
+    let width: CGFloat
+    let height: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        _ = proposal
+        _ = subviews
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        _ = bounds
+        _ = proposal
+        _ = subviews
+    }
+}
+
+private struct CompatibilityLayoutPaintProbe: View {
+    var body: some View {
+        CompatibilityFixedLayout(width: 160, height: 90) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.12, green: 0.36, blue: 0.88))
+                    .overlay {
+                        GeometryReader { proxy in
+                            Color(red: 0.12, green: 0.36, blue: 0.88)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray, lineWidth: 1)
+                    )
+            }
+        }
+    }
+}
+
+private struct CompatibilityGeometryOverlayOnlyPaintProbe: View {
+    var body: some View {
+        CompatibilityFixedLayout(width: 160, height: 90) {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.clear)
+                .overlay {
+                    GeometryReader { proxy in
+                        Color(red: 0.12, green: 0.36, blue: 0.88)
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                    }
+                }
+        }
+    }
+}
+
+private struct CompatibilityIceCubesFeaturedMediaLayout: Layout {
+    let originalWidth: CGFloat
+    let originalHeight: CGFloat
+    let maxSize: CGSize?
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        _ = subviews
+        _ = cache
+        if let maxSize { return maxSize }
+        return calculateSize(proposal)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        _ = bounds
+        _ = proposal
+        _ = subviews
+        _ = cache
+    }
+
+    private func calculateSize(_ proposal: ProposedViewSize) -> CGSize {
+        var size: CGSize
+        switch (proposal.width, proposal.height) {
+        case (0, _), (_, 0):
+            size = .zero
+        case (nil, nil), (nil, .some(.infinity)), (.some(.infinity), .some(.infinity)), (.some(.infinity), nil):
+            size = CGSize(width: originalWidth, height: originalWidth)
+        case (nil, .some(let height)), (.some(.infinity), .some(let height)):
+            let minHeight = min(height, originalWidth)
+            size = originalHeight == 0
+                ? .zero
+                : CGSize(width: originalWidth * minHeight / originalHeight, height: minHeight)
+        case (.some(let width), .some(.infinity)), (.some(let width), nil):
+            size = originalWidth == 0
+                ? CGSize(width: width, height: width)
+                : CGSize(width: width, height: width / originalWidth * originalHeight)
+        case (.some(let width), .some(let height)):
+            if originalWidth <= width, originalHeight <= height {
+                size = CGSize(width: originalWidth, height: originalHeight)
+            } else {
+                let xRatio = width / originalWidth
+                let yRatio = height / originalHeight
+                size = xRatio < yRatio
+                    ? CGSize(width: width, height: originalHeight * xRatio)
+                    : CGSize(width: originalWidth * yRatio, height: height)
+            }
+        }
+        return CGSize(width: max(size.width, 200), height: min(size.height, 450))
+    }
+}
+
+private struct CompatibilityIceCubesFeaturedMediaProbe: View {
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color(red: 0.12, green: 0.36, blue: 0.88))
+                    .overlay {
+                        GeometryReader { proxy in
+                            Color(red: 0.12, green: 0.36, blue: 0.88)
+                                .frame(width: proxy.size.width, height: proxy.size.height)
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private struct CompatibilityIceCubesConstrainedFeaturedMediaProbe: View {
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaProbe()
+            .frame(width: 528)
+    }
+}
+
+private struct CompatibilityIceCubesConstrainedVStackMediaRowProbe: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("QuillUI fixture timeline: home rows are rendering through the real IceCubes UI.")
+            CompatibilityIceCubesFeaturedMediaProbe()
+        }
+        .frame(width: 528)
+    }
+}
+
+private struct CompatibilityIceCubesFileImageMediaProbe: View {
+    let imagePath: String
+
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray)
+                    .overlay {
+                        Image(filePath: imagePath)
+                            .resizable()
+                            .scaledToFill()
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private struct CompatibilityIceCubesGeometryFileImageMediaProbe: View {
+    let imagePath: String
+
+    var body: some View {
+        CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Group {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.gray)
+                    .overlay {
+                        GeometryReader { _ in
+                            Image(filePath: imagePath)
+                                .resizable()
+                                .scaledToFill()
+                        }
+                    }
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.gray.opacity(0.35), lineWidth: 1)
+                    )
+            }
+        }
+        .clipped()
+        .cornerRadius(10)
+    }
+}
+
+private func compatibilityOptionalDoubleValue(_ value: Any?) -> Double? {
+    guard let value else { return nil }
+    let mirror = Mirror(reflecting: value)
+    if mirror.displayStyle == .optional {
+        return mirror.children.first?.value as? Double
+    }
+    return value as? Double
+}
+
+private func writeIceCubesMediaFixturePNG() throws -> String {
+    let fixtureBase64 =
+        "iVBORw0KGgoAAAANSUhEUgAAAKAAAABaCAIAAACwpMoFAAAAoUlEQVR42u3RAQ0AAAjDsDvEGJ7BBzSZgjXVo8PFAsACLMACLMACLMCABViABViABViAAQuwAAuwAAuwAAswYAEWYAEWYAEWYMACLMACLMACLMCABViABViABViABRiwAAuwAAuwAAswYAEWYAEWYAEWYMAuABZgARZgARZgAQYswAIswAIswAIMWIAFWIAFWIAFWIABC7AAC7AAC7AA/2oBR40smWEV2aUAAAAASUVORK5CYII="
+    let file = FileManager.default.temporaryDirectory
+        .appendingPathComponent("quillui-icecubes-media-fixture-\(UUID().uuidString).png")
+    guard let data = Data(base64Encoded: fixtureBase64) else {
+        throw NSError(domain: "QuillCompatibilityModuleTests", code: 1)
+    }
+    try data.write(to: file, options: [.atomic])
+    return file.path
+}
+
+#if os(Linux)
+private struct QuillImportedFileTransferable: Transferable, Equatable, Sendable {
+    let url: URL
+    let isOriginalFile: Bool
+    let data: Data
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(importedContentType: .image) { receivedFile in
+            QuillImportedFileTransferable(
+                url: receivedFile.file,
+                isOriginalFile: receivedFile.isOriginalFile,
+                data: try Data(contentsOf: receivedFile.file)
+            )
+        }
+    }
+}
+#endif
 
 private final class PausingSpeechDelegate: AVSpeechSynthesizerDelegate {
     var events: [String] = []
@@ -1304,6 +1567,22 @@ struct CompatibilityModuleTests {
         ) == "Fallback")
     }
 
+    #if os(Linux)
+    @Test("UIFont secure coding round-trips custom font identity")
+    func uiFontSecureCodingRoundTripsCustomFontIdentity() throws {
+        let font = try #require(UIFont(name: "OpenDyslexic", size: 15))
+        let data = try NSKeyedArchiver.archivedData(
+            withRootObject: font,
+            requiringSecureCoding: false
+        )
+        let decodedFont = try NSKeyedUnarchiver.unarchivedObject(ofClass: UIFont.self, from: data)
+        let decoded = try #require(decodedFont)
+
+        #expect(decoded.fontName == "OpenDyslexic")
+        #expect(decoded.pointSize == 15)
+    }
+    #endif
+
     @Test("UIVisualEffectView contentView fills bounds")
     @MainActor
     func uiVisualEffectViewContentViewFillsBounds() {
@@ -1533,34 +1812,62 @@ struct CompatibilityModuleTests {
         let operations = Set(captured.events.map { $0.operation })
         #expect(operations.isSuperset(of: Set([
             "symbolEffect",
-            "matchedGeometryEffect",
             "transition",
             "mask",
             "contentShape",
             "allowsHitTesting",
             "gesture",
             "onHover",
-            "focusEffectDisabled",
             "focused",
-            "edgesIgnoringSafeArea",
             "ignoresSafeArea",
             "listRowInsets",
             "listRowSeparator",
+            "minimumScaleFactor",
             "scrollIndicators",
             "scrollContentBackground",
             "textSelection",
-            "keyboardType",
-            "autocapitalization",
-            "disableAutocorrection",
-            "textContentType",
             "imageScale",
             "symbolRenderingMode",
-            "renderingMode",
-            "formStyle"
+            "renderingMode"
         ])))
     }
 
+    @Test("CloudKit module reports unavailable OpenCloudKit backend")
+    func cloudKitModuleReportsUnavailableOpenCloudKitBackend() {
+        let captured = QuillCompatibilityDiagnostics.shared.captureIsolatedEvents {
+            let record = CKRecord(recordType: "Article", recordID: CKRecord.ID(recordName: "quill-record"))
+            record["title"] = "Quill"
+
+            var accountStatus: CKAccountStatus?
+            var saveError: Error?
+            let database = CKContainer.default().privateCloudDatabase
+
+            CKContainer.default().accountStatus { status, _ in
+                accountStatus = status
+            }
+            database.save(record) { _, error in
+                saveError = error
+            }
+
+            return (record: record, database: database, accountStatus: accountStatus, saveError: saveError)
+        }
+
+        #expect(captured.result.record.recordID.recordName == "quill-record")
+        #expect(captured.result.record["title"] as? String == "Quill")
+        #expect(captured.result.database.databaseScope == .private)
+        #expect(captured.result.accountStatus == .couldNotDetermine)
+        #expect((captured.result.saveError as? CKError)?.code == .serviceUnavailable)
+        #expect(QuillCloudKitCompatibility.openCloudKitProviderName == "OpenCloudKit")
+        #expect(QuillCloudKitCompatibility.openCloudKitRepositoryURL == "https://github.com/cocologics/OpenCloudKit")
+        #expect(captured.events.contains {
+            $0.subsystem == "CloudKit"
+                && $0.operation == "saveRecord"
+                && $0.message.contains("OpenCloudKit")
+        })
+    }
+
     @Test("third-party UI packages compile to visible SwiftUI-shaped views")
+    @MainActor
     func thirdPartyUIShimsCompile() {
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .rotatingDots(count: 5))
         _ = ActivityIndicatorView(isVisible: .constant(true), type: .growingCircle)
@@ -2313,6 +2620,12 @@ struct CompatibilityModuleTests {
         #expect(!UNNotificationDismissActionIdentifier.isEmpty)
         service.configureAuthorization(status: .notDetermined, requestResult: true)
         QuillCompatibilityDiagnostics.shared.clear()
+        let presentedNotifications = CompatibilityLockedValue<[QuillNotificationRequestRecord]>([])
+        service.installPresentationBackend(.init(name: "usernotifications-test-present") { record in
+            presentedNotifications.update { $0.append(record) }
+            return true
+        })
+        defer { service.installPresentationBackend(nil) }
         let openedURLs = CompatibilityLockedValue<[URL]>([])
         QuillWorkspace.installOpenBackend(QuillWorkspace.OpenBackend(name: "ui-application-test") { url in
             openedURLs.update { $0.append(url) }
@@ -2409,6 +2722,8 @@ struct CompatibilityModuleTests {
         #expect(pendingIdentifiers == ["later"])
         #expect(service.deliveredNotificationRecords.map(\.identifier) == ["now"])
         #expect(service.pendingRequestRecords.map(\.identifier) == ["later"])
+        #expect(presentedNotifications.value.map(\.identifier) == ["now"])
+        #expect(presentedNotifications.value.first?.title == "Ready")
 
         center.removeDeliveredNotifications(withIdentifiers: ["now"])
         center.removePendingNotificationRequests(withIdentifiers: ["later"])
@@ -2419,10 +2734,443 @@ struct CompatibilityModuleTests {
         #expect(operations.contains("notifications.requestAuthorization"))
         #expect(operations.contains("notifications.setCategories"))
         #expect(operations.contains("notifications.addRequest"))
+        #expect(operations.contains("notifications.present"))
         #expect(operations.contains("notifications.registerForRemoteNotifications"))
         #expect(operations.contains("openURL"))
 
         service.reset()
+    }
+
+    @Test("UserNotifications scheduled time interval requests deliver through QuillKit")
+    func userNotificationsScheduledTimeIntervalRequestsDeliverThroughQuillKit() async throws {
+        let service = QuillNotificationService.shared
+        let center = UNUserNotificationCenter.current()
+        service.reset()
+        center.removeAllDeliveredNotifications()
+        center.removeAllPendingNotificationRequests()
+        let presentedNotifications = CompatibilityLockedValue<[QuillNotificationRequestRecord]>([])
+        service.installPresentationBackend(.init(name: "scheduled-usernotifications-test-present") { record in
+            presentedNotifications.update { $0.append(record) }
+            return true
+        })
+        defer {
+            center.removeAllDeliveredNotifications()
+            center.removeAllPendingNotificationRequests()
+            service.reset()
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Scheduled"
+        content.body = "Delivered after a timer"
+        try await center.add(UNNotificationRequest(
+            identifier: "scheduled-now",
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(timeInterval: 0.1, repeats: false)
+        ))
+
+        #expect((await center.pendingNotificationRequests()).map(\.identifier) == ["scheduled-now"])
+        #expect((await center.deliveredNotifications()).isEmpty)
+
+        for _ in 0..<50 {
+            if (await center.deliveredNotifications()).map(\.request.identifier) == ["scheduled-now"] {
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        #expect((await center.deliveredNotifications()).map(\.request.identifier) == ["scheduled-now"])
+        #expect((await center.pendingNotificationRequests()).isEmpty)
+        #expect(service.deliveredNotificationRecords.map(\.identifier) == ["scheduled-now"])
+        #expect(service.pendingRequestRecords.isEmpty)
+        #expect(presentedNotifications.value.map(\.identifier) == ["scheduled-now"])
+        #expect(presentedNotifications.value.first?.body == "Delivered after a timer")
+    }
+
+    @Test("SwiftUI quickLookPreview routes URLs through QuillKit")
+    func swiftUIQuickLookPreviewRoutesThroughQuillKit() {
+        let service = QuillQuickLookService.shared
+        service.reset()
+        QuillCompatibilityDiagnostics.shared.clear()
+        let previewedURLs = CompatibilityLockedValue<[URL]>([])
+        service.installPreviewBackend(.init(name: "quicklook-preview-test") { url in
+            previewedURLs.update { $0.append(url) }
+            return true
+        })
+        defer { service.reset() }
+
+        let previewURL = URL(fileURLWithPath: "/tmp/icecubes-media-preview.jpg")
+        let selectedURL = CompatibilityLockedValue<URL?>(previewURL)
+        let binding = Binding<URL?>(
+            get: { selectedURL.value },
+            set: { newValue in selectedURL.update { $0 = newValue } }
+        )
+
+        _ = Text("Preview").quickLookPreview(binding)
+
+        #expect(previewedURLs.value == [previewURL])
+        #expect(service.previewedURLs == [previewURL])
+        #expect(selectedURL.value == nil)
+        #expect(QuillCompatibilityDiagnostics.shared.events.contains {
+            $0.operation == "quickLook.preview" && $0.message.contains("quicklook-preview-test")
+        })
+    }
+
+    @Test("SwiftUI custom Layout containers apply their measured size")
+    func swiftUICustomLayoutContainersApplyMeasuredSize() {
+        let body = CompatibilityFixedLayout(width: 160, height: 90) {
+            Text("media")
+        }.body
+        let mirror = Mirror(reflecting: body)
+        let width = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "width" }?.value)
+        let height = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "height" }?.value)
+
+        #expect(String(describing: Swift.type(of: body)).contains("FrameView"))
+        #expect(width == 160)
+        #expect(height == 90)
+    }
+
+    @Test("SwiftUI custom Layout containers use a finite width proposal")
+    func swiftUICustomLayoutContainersUseFiniteWidthProposal() {
+        let body = CompatibilityIceCubesFeaturedMediaLayout(
+            originalWidth: 640,
+            originalHeight: 360,
+            maxSize: nil
+        ) {
+            Text("media")
+        }.body
+        let mirror = Mirror(reflecting: body)
+        let width = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "width" }?.value)
+        let height = compatibilityOptionalDoubleValue(mirror.children.first { $0.label == "height" }?.value)
+
+        #expect(String(describing: Swift.type(of: body)).contains("FrameView"))
+        #expect(width == 640)
+        #expect(height == 360)
+    }
+
+    @Test("SwiftUI custom Layout containers paint full-width GTK geometry content")
+    func swiftUICustomLayoutContainersPaintFullWidthGTKGeometryContent() {
+        guard let png = quillRenderViewToImage(CompatibilityLayoutPaintProbe(), width: 200, height: 120) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var rightSideBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if x >= 120 {
+                    rightSideBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 8_000)
+        #expect(
+            rightSideBluePixels > 1_200,
+            "The IceCubes media custom Layout path must paint across the measured width, not collapse to a 1px vertical strip."
+        )
+    }
+
+    @Test("GeometryReader overlay fills the measured GTK layout slot")
+    func geometryReaderOverlayFillsMeasuredGTKLayoutSlot() {
+        guard let png = quillRenderViewToImage(CompatibilityGeometryOverlayOnlyPaintProbe(), width: 200, height: 120) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var lowerBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 70 {
+                    lowerBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 8_000)
+        #expect(
+            lowerBluePixels > 1_800,
+            "A GeometryReader overlay must receive the full vertical proposal, not a natural one-pixel allocation."
+        )
+    }
+
+    @Test("IceCubes-style featured media Layout paints across clipped GTK width")
+    func iceCubesFeaturedMediaLayoutPaintsAcrossClippedGTKWidth() {
+        guard let png = quillRenderViewToImage(CompatibilityIceCubesFeaturedMediaProbe(), width: 700, height: 500) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "The featured media preview must paint across its IceCubes-measured width after clipping and corner radius."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "The featured media preview should use the 16:9 proposed height, not the unspecified 450pt fallback cap."
+        )
+    }
+
+    @Test("IceCubes-style featured media respects constrained GTK width proposals")
+    func iceCubesFeaturedMediaLayoutUsesConstrainedGTKWidthProposal() {
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesConstrainedFeaturedMediaProbe(),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 330 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 140_000)
+        #expect(
+            bottomBluePixels < 1_000,
+            "A 640x360 IceCubes media attachment constrained to 528pt width should render near 297pt tall, not from the 640pt natural-width fallback."
+        )
+    }
+
+    @Test("IceCubes-style VStack rows propagate constrained width to media Layout children")
+    func iceCubesVStackMediaRowsUseConstrainedGTKWidthProposal() {
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesConstrainedVStackMediaRowProbe(),
+            width: 700,
+            height: 560
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 150, green > 45, red < 90 else { continue }
+                bluePixels += 1
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 130_000)
+        #expect(
+            bottomBluePixels < 1_000,
+            "A VStack status row should pass the row width proposal to an IceCubes media Layout child instead of preserving the child's 640pt natural height."
+        )
+    }
+
+    @Test("IceCubes-style file-backed image preview paints across clipped GTK width")
+    func iceCubesFileBackedMediaImagePaintsAcrossClippedGTKWidth() throws {
+        let imagePath = try writeIceCubesMediaFixturePNG()
+        defer { try? FileManager.default.removeItem(atPath: imagePath) }
+
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesFileImageMediaProbe(imagePath: imagePath),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 190, green > 95, red < 120 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "The fixture image should fill the same clipped preview area as IceCubes media attachments."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "The fixture image preview should use the 16:9 proposed height, not the unspecified 450pt fallback cap."
+        )
+    }
+
+    @Test("IceCubes-style GeometryReader image preview paints across clipped GTK width")
+    func iceCubesGeometryReaderMediaImagePaintsAcrossClippedGTKWidth() throws {
+        let imagePath = try writeIceCubesMediaFixturePNG()
+        defer { try? FileManager.default.removeItem(atPath: imagePath) }
+
+        guard let png = quillRenderViewToImage(
+            CompatibilityIceCubesGeometryFileImageMediaProbe(imagePath: imagePath),
+            width: 700,
+            height: 500
+        ) else {
+            return
+        }
+        guard
+            let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]),
+            let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+            let pixels = image.quillBGRAPixels
+        else {
+            Issue.record("Expected GTK offscreen render output to decode as a pixel-backed image")
+            return
+        }
+
+        var bluePixels = 0
+        var farRightBluePixels = 0
+        var bottomBluePixels = 0
+        let width = image.width
+        let height = image.height
+        for y in 0..<height {
+            for x in 0..<width {
+                let index = (y * width + x) * 4
+                let blue = Int(pixels[index])
+                let green = Int(pixels[index + 1])
+                let red = Int(pixels[index + 2])
+                let alpha = Int(pixels[index + 3])
+                guard alpha > 220, blue > 190, green > 95, red < 120 else { continue }
+                bluePixels += 1
+                if x >= 520 {
+                    farRightBluePixels += 1
+                }
+                if y >= 390 {
+                    bottomBluePixels += 1
+                }
+            }
+        }
+
+        #expect(bluePixels > 120_000)
+        #expect(
+            farRightBluePixels > 12_000,
+            "A resizable image returned directly from GeometryReader must receive the reader's full proposal."
+        )
+        #expect(
+            bottomBluePixels < 1_000,
+            "A resizable image returned directly from GeometryReader should use the 16:9 proposed height."
+        )
     }
 
     @Test("Magnet hot keys use the shared QuillKit registry")
@@ -2901,6 +3649,24 @@ struct CompatibilityModuleTests {
             .sink { _ in }
         cancellable.cancel()
 
+        let subject = PassthroughSubject<String, Never>()
+        let dispatchQueueCancellable = subject
+            .debounce(for: .milliseconds(1), scheduler: DispatchQueue.main)
+            .sink { _ in }
+        subject.send("debounced")
+        dispatchQueueCancellable.cancel()
+
+        let runLoopCancellable = Just("runloop")
+            .delay(for: .milliseconds(1), scheduler: RunLoop.current)
+            .sink { _ in }
+        runLoopCancellable.cancel()
+
+        let operationQueue = OperationQueue()
+        let operationQueueCancellable = Just("operation")
+            .receive(on: operationQueue)
+            .sink { _ in }
+        operationQueueCancellable.cancel()
+
         let publisher = AnyPublisher<Int, Never>()
             .map { $0 > 0 }
             .eraseToAnyPublisher()
@@ -3204,7 +3970,7 @@ struct CompatibilityModuleTests {
         #expect(renderer.uiImage == nil)
         #expect(renderer.nsImage == nil)
         let colorRenderer = ImageRenderer(content: Color.red)
-        let renderedPlatformImage: PlatformImage? = colorRenderer.nsImage
+        let renderedPlatformImage: QuillPlatformImage? = colorRenderer.nsImage
         let renderedNSImage: NSImage? = colorRenderer.nsImage
         #expect(renderedPlatformImage?.data?.isEmpty == false)
         #expect(renderedNSImage?.data?.isEmpty == false)
@@ -3555,6 +4321,22 @@ struct CompatibilityModuleTests {
         #expect(AppStorage(wrappedValue: AppStorageMode.classic, key).wrappedValue == .classic)
     }
 
+    @Test("AppStorage encodes Int-backed RawRepresentable values")
+    func appStorageEncodesIntBackedRawRepresentableValues() {
+        let key = "quill.test.rgb.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .purple)
+
+        let storage = AppStorage(wrappedValue: AppStorageRGB.purple, key)
+        storage.wrappedValue = .iceCube
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .iceCube)
+        #expect(UserDefaults.standard.integer(forKey: key) == 0xBB3BE2)
+
+        UserDefaults.standard.set(-1, forKey: key)
+        #expect(AppStorage(wrappedValue: AppStorageRGB.purple, key).wrappedValue == .purple)
+    }
+
     // MARK: - File importer
 
     @Test("QuillFileImporter honors test-injected selection and validates types")
@@ -3611,6 +4393,81 @@ struct CompatibilityModuleTests {
                 Issue.record("Expected .unsupportedFileSelection, got \(quillError)")
             }
         }
+    }
+
+    @Test("SwiftUI file importer and Photos picker use shared Linux file selections")
+    func fileImporterAndPhotosPickerUseSharedFileSelection() throws {
+        #if os(Linux)
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillPickerSelectionTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let pngURL = directory.appendingPathComponent("one.png")
+        let jpegURL = directory.appendingPathComponent("two.jpg")
+        let textURL = directory.appendingPathComponent("notes.txt")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: pngURL)
+        try Data([0xFF, 0xD8, 0xFF]).write(to: jpegURL)
+        try Data("hello".utf8).write(to: textURL)
+        defer {
+            try? FileManager.default.removeItem(at: directory)
+            QuillFileImporter.setTestSelections([])
+        }
+
+        QuillFileImporter.setTestSelections([pngURL, jpegURL])
+
+        switch QuillFileImporter.selectURLs(allowedContentTypes: [.image], allowsMultipleSelection: true) {
+        case .success(let urls):
+            #expect(urls == [pngURL, jpegURL])
+        case .failure(let error):
+            Issue.record("Expected image selections, got \(error)")
+        }
+
+        switch QuillFileImporter.selectURLs(allowedContentTypes: [.image], allowsMultipleSelection: false) {
+        case .success(let urls):
+            #expect(urls == [pngURL])
+        case .failure(let error):
+            Issue.record("Expected first image selection, got \(error)")
+        }
+
+        var importerPresented = true
+        var importedURLs: Result<[URL], Error>?
+        let importerView = Text("Import").fileImporter(
+            isPresented: Binding(get: { importerPresented }, set: { importerPresented = $0 }),
+            allowedContentTypes: [.image],
+            allowsMultipleSelection: true
+        ) { result in
+            importedURLs = result
+        }
+        #expect(importerView.value)
+        importerView.action(true)
+        #expect(importerPresented == false)
+        switch importedURLs {
+        case .success(let urls):
+            #expect(urls == [pngURL, jpegURL])
+        default:
+            Issue.record("Expected fileImporter to deliver selected image URLs")
+        }
+
+        var pickerPresented = true
+        var pickerItems: [PhotosPickerItem] = []
+        let pickerView = Text("Photos").photosPicker(
+            isPresented: Binding(get: { pickerPresented }, set: { pickerPresented = $0 }),
+            selection: Binding(get: { pickerItems }, set: { pickerItems = $0 }),
+            maxSelectionCount: 1,
+            matching: .images
+        )
+        #expect(pickerView.value)
+        pickerView.action(true)
+        #expect(pickerPresented == false)
+        #expect(pickerItems == [PhotosPickerItem(fileURL: pngURL)])
+
+        QuillFileImporter.setTestSelection(textURL)
+        switch QuillFileImporter.selectURL(allowedContentTypes: [.image]) {
+        case .success:
+            Issue.record("Expected image-only selection to reject a text file")
+        case .failure(let error):
+            #expect((error as? QuillCompatibilityError) == .unsupportedFileSelection(textURL, [.image]))
+        }
+        #endif
     }
 
     // MARK: - UTType behavior
@@ -3714,6 +4571,52 @@ struct CompatibilityModuleTests {
         #expect(emptyCaptured.value?.1 != nil)
     }
 
+    @Test("NSItemProvider and PhotosPickerItem load file-backed Transferable imports")
+    func transferableFileRepresentationsLoadFromProviders() async throws {
+        #if os(Linux)
+        let payload = Data([0x89, 0x50, 0x4E, 0x47, 0x0D])
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillTransferableTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let fileURL = directory.appendingPathComponent("payload.png")
+        try payload.write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileProvider = NSItemProvider(fileURL: fileURL)
+        let importedFile = try await fileProvider.loadTransferable(type: QuillImportedFileTransferable.self)
+        #expect(importedFile?.url == fileURL)
+        #expect(importedFile?.isOriginalFile == true)
+        #expect(importedFile?.data == payload)
+
+        let callbackImported = await withCheckedContinuation { continuation in
+            _ = fileProvider.loadTransferable(type: QuillImportedFileTransferable.self) { result in
+                switch result {
+                case .success(let value):
+                    continuation.resume(returning: value)
+                case .failure:
+                    continuation.resume(returning: nil)
+                }
+            }
+        }
+        #expect(callbackImported == importedFile)
+
+        let dataProvider = NSItemProvider(data: payload, type: .png)
+        let importedData = try await dataProvider.loadTransferable(type: QuillImportedFileTransferable.self)
+        defer {
+            if let url = importedData?.url {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        #expect(importedData?.url.pathExtension == "png")
+        #expect(importedData?.isOriginalFile == false)
+        #expect(importedData?.data == payload)
+
+        let pickerItem = PhotosPickerItem(fileURL: fileURL)
+        let pickerImported = try await pickerItem.loadTransferable(type: QuillImportedFileTransferable.self)
+        #expect(pickerImported == importedFile)
+        #endif
+    }
+
     // MARK: - OpenURLAction custom handler
 
     @Test("OpenURLAction routes URLs through the configured handler")
@@ -3733,6 +4636,145 @@ struct CompatibilityModuleTests {
         // Returning false from the handler propagates.
         let rejecting = OpenURLAction { _ in false }
         #expect(rejecting(URL(string: "https://example.com")!) == .discarded)
+    }
+
+    @Test("OpenURLAction default handler uses QuillWorkspace")
+    @MainActor
+    func openURLActionDefaultHandlerUsesQuillWorkspace() {
+        let opened = QuillTestBox<[URL]>([])
+        let url = URL(string: "https://mastodon.social/oauth/authorize")!
+
+        QuillWorkspace.installOpenBackend(.init(name: "openurl-default-test") { openedURL in
+            opened.value?.append(openedURL)
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        #expect(OpenURLAction()(url) == .handled)
+        #expect(opened.value == [url])
+
+        QuillWorkspace.installOpenBackend(.init(name: "openurl-default-reject") { _ in false })
+        #expect(OpenURLAction()(url) == .discarded)
+    }
+
+    // MARK: - AuthenticationServices web auth
+
+    @Test("ASWebAuthenticationSession opens URL and accepts matching callback")
+    func webAuthenticationSessionStartsAndHandlesCallback() {
+        let opened = QuillTestBox<[URL]>([])
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { url in
+            opened.value?.append(url)
+            return true
+        })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize?client_id=quill")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=abc123")!
+        let completed = QuillTestBox<(URL?, (any Error)?)>()
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.value = (url, error)
+        }
+
+        #expect(session.start())
+        #expect(opened.value == [authURL])
+        #expect(ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+        #expect(completed.value?.0 == callbackURL)
+        #expect(completed.value?.1 == nil)
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+    }
+
+    @Test("ASWebAuthenticationSession ignores wrong schemes and reports cancellation")
+    func webAuthenticationSessionCancelReportsCanceledLogin() {
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let wrongURL = URL(string: "otherapp://oauth?code=abc123")!
+        let completed = QuillTestBox<(URL?, (any Error)?)>()
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.value = (url, error)
+        }
+
+        #expect(session.start())
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(wrongURL))
+        session.cancel()
+
+        let error = completed.value?.1 as? ASWebAuthenticationSessionError
+        #expect(completed.value?.0 == nil)
+        #expect(error?.code.rawValue == ASWebAuthenticationSessionError.Code.canceledLogin.rawValue)
+    }
+
+    @Test("ASWebAuthenticationSession consumes callback URLs written by desktop bridge file")
+    func webAuthenticationSessionConsumesCallbackFileUpdates() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("QuillWebAuthCallbackTests", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let callbackFileURL = directory.appendingPathComponent("callback-url.txt")
+        let staleURL = URL(string: "icecubesapp://oauth?code=stale")!
+        try staleURL.absoluteString.write(to: callbackFileURL, atomically: true, encoding: .utf8)
+        defer {
+            ASWebAuthenticationSession.setCallbackFileURLForTesting(nil)
+            QuillWorkspace.installOpenBackend(nil)
+            try? FileManager.default.removeItem(at: directory)
+        }
+
+        ASWebAuthenticationSession.setCallbackFileURLForTesting(callbackFileURL)
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=file")!
+        let completed = CompatibilityLockedValue<(URL?, (any Error)?)?>(nil)
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "icecubesapp") { url, error in
+            completed.update { $0 = (url, error) }
+        }
+
+        #expect(session.start())
+        try await Task.sleep(nanoseconds: 150_000_000)
+        #expect(completed.value == nil)
+
+        try "\(staleURL.absoluteString)\n\(callbackURL.absoluteString)\n"
+            .write(to: callbackFileURL, atomically: true, encoding: .utf8)
+
+        for _ in 0..<50 {
+            if completed.value?.0 != nil {
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+
+        #expect(completed.value?.0 == callbackURL)
+        #expect(completed.value?.1 == nil)
+        #expect(!ASWebAuthenticationSession.handleCallbackURL(callbackURL))
+    }
+
+    @Test("SwiftUI webAuthenticationSession action awaits AS callback")
+    func webAuthenticationSessionActionReturnsCallback() async throws {
+        QuillWorkspace.installOpenBackend(.init(name: "test-open") { _ in true })
+        defer { QuillWorkspace.installOpenBackend(nil) }
+
+        let authURL = URL(string: "https://mastodon.social/oauth/authorize")!
+        let callbackURL = URL(string: "icecubesapp://oauth?code=async")!
+        let action = WebAuthenticationSessionAction()
+
+        let task = Task {
+            try await action.authenticate(using: authURL, callbackURLScheme: "icecubesapp")
+        }
+
+        var delivered = false
+        for _ in 0..<50 {
+            if ASWebAuthenticationSession.handleCallbackURL(callbackURL) {
+                delivered = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        #expect(delivered)
+        let result = try await task.value
+        #expect(result == callbackURL)
     }
 
     // MARK: - QuillMenuAction divider + disabled semantics
@@ -4918,6 +5960,209 @@ struct CompatibilityModuleTests {
         #expect(isLittle || isBig, "Bridge output must have TIFF magic; got \(prefix)")
     }
 
+    @Test("ImageIO decodes dimensions, creates thumbnails, and writes JPEG data")
+    func imageIODownsampleAndDestinationContract() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.1,
+            green: 0.3,
+            blue: 0.9,
+            alpha: 1,
+            width: 8,
+            height: 4,
+            format: .png
+        ) else {
+            Issue.record("Expected valid PNG fixture")
+            return
+        }
+
+        guard let source = CGImageSourceCreateWithData(png, [kCGImageSourceShouldCache: false]) else {
+            Issue.record("CGImageSourceCreateWithData should decode valid PNG bytes")
+            return
+        }
+        #expect(CGImageSourceGetCount(source) == 1)
+        #expect(CGImageSourceGetType(source) == "public.png")
+
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
+        #expect(properties?[kCGImagePropertyPixelWidth] as? Int == 8)
+        #expect(properties?[kCGImagePropertyPixelHeight] as? Int == 4)
+        #expect(properties?[kCGImagePropertyColorModel] as? String == kCGImagePropertyColorModelRGB)
+
+        guard let fullImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+            Issue.record("CGImageSourceCreateImageAtIndex should return a CGImage")
+            return
+        }
+        #expect(fullImage.width == 8)
+        #expect(fullImage.height == 4)
+        #expect(fullImage.utType == "public.png")
+        #expect(fullImage.quillBGRAPixels?.isEmpty == false)
+
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
+            source,
+            0,
+            [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 2,
+            ]
+        ) else {
+            Issue.record("CGImageSourceCreateThumbnailAtIndex should downsample valid PNG bytes")
+            return
+        }
+        #expect(thumbnail.width == 2)
+        #expect(thumbnail.height == 1)
+        #expect(thumbnail.utType == "public.png")
+
+        let jpegOutput = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(jpegOutput, "public.jpeg", 1, nil) else {
+            Issue.record("CGImageDestinationCreateWithData should accept public.jpeg")
+            return
+        }
+        CGImageDestinationAddImage(destination, thumbnail, [
+            kCGImageDestinationLossyCompressionQuality: 0.8
+        ])
+        #expect(CGImageDestinationFinalize(destination))
+
+        let jpeg = jpegOutput as Data
+        #expect(Array(jpeg.prefix(3)) == [0xFF, 0xD8, 0xFF])
+        #expect(CGImageSourceGetType(CGImageSourceCreateWithData(jpeg, nil)!) == "public.jpeg")
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-imageio-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        try png.write(to: tempURL)
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+        guard let urlSource = CGImageSourceCreateWithURL(tempURL, nil) else {
+            Issue.record("CGImageSourceCreateWithURL should decode valid image files")
+            return
+        }
+        #expect(CGImageSourceCopyPropertiesAtIndex(urlSource, 0, nil)?[kCGImagePropertyPixelWidth] as? Int == 8)
+    }
+
+    @Test("UIImage data decode and UIGraphicsImageRenderer produce encodable pixels")
+    func uiImageRendererResizesDecodedImages() throws {
+        guard let png = quillRenderSolidColorImage(
+            red: 0.85,
+            green: 0.2,
+            blue: 0.1,
+            alpha: 1,
+            width: 6,
+            height: 4,
+            format: .png
+        ) else {
+            Issue.record("Expected valid PNG fixture")
+            return
+        }
+
+        guard let source = UIImage(data: png) else {
+            Issue.record("UIImage(data:) should decode valid PNG bytes on Linux")
+            return
+        }
+        #expect(source.size == CGSize(width: 6, height: 4))
+        #expect(source.cgImage?.width == 6)
+        #expect(source.cgImage?.height == 4)
+        #expect(source.cgImage?.quillBGRAPixels?.isEmpty == false)
+
+        let resized = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 2)).image { _ in
+            source.draw(in: CGRect(x: 0, y: 0, width: 3, height: 2))
+        }
+        #expect(resized.size == CGSize(width: 3, height: 2))
+        #expect(resized.cgImage?.width == 3)
+        #expect(resized.cgImage?.height == 2)
+        #expect(resized.cgImage?.quillBGRAPixels?.count == 3 * 2 * 4)
+
+        guard let jpeg = resized.jpegData(compressionQuality: 0.7) else {
+            Issue.record("Resized UIImage should encode to JPEG")
+            return
+        }
+        #expect(Array(jpeg.prefix(3)) == [UInt8(0xFF), 0xD8, 0xFF])
+        guard let encodedPNG = resized.pngData() else {
+            Issue.record("Resized UIImage should encode to PNG")
+            return
+        }
+        #expect(Array(encodedPNG.prefix(8)) == [UInt8(0x89), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
+
+        let filled = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { _ in
+            UIColor(red: 1, green: 0, blue: 0, alpha: 1).setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 2, height: 2))
+        }
+        guard let filledPixels = filled.cgImage?.quillBGRAPixels else {
+            Issue.record("Filled renderer output should retain pixels")
+            return
+        }
+        #expect(filledPixels[0] == 0)
+        #expect(filledPixels[1] == 0)
+        #expect(filledPixels[2] > 240)
+        #expect(filledPixels[3] == 255)
+    }
+
+    @Test("Photos shim persists saved UIImage assets and loads them back")
+    func photosShimPersistsSavedUIImageAssets() async throws {
+        #if os(Linux)
+        let temporaryDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-photos-\(UUID().uuidString)", isDirectory: true)
+        PHPhotoLibrary.quillUseLibraryDirectoryForTesting(temporaryDirectory)
+        defer {
+            PHPhotoLibrary.quillUseLibraryDirectoryForTesting(nil)
+            try? FileManager.default.removeItem(at: temporaryDirectory)
+        }
+        QuillCompatibilityDiagnostics.shared.clear()
+
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 2)).image { _ in
+            UIColor(red: 1, green: 0, blue: 0, alpha: 1).setFill()
+            UIRectFill(CGRect(x: 0, y: 0, width: 3, height: 2))
+        }
+
+        #expect(PHPhotoLibrary.authorizationStatus(for: .addOnly) == .authorized)
+        #expect(await PHPhotoLibrary.requestAuthorization(for: .readWrite) == .authorized)
+
+        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+
+        let options = PHFetchOptions()
+        options.fetchLimit = 10
+        let fetched = PHAsset.fetchAssets(with: .image, options: options)
+        #expect(fetched.count == 1)
+
+        let asset = fetched.object(at: 0)
+        #expect(asset.mediaType == .image)
+
+        var loadedData: Data?
+        var loadedType: String?
+        var loadedOrientation: UIImage.Orientation?
+        PHImageManager.default().requestImageDataAndOrientation(for: asset, options: nil) { data, type, orientation, _ in
+            loadedData = data
+            loadedType = type
+            loadedOrientation = orientation
+        }
+        #expect(loadedData?.starts(with: [0x89, 0x50, 0x4E, 0x47]) == true)
+        #expect(loadedType == "public.png")
+        #expect(loadedOrientation == .up)
+
+        var loadedImage: UIImage?
+        PHImageManager.default().requestImage(
+            for: asset,
+            targetSize: CGSize(width: 1, height: 1),
+            contentMode: .aspectFit,
+            options: nil
+        ) { image, _ in
+            loadedImage = image
+        }
+        #expect(loadedImage?.size == CGSize(width: 1, height: 1))
+        #expect(loadedImage?.cgImage?.quillBGRAPixels?.isEmpty == false)
+
+        try await PHPhotoLibrary.shared().performChanges {
+            let request = PHAssetCreationRequest.creationRequestForAsset(from: image)
+            #expect(request.placeholderForCreatedAsset != nil)
+        }
+        #expect(PHAsset.fetchAssets(with: .image, options: nil).count == 2)
+
+        let operations = Set(QuillCompatibilityDiagnostics.shared.events.map(\.operation))
+        #expect(operations.contains("photos.saveImage"))
+        #expect(operations.contains("photos.fetchAssets"))
+        #expect(operations.contains("photos.requestImageData"))
+        #expect(operations.contains("photos.requestImage"))
+        #endif
+    }
+
     @Test("QuillCompatibilityEvent equality covers all fields")
     func quillCompatibilityEventEquatable() {
         let a = QuillCompatibilityEvent(
@@ -4956,6 +6201,11 @@ struct CompatibilityModuleTests {
 private enum AppStorageMode: String {
     case classic
     case modern
+}
+
+private enum AppStorageRGB: Int {
+    case purple = 0x800080
+    case iceCube = 0xBB3BE2
 }
 
 /// Tiny mutable reference container for capturing values out of closures in

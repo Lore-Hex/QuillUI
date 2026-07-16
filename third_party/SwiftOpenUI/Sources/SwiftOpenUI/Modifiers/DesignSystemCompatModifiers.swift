@@ -16,7 +16,6 @@ public enum PreviewLayout: Sendable {
 
 extension View {
     public func accessibilityHidden(_ hidden: Bool) -> some View { self }
-    public func listRowBackground<V: View>(_ view: V?) -> some View { self }
     public func tint(_ tint: Color?) -> some View { self }
     public func previewLayout(_ value: PreviewLayout) -> some View { self }
 }

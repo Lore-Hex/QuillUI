@@ -7,10 +7,10 @@
 // module mirrors the common types/initializers/members while routing state into
 // QuillKit's process-local notification compatibility backend.
 //
-// HONEST STATUS: emulated. Requests, categories, settings, and delivered/pending
-// lists are tracked deterministically, but nothing is presented by a desktop
-// notification daemon yet. Wiring this to libnotify / org.freedesktop.Notifications
-// is a later backend milestone.
+// HONEST STATUS: partial-real. Requests, categories, settings, and
+// delivered/pending lists are tracked deterministically. Immediate and
+// non-repeating time-interval deliveries route through QuillKit's injectable
+// desktop presentation backend (or Linux notify-send when available).
 //
 import Foundation
 import QuillKit
@@ -301,6 +301,7 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
     private var categories: Set<UNNotificationCategory> = []
     private var pendingRequestsByIdentifier: [String: UNNotificationRequest] = [:]
     private var deliveredNotificationsByIdentifier: [String: UNNotification] = [:]
+    private var deliveryTasksByIdentifier: [String: Task<Void, Never>] = [:]
 
     public func requestAuthorization(options: UNAuthorizationOptions = []) async throws -> Bool {
         QuillNotificationService.shared.requestAuthorization(optionsRawValue: options.rawValue)
@@ -352,7 +353,9 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
 
     private func store(_ request: UNNotificationRequest) {
         let deliverImmediately = request.trigger == nil
-        lock.withLock {
+        let deliveryInterval = Self.deliveryInterval(for: request.trigger)
+        let taskToCancel = lock.withLock { () -> Task<Void, Never>? in
+            let existingTask = deliveryTasksByIdentifier.removeValue(forKey: request.identifier)
             if deliverImmediately {
                 pendingRequestsByIdentifier.removeValue(forKey: request.identifier)
                 deliveredNotificationsByIdentifier[request.identifier] = UNNotification(request: request, date: Date())
@@ -360,11 +363,80 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
                 deliveredNotificationsByIdentifier.removeValue(forKey: request.identifier)
                 pendingRequestsByIdentifier[request.identifier] = request
             }
+            return existingTask
         }
+        taskToCancel?.cancel()
         QuillNotificationService.shared.addRequest(
             QuillNotificationRequestRecord(request),
             deliverImmediately: deliverImmediately
         )
+
+        if let deliveryInterval {
+            scheduleDelivery(of: request, after: deliveryInterval)
+        }
+    }
+
+    private static func deliveryInterval(for trigger: UNNotificationTrigger?) -> TimeInterval? {
+        guard let trigger = trigger as? UNTimeIntervalNotificationTrigger else {
+            return nil
+        }
+        return max(0, trigger.timeInterval)
+    }
+
+    private static func nanoseconds(for interval: TimeInterval) -> UInt64 {
+        guard interval.isFinite, interval > 0 else {
+            return 0
+        }
+        let maximumSeconds = Double(UInt64.max) / 1_000_000_000
+        return UInt64(min(interval, maximumSeconds) * 1_000_000_000)
+    }
+
+    private func scheduleDelivery(of request: UNNotificationRequest, after interval: TimeInterval) {
+        let task = Task.detached { [weak self] in
+            let nanoseconds = Self.nanoseconds(for: interval)
+            if nanoseconds > 0 {
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            } else {
+                await Task.yield()
+            }
+            guard !Task.isCancelled else { return }
+            self?.deliverScheduledRequest(identifier: request.identifier)
+        }
+
+        let taskToCancel = lock.withLock {
+            deliveryTasksByIdentifier.updateValue(task, forKey: request.identifier)
+        }
+        taskToCancel?.cancel()
+    }
+
+    private func deliverScheduledRequest(identifier: String) {
+        let requestAndRepeat = lock.withLock { () -> (UNNotificationRequest, Bool)? in
+            guard let request = pendingRequestsByIdentifier[identifier] else {
+                deliveryTasksByIdentifier.removeValue(forKey: identifier)
+                return nil
+            }
+
+            let repeats = request.trigger?.repeats == true
+            deliveredNotificationsByIdentifier[identifier] = UNNotification(request: request, date: Date())
+            if !repeats {
+                pendingRequestsByIdentifier.removeValue(forKey: identifier)
+                deliveryTasksByIdentifier.removeValue(forKey: identifier)
+            }
+            return (request, repeats)
+        }
+
+        guard let (request, repeats) = requestAndRepeat else {
+            return
+        }
+
+        QuillNotificationService.shared.addRequest(
+            QuillNotificationRequestRecord(request),
+            deliverImmediately: true
+        )
+
+        if repeats, let deliveryInterval = Self.deliveryInterval(for: request.trigger) {
+            scheduleDelivery(of: request, after: deliveryInterval)
+        }
     }
 
     public func getNotificationSettings(completionHandler: @escaping (UNNotificationSettings) -> Void) {
@@ -419,11 +491,17 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
     }
 
     public func removePendingNotificationRequests(withIdentifiers identifiers: [String]) {
-        lock.withLock {
+        let tasksToCancel = lock.withLock { () -> [Task<Void, Never>] in
+            var tasks: [Task<Void, Never>] = []
             for identifier in identifiers {
+                if let task = deliveryTasksByIdentifier.removeValue(forKey: identifier) {
+                    tasks.append(task)
+                }
                 pendingRequestsByIdentifier.removeValue(forKey: identifier)
             }
+            return tasks
         }
+        tasksToCancel.forEach { $0.cancel() }
         QuillNotificationService.shared.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
@@ -435,9 +513,14 @@ public final class UNUserNotificationCenter: @unchecked Sendable {
     }
 
     public func removeAllPendingNotificationRequests() {
-        lock.withLock {
+        let tasksToCancel = lock.withLock { () -> [Task<Void, Never>] in
+            let tasks = Array(deliveryTasksByIdentifier.values)
+            deliveryTasksByIdentifier.removeAll()
             pendingRequestsByIdentifier.removeAll()
+            return tasks
         }
+        tasksToCancel.forEach { $0.cancel() }
+
         QuillNotificationService.shared.removeAllPendingNotificationRequests()
     }
 }

@@ -23,6 +23,7 @@ struct HTMLTextTests {
             ) == "follow @MastodonEngineering"
         )
         #expect(HTMLText.plainText(fromMarkdown: "[#swift](https://mastodon.social/tags/swift)") == "#swift")
+        #expect(HTMLText.plainText(fromMarkdown: "Here's to the [#crazy](#) ones and [@rebels](#).") == "Here's to the #crazy ones and @rebels.")
     }
 
     @Test("plainText(fromMarkdown:) strips inline styling and restores escaped punctuation")

@@ -48,7 +48,9 @@ if (( ${#swift_files[@]} > 0 )); then
       s/(\.applying\(\s*)\.init\((?=[^)]*\b(?:pointSize|weight|scale|textStyle|paletteColors)\s*:)/$1NSImage.SymbolConfiguration(/g;
       s/: View, Sendable/: View/g;
       s/^([ \t]*)((?:(?:public|open|internal|fileprivate|private)[ \t]+)*func[ \t]+[A-Za-z_][A-Za-z0-9_]*\(controller:[ \t]*TextViewController\b)/$1\@MainActor\n$1$2/gm;
-      s/\.keyboardType\([ \t]*\.URL[ \t]*\)/.keyboardType(KeyboardType.URL)/g;
+      # No keyboardType(.URL) rewrite: QuillUI mirrors Apple with a single
+      # keyboardType(_ type: UIKeyboardType), so leading-dot inference handles
+      # URL the same way it handles .emailAddress and .numberPad.
       s/\.textContentType\([ \t]*\.URL[ \t]*\)/.textContentType(TextContentType.URL)/g;
       s/\bNSMutableAttributedString\s*\(\s*\)/NSMutableAttributedString(string: "")/g;
       s/\bNSAttributedString\s*\(\s*\)/NSAttributedString(string: "")/g;

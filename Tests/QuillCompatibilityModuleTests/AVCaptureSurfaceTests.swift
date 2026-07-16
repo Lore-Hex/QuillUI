@@ -240,6 +240,139 @@ struct AVCaptureSurfaceTests {
         #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
     }
 
+    @Test("real-time writer primes from the latest capture frame",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterPrimesFromLatestCaptureFrame() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-preroll-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        try await withSyntheticCameraEnvironment(width: 96, height: 64, fps: 20) {
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external],
+                mediaType: .video,
+                position: .unspecified
+            )
+            let device = try #require(discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" })
+
+            let session = AVCaptureSession()
+            session.beginConfiguration()
+            session.addInput(try AVCaptureDeviceInput(device: device))
+            session.addOutput(AVCaptureVideoDataOutput())
+            session.commitConfiguration()
+            session.startRunning()
+            try await Task.sleep(nanoseconds: 200_000_000)
+            session.stopRunning()
+
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 96,
+                AVVideoHeightKey: 64,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 400_000,
+                    AVVideoExpectedSourceFrameRateKey: 20,
+                ],
+            ])
+            input.expectsMediaDataInRealTime = true
+            #expect(writer.canAdd(input))
+            writer.add(input)
+            #expect(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+            input.markAsFinished()
+            await writer.finishWriting()
+            #expect(writer.status == .completed)
+        }
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
+    @Test("real-time writer can stride automatic capture frames for smoke tests",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterCanStrideAutomaticCaptureFrames() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-strided-recording-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        try await withSyntheticCameraEnvironment(width: 96, height: 64, fps: 20) {
+            setenv("QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE", "6", 1)
+            defer { unsetenv("QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE") }
+
+            let discovery = AVCaptureDevice.DiscoverySession(
+                deviceTypes: [.external],
+                mediaType: .video,
+                position: .unspecified
+            )
+            let device = try #require(discovery.devices.first { $0.uniqueID == "quill-synthetic://camera" })
+
+            let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+                AVVideoCodecKey: AVVideoCodecType.h264,
+                AVVideoWidthKey: 96,
+                AVVideoHeightKey: 64,
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: 400_000,
+                    AVVideoExpectedSourceFrameRateKey: 20,
+                ],
+            ])
+            input.expectsMediaDataInRealTime = true
+            #expect(writer.canAdd(input))
+            writer.add(input)
+            #expect(writer.startWriting())
+            writer.startSession(atSourceTime: .zero)
+
+            let session = AVCaptureSession()
+            session.beginConfiguration()
+            session.addInput(try AVCaptureDeviceInput(device: device))
+            session.addOutput(AVCaptureVideoDataOutput())
+            session.commitConfiguration()
+            session.startRunning()
+            try await Task.sleep(nanoseconds: 700_000_000)
+            session.stopRunning()
+
+            input.markAsFinished()
+            await writer.finishWriting()
+            #expect(writer.status == .completed)
+        }
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
+    @Test("real-time writer finalizes a valid fallback movie when no app frames arrive",
+          .enabled(if: AVCaptureSurfaceTests.ffmpegPresent))
+    func realtimeWriterFinalizesFallbackMovieWithoutFrames() async throws {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quill-synthetic-empty-recording-\(UUID().uuidString).mov")
+        defer { try? FileManager.default.removeItem(at: outputURL) }
+
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 64,
+            AVVideoHeightKey: 48,
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 400_000,
+                AVVideoExpectedSourceFrameRateKey: 20,
+            ],
+        ])
+        input.expectsMediaDataInRealTime = true
+        #expect(writer.canAdd(input))
+        writer.add(input)
+        #expect(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+        input.markAsFinished()
+        await writer.finishWriting()
+        #expect(writer.status == .completed)
+
+        let movie = try #require(FileManager.default.contents(atPath: outputURL.path))
+        #expect(movie.count > 500)
+        #expect(Array(movie[4..<8]) == Array("ftyp".utf8))
+    }
+
     @Test func ciImagePixelPipelineRoundTrips() {
         // Synthetic 4x2 BGRA frame with a recognizable gradient.
         let width = 4, height = 2
@@ -329,6 +462,7 @@ private func syntheticCameraEnvironmentSnapshot() -> [String: String?] {
         "QUILL_AVFOUNDATION_SYNTHETIC_WIDTH": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_WIDTH"),
         "QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_HEIGHT"),
         "QUILL_AVFOUNDATION_SYNTHETIC_FPS": getenvString("QUILL_AVFOUNDATION_SYNTHETIC_FPS"),
+        "QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE": getenvString("QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE"),
     ]
 }
 

@@ -4,7 +4,7 @@ import QuillFoundation
 import QuillKit
 import SwiftOpenUI
 
-private func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
+func recordSwiftUICompatibilityFallback(_ operation: String, message: String? = nil) {
     QuillCompatibilityDiagnostics.shared.record(
         subsystem: "QuillUI",
         operation: operation,
@@ -847,19 +847,22 @@ public struct SharePreview<ImageValue> {
 
 public struct ShareLink<Item>: View {
     public let item: Item
+    public let labelView: AnyView
 
     public init(item: Item) {
         self.item = item
+        self.labelView = AnyView(Text("Share"))
     }
 
     public init<PreviewImage>(item: Item, preview: SharePreview<PreviewImage>) {
         self.item = item
+        self.labelView = AnyView(Text("Share"))
         _ = preview
     }
 
     public init<Label: View>(item: Item, @ViewBuilder label: () -> Label) {
         self.item = item
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
     public init<Label: View>(
@@ -869,7 +872,7 @@ public struct ShareLink<Item>: View {
     ) {
         self.item = item
         _ = subject
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
     public init<Label: View>(
@@ -881,10 +884,12 @@ public struct ShareLink<Item>: View {
         self.item = item
         _ = subject
         _ = message
-        _ = label()
+        self.labelView = AnyView(label())
     }
 
-    public var body: some View { EmptyView() }
+    public var body: some View {
+        Button(action: {}, label: { labelView })
+    }
 }
 
 public struct ControlGroup<Content: View>: View {
@@ -1062,10 +1067,6 @@ private struct LocaleKey: EnvironmentKey {
     static let defaultValue = Locale.current
 }
 
-private struct DefaultMinListRowHeightKey: EnvironmentKey {
-    static let defaultValue = 44
-}
-
 public enum ControlActiveState: Equatable, Sendable {
     case key
     case active
@@ -1110,11 +1111,6 @@ public extension EnvironmentValues {
     var locale: Locale {
         get { self[LocaleKey.self] }
         set { self[LocaleKey.self] = newValue }
-    }
-
-    var defaultMinListRowHeight: Int {
-        get { self[DefaultMinListRowHeightKey.self] }
-        set { self[DefaultMinListRowHeightKey.self] = newValue }
     }
 
     var controlActiveState: ControlActiveState {
@@ -1330,60 +1326,6 @@ public struct RoundedBorderTextFieldStyle: Sendable {
 
 public struct PlainTextFieldStyle: Sendable {
     public init() {}
-}
-
-public struct LayoutSubviews: RandomAccessCollection {
-    public typealias Element = LayoutSubview
-    private let storage: [LayoutSubview]
-
-    public init(_ storage: [LayoutSubview] = []) {
-        self.storage = storage
-    }
-
-    public var startIndex: Int { storage.startIndex }
-    public var endIndex: Int { storage.endIndex }
-    public subscript(position: Int) -> LayoutSubview { storage[position] }
-}
-
-public protocol Layout: View where Body == Never {
-    typealias Subviews = LayoutSubviews
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ())
-}
-
-public extension Layout {
-    var body: Never { fatalError("Layout is a primitive view") }
-
-    func callAsFunction<Content: View>(@ViewBuilder _ content: () -> Content) -> LayoutContainer<Self, Content> {
-        LayoutContainer(layout: self, content: content())
-    }
-}
-
-public struct LayoutContainer<L: Layout, Content: View>: View {
-    public let layout: L
-    public let content: Content
-
-    public var body: some View { content }
-}
-
-public extension LayoutSubview {
-    func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize {
-        _ = proposal
-        return .zero
-    }
-
-    func place(at point: CGPoint, anchor: UnitPoint = .topLeading, proposal: ProposedViewSize) {
-        _ = point
-        _ = anchor
-        _ = proposal
-    }
-}
-
-public extension ProposedViewSize {
-    init(_ size: CGSize) {
-        self.init(width: size.width, height: size.height)
-    }
 }
 
 public struct UnevenRoundedRectangle: @preconcurrency Shape {
@@ -1639,8 +1581,7 @@ public extension Text {
     }
 
     init(_ date: Date, style: DateStyle) {
-        _ = style
-        self.init(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none))
+        self.init(quillFormatDate(date, style: style))
     }
 
     init<T>(_ key: String, _ value: T, style: DateStyle) {
@@ -1726,7 +1667,9 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
     nonisolated public var toolbarContentItems: [AnyToolbarItem] {
         let box = QuillIsolationHopBox(value: content)
         return MainActor.assumeIsolated {
-            [AnyToolbarItem(ToolbarItem(placement: .principal) { box.value })]
+            [AnyToolbarItem(ToolbarItem(placement: .principal) {
+                Menu("Timeline") { box.value }
+            })]
         }
     }
 
@@ -1737,12 +1680,22 @@ public struct ToolbarTitleMenu<Content: View>: ToolbarContent, ToolbarContentIte
 
 public extension String.StringInterpolation {
     mutating func appendInterpolation(_ date: Date, style: Text.DateStyle) {
-        _ = style
-        appendLiteral(DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none))
+        appendLiteral(quillFormatDate(date, style: style))
     }
 
     mutating func appendInterpolation<T>(_ value: T, format: NumberFormatStyle) {
         appendLiteral(quillFormatNumber(value, format: format))
+    }
+}
+
+private func quillFormatDate(_ date: Date, style: Text.DateStyle) -> String {
+    switch style {
+    case .date:
+        return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
+    case .time:
+        return DateFormatter.localizedString(from: date, dateStyle: .none, timeStyle: .short)
+    case .relative, .offset, .timer:
+        return DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
     }
 }
 
@@ -1954,8 +1907,6 @@ fileprivate func quillCollectTabs<V: View>(from view: V) -> [AnyTab] {
 @MainActor
 fileprivate func quillCollectTabs(fromAny view: any View) -> [AnyTab] {
     if let tabSource = view as? any QuillTabCollectible {
-        // Witnesses are isolated (View whole-protocol); collection runs on
-        // the backend main loop == main thread.
         let box = QuillIsolationHopBox(value: tabSource)
         return MainActor.assumeIsolated { box.value.quillCollectedTabs }
     }
@@ -2042,11 +1993,13 @@ public struct TextContentType: Hashable, Sendable {
     public static let password = TextContentType("password")
 }
 
-public struct KeyboardType: Hashable, Sendable {
-    public var rawValue: String
-    public init(_ rawValue: String) { self.rawValue = rawValue }
-    public static let URL = KeyboardType("URL")
-}
+// NOTE: SwiftUI/UIKit has exactly ONE keyboard-type — `UIKeyboardType` (an enum
+// with .default/.URL/.emailAddress/…), and exactly one `keyboardType(_:)` taking
+// it. The separate `KeyboardType` struct + second `keyboardType` overload that
+// used to live here made `.keyboardType(.URL)` ambiguous (KeyboardType.URL vs
+// UIKeyboardType.URL) for callers that see both modules. Removed to mirror
+// Apple: the canonical `keyboardType(_ type: UIKeyboardType)` lives in the
+// SwiftUI shim (PlatformSurface).
 
 public struct TextInputAutocapitalization: Hashable, Sendable {
     public var rawValue: String
@@ -2079,11 +2032,11 @@ public struct AutocorrectionDisabledView<Content: View>: View {
     public var body: some View { content }
 }
 
-public struct KeyboardTypeView<Content: View>: View {
+public struct KeyboardTypeView<Content: View, Keyboard>: View {
     public let content: Content
-    public let keyboardType: KeyboardType
+    public let keyboardType: Keyboard
 
-    public init(content: Content, keyboardType: KeyboardType) {
+    public init(content: Content, keyboardType: Keyboard) {
         self.content = content
         self.keyboardType = keyboardType
     }
@@ -2470,13 +2423,9 @@ public extension View {
         return AutocorrectionDisabledView(content: self, disabled: disabled)
     }
 
-    func keyboardType(_ keyboardType: KeyboardType) -> KeyboardTypeView<Self> {
-        recordSwiftUICompatibilityFallback(
-            "keyboardType",
-            message: "keyboardType is preserved as text-input metadata on Linux."
-        )
-        return KeyboardTypeView(content: self, keyboardType: keyboardType)
-    }
+    // `keyboardType(_ type: UIKeyboardType)` lives in the SwiftUI shim
+    // (PlatformSurface) — Apple's single canonical signature. No DSSC overload,
+    // to avoid the `.keyboardType(.URL)` ambiguity for dual-module callers.
 
     @_disfavoredOverload
     func autocapitalization(_ autocapitalization: TextInputAutocapitalization) -> AutocapitalizationView<Self> {
@@ -2509,15 +2458,6 @@ public extension View {
         return self
     }
 
-    func navigationDestination<Destination: View>(
-        isPresented: Binding<Bool>,
-        @ViewBuilder destination: () -> Destination
-    ) -> Self {
-        _ = isPresented
-        _ = destination()
-        return self
-    }
-
     func onOpenURL(perform action: @escaping (URL) -> Void) -> Self {
         _ = action
         return self
@@ -2528,20 +2468,12 @@ public extension View {
         _ = mask()
         return self
     }
-
-    // Value-form `.mask(_:)` (SwiftUI's original signature) — vendored real
-    // source that only sees the SwiftUI shadow (which re-exports
-    // QuillSwiftUICompatibility but NOT QuillUI) passes a mask view directly,
-    // e.g. IceCubes DisplaySettingsView's `.mask(LinearGradient(...))`.
-    // Disfavored so that callers who ALSO see QuillUI (e.g. the compat-module
-    // tests) bind to QuillUI's richer value-form mask (-> ViewMaskView /
-    // ClipShapeView) instead of this Self-returning fallback.
-    @_disfavoredOverload
-    func mask<Mask: View>(alignment: Alignment = .center, _ mask: Mask) -> Self {
-        _ = alignment
-        _ = mask
-        return self
-    }
+    // NOTE: the value-form `.mask(_:)` lives in IceCubesShims (icecubes-only,
+    // force-imported), NOT here. Two disfavored value-form masks visible to a
+    // caller that also imports QuillUI (the compat-module tests, generated
+    // quill-chat) tie and produce "ambiguous use of 'mask'"; keeping only
+    // QuillUI's value-form mask visible to those callers — and exposing the
+    // IceCubes fallback solely through the force-imported shim — avoids the tie.
 }
 
 public extension Tab {
@@ -2551,20 +2483,26 @@ public extension Tab {
         @ViewBuilder content: () -> Content,
         @ViewBuilder label: () -> Label
     ) {
-        _ = value
         _ = role
-        _ = label()
-        self.init("", id: String(describing: value), content: content)
+        self.init(
+            "",
+            id: String(describing: value),
+            selectionValue: AnyHashable(value),
+            label: label(),
+            content: content
+        )
     }
 
     func tabPlacement(_ placement: TabPlacement) -> Self {
-        _ = placement
-        return self
+        var copy = self
+        copy.placement = placement.rawValue
+        return copy
     }
 
     func badge(_ count: Int) -> Self {
-        _ = count
-        return self
+        var copy = self
+        copy.badge = count
+        return copy
     }
 }
 
@@ -2809,9 +2747,13 @@ public extension View {
         priority: TaskPriority = .userInitiated,
         _ action: @escaping () async -> Void
     ) -> TaskView<Self> {
-        _ = id
         let box = QuillTaskActionBox(action)
-        return TaskView(content: self, priority: priority, action: { await box.run() })
+        return TaskView(
+            content: self,
+            priority: priority,
+            lifecycleID: String(reflecting: id),
+            action: { await box.run() }
+        )
     }
 
     func listStyle(_ style: PlainListStyle) -> Self {
@@ -2910,11 +2852,6 @@ public extension View {
     func scrollBounceBehavior(_ behavior: ScrollBounceBehavior, axes: Axis.Set = .all) -> Self {
         _ = behavior
         _ = axes
-        return self
-    }
-
-    func refreshable(action: @escaping () async -> Void) -> Self {
-        _ = action
         return self
     }
 
@@ -3098,11 +3035,6 @@ public extension View {
     func buttonBorderShape(_ shape: ButtonBorderShape) -> Self {
         _ = shape
         return self
-    }
-
-    @_disfavoredOverload
-    func foregroundColor(_ color: Color?) -> ForegroundColorView<Self> {
-        foregroundColor(color ?? .clear)
     }
 
     func alignmentGuide(
@@ -3313,7 +3245,7 @@ public extension View {
     ) -> Self {
         _ = edge
         _ = allowsFullSwipe
-        _ = content()
+        _ = content
         return self
     }
 
@@ -3323,7 +3255,10 @@ public extension View {
     }
 
     func quickLookPreview(_ item: Binding<URL?>) -> Self {
-        _ = item
+        if let url = item.wrappedValue {
+            QuillQuickLookService.shared.preview(url)
+            item.wrappedValue = nil
+        }
         return self
     }
 
@@ -3341,9 +3276,12 @@ public extension View {
         return self
     }
 
-    func redacted(reason: RedactionReasons) -> Self {
-        _ = reason
-        return self
+    func redacted(reason: RedactionReasons) -> EnvironmentModifierView<Self, RedactionReasons> {
+        environment(\.redactionReasons, reason)
+    }
+
+    func unredacted() -> EnvironmentModifierView<Self, RedactionReasons> {
+        environment(\.redactionReasons, [])
     }
 
     func presentationDetents(_ detents: Set<PresentationDetent>) -> Self {
@@ -3477,9 +3415,11 @@ public extension View {
         return self
     }
 
-    func containerRelativeFrame(_ axes: [Axis]) -> Self {
-        _ = axes
-        return self
+    func containerRelativeFrame(_ axes: [Axis]) -> FrameView<Self> {
+        frame(
+            maxWidth: axes.contains(where: { $0.contains(.horizontal) }) ? .infinity : nil,
+            maxHeight: axes.contains(where: { $0.contains(.vertical) }) ? .infinity : nil
+        )
     }
 
     func containerRelativeFrame(
@@ -3488,13 +3428,15 @@ public extension View {
         span: Int,
         spacing: CGFloat,
         alignment: Alignment = .center
-    ) -> Self {
-        _ = axes
+    ) -> FrameView<Self> {
         _ = count
         _ = span
         _ = spacing
-        _ = alignment
-        return self
+        return frame(
+            maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+            maxHeight: axes.contains(.vertical) ? .infinity : nil,
+            alignment: alignment
+        )
     }
 
     func scrollTargetLayout() -> Self {
@@ -3721,11 +3663,6 @@ public extension Array {
     }
 }
 
-
-public extension URL {
-    func startAccessingSecurityScopedResource() -> Bool { true }
-    func stopAccessingSecurityScopedResource() {}
-}
 
 /// Crosses non-Sendable view values into assumeIsolated hops (single
 /// thread: backend main loop). Same pattern as the V4L2 delivery box.

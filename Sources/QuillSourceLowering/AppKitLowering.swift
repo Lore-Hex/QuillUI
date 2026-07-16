@@ -2310,8 +2310,7 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         // Re-run guard / source guard: skip when the class already declares a no-arg
         // `init()` (the explicit-init `visit` annotates that one instead).
         let hasNoArgInit = node.memberBlock.members.contains { item in
-            guard let initDecl = item.decl.as(InitializerDeclSyntax.self) else { return false }
-            return initDecl.signature.parameterClause.parameters.isEmpty
+            Self.isNoArgInitializerDeclaration(item.decl)
         }
         guard !hasNoArgInit else { return node }
         // A synthesized `init() { super.init() }` initializes nothing, so it is
@@ -2378,6 +2377,17 @@ private final class NonisolatedNSObjectMemberRewriter: SyntaxRewriter {
         members.append(member)
         copy.memberBlock.members = members
         return copy
+    }
+
+    private static func isNoArgInitializerDeclaration(_ decl: DeclSyntax) -> Bool {
+        if let initDecl = decl.as(InitializerDeclSyntax.self) {
+            return initDecl.signature.parameterClause.parameters.isEmpty
+        }
+        let text = decl.trimmedDescription
+        return text.range(
+            of: #"(^|[[:space:]])init[[:space:]]*(<[^>]+>)?[[:space:]]*\([[:space:]]*\)"#,
+            options: .regularExpression
+        ) != nil
     }
 
     private func ownerIsNSTextStorageSubclass(className: String? = nil) -> Bool {

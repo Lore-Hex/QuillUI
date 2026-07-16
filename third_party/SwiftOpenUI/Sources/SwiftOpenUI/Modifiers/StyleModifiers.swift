@@ -8,6 +8,20 @@ public struct ForegroundColorView<Content: View>: View, PrimitiveView {
     public var body: Never { fatalError("ForegroundColorView is a primitive view") }
 }
 
+/// A view with an optional foreground color applied.
+///
+/// SwiftUI treats `foregroundColor(nil)` as an identity modifier. Keeping this
+/// primitive lets renderers preserve that behavior without expanding through an
+/// opaque conditional body.
+public struct OptionalForegroundColorView<Content: View>: View, PrimitiveView {
+    public typealias Body = Never
+
+    public let content: Content
+    public let color: Color?
+
+    public var body: Never { fatalError("OptionalForegroundColorView is a primitive view") }
+}
+
 /// A view with a background applied.
 public struct BackgroundView<Content: View, Background: View>: View, PrimitiveView {
     public typealias Body = Never
@@ -48,6 +62,11 @@ extension View {
     /// Apply a foreground color to this view.
     public func foregroundColor(_ color: Color) -> ForegroundColorView<Self> {
         ForegroundColorView(content: self, color: color)
+    }
+
+    /// Apply an optional foreground color to this view.
+    public func foregroundColor(_ color: Color?) -> OptionalForegroundColorView<Self> {
+        OptionalForegroundColorView(content: self, color: color)
     }
 
     /// SwiftUI-compatible alias for foregroundColor.

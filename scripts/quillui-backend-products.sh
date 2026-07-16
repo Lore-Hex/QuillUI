@@ -587,7 +587,7 @@ quillui_backend_quill_chat_interaction_verify_product() {
       verify_product="quill-chat-linux-mac-reference-settings-panel"
       ;;
     *:completions-panel)
-      verify_product="quill-chat-linux-mac-reference-completions-panel"
+      verify_product="quill-chat-linux-mac-reference-completions-panel-visible"
       ;;
     *:completions-new-sheet)
       verify_product="quill-chat-linux-mac-reference-completions-new-sheet"
@@ -1069,6 +1069,7 @@ quillui_alias_backend_profile_env() {
   quillui_alias_env QUILLUI_BACKEND_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE
   quillui_alias_env QUILLUI_BACKEND_PROFILE_SCREEN_SIZE QUILLUI_GTK_PROFILE_SCREEN_SIZE QUILLUI_QT_PROFILE_SCREEN_SIZE QUILLUI_GTK_SCREEN_SIZE QUILLUI_QT_SCREEN_SIZE
   quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_CPU_PCT QUILLUI_GTK_PROFILE_MAX_CPU_PCT QUILLUI_QT_PROFILE_MAX_CPU_PCT
+  quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_CPU_INITIAL_PCT QUILLUI_GTK_PROFILE_MAX_CPU_INITIAL_PCT QUILLUI_QT_PROFILE_MAX_CPU_INITIAL_PCT
   quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_RSS_KB QUILLUI_GTK_PROFILE_MAX_RSS_KB QUILLUI_QT_PROFILE_MAX_RSS_KB
   quillui_alias_env QUILLUI_BACKEND_PROFILE_MAX_STARTUP_MS QUILLUI_GTK_PROFILE_MAX_STARTUP_MS QUILLUI_QT_PROFILE_MAX_STARTUP_MS
   quillui_alias_backend_common_env

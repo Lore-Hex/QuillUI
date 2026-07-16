@@ -1,3 +1,5 @@
+import Foundation
+
 /// A size proposal for layout.
 public struct ProposedViewSize: Equatable {
     public var width: Double?
@@ -11,6 +13,76 @@ public struct ProposedViewSize: Equatable {
     public static let zero = ProposedViewSize(width: 0, height: 0)
     public static let infinity = ProposedViewSize(width: .infinity, height: .infinity)
     public static let unspecified = ProposedViewSize()
+}
+
+public extension ProposedViewSize {
+    init(_ size: CGSize) {
+        self.init(width: size.width, height: size.height)
+    }
+}
+
+public struct LayoutSubviews: RandomAccessCollection {
+    public typealias Element = LayoutSubview
+    private let storage: [LayoutSubview]
+
+    public init(_ storage: [LayoutSubview] = []) {
+        self.storage = storage
+    }
+
+    public var startIndex: Int { storage.startIndex }
+    public var endIndex: Int { storage.endIndex }
+    public subscript(position: Int) -> LayoutSubview { storage[position] }
+}
+
+@MainActor @preconcurrency
+public protocol Layout: View where Body == Never {
+    typealias Subviews = LayoutSubviews
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ())
+}
+
+public extension Layout {
+    var body: Never { fatalError("Layout is a primitive view") }
+
+    func callAsFunction<Content: View>(@ViewBuilder _ content: () -> Content) -> LayoutContainer<Self, Content> {
+        LayoutContainer(layout: self, content: content())
+    }
+}
+
+public struct LayoutContainer<L: Layout, Content: View>: View {
+    public let layout: L
+    public let content: Content
+
+    public var body: some View {
+        var cache: () = ()
+        let unspecifiedSize = layout.sizeThatFits(
+            proposal: .unspecified,
+            subviews: LayoutSubviews([LayoutSubview(index: 0)]),
+            cache: &cache
+        )
+        let size = layout.sizeThatFits(
+            proposal: ProposedViewSize(width: unspecifiedSize.width, height: nil),
+            subviews: LayoutSubviews([LayoutSubview(index: 0)]),
+            cache: &cache
+        )
+        return content
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+    }
+}
+
+public extension LayoutSubview {
+    func sizeThatFits(_ proposal: ProposedViewSize) -> CGSize {
+        _ = proposal
+        return CGSize(width: 0, height: 0)
+    }
+
+    func place(at point: CGPoint, anchor: UnitPoint = .topLeading, proposal: ProposedViewSize) {
+        _ = point
+        _ = anchor
+        _ = proposal
+    }
 }
 
 /// A concrete size value.
@@ -319,7 +391,7 @@ public func computeGridLayout(
     vSpacing: Double = 0
 ) -> StackLayoutResult {
     guard !childSizes.isEmpty else {
-        return StackLayoutResult(containerSize: .zero, childPlacements: [])
+        return StackLayoutResult(containerSize: ViewSize(width: 0, height: 0), childPlacements: [])
     }
 
     let columnCount = max(1, min(columns, childSizes.count))
@@ -386,7 +458,7 @@ public func computeExplicitGridLayout(
     vSpacing: Double = 0
 ) -> StackLayoutResult {
     guard !rows.isEmpty else {
-        return StackLayoutResult(containerSize: .zero, childPlacements: [])
+        return StackLayoutResult(containerSize: ViewSize(width: 0, height: 0), childPlacements: [])
     }
 
     let normalizedRows = rows.map { row in

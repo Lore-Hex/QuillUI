@@ -18,11 +18,11 @@ public class AVCaptureSession: @unchecked Sendable {
         public static let medium = Preset(rawValue: "AVCaptureSessionPresetMedium")
         public static let low = Preset(rawValue: "AVCaptureSessionPresetLow")
         public static let photo = Preset(rawValue: "AVCaptureSessionPresetPhoto")
+        public static let inputPriority = Preset(rawValue: "AVCaptureSessionPresetInputPriority")
         public static let hd1280x720 = Preset(rawValue: "AVCaptureSessionPreset1280x720")
         public static let hd1920x1080 = Preset(rawValue: "AVCaptureSessionPreset1920x1080")
         public static let hd4K3840x2160 = Preset(rawValue: "AVCaptureSessionPreset3840x2160")
         public static let vga640x480 = Preset(rawValue: "AVCaptureSessionPreset640x480")
-        public static let inputPriority = Preset(rawValue: "AVCaptureSessionPresetInputPriority")
     }
 
     /// `.AVCaptureSessionWasInterrupted` userInfo reason codes (Apple raw values).
@@ -180,6 +180,7 @@ final class QuillRealtimeMovieWriterRegistry: @unchecked Sendable {
 
     private let lock = NSLock()
     private var entries: [ObjectIdentifier: Entry] = [:]
+    private var lastCaptureFrame: CVPixelBuffer?
 
     func register(_ writer: AVAssetWriter) {
         lock.lock()
@@ -195,6 +196,7 @@ final class QuillRealtimeMovieWriterRegistry: @unchecked Sendable {
 
     func appendCaptureFrame(_ pixelBuffer: CVPixelBuffer) {
         lock.lock()
+        lastCaptureFrame = pixelBuffer
         var staleKeys: [ObjectIdentifier] = []
         let activeWriters = entries.compactMap { key, entry -> AVAssetWriter? in
             guard let writer = entry.writer else {
@@ -211,6 +213,18 @@ final class QuillRealtimeMovieWriterRegistry: @unchecked Sendable {
         for writer in activeWriters {
             writer.quillAppendAutomaticCaptureFrame(pixelBuffer)
         }
+    }
+
+    func latestCaptureFrame(matchingWidth width: Int, height: Int) -> CVPixelBuffer? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let lastCaptureFrame,
+              lastCaptureFrame.width == width,
+              lastCaptureFrame.height == height
+        else {
+            return nil
+        }
+        return lastCaptureFrame
     }
 }
 #endif
@@ -254,6 +268,19 @@ public class AVAssetWriter: @unchecked Sendable {
     private var quillEncoder: QuillFFmpegMovieEncoder?
     private let quillFrameAppendLock = NSLock()
     private var quillManualFrameAppendCount = 0
+    private var quillAutomaticCaptureFrameCount = 0
+    private var quillEncodedFrameCount = 0
+    private var quillVideoWidth: Int?
+    private var quillVideoHeight: Int?
+
+    private static func quillAutomaticCaptureFrameStride() -> Int {
+        guard let value = ProcessInfo.processInfo.environment["QUILL_AVFOUNDATION_REALTIME_RECORDING_FRAME_STRIDE"],
+              let stride = Int(value),
+              stride > 1 else {
+            return 1
+        }
+        return stride
+    }
     #endif
 
     public func canAdd(_ input: AVAssetWriterInput) -> Bool { status == .unknown }
@@ -294,9 +321,12 @@ public class AVAssetWriter: @unchecked Sendable {
             return false
         }
         quillEncoder = encoder
+        quillVideoWidth = width
+        quillVideoHeight = height
         status = .writing
         if videoInput.expectsMediaDataInRealTime {
             QuillRealtimeMovieWriterRegistry.shared.register(self)
+            quillAppendLatestCaptureFrameIfAvailable()
         }
         return true
         #else
@@ -333,19 +363,96 @@ public class AVAssetWriter: @unchecked Sendable {
         if countsAsManualAppend {
             quillManualFrameAppendCount += 1
         }
-        let shouldAppend = countsAsManualAppend || quillManualFrameAppendCount == 0
+        var shouldAppend = countsAsManualAppend || quillManualFrameAppendCount == 0
+        if shouldAppend && !countsAsManualAppend {
+            quillAutomaticCaptureFrameCount += 1
+            let stride = Self.quillAutomaticCaptureFrameStride()
+            shouldAppend = quillAutomaticCaptureFrameCount == 1
+                || (quillAutomaticCaptureFrameCount - 1) % stride == 0
+        }
         quillFrameAppendLock.unlock()
         guard shouldAppend else { return false }
 
         if let encoder = quillEncoder {
-            return encoder.appendFrame(pixelBuffer)
+            return quillAppendFrameToEncoder(pixelBuffer, encoder: encoder)
         }
         #endif
         return true
     }
 
+    #if os(Linux)
+    private func quillAppendFrameToEncoder(_ pixelBuffer: CVPixelBuffer, encoder: QuillFFmpegMovieEncoder) -> Bool {
+        let appended = encoder.appendFrame(pixelBuffer)
+        if appended {
+            quillFrameAppendLock.lock()
+            quillEncodedFrameCount += 1
+            quillFrameAppendLock.unlock()
+        }
+        return appended
+    }
+
+    private func quillHasEncodedFrames() -> Bool {
+        quillFrameAppendLock.lock()
+        defer { quillFrameAppendLock.unlock() }
+        return quillEncodedFrameCount > 0
+    }
+
+    @discardableResult
+    private func quillAppendLatestCaptureFrameIfAvailable() -> Bool {
+        guard status == .writing,
+              !quillHasEncodedFrames(),
+              let encoder = quillEncoder,
+              let width = quillVideoWidth,
+              let height = quillVideoHeight,
+              let frame = QuillRealtimeMovieWriterRegistry.shared.latestCaptureFrame(
+                  matchingWidth: width,
+                  height: height
+              )
+        else {
+            return false
+        }
+        return quillAppendFrameToEncoder(frame, encoder: encoder)
+    }
+
+    private func quillAppendFinalFallbackFrameIfNeeded() {
+        guard status == .writing,
+              !quillHasEncodedFrames(),
+              let encoder = quillEncoder,
+              let width = quillVideoWidth,
+              let height = quillVideoHeight
+        else {
+            return
+        }
+        if quillAppendLatestCaptureFrameIfAvailable() {
+            return
+        }
+        _ = quillAppendFrameToEncoder(
+            quillMakeFallbackMovieFrame(width: width, height: height),
+            encoder: encoder
+        )
+    }
+
+    private func quillMakeFallbackMovieFrame(width: Int, height: Int) -> CVPixelBuffer {
+        let frame = CVPixelBuffer(
+            width: width,
+            height: height,
+            pixelFormatType: kCVPixelFormatType_32BGRA
+        )
+        frame.quillWithMutableBytes { raw in
+            for offset in stride(from: 0, to: raw.count, by: 4) {
+                raw[offset] = 24
+                if offset + 1 < raw.count { raw[offset + 1] = 24 }
+                if offset + 2 < raw.count { raw[offset + 2] = 24 }
+                if offset + 3 < raw.count { raw[offset + 3] = 255 }
+            }
+        }
+        return frame
+    }
+    #endif
+
     public func finishWriting(completionHandler handler: @escaping () -> Void) {
         #if os(Linux)
+        quillAppendFinalFallbackFrameIfNeeded()
         QuillRealtimeMovieWriterRegistry.shared.unregister(self)
         if let encoder = quillEncoder {
             // ffmpeg finalizes the container on stdin close; do the wait off

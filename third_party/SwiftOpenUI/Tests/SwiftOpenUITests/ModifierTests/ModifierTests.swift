@@ -405,6 +405,39 @@ final class ModifierTests: XCTestCase {
         setCurrentEnvironment(nil)
     }
 
+    func testEnvironmentReadTrackerPrefersLatestInjectedObjectOnRebuild() {
+        let initialModel = TestObservableLike()
+        initialModel.value = 1
+        let replacementModel = TestObservableLike()
+        replacementModel.value = 2
+
+        var setupEnv = EnvironmentValues()
+        setupEnv.setObject(initialModel)
+        setCurrentEnvironment(setupEnv)
+
+        beginEnvironmentReadTracking()
+        XCTAssertTrue(Environment(TestObservableLike.self).wrappedValue === initialModel)
+        let captured = endEnvironmentReadTracking()
+        XCTAssertEqual(captured?.count, 1)
+
+        var replacementEnv = EnvironmentValues()
+        replacementEnv.setObject(replacementModel)
+        setCurrentEnvironment(replacementEnv)
+
+        var rebuildEnv = EnvironmentValues()
+        for (typeID, obj) in captured ?? [:] {
+            rebuildEnv.setLatestObjectByID(typeID, fallback: obj)
+        }
+        setCurrentEnvironment(rebuildEnv)
+
+        XCTAssertTrue(
+            Environment(TestObservableLike.self).wrappedValue === replacementModel,
+            "Rebuilds should use a newer ancestor-injected object instead of pinning the stale captured instance"
+        )
+
+        setCurrentEnvironment(nil)
+    }
+
     func testEnvironmentValuesIsEnabledDefaultsTrue() {
         let env = EnvironmentValues()
         XCTAssertTrue(env.isEnabled)

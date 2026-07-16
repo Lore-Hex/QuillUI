@@ -9,9 +9,10 @@ import Foundation
 /// draw the glyph directly by its PUA codepoint instead of relying on
 /// ligatures.
 ///
-/// Backends that do apply ligatures (GTK4 / Pango, Web / CSS) don't
-/// need this table; they draw the literal name as text and let the
-/// font's ligature feature substitute the glyph during shaping.
+/// GTK4 and Win32 use this table directly so icon labels stay compact
+/// even when ligature shaping or test-time font registration is incomplete.
+/// Web / CSS can still draw the literal name and let the font's ligature
+/// feature substitute the glyph during shaping.
 ///
 /// Coverage is demand-driven: V1 targets every Material name referenced
 /// by `SFSymbolCompatibility.map` plus the parity sample. New entries
@@ -73,14 +74,18 @@ public enum MaterialSymbolsCodepoints {
         "delete":              0xE872,
         "delete_forever":      0xE92B,
         "description":         0xE873,
+        "dns":                 0xE875,
         "find_in_page":        0xE880,
         "folder":              0xE2C7,
         "folder_open":         0xE2C8,
+        "hard_drive":          0xF80E,
+        "newspaper":           0xEB81,
 
         // Search / find
         "search":              0xE8B6,
 
         // Status / feedback
+        "bar_chart":           0xE26B,
         "cancel":              0xE5C9,
         "check":               0xE5CA,
         "check_box":           0xE834,
@@ -91,7 +96,11 @@ public enum MaterialSymbolsCodepoints {
         "error":               0xF8B6,
         "help_outline":        0xE8FD,
         "info":                0xE88E,
+        "lightbulb":           0xE0F0,
+        "radio_button_checked": 0xE837,
+        "radio_button_unchecked": 0xE836,
         "stop":                0xE047,
+        "trending_up":         0xE8E5,
         "verified":            0xEF76,
         "warning":             0xE002,
 
@@ -105,7 +114,11 @@ public enum MaterialSymbolsCodepoints {
         "disabled_by_default":  0xF230,
         "download":            0xF090,
         "edit":                0xE3C9,
+        "filter":              0xE3D3,
+        "gesture":             0xE155,
         "keep_off":            0xE6F9,
+        "magic_button":        0xF136,
+        "palette":             0xE3B7,
         "push_pin":            0xF10D,
         "remove":              0xE15B,
         "remove_circle":       0xE15C,
@@ -123,8 +136,10 @@ public enum MaterialSymbolsCodepoints {
         "manage_accounts":     0xF02E,
         "person":              0xE7FD,
         "person_add":          0xEA4D,
+        "person_remove":       0xEF66,
 
         // UI primitives
+        "alternate_email":     0xE0E6,
         "bookmark":            0xE866,
         "calendar_today":      0xE935,
         "chat_bubble":         0xE0CB,
@@ -136,7 +151,6 @@ public enum MaterialSymbolsCodepoints {
         "extension":           0xE87B,
         "favorite":            0xE87D,
         "favorite_border":     0xE87E,
-        "filter":              0xE3D3,
         "filter_list":         0xE152,
         "flip":                0xE3E8,
         "format_quote":        0xE244,
@@ -146,10 +160,10 @@ public enum MaterialSymbolsCodepoints {
         "history":             0xE8B3,
         "home":                0xE88A,
         "image":               0xE3F4,
+        "inbox":               0xE156,
         "keyboard":            0xE312,
         "keyboard_command_key": 0xEAE7,
         "label":               0xE892,
-        "lightbulb":           0xE90F,
         "link":                0xE157,
         "list":                0xE896,
         "list_alt":            0xE677,
@@ -163,20 +177,19 @@ public enum MaterialSymbolsCodepoints {
         "psychology":          0xEA4A,
         "public":              0xE80B,
         "quickreply":          0xEF6C,
-        "radio_button_checked": 0xE837,
-        "radio_button_unchecked": 0xE836,
         "rss_feed":            0xE0E5,
         "schedule":            0xE8B5,
         "shield":              0xE9E0,
         "shield_lock":         0xF686,
         "star":                0xE838,
         "star_border":         0xE83A,
+        "stacks":              0xF500,
+        "subtitles":           0xE048,
         "stop_circle":         0xEF71,
         "table":               0xF191,
         "tag":                 0xE9EF,
         "terminal":            0xEB8E,
         "text_fields":         0xE262,
-        "trending_up":         0xE8E5,
         "unknown_document":    0xF804,
         "upload_file":         0xE9FC,
         "visibility":          0xE8F4,

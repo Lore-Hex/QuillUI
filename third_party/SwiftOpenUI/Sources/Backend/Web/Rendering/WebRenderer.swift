@@ -1968,6 +1968,22 @@ extension ForegroundColorView: WebRenderable, WebDescribable {
     }
 }
 
+extension OptionalForegroundColorView: WebRenderable, WebDescribable {
+    public func webCreateElement() -> JSValue {
+        guard let color else {
+            return webRenderView(content)
+        }
+        return webRenderView(content.foregroundColor(color))
+    }
+
+    public func webDescribeNode() -> WebDescriptorNode {
+        guard let color else {
+            return webDescribeView(content)
+        }
+        return webDescribeView(content.foregroundColor(color))
+    }
+}
+
 extension BackgroundView: WebRenderable, WebDescribable {
     public func webCreateElement() -> JSValue {
         if let color = background as? Color {

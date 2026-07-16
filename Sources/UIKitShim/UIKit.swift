@@ -44,7 +44,9 @@ public typealias UIScreen = NSScreen
 #else
 // Linux: no AppKit/UIKit fonts. Provide the UIFont surface upstream UI uses
 // (scaled system fonts, the `.rounded` design). Metrics are identity on Linux.
-public final class UIFont: NSObject, NSCoding, @unchecked Sendable {
+public final class UIFont: NSObject, NSSecureCoding, @unchecked Sendable {
+    public static var supportsSecureCoding: Bool { true }
+
     public let pointSize: CGFloat
     public let fontName: String
     public let fontDescriptor: UIFontDescriptor
@@ -1229,13 +1231,26 @@ public final class UIGraphicsImageRenderer {
         return image
     }
     public func pngData(_ actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        _ = runActions(actions)
-        return Data()
+        guard let context = runActions(actions),
+              let cgImage = context.makeImage(),
+              let data = QuillBitmapImageCodec.encode(cgImage, type: "public.png")
+        else {
+            return Data()
+        }
+        return data
     }
     public func jpegData(withCompressionQuality quality: CGFloat, actions: (UIGraphicsImageRendererContext) -> Void) -> Data {
-        _ = quality
-        _ = runActions(actions)
-        return Data()
+        guard let context = runActions(actions),
+              let cgImage = context.makeImage(),
+              let data = QuillBitmapImageCodec.encode(
+                cgImage,
+                type: "public.jpeg",
+                compressionQuality: quality
+              )
+        else {
+            return Data()
+        }
+        return data
     }
 }
 

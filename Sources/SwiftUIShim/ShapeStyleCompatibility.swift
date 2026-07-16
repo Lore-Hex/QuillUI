@@ -103,6 +103,7 @@ private extension Gradient {
 }
 
 public extension View {
+    @_disfavoredOverload
     func background<S: ShapeStyle>(_ style: S) -> BackgroundView<Self, AnyView> {
         background(quillShapeStyleView(style))
     }

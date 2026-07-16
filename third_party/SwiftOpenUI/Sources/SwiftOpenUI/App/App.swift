@@ -30,6 +30,15 @@ public protocol Scene {
 
 extension Never: Scene {}
 
+func quillOpenWindowValueTypeKey<Value>(
+    id: String? = nil,
+    for valueType: Value.Type
+) -> String {
+    let typeKey = String(reflecting: valueType)
+    guard let id, !id.isEmpty else { return typeKey }
+    return "\(id)::\(typeKey)"
+}
+
 /// A scene that presents a window.
 public struct WindowGroup<Content: View>: Scene {
     public typealias Body = Never
@@ -49,6 +58,11 @@ public struct WindowGroup<Content: View>: Scene {
     /// Hidden-title-bar request (SwiftUI's `.windowStyle(.hiddenTitleBar)`);
     /// the GTK backend renders the window undecorated when set.
     public let quillHidesTitleBar: Bool
+    /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
+    public let quillValueTypeKey: String?
+    /// Rebuilds deferred window content with the value passed to
+    /// `openWindow(value:)` bound into the `Binding<Value?>` argument.
+    public let quillValueContentFactory: ((Any?) -> Content)?
 
     public init(_ title: String, @ViewBuilder content: () -> Content) {
         self.init(title: title, content: content())
@@ -62,11 +76,34 @@ public struct WindowGroup<Content: View>: Scene {
         self.init(title: id, content: content(), launchesAtStartup: true)
     }
 
-    public init<Value>(for valueType: Value.Type, @ViewBuilder content: (Binding<Value?>) -> Content) {
+    public init<Value>(
+        for valueType: Value.Type,
+        @ViewBuilder content: @escaping (Binding<Value?>) -> Content
+    ) {
         self.init(
             title: String(describing: valueType),
             content: content(.constant(nil)),
-            launchesAtStartup: false
+            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
+            quillValueContentFactory: { value in
+                content(.constant(value as? Value))
+            }
+        )
+    }
+
+    public init<Value>(
+        id: String,
+        for valueType: Value.Type,
+        @ViewBuilder content: @escaping (Binding<Value?>) -> Content
+    ) {
+        self.init(
+            title: id,
+            content: content(.constant(nil)),
+            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
+            quillValueContentFactory: { value in
+                content(.constant(value as? Value))
+            }
         )
     }
 
@@ -83,7 +120,9 @@ public struct WindowGroup<Content: View>: Scene {
         windowResizeBehavior: WindowResizeBehavior? = nil,
         windowResizability: WindowResizability? = nil,
         launchesAtStartup: Bool = true,
-        quillHidesTitleBar: Bool = false
+        quillHidesTitleBar: Bool = false,
+        quillValueTypeKey: String? = nil,
+        quillValueContentFactory: ((Any?) -> Content)? = nil
     ) {
         self.title = title
         self.content = content
@@ -98,6 +137,12 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowResizability = windowResizability
         self.launchesAtStartup = launchesAtStartup
         self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillValueTypeKey = quillValueTypeKey
+        self.quillValueContentFactory = quillValueContentFactory
+    }
+
+    public func quillContent(forPresentedValue value: Any?) -> Content {
+        quillValueContentFactory?(value) ?? content
     }
 
     public var body: Never { fatalError("WindowGroup is a primitive scene") }

@@ -145,6 +145,8 @@ struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveV
                let coordinator = mounted.coordinator as? R.Coordinator {
                 let context = NSViewRepresentableContext<R>(coordinator: coordinator)
                 representable.updateNSView(nsView, context: context)
+                nsView.needsDisplay = true
+                quillGtkQueueDrawWidget(mounted.widget)
                 quillGtkDetachFromParent(mounted.widget)
                 slot = mounted.widget
                 return
@@ -158,6 +160,8 @@ struct _QuillGTKRepresentableMountLeaf<R: NSViewRepresentable>: View, PrimitiveV
                 preconditionFailure(
                     "NSViewRepresentable (\(R.self)) mounted without a usable GTK display")
             }
+            nsView.needsDisplay = true
+            quillGtkQueueDrawWidget(widget)
             // Own the widget so it survives teardown of whichever render tree
             // it was parented in between rebuilds.
             quillGtkRetainWidget(widget)
