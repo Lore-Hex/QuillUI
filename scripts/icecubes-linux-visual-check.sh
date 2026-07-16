@@ -152,6 +152,7 @@ AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QU
 AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-557}"
 AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-398}"
 AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-462}"
+AUTH_STATUS_DETAIL_FAVORITE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS:-$AUTH_STATUS_DETAIL_FAVORITE_X,$AUTH_STATUS_DETAIL_FAVORITE_Y 412,$AUTH_STATUS_DETAIL_FAVORITE_Y 388,$AUTH_STATUS_DETAIL_FAVORITE_Y $AUTH_STATUS_DETAIL_FAVORITE_X,444 412,444 $AUTH_STATUS_DETAIL_FAVORITE_X,170 412,170}"
 AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_X:-584}"
 AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_SECONDARY_BOOKMARK_Y:-462}"
 AUTH_MEDIA_VIEWER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_X:-520}"
@@ -1450,9 +1451,29 @@ click_authenticated_status_detail_reply_action() {
 
 click_authenticated_status_detail_favorite_action() {
   local expected_favorite_count="$1"
+  local point point_x point_y
 
-  for y in "$AUTH_STATUS_DETAIL_FAVORITE_Y" 170; do
-    click_app_window_point "$AUTH_STATUS_DETAIL_FAVORITE_X" "$y"
+  for point in $AUTH_STATUS_DETAIL_FAVORITE_POINTS; do
+    if [[ "$point" != *,* ]]; then
+      echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS entry: $point" >&2
+      exit 2
+    fi
+    point_x="${point%,*}"
+    point_y="${point#*,}"
+    case "$point_x" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+    case "$point_y" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS entry: $point" >&2
+        exit 2
+        ;;
+    esac
+
+    click_app_window_point "$point_x" "$point_y"
     sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
     if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/favourite") >= expected_favorite_count )); then
       return 0
