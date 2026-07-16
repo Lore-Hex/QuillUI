@@ -7955,17 +7955,17 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
 
     bookmark_top_accent_pixels = pixel_count(
         image,
-        left + 550,
+        left + 430,
         top + 145,
-        left + 610,
+        left + 500,
         top + 196,
         bookmark_accent_pixel,
     )
     bookmark_media_accent_pixels = pixel_count(
         image,
-        left + 550,
+        left + 430,
         top + 420,
-        left + 610,
+        left + 500,
         top + 505,
         bookmark_accent_pixel,
     )
@@ -7973,7 +7973,7 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
         image,
         left + 250,
         top + 135,
-        left + 650,
+        left + 520,
         top + 205,
     )
     bookmark_effective_top_accent_pixels = (
