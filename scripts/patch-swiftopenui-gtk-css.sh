@@ -8639,6 +8639,33 @@ if "gtkPropagateSingleChildLayoutMarkers(from: [contentWidget], to: wrapper)" no
         1,
     )
 
+custom_layout_marker_propagation = '''        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+        return opaqueFromWidget(wrapper)
+    }
+}
+
+// MARK: - ViewThatFits GTK extension
+'''
+custom_layout_owned_fill_intent = '''        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+        // A custom Layout owns its proposed size. A filling child should fill
+        // that measured slot, but its fill intent must not escape to the
+        // parent stack or the finite layout can be compressed to zero.
+        gtkClearVerticalFillIntent(wrapper)
+        return opaqueFromWidget(wrapper)
+    }
+}
+
+// MARK: - ViewThatFits GTK extension
+'''
+if custom_layout_marker_propagation in text:
+    text = text.replace(
+        custom_layout_marker_propagation,
+        custom_layout_owned_fill_intent,
+        1,
+    )
+elif custom_layout_owned_fill_intent not in text:
+    raise SystemExit("SwiftOpenUI custom Layout fill-intent boundary shape was not recognized")
+
 if "gtkMarkVerticalFillIntent(area)" not in text:
     canvas_vexpand = '''        if height <= 0 {
             gtk_widget_set_vexpand(area, 1)

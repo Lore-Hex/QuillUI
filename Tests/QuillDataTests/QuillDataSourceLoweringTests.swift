@@ -3142,6 +3142,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkInstallContainerRelativeFrameSizing("))
         #expect(patchedRenderer.contains("let horizontalContentWantsViewportHeight ="))
         #expect(patchedRenderer.contains("gtkPropagateSingleChildLayoutMarkers(from: [baseWidget], to: container)"))
+        #expect(patchedRenderer.contains("gtkClearVerticalFillIntent(wrapper)\n        return opaqueFromWidget(wrapper)\n    }\n}\n\n// MARK: - ViewThatFits GTK extension"))
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))
         #expect(patchedRenderer.contains("let itemCount = expandedChildren?.count ?? items.count"))
         #expect(patchedRenderer.contains("configuration.maxColumns > 1 ? 160 : 0"))

@@ -151,6 +151,12 @@ jobs:
           TEST_RUN_TIMEOUT: "180"
         run: GTK_A11Y=none GSK_RENDERER=cairo xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKDescribeCycleGuardTests
 
+      - name: GTK IceCubes media layout tests
+        env:
+          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
+          TEST_RUN_TIMEOUT: "180"
+        run: GTK_A11Y=none GSK_RENDERER=cairo xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKCustomLayoutTests
+
       # Keep the backend facade modules compile-gated directly on Linux too.
       # The test suite imports both modules, but these explicit target builds
       # make GTK/Qt launch-surface failures obvious before the long smoke and

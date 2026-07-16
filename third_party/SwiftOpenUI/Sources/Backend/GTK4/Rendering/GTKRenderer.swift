@@ -17322,6 +17322,10 @@ extension LayoutContainer: GTKRenderable {
             gtk_widget_set_valign(child, GTK_ALIGN_FILL)
         }
         gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+        // A custom Layout owns its proposed size. A filling child should fill
+        // that measured slot, but its fill intent must not escape to the
+        // parent stack or the finite layout can be compressed to zero.
+        gtkClearVerticalFillIntent(wrapper)
         return opaqueFromWidget(wrapper)
     }
 }
