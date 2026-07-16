@@ -12,7 +12,7 @@ import SwiftUI
 struct GTKLazyStackLayoutTests {
     @Test("builder LazyHStack keeps ForEach horizontal and preserves spacing")
     func builderLazyHStackPreservesAxisAndSpacing() throws {
-        if !lazyStackGTKIsAvailable() {
+        if !gtkTestDisplayIsAvailable() {
             return
         }
 
@@ -53,7 +53,7 @@ struct GTKLazyStackLayoutTests {
 
     @Test("containerRelativeFrame divides the horizontal scroll viewport")
     func containerRelativeFrameDividesHorizontalScrollViewport() throws {
-        if !lazyStackGTKIsAvailable() {
+        if !gtkTestDisplayIsAvailable() {
             return
         }
 
@@ -94,7 +94,7 @@ struct GTKLazyStackLayoutTests {
 
     @Test("horizontal ScrollView proposes its height to filling relative content")
     func horizontalScrollViewProposesHeightToFillingRelativeContent() throws {
-        if !lazyStackGTKIsAvailable() {
+        if !gtkTestDisplayIsAvailable() {
             return
         }
 
@@ -134,13 +134,6 @@ struct GTKLazyStackLayoutTests {
         #expect(gtk_widget_get_width(media) >= 250, Comment(rawValue: tree))
         #expect(gtk_widget_get_height(media) >= 110, Comment(rawValue: tree))
     }
-}
-
-private func lazyStackGTKIsAvailable() -> Bool {
-    if gtk_is_initialized() == 0, gtk_init_check() == 0 {
-        return false
-    }
-    return gdk_display_get_default() != nil
 }
 
 private func collectLazyStackLabels(

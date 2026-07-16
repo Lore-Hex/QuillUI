@@ -410,6 +410,8 @@ struct QuillDataSourceLoweringTests {
         #expect(workflow.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(workflow.contains("QUILLUI_LINUX_BACKEND: \"gtk\""))
         #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKLazyStackLayoutTests"))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKDescribeCycleGuardTests"))
         #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests"))
     }
 

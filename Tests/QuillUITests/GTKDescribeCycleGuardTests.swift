@@ -71,7 +71,7 @@ struct GTKDescribeCycleGuardTests {
 
     @Test("SwiftUI shadow foregroundStyle reaches GTK labels through wrappers")
     func swiftUIShadowForegroundStyleReachesGTKLabelsThroughWrappers() throws {
-        if gtk_is_initialized() == 0, gtk_init_check() == 0 {
+        if !gtkTestDisplayIsAvailable() {
             return
         }
 
