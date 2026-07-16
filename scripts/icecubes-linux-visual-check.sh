@@ -145,8 +145,10 @@ AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X
 AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
 AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-462}"
+AUTH_STATUS_DETAIL_BOOST_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y 350,$AUTH_STATUS_DETAIL_BOOST_Y 320,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,444 350,444 $AUTH_STATUS_DETAIL_BOOST_X,170 350,170}"
 AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-335}"
 AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-505}"
+AUTH_STATUS_DETAIL_BOOST_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS:-$AUTH_STATUS_DETAIL_BOOST_MENU_X,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 320,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 350,$AUTH_STATUS_DETAIL_BOOST_MENU_Y $AUTH_STATUS_DETAIL_BOOST_MENU_X,492 $AUTH_STATUS_DETAIL_BOOST_MENU_X,518 $AUTH_STATUS_DETAIL_BOOST_MENU_X,215}"
 AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_X:-335}"
 AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-557}"
 AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-398}"
@@ -1381,30 +1383,65 @@ click_authenticated_status_detail_row() {
 
 click_authenticated_status_detail_boost_action() {
   local expected_boost_count="$1"
-  local y menu_y
+  local action_point menu_point point_x point_y menu_x menu_y
 
-  for layout in media legacy; do
-    if [[ "$layout" == "media" ]]; then
-      y="$AUTH_STATUS_DETAIL_BOOST_Y"
-      menu_y="$AUTH_STATUS_DETAIL_BOOST_MENU_Y"
-    else
-      y="170"
-      menu_y="215"
+  for action_point in $AUTH_STATUS_DETAIL_BOOST_POINTS; do
+    if [[ "$action_point" != *,* ]]; then
+      echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS entry: $action_point" >&2
+      exit 2
     fi
+    point_x="${action_point%,*}"
+    point_y="${action_point#*,}"
+    case "$point_x" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS entry: $action_point" >&2
+        exit 2
+        ;;
+    esac
+    case "$point_y" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS entry: $action_point" >&2
+        exit 2
+        ;;
+    esac
 
-    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$y"
-    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
-    if [[ -n "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT:-}" ]]; then
-      DISPLAY="$DISPLAY_ID" import -window root "$QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT"
-    fi
-    if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_BOOST_MENU_OPEN:-0}" == "1" ]]; then
-      exit 0
-    fi
-    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_BOOST_MENU_X" "$menu_y"
-    sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
-    if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog") >= expected_boost_count )); then
-      return 0
-    fi
+    for menu_point in $AUTH_STATUS_DETAIL_BOOST_MENU_POINTS; do
+      if [[ "$menu_point" != *,* ]]; then
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS entry: $menu_point" >&2
+        exit 2
+      fi
+      menu_x="${menu_point%,*}"
+      menu_y="${menu_point#*,}"
+      case "$menu_x" in
+        ''|*[!0-9]*)
+          echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS entry: $menu_point" >&2
+          exit 2
+          ;;
+      esac
+      case "$menu_y" in
+        ''|*[!0-9]*)
+          echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS entry: $menu_point" >&2
+          exit 2
+          ;;
+      esac
+
+      click_app_window_point "$point_x" "$point_y"
+      sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
+      if [[ -n "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT:-}" ]]; then
+        DISPLAY="$DISPLAY_ID" import -window root "$QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT"
+      fi
+      if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_BOOST_MENU_OPEN:-0}" == "1" ]]; then
+        exit 0
+      fi
+      if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog") >= expected_boost_count )); then
+        return 0
+      fi
+      click_app_window_relative_screen_point "$menu_x" "$menu_y"
+      sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
+      if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog") >= expected_boost_count )); then
+        return 0
+      fi
+    done
   done
 
   return 1
