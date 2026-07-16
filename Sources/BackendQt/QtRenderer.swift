@@ -131,6 +131,20 @@ extension OnChangeTwoArgView: QtRenderable {
     }
 }
 
+extension InitialOnChangeView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        _ = onChangeCheckAndFire(value: value, initial: initial, action: action)
+        return qtRenderView(content)
+    }
+}
+
+extension InitialOnChangeTwoArgView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        _ = onChangeCheckAndFireTwoArg(value: value, initial: initial, action: action)
+        return qtRenderView(content)
+    }
+}
+
 /// Render an existential (any View).
 public func qtRenderAnyView(_ view: any View) -> OpaquePointer {
     func render<V: View>(_ v: V) -> OpaquePointer { qtRenderView(v) }
@@ -1614,6 +1628,18 @@ extension FrameView: QtRenderable {
     }
 }
 
+extension ContainerRelativeFrameView: QtRenderable {
+    public func qtCreateWidget() -> OpaquePointer {
+        qtRenderView(
+            content.frame(
+                maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                maxHeight: axes.contains(.vertical) ? .infinity : nil,
+                alignment: alignment
+            )
+        )
+    }
+}
+
 // MARK: - Shape views
 
 private func qtColorCSS(_ color: Color) -> String {
@@ -1881,14 +1907,22 @@ extension Label: QtRenderable {
 extension LazyVStack: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
-        return qtRenderVerticalContainer(children, spacing: 0, alignment: .leading)
+        return qtRenderVerticalContainer(
+            children,
+            spacing: resolveStackSpacing(spacing),
+            alignment: alignment
+        )
     }
 }
 
 extension LazyHStack: QtRenderable {
     public func qtCreateWidget() -> OpaquePointer {
         let children = items.flatMap { item in qtRenderChildren(contentBuilder(item)) }
-        return qtRenderHorizontalContainer(children, spacing: 0, alignment: .center)
+        return qtRenderHorizontalContainer(
+            children,
+            spacing: resolveStackSpacing(spacing),
+            alignment: alignment
+        )
     }
 }
 

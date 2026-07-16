@@ -7366,6 +7366,7 @@ def validate_icecubes_linux_authenticated_composer(
     *,
     typed: bool = False,
     allow_quoted_media: bool = False,
+    media_attachment: bool = False,
 ) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -7460,7 +7461,13 @@ def validate_icecubes_linux_authenticated_composer(
         "IceCubes authenticated composer capture still appears to show the main Timeline sidebar: "
         f"pixels={stale_timeline_sidebar_pixels}",
     )
-    if allow_quoted_media:
+    if media_attachment:
+        require(
+            8_000 <= composer_media_viewer_pixels <= 230_000,
+            "IceCubes authenticated composer uploaded media was not detected at a usable size: "
+            f"pixels={composer_media_viewer_pixels}",
+        )
+    elif allow_quoted_media:
         require(
             composer_media_viewer_pixels <= 230_000,
             "IceCubes authenticated reply composer quoted media overwhelmed the editor surface: "
@@ -7480,7 +7487,7 @@ def validate_icecubes_linux_authenticated_composer(
         )
 
     return (
-        f"IceCubes authenticated composer{' typed' if typed else ''}: "
+        f"IceCubes authenticated composer{' typed' if typed else ' media attachment' if media_attachment else ''}: "
         f"app={app_width}x{app_height}, "
         f"titlebar_pixels={titlebar_pixels}, "
         f"composer_send_button_pixels={composer_send_button_pixels}, "
@@ -7488,9 +7495,50 @@ def validate_icecubes_linux_authenticated_composer(
         f"composer_field_pixels={composer_field_pixels}, "
         f"composer_media_viewer_pixels={composer_media_viewer_pixels}, "
         f"allow_quoted_media={allow_quoted_media}, "
+        f"media_attachment={media_attachment}, "
         f"typed_body_pixels={typed_body_pixels}, "
         f"typed_leading_editor_pixels={typed_leading_editor_pixels}, "
         f"stale_timeline_sidebar_pixels={stale_timeline_sidebar_pixels}"
+    )
+
+
+def validate_icecubes_linux_authenticated_composer_media_panel(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_composer(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    thumbnail_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.24),
+        top + int(app_height * 0.52),
+        right - int(app_width * 0.24),
+        bottom - 64,
+        icecubes_media_pixel,
+    )
+    panel_action_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.24),
+        bottom - 82,
+        right - int(app_width * 0.24),
+        bottom - 18,
+    )
+
+    require(
+        thumbnail_pixels >= 20_000,
+        "IceCubes authenticated composer media panel thumbnail strip was not detected: "
+        f"pixels={thumbnail_pixels}",
+    )
+    require(
+        panel_action_pixels >= 120,
+        "IceCubes authenticated composer media panel actions were not detected: "
+        f"pixels={panel_action_pixels}",
+    )
+    return (
+        baseline
+        + ", "
+        + f"media_panel_thumbnail_pixels={thumbnail_pixels}, "
+        + f"media_panel_action_pixels={panel_action_pixels}"
     )
 
 
@@ -8420,6 +8468,8 @@ def main() -> int:
     compact_icecubes_dialog_product = product in {
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel",
+        "icecubes-linux-authenticated-composer-media-attachment",
     }
     signal_real_conversation_product = product in {
         "signal-real-conversation",
@@ -8463,6 +8513,8 @@ def main() -> int:
         "icecubes-linux-authenticated-settings-display-system-color",
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel",
+        "icecubes-linux-authenticated-composer-media-attachment",
         "icecubes-linux-authenticated-reply-composer",
         "icecubes-linux-authenticated-composer-submitted",
         "icecubes-linux-authenticated-status-detail",
@@ -8730,6 +8782,10 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-composer-typed":
         print(validate_icecubes_linux_authenticated_composer(image, typed=True))
+    elif product == "icecubes-linux-authenticated-composer-media-panel":
+        print(validate_icecubes_linux_authenticated_composer_media_panel(image))
+    elif product == "icecubes-linux-authenticated-composer-media-attachment":
+        print(validate_icecubes_linux_authenticated_composer(image, media_attachment=True))
     elif product == "icecubes-linux-authenticated-reply-composer":
         print(validate_icecubes_linux_authenticated_composer(image, allow_quoted_media=True))
     elif product == "icecubes-linux-authenticated-composer-submitted":

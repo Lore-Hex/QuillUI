@@ -1041,6 +1041,10 @@ patch_icecubes() {
 	        "urlSession.data(for: request)",
 	        "QuillURLSessionFixtures.data(for: request, fallbackSession: urlSession)",
 	    )
+	    new = new.replace(
+	        "urlSession.upload(for: request, from: request.httpBody!, delegate:",
+	        "QuillURLSessionFixtures.upload(for: request, from: request.httpBody!, fallbackSession: urlSession, delegate:",
+	    )
 	    if new != src:
 	        open(path, "w").write(new)
 	        print("patched", os.path.basename(path))

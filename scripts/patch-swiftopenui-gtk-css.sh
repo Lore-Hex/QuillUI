@@ -22,6 +22,7 @@ ENVIRONMENT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Environment/Environment.swift
 CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
 CONFIRMATION_DIALOG_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
 ON_CHANGE_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"
+FRAME_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/FrameModifier.swift"
 SYMBOLS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/SFSymbolCompatibility.swift"
 SYMBOL_CODEPOINTS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUISymbols/MaterialSymbolsCodepoints.swift"
 SCROLL_VIEW="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Views/ScrollView.swift"
@@ -104,6 +105,11 @@ if [[ ! -f "$LAYOUT" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$FRAME_MODIFIER" ]]; then
+  echo "SwiftOpenUI frame modifier source was not found at $FRAME_MODIFIER" >&2
+  exit 1
+fi
+
 if [[ ! -f "$SYMBOLS" ]]; then
   echo "SwiftOpenUI symbol compatibility map was not found at $SYMBOLS" >&2
   exit 1
@@ -153,6 +159,7 @@ fi
 if [[ -f "$ON_CHANGE_MODIFIER" ]]; then
   chmod u+w "$ON_CHANGE_MODIFIER"
 fi
+chmod u+w "$FRAME_MODIFIER"
 
 if [[ -f "$OBSERVABLE_OBJECT" && -f "$BINDABLE" ]]; then
   python3 - "$OBSERVABLE_OBJECT" "$BINDABLE" <<'PY'
@@ -358,6 +365,377 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
 path.write_text(text)
 PY
 
+python3 - "$ON_CHANGE_MODIFIER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+def replace_once(old: str, new: str, label: str) -> None:
+    global text
+    if old not in text:
+        raise SystemExit(f"SwiftOpenUI {label} shape was not recognized")
+    text = text.replace(old, new, 1)
+
+if "public init(content: Content, value: V, action: @escaping (V) -> Void)" not in text:
+    replace_once(
+        """    public let action: (V) -> Void
+
+    public var body: Never { fatalError() }
+}""",
+        """    public let action: (V) -> Void
+
+    public init(content: Content, value: V, action: @escaping (V) -> Void) {
+        self.content = content
+        self.value = value
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}""",
+        "OnChangeView public initializer",
+    )
+
+if "public init(content: Content, value: V, action: @escaping (V, V) -> Void)" not in text:
+    replace_once(
+        """    public let action: (V, V) -> Void
+
+    public var body: Never { fatalError() }
+}""",
+        """    public let action: (V, V) -> Void
+
+    public init(content: Content, value: V, action: @escaping (V, V) -> Void) {
+        self.content = content
+        self.value = value
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}""",
+        "OnChangeTwoArgView public initializer",
+    )
+
+if "public struct InitialOnChangeView" not in text:
+    initial_types = r'''
+/// `onChange(of:initial:)` is a distinct primitive so adding the newer SwiftUI
+/// overload does not change the stored layout of the original public view type.
+public struct InitialOnChangeView<Content: View, V: Equatable>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let value: V
+    public let initial: Bool
+    public let action: (V) -> Void
+
+    public init(content: Content, value: V, initial: Bool, action: @escaping (V) -> Void) {
+        self.content = content
+        self.value = value
+        self.initial = initial
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}
+
+public struct InitialOnChangeTwoArgView<Content: View, V: Equatable>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let value: V
+    public let initial: Bool
+    public let action: (V, V) -> Void
+
+    public init(content: Content, value: V, initial: Bool, action: @escaping (V, V) -> Void) {
+        self.content = content
+        self.value = value
+        self.initial = initial
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}
+'''
+    marker = "\n\nextension View {"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI initial OnChange type insertion shape was not recognized")
+    text = text.replace(marker, "\n" + initial_types + marker, 1)
+
+if "_ action: @escaping () -> Void\n    ) -> InitialOnChangeView" not in text:
+    single_marker = """    public func onChange<V: Equatable>(of value: V, perform action: @escaping (V) -> Void) -> OnChangeView<Self, V> {
+        OnChangeView(content: self, value: value, action: action)
+    }
+"""
+    initial_single_overloads = r'''
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping () -> Void
+    ) -> InitialOnChangeView<Self, V> {
+        InitialOnChangeView(content: self, value: value, initial: initial) { _ in action() }
+    }
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V) -> Void
+    ) -> InitialOnChangeView<Self, V> {
+        InitialOnChangeView(content: self, value: value, initial: initial, action: action)
+    }
+'''
+    if single_marker not in text:
+        raise SystemExit("SwiftOpenUI initial OnChange single-argument overload shape was not recognized")
+    text = text.replace(single_marker, single_marker + initial_single_overloads, 1)
+
+if "_ action: @escaping (V, V) -> Void\n    ) -> InitialOnChangeTwoArgView" not in text:
+    two_arg_marker = """    public func onChange<V: Equatable>(
+        of value: V,
+        _ action: @escaping (V, V) -> Void
+    ) -> OnChangeTwoArgView<Self, V> {
+        OnChangeTwoArgView(content: self, value: value, action: action)
+    }
+"""
+    initial_two_arg_overload = r'''
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V, V) -> Void
+    ) -> InitialOnChangeTwoArgView<Self, V> {
+        InitialOnChangeTwoArgView(content: self, value: value, initial: initial, action: action)
+    }
+'''
+    if two_arg_marker not in text:
+        raise SystemExit("SwiftOpenUI initial OnChange two-argument overload shape was not recognized")
+    text = text.replace(two_arg_marker, two_arg_marker + initial_two_arg_overload, 1)
+
+if "value: V,\n    initial: Bool,\n    action: (V) -> Void" not in text:
+    old_single_tracking = """@discardableResult
+public func onChangeCheckAndFire<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    action: (V) -> Void
+) -> Int {
+    let key = _onChangeCounter
+    _onChangeCounter += 1
+    let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
+
+    if let previous = _onChangePreviousValues[storageKey] as? V {
+        if previous != value {
+            action(value)
+        }
+    }
+    // Store current value for next render pass
+    _onChangePreviousValues[storageKey] = value
+
+    return key
+}
+"""
+    new_single_tracking = """@discardableResult
+public func onChangeCheckAndFire<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    action: (V) -> Void
+) -> Int {
+    onChangeCheckAndFire(
+        namespace: namespace,
+        value: value,
+        initial: false,
+        action: action
+    )
+}
+
+@discardableResult
+public func onChangeCheckAndFire<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    initial: Bool,
+    action: (V) -> Void
+) -> Int {
+    let key = _onChangeCounter
+    _onChangeCounter += 1
+    let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
+
+    if let previous = _onChangePreviousValues[storageKey] as? V {
+        if previous != value {
+            action(value)
+        }
+    } else if initial {
+        action(value)
+    }
+    // Store current value for next render pass
+    _onChangePreviousValues[storageKey] = value
+
+    return key
+}
+"""
+    replace_once(old_single_tracking, new_single_tracking, "initial OnChange tracking")
+
+if "value: V,\n    initial: Bool,\n    action: (V, V) -> Void" not in text:
+    old_two_arg_tracking = """@discardableResult
+public func onChangeCheckAndFireTwoArg<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    action: (V, V) -> Void
+) -> Int {
+    let key = _onChangeCounter
+    _onChangeCounter += 1
+    let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
+
+    if let previous = _onChangePreviousValues[storageKey] as? V {
+        if previous != value {
+            action(previous, value)
+        }
+    }
+    _onChangePreviousValues[storageKey] = value
+
+    return key
+}
+"""
+    new_two_arg_tracking = """@discardableResult
+public func onChangeCheckAndFireTwoArg<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    action: (V, V) -> Void
+) -> Int {
+    onChangeCheckAndFireTwoArg(
+        namespace: namespace,
+        value: value,
+        initial: false,
+        action: action
+    )
+}
+
+@discardableResult
+public func onChangeCheckAndFireTwoArg<V: Equatable>(
+    namespace: String = \"default\",
+    value: V,
+    initial: Bool,
+    action: (V, V) -> Void
+) -> Int {
+    let key = _onChangeCounter
+    _onChangeCounter += 1
+    let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
+
+    if let previous = _onChangePreviousValues[storageKey] as? V {
+        if previous != value {
+            action(previous, value)
+        }
+    } else if initial {
+        action(value, value)
+    }
+    _onChangePreviousValues[storageKey] = value
+
+    return key
+}
+"""
+    replace_once(old_two_arg_tracking, new_two_arg_tracking, "initial two-argument OnChange tracking")
+
+path.write_text(text)
+PY
+
+python3 - "$FRAME_MODIFIER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+if "public struct ContainerRelativeFrameView" not in text:
+    container_type = r'''
+/// A frame whose size is derived from the nearest container's proposal.
+///
+/// SwiftUI uses this primitive for paged media, galleries, and other views
+/// whose item width is a fraction of a scroll viewport. Keeping the division
+/// metadata intact lets each backend resolve the size after its native parent
+/// has received a real allocation.
+public struct ContainerRelativeFrameView<Content: View>: View, PrimitiveView {
+    public typealias Body = Never
+
+    public let content: Content
+    public let axes: Axis
+    public let count: Int
+    public let span: Int
+    public let spacing: Double
+    public let alignment: Alignment
+
+    public init(
+        content: Content,
+        axes: Axis,
+        count: Int,
+        span: Int,
+        spacing: Double,
+        alignment: Alignment
+    ) {
+        self.content = content
+        self.axes = axes
+        self.count = count
+        self.span = span
+        self.spacing = spacing
+        self.alignment = alignment
+    }
+
+    public var body: Never { fatalError("ContainerRelativeFrameView is a primitive view") }
+
+    /// Resolve one axis using SwiftUI's count/span/spacing division.
+    public func resolvedLength(in containerLength: Double) -> Double {
+        let resolvedCount = max(1, count)
+        let resolvedSpan = min(max(1, span), resolvedCount)
+        let resolvedSpacing = max(0, spacing)
+        let available = max(0, containerLength - Double(resolvedCount - 1) * resolvedSpacing)
+        let itemLength = available / Double(resolvedCount)
+        return itemLength * Double(resolvedSpan) + Double(resolvedSpan - 1) * resolvedSpacing
+    }
+}
+'''
+    marker = "\n\nextension View {"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI container-relative frame type insertion shape was not recognized")
+    text = text.replace(marker, "\n" + container_type + marker, 1)
+
+if "public func containerRelativeFrame(" not in text:
+    methods = r'''
+
+    /// Size this view relative to the nearest container on the selected axes.
+    public func containerRelativeFrame(
+        _ axes: Axis,
+        alignment: Alignment = .center
+    ) -> ContainerRelativeFrameView<Self> {
+        ContainerRelativeFrameView(
+            content: self,
+            axes: axes,
+            count: 1,
+            span: 1,
+            spacing: 0,
+            alignment: alignment
+        )
+    }
+
+    /// Divide the nearest container into equally sized slots and occupy a span.
+    public func containerRelativeFrame(
+        _ axes: Axis,
+        count: Int,
+        span: Int,
+        spacing: Double,
+        alignment: Alignment = .center
+    ) -> ContainerRelativeFrameView<Self> {
+        ContainerRelativeFrameView(
+            content: self,
+            axes: axes,
+            count: count,
+            span: span,
+            spacing: spacing,
+            alignment: alignment
+        )
+    }
+'''
+    close = "\n}\n"
+    if not text.endswith(close):
+        raise SystemExit("SwiftOpenUI container-relative frame method insertion shape was not recognized")
+    text = text[: -len(close)] + methods + close
+
+path.write_text(text)
+PY
+
 python3 - "$RENDERER" <<'PY'
 import sys
 from pathlib import Path
@@ -410,6 +788,323 @@ if old_two_arg in text:
     text = text.replace(old_two_arg, new_two_arg, 1)
 elif new_two_arg not in text:
     raise SystemExit("SwiftOpenUI GTK OnChange two-argument renderer shape was not recognized")
+
+if "extension InitialOnChangeView: GTKRenderable" not in text:
+    initial_renderers = r'''
+
+extension InitialOnChangeView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        onChangeCheckAndFire(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            initial: initial,
+            action: action
+        )
+        return gtkRenderView(content)
+    }
+}
+
+extension InitialOnChangeTwoArgView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        onChangeCheckAndFireTwoArg(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            initial: initial,
+            action: action
+        )
+        return gtkRenderView(content)
+    }
+}
+'''
+    if new_two_arg not in text:
+        raise SystemExit("SwiftOpenUI GTK initial OnChange renderer insertion shape was not recognized")
+    text = text.replace(new_two_arg, new_two_arg + initial_renderers, 1)
+
+path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+
+if "private final class GTKContainerRelativeFrameContext" not in text:
+    helpers = r'''private final class GTKContainerRelativeFrameContext {
+    let axes: Axis
+    let count: Int
+    let span: Int
+    let spacing: Double
+    var requestedWidth: gint = -1
+    var requestedHeight: gint = -1
+
+    init(axes: Axis, count: Int, span: Int, spacing: Double) {
+        self.axes = axes
+        self.count = count
+        self.span = span
+        self.spacing = spacing
+    }
+
+    func resolvedLength(in containerLength: gint) -> gint {
+        let resolvedCount = max(1, count)
+        let resolvedSpan = min(max(1, span), resolvedCount)
+        let resolvedSpacing = max(0, spacing)
+        let available = max(
+            0,
+            Double(containerLength) - Double(resolvedCount - 1) * resolvedSpacing
+        )
+        let itemLength = available / Double(resolvedCount)
+        return max(
+            1,
+            gint((itemLength * Double(resolvedSpan) + Double(resolvedSpan - 1) * resolvedSpacing).rounded())
+        )
+    }
+}
+
+private func gtkContainerRelativeExtent(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    horizontal: Bool
+) -> gint? {
+    var current = gtk_widget_get_parent(widget)
+    var outermostAllocatedExtent: gint?
+    var depth = 0
+
+    while let node = current, depth < 160 {
+        let extent = horizontal ? gtk_widget_get_width(node) : gtk_widget_get_height(node)
+        if extent > 1 {
+            outermostAllocatedExtent = extent
+            if gtkHasLayoutMarker(node, key: gtkSwiftScrollViewMarker) {
+                return extent
+            }
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+
+    return outermostAllocatedExtent
+}
+
+private let gtkContainerRelativeFrameTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 0 }
+    let context = Unmanaged<GTKContainerRelativeFrameContext>
+        .fromOpaque(userData)
+        .takeUnretainedValue()
+
+    var width = context.requestedWidth
+    var height = context.requestedHeight
+    var changed = false
+
+    if context.axes.contains(.horizontal),
+       let containerWidth = gtkContainerRelativeExtent(from: widget, horizontal: true) {
+        let resolvedWidth = context.resolvedLength(in: containerWidth)
+        if resolvedWidth != context.requestedWidth {
+            context.requestedWidth = resolvedWidth
+            width = resolvedWidth
+            changed = true
+        }
+    }
+
+    if context.axes.contains(.vertical),
+       let containerHeight = gtkContainerRelativeExtent(from: widget, horizontal: false) {
+        let resolvedHeight = context.resolvedLength(in: containerHeight)
+        if resolvedHeight != context.requestedHeight {
+            context.requestedHeight = resolvedHeight
+            height = resolvedHeight
+            changed = true
+        }
+    }
+
+    if changed {
+        gtk_widget_set_size_request(
+            widget,
+            context.axes.contains(.horizontal) ? width : -1,
+            context.axes.contains(.vertical) ? height : -1
+        )
+        gtk_widget_queue_resize(widget)
+    }
+
+    return 1
+}
+
+private func gtkInstallContainerRelativeFrameSizing(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    axes: Axis,
+    count: Int,
+    span: Int,
+    spacing: Double
+) {
+    let context = GTKContainerRelativeFrameContext(
+        axes: axes,
+        count: count,
+        span: span,
+        spacing: spacing
+    )
+    let contextPointer = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkContainerRelativeFrameTickCallback,
+        contextPointer,
+        { userData in
+            Unmanaged<GTKContainerRelativeFrameContext>.fromOpaque(userData!).release()
+        }
+    )
+}
+
+'''
+    marker = "private final class GTKRowWidthContext"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK container-relative sizing helper insertion shape was not recognized")
+    text = text.replace(marker, helpers + marker, 1)
+
+if "extension ContainerRelativeFrameView: GTKRenderable" not in text:
+    renderer = r'''extension ContainerRelativeFrameView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .frame,
+            typeName: "ContainerRelativeFrameView",
+            props: .frame(GTK4FrameDescriptor(
+                width: nil,
+                height: nil,
+                minWidth: nil,
+                minHeight: nil,
+                maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                maxHeight: axes.contains(.vertical) ? .infinity : nil,
+                alignment: gtkAlignmentDescriptor(alignment)
+            )),
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let framedContent = content.frame(
+            maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+            maxHeight: axes.contains(.vertical) ? .infinity : nil,
+            alignment: alignment
+        )
+        let child = widgetFromOpaque(gtkRenderView(framedContent))
+        if gtkIsEmptyViewWidget(child) {
+            return opaqueFromWidget(child)
+        }
+
+        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        if axes.contains(.horizontal) {
+            gtk_widget_set_hexpand(wrapper, 0)
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if axes.contains(.vertical) {
+            gtk_widget_set_vexpand(wrapper, 0)
+            gtk_widget_set_vexpand(child, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
+        if !axes.contains(.horizontal), gtk_widget_get_hexpand(child) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        }
+        if !axes.contains(.vertical), gtk_widget_get_vexpand(child) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
+        }
+
+        gtk_widget_set_size_request(
+            wrapper,
+            axes.contains(.horizontal) ? 1 : -1,
+            axes.contains(.vertical) ? 1 : -1
+        )
+        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+        gtk_box_append(boxPointer(wrapper), child)
+        gtkInstallContainerRelativeFrameSizing(
+            on: wrapper,
+            axes: axes,
+            count: count,
+            span: span,
+            spacing: spacing
+        )
+        return opaqueFromWidget(wrapper)
+    }
+}
+
+'''
+    marker = "private func gtkMeasureWidgetNaturalSize"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK container-relative renderer insertion shape was not recognized")
+    text = text.replace(marker, renderer + marker, 1)
+
+scroll_start = text.find("extension ScrollView: GTKRenderable, GTKDescribable")
+scroll_end = text.find("// MARK: - Image GTK extension", scroll_start)
+if scroll_start < 0 or scroll_end < 0:
+    raise SystemExit("SwiftOpenUI GTK ScrollView container-relative patch region was not recognized")
+scroll = text[scroll_start:scroll_end]
+
+if "horizontalContentWantsViewportHeight" not in scroll:
+    old = """        let child = widgetFromOpaque(gtkRenderView(content))
+        if axes.contains(.vertical) {
+"""
+    new = """        let child = widgetFromOpaque(gtkRenderView(content))
+        let horizontalContentWantsViewportHeight =
+            axes.contains(.horizontal)
+            && !axes.contains(.vertical)
+            && gtkHasVerticalFillIntent(child)
+        if axes.contains(.vertical) {
+"""
+    if old not in scroll:
+        raise SystemExit("SwiftOpenUI GTK horizontal ScrollView fill-intent insertion shape was not recognized")
+    scroll = scroll.replace(old, new, 1)
+
+    old = """            gtk_widget_set_vexpand(child, 0)
+            gtk_widget_set_valign(child, GTK_ALIGN_START)
+"""
+    new = """            gtk_widget_set_vexpand(child, 0)
+            gtk_widget_set_valign(
+                child,
+                horizontalContentWantsViewportHeight ? GTK_ALIGN_FILL : GTK_ALIGN_START
+            )
+"""
+    if old not in scroll:
+        raise SystemExit("SwiftOpenUI GTK horizontal ScrollView child alignment shape was not recognized")
+    scroll = scroll.replace(old, new, 1)
+
+    old = """            fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
+            fillHeight: false
+"""
+    new = """            fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
+            fillHeight: horizontalContentWantsViewportHeight
+"""
+    if old not in scroll:
+        raise SystemExit("SwiftOpenUI GTK horizontal ScrollView cross-axis fill shape was not recognized")
+    scroll = scroll.replace(old, new, 1)
+
+    old = "        let scrollerWantsVerticalFill = axes.contains(.vertical)\n"
+    new = """        let scrollerWantsVerticalFill =
+            axes.contains(.vertical) || horizontalContentWantsViewportHeight
+"""
+    if old not in scroll:
+        raise SystemExit("SwiftOpenUI GTK horizontal ScrollView expansion shape was not recognized")
+    scroll = scroll.replace(old, new, 1)
+
+    text = text[:scroll_start] + scroll + text[scroll_end:]
+
+overlay_start = text.find("extension OverlayView: GTKRenderable")
+overlay_end = text.find("/// Convert SwiftOpenUI Alignment", overlay_start)
+if overlay_start < 0 or overlay_end < 0:
+    raise SystemExit("SwiftOpenUI GTK Overlay layout marker patch region was not recognized")
+overlay = text[overlay_start:overlay_end]
+if "Overlay does not participate in its parent's size" not in overlay:
+    marker = """        if gtk_widget_get_vexpand(baseWidget) != 0 {
+            gtk_widget_set_vexpand(container, 1)
+            gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)
+        }
+"""
+    replacement = marker + """        // Overlay does not participate in its parent's size. Preserve the
+        // base view's layout intent so outer frames and ScrollViews still see
+        // a filling shape through one or more decorative overlays.
+        gtkPropagateSingleChildLayoutMarkers(from: [baseWidget], to: container)
+"""
+    if marker not in overlay:
+        raise SystemExit("SwiftOpenUI GTK Overlay layout marker insertion shape was not recognized")
+    overlay = overlay.replace(marker, replacement, 1)
+    text = text[:overlay_start] + overlay + text[overlay_end:]
 
 path.write_text(text)
 PY
@@ -5512,13 +6207,46 @@ private func gtkFocusSheetEditable(
     guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
         return
     }
-    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
-        ?? gtkFindFirstSheetEditable(in: panel) else {
+    if let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) {
+        gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
+        gtkScheduleSheetEditableFocus(editable)
+        return
+    }
+    guard !gtkSheetPointTargetsControl(root: root, rootX: rootX, rootY: rootY) else {
+        gtkDebugLog("sheet focus bridge skipped control root@\\(Int(rootX)),\\(Int(rootY))")
+        return
+    }
+    guard let editable = gtkFindFirstSheetEditable(in: panel) else {
         gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
         return
     }
     gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
     gtkScheduleSheetEditableFocus(editable)
+}
+
+func gtkSheetPointTargetsControl(
+    root: UnsafeMutablePointer<GtkWidget>,
+    rootX: Double,
+    rootY: Double
+) -> Bool {
+    var current = gtk_swift_root_point_pick_widget(root, rootX, rootY)
+    var depth = 0
+    while let widget = current, depth < 64 {
+        if gtk_swift_widget_is_button(widget) != 0
+            || gtk_swift_widget_is_check_button(widget) != 0
+            || gtk_swift_widget_is_switch(widget) != 0
+            || gtk_swift_widget_is_scale(widget) != 0
+            || gtk_swift_widget_is_editable(widget) != 0
+        {
+            return true
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return false
 }
 
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -5665,6 +6393,37 @@ if "private func gtkShouldRenderSheetInWindow" not in text:
         raise SystemExit("SwiftOpenUI sheet overlay helper insertion shape was not recognized")
     text = text.replace(marker, "\n" + sheet_overlay_helpers + "private func gtkSheetDataKey", 1)
 
+sheet_control_focus_helper = r'''func gtkSheetPointTargetsControl(
+    root: UnsafeMutablePointer<GtkWidget>,
+    rootX: Double,
+    rootY: Double
+) -> Bool {
+    var current = gtk_swift_root_point_pick_widget(root, rootX, rootY)
+    var depth = 0
+    while let widget = current, depth < 64 {
+        if gtk_swift_widget_is_button(widget) != 0
+            || gtk_swift_widget_is_check_button(widget) != 0
+            || gtk_swift_widget_is_switch(widget) != 0
+            || gtk_swift_widget_is_scale(widget) != 0
+            || gtk_swift_widget_is_editable(widget) != 0
+        {
+            return true
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return false
+}
+'''
+if "func gtkSheetPointTargetsControl(" not in text:
+    marker = "\nprivate func gtkFocusSheetEditableWidget"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI sheet control focus helper insertion shape was not recognized")
+    text = text.replace(marker, "\n" + sheet_control_focus_helper + marker, 1)
+
 text = text.replace(
     """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) else {
         return
@@ -5672,8 +6431,45 @@ text = text.replace(
     gtkFocusSheetEditableWidget(editable)
 }
 """,
+    """    if let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) {
+        gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
+        gtkScheduleSheetEditableFocus(editable)
+        return
+    }
+    guard !gtkSheetPointTargetsControl(root: root, rootX: rootX, rootY: rootY) else {
+        gtkDebugLog("sheet focus bridge skipped control root@\\(Int(rootX)),\\(Int(rootY))")
+        return
+    }
+    guard let editable = gtkFindFirstSheetEditable(in: panel) else {
+        gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
+        return
+    }
+    gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
+    gtkScheduleSheetEditableFocus(editable)
+}
+    """,
+)
+
+text = text.replace(
     """    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
         ?? gtkFindFirstSheetEditable(in: panel) else {
+        gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
+        return
+    }
+    gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
+    gtkScheduleSheetEditableFocus(editable)
+}
+""",
+    """    if let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) {
+        gtkDebugLog("sheet focus bridge editable root@\\(Int(rootX)),\\(Int(rootY))")
+        gtkScheduleSheetEditableFocus(editable)
+        return
+    }
+    guard !gtkSheetPointTargetsControl(root: root, rootX: rootX, rootY: rootY) else {
+        gtkDebugLog("sheet focus bridge skipped control root@\\(Int(rootX)),\\(Int(rootY))")
+        return
+    }
+    guard let editable = gtkFindFirstSheetEditable(in: panel) else {
         gtkDebugLog("sheet focus found NO editable at root@\\(Int(rootX)),\\(Int(rootY))")
         return
     }
@@ -7175,6 +7971,48 @@ if legacy_lazy_list_expansion in text:
     text = text.replace(legacy_lazy_list_expansion, lazy_list_expansion, 1)
 elif "gtk_widget_set_vexpand(scrolled, orientation == GTK_ORIENTATION_VERTICAL ? 1 : 0)" not in text:
     raise SystemExit("SwiftOpenUI LazyHStack expansion shape was not recognized")
+
+legacy_static_lazy_stack_render = '''    for item in items {
+        let child = widgetFromOpaque(gtkRenderView(contentBuilder(item)))
+        renderedChildren.append(child)
+        gtk_box_append(boxPointer(box), child)
+    }
+'''
+flattened_static_lazy_stack_render = '''    for item in items {
+        for renderedChild in gtkRenderChildren(contentBuilder(item)) {
+            let child = widgetFromOpaque(renderedChild)
+            if gtkIsEmptyViewWidget(child) { continue }
+            renderedChildren.append(child)
+            gtk_box_append(boxPointer(box), child)
+        }
+    }
+'''
+aligned_static_lazy_stack_render = '''    for item in items {
+        for renderedChild in gtkRenderChildren(contentBuilder(item)) {
+            let child = widgetFromOpaque(renderedChild)
+            if gtkIsEmptyViewWidget(child) { continue }
+            if orientation == GTK_ORIENTATION_VERTICAL {
+                gtk_widget_set_halign(
+                    child,
+                    gtk_widget_get_hexpand(child) != 0 ? GTK_ALIGN_FILL : crossAxisAlignment
+                )
+            } else {
+                gtk_widget_set_valign(
+                    child,
+                    gtk_widget_get_vexpand(child) != 0 ? GTK_ALIGN_FILL : crossAxisAlignment
+                )
+            }
+            renderedChildren.append(child)
+            gtk_box_append(boxPointer(box), child)
+        }
+    }
+'''
+if legacy_static_lazy_stack_render in text:
+    text = text.replace(legacy_static_lazy_stack_render, aligned_static_lazy_stack_render, 1)
+elif flattened_static_lazy_stack_render in text:
+    text = text.replace(flattened_static_lazy_stack_render, aligned_static_lazy_stack_render, 1)
+elif aligned_static_lazy_stack_render not in text:
+    raise SystemExit("SwiftOpenUI builder-style lazy stack child flattening shape was not recognized")
 
 has_list_renderer_region = (
     "extension List: GTKRenderable" in text

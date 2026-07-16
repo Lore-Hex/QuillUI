@@ -10,6 +10,12 @@ public struct OnChangeView<Content: View, V: Equatable>: View, PrimitiveView {
     public let value: V
     public let action: (V) -> Void
 
+    public init(content: Content, value: V, action: @escaping (V) -> Void) {
+        self.content = content
+        self.value = value
+        self.action = action
+    }
+
     public var body: Never { fatalError() }
 }
 
@@ -22,6 +28,48 @@ public struct OnChangeTwoArgView<Content: View, V: Equatable>: View, PrimitiveVi
     public let value: V
     public let action: (V, V) -> Void
 
+    public init(content: Content, value: V, action: @escaping (V, V) -> Void) {
+        self.content = content
+        self.value = value
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}
+
+/// `onChange(of:initial:)` is a distinct primitive so adding the newer SwiftUI
+/// overload does not change the stored layout of the original public view type.
+public struct InitialOnChangeView<Content: View, V: Equatable>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let value: V
+    public let initial: Bool
+    public let action: (V) -> Void
+
+    public init(content: Content, value: V, initial: Bool, action: @escaping (V) -> Void) {
+        self.content = content
+        self.value = value
+        self.initial = initial
+        self.action = action
+    }
+
+    public var body: Never { fatalError() }
+}
+
+public struct InitialOnChangeTwoArgView<Content: View, V: Equatable>: View, PrimitiveView {
+    public typealias Body = Never
+    public let content: Content
+    public let value: V
+    public let initial: Bool
+    public let action: (V, V) -> Void
+
+    public init(content: Content, value: V, initial: Bool, action: @escaping (V, V) -> Void) {
+        self.content = content
+        self.value = value
+        self.initial = initial
+        self.action = action
+    }
+
     public var body: Never { fatalError() }
 }
 
@@ -30,6 +78,22 @@ extension View {
     /// Single-argument form — matches SwiftUI's pre-iOS-17 API.
     public func onChange<V: Equatable>(of value: V, perform action: @escaping (V) -> Void) -> OnChangeView<Self, V> {
         OnChangeView(content: self, value: value, action: action)
+    }
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping () -> Void
+    ) -> InitialOnChangeView<Self, V> {
+        InitialOnChangeView(content: self, value: value, initial: initial) { _ in action() }
+    }
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V) -> Void
+    ) -> InitialOnChangeView<Self, V> {
+        InitialOnChangeView(content: self, value: value, initial: initial, action: action)
     }
 
     /// Adds an action to perform when the given value changes.
@@ -47,6 +111,14 @@ extension View {
         _ action: @escaping (V, V) -> Void
     ) -> OnChangeTwoArgView<Self, V> {
         OnChangeTwoArgView(content: self, value: value, action: action)
+    }
+
+    public func onChange<V: Equatable>(
+        of value: V,
+        initial: Bool,
+        _ action: @escaping (V, V) -> Void
+    ) -> InitialOnChangeTwoArgView<Self, V> {
+        InitialOnChangeTwoArgView(content: self, value: value, initial: initial, action: action)
     }
 }
 
@@ -88,6 +160,21 @@ public func onChangeCheckAndFire<V: Equatable>(
     value: V,
     action: (V) -> Void
 ) -> Int {
+    onChangeCheckAndFire(
+        namespace: namespace,
+        value: value,
+        initial: false,
+        action: action
+    )
+}
+
+@discardableResult
+public func onChangeCheckAndFire<V: Equatable>(
+    namespace: String = "default",
+    value: V,
+    initial: Bool,
+    action: (V) -> Void
+) -> Int {
     let key = _onChangeCounter
     _onChangeCounter += 1
     let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
@@ -96,6 +183,8 @@ public func onChangeCheckAndFire<V: Equatable>(
         if previous != value {
             action(value)
         }
+    } else if initial {
+        action(value)
     }
     // Store current value for next render pass
     _onChangePreviousValues[storageKey] = value
@@ -114,6 +203,21 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
     value: V,
     action: (V, V) -> Void
 ) -> Int {
+    onChangeCheckAndFireTwoArg(
+        namespace: namespace,
+        value: value,
+        initial: false,
+        action: action
+    )
+}
+
+@discardableResult
+public func onChangeCheckAndFireTwoArg<V: Equatable>(
+    namespace: String = "default",
+    value: V,
+    initial: Bool,
+    action: (V, V) -> Void
+) -> Int {
     let key = _onChangeCounter
     _onChangeCounter += 1
     let storageKey = OnChangeStorageKey(namespace: namespace, index: key)
@@ -122,6 +226,8 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
         if previous != value {
             action(previous, value)
         }
+    } else if initial {
+        action(value, value)
     }
     _onChangePreviousValues[storageKey] = value
 

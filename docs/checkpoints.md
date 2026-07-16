@@ -3462,3 +3462,25 @@ Completions upsert detection now backs up from the first form row to the real
 sheet title/action strip and accepts the actual one-line GTK field pixel area.
 The Enchanted parity workflow now names and stores the broad interaction matrix
 as a packaged release-artifact gate instead of a generated-build-path gate.
+
+## Checkpoint 208: IceCubes Composer Image Attachment
+
+Status: implemented locally; guarded by core API tests, GTK layout/focus tests,
+the hermetic SwiftOpenUI patch replay, source hygiene, and a real upstream
+IceCubes Docker/GTK visual smoke.
+
+The authenticated IceCubes smoke now opens the real composer media panel,
+selects a local image through the shared PhotosUI/file-import bridge, performs
+the app's multipart `/api/v2/media` upload through a reusable fixture-aware
+URLSession helper, downloads the returned attachment URL, and verifies the
+rendered full-width preview after the media panel closes. The layout fix is
+generic: SwiftOpenUI now preserves lazy-stack spacing/alignment and builder
+children, implements `onChange(of:initial:)`, and resolves
+`containerRelativeFrame` count/span sizing against the nearest GTK scroll
+viewport while preserving fill intent through overlays.
+
+This is not complete composer parity. ALT editing, attachment deletion, video,
+drafts, autocomplete, post-result routing, and exact macOS visual parity remain
+open. Qt and Win32 compile with a fill-frame fallback for
+`containerRelativeFrame`; native count/span allocation remains future backend
+work.

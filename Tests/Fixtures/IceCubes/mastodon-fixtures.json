@@ -2840,6 +2840,28 @@
       }
     },
     {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v2/media",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-composer-upload-1",
+        "type": "image",
+        "url": "https://files.mastodon.social/media_attachments/quill-composer-upload-1.png",
+        "preview_url": "https://files.mastodon.social/media_attachments/quill-composer-upload-1.png",
+        "description": null,
+        "meta": {
+          "original": {
+            "width": 472,
+            "height": 136
+          }
+        }
+      }
+    },
+    {
       "method": "GET",
       "host": "files.mastodon.social",
       "pathPrefix": "/media_attachments/",

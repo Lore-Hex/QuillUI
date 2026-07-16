@@ -4438,6 +4438,7 @@ struct CompatibilityModuleTests {
             importedURLs = result
         }
         #expect(importerView.value)
+        #expect(importerView.initial)
         importerView.action(true)
         #expect(importerPresented == false)
         switch importedURLs {
@@ -4456,6 +4457,7 @@ struct CompatibilityModuleTests {
             matching: .images
         )
         #expect(pickerView.value)
+        #expect(pickerView.initial)
         pickerView.action(true)
         #expect(pickerPresented == false)
         #expect(pickerItems == [PhotosPickerItem(fileURL: pngURL)])

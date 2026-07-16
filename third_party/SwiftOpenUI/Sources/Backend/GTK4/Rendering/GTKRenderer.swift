@@ -246,6 +246,126 @@ private func gtkInstallScrollViewCrossAxisFill(
     )
 }
 
+private final class GTKContainerRelativeFrameContext {
+    let axes: Axis
+    let count: Int
+    let span: Int
+    let spacing: Double
+    var requestedWidth: gint = -1
+    var requestedHeight: gint = -1
+
+    init(axes: Axis, count: Int, span: Int, spacing: Double) {
+        self.axes = axes
+        self.count = count
+        self.span = span
+        self.spacing = spacing
+    }
+
+    func resolvedLength(in containerLength: gint) -> gint {
+        let resolvedCount = max(1, count)
+        let resolvedSpan = min(max(1, span), resolvedCount)
+        let resolvedSpacing = max(0, spacing)
+        let available = max(
+            0,
+            Double(containerLength) - Double(resolvedCount - 1) * resolvedSpacing
+        )
+        let itemLength = available / Double(resolvedCount)
+        return max(
+            1,
+            gint((itemLength * Double(resolvedSpan) + Double(resolvedSpan - 1) * resolvedSpacing).rounded())
+        )
+    }
+}
+
+private func gtkContainerRelativeExtent(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    horizontal: Bool
+) -> gint? {
+    var current = gtk_widget_get_parent(widget)
+    var outermostAllocatedExtent: gint?
+    var depth = 0
+
+    while let node = current, depth < 160 {
+        let extent = horizontal ? gtk_widget_get_width(node) : gtk_widget_get_height(node)
+        if extent > 1 {
+            outermostAllocatedExtent = extent
+            if gtkHasLayoutMarker(node, key: gtkSwiftScrollViewMarker) {
+                return extent
+            }
+        }
+        current = gtk_widget_get_parent(node)
+        depth += 1
+    }
+
+    return outermostAllocatedExtent
+}
+
+private let gtkContainerRelativeFrameTickCallback: GtkTickCallback = { widget, _, userData in
+    guard let widget, let userData else { return 0 }
+    let context = Unmanaged<GTKContainerRelativeFrameContext>
+        .fromOpaque(userData)
+        .takeUnretainedValue()
+
+    var width = context.requestedWidth
+    var height = context.requestedHeight
+    var changed = false
+
+    if context.axes.contains(.horizontal),
+       let containerWidth = gtkContainerRelativeExtent(from: widget, horizontal: true) {
+        let resolvedWidth = context.resolvedLength(in: containerWidth)
+        if resolvedWidth != context.requestedWidth {
+            context.requestedWidth = resolvedWidth
+            width = resolvedWidth
+            changed = true
+        }
+    }
+
+    if context.axes.contains(.vertical),
+       let containerHeight = gtkContainerRelativeExtent(from: widget, horizontal: false) {
+        let resolvedHeight = context.resolvedLength(in: containerHeight)
+        if resolvedHeight != context.requestedHeight {
+            context.requestedHeight = resolvedHeight
+            height = resolvedHeight
+            changed = true
+        }
+    }
+
+    if changed {
+        gtk_widget_set_size_request(
+            widget,
+            context.axes.contains(.horizontal) ? width : -1,
+            context.axes.contains(.vertical) ? height : -1
+        )
+        gtk_widget_queue_resize(widget)
+    }
+
+    return 1
+}
+
+private func gtkInstallContainerRelativeFrameSizing(
+    on widget: UnsafeMutablePointer<GtkWidget>,
+    axes: Axis,
+    count: Int,
+    span: Int,
+    spacing: Double
+) {
+    let context = GTKContainerRelativeFrameContext(
+        axes: axes,
+        count: count,
+        span: span,
+        spacing: spacing
+    )
+    let contextPointer = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkContainerRelativeFrameTickCallback,
+        contextPointer,
+        { userData in
+            Unmanaged<GTKContainerRelativeFrameContext>.fromOpaque(userData!).release()
+        }
+    )
+}
+
 private final class GTKRowWidthContext {
     let child: UnsafeMutablePointer<GtkWidget>
     var lastWidth: gint = -1
@@ -4462,6 +4582,73 @@ extension FrameView: GTKRenderable, GTKDescribable {
     }
 }
 
+extension ContainerRelativeFrameView: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        GTK4DescriptorNode(
+            kind: .frame,
+            typeName: "ContainerRelativeFrameView",
+            props: .frame(GTK4FrameDescriptor(
+                width: nil,
+                height: nil,
+                minWidth: nil,
+                minHeight: nil,
+                maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                maxHeight: axes.contains(.vertical) ? .infinity : nil,
+                alignment: gtkAlignmentDescriptor(alignment)
+            )),
+            children: [gtkDescribeView(content)]
+        )
+    }
+
+    public func gtkCreateWidget() -> OpaquePointer {
+        let framedContent = content.frame(
+            maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+            maxHeight: axes.contains(.vertical) ? .infinity : nil,
+            alignment: alignment
+        )
+        let child = widgetFromOpaque(gtkRenderView(framedContent))
+        if gtkIsEmptyViewWidget(child) {
+            return opaqueFromWidget(child)
+        }
+
+        let wrapper = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        if axes.contains(.horizontal) {
+            gtk_widget_set_hexpand(wrapper, 0)
+            gtk_widget_set_hexpand(child, 1)
+            gtk_widget_set_halign(child, GTK_ALIGN_FILL)
+        }
+        if axes.contains(.vertical) {
+            gtk_widget_set_vexpand(wrapper, 0)
+            gtk_widget_set_vexpand(child, 1)
+            gtk_widget_set_valign(child, GTK_ALIGN_FILL)
+        }
+        if !axes.contains(.horizontal), gtk_widget_get_hexpand(child) != 0 {
+            gtk_widget_set_hexpand(wrapper, 1)
+            gtk_widget_set_halign(wrapper, GTK_ALIGN_FILL)
+        }
+        if !axes.contains(.vertical), gtk_widget_get_vexpand(child) != 0 {
+            gtk_widget_set_vexpand(wrapper, 1)
+            gtk_widget_set_valign(wrapper, GTK_ALIGN_FILL)
+        }
+
+        gtk_widget_set_size_request(
+            wrapper,
+            axes.contains(.horizontal) ? 1 : -1,
+            axes.contains(.vertical) ? 1 : -1
+        )
+        gtkPropagateSingleChildLayoutMarkers(from: [child], to: wrapper)
+        gtk_box_append(boxPointer(wrapper), child)
+        gtkInstallContainerRelativeFrameSizing(
+            on: wrapper,
+            axes: axes,
+            count: count,
+            span: span,
+            spacing: spacing
+        )
+        return opaqueFromWidget(wrapper)
+    }
+}
+
 private func gtkMeasureWidgetNaturalSize(_ widget: UnsafeMutablePointer<GtkWidget>) -> ViewSize {
     var widthMin: Int32 = 0
     var widthNat: Int32 = 0
@@ -5686,6 +5873,30 @@ extension OnChangeTwoArgView: GTKRenderable {
         onChangeCheckAndFireTwoArg(
             namespace: gtkStateIdentityNamespace(),
             value: value,
+            action: action
+        )
+        return gtkRenderView(content)
+    }
+}
+
+extension InitialOnChangeView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        onChangeCheckAndFire(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            initial: initial,
+            action: action
+        )
+        return gtkRenderView(content)
+    }
+}
+
+extension InitialOnChangeTwoArgView: GTKRenderable {
+    public func gtkCreateWidget() -> OpaquePointer {
+        onChangeCheckAndFireTwoArg(
+            namespace: gtkStateIdentityNamespace(),
+            value: value,
+            initial: initial,
             action: action
         )
         return gtkRenderView(content)
@@ -7576,13 +7787,46 @@ private func gtkFocusSheetEditable(
     guard gtk_widget_translate_coordinates(panel, root, localX, localY, &rootX, &rootY) != 0 else {
         return
     }
-    guard let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)
-        ?? gtkFindFirstSheetEditable(in: panel) else {
+    if let editable = gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY) {
+        gtkDebugLog("sheet focus bridge editable root@\(Int(rootX)),\(Int(rootY))")
+        gtkScheduleSheetEditableFocus(editable)
+        return
+    }
+    guard !gtkSheetPointTargetsControl(root: root, rootX: rootX, rootY: rootY) else {
+        gtkDebugLog("sheet focus bridge skipped control root@\(Int(rootX)),\(Int(rootY))")
+        return
+    }
+    guard let editable = gtkFindFirstSheetEditable(in: panel) else {
         gtkDebugLog("sheet focus found NO editable at root@\(Int(rootX)),\(Int(rootY))")
         return
     }
     gtkDebugLog("sheet focus bridge editable root@\(Int(rootX)),\(Int(rootY))")
     gtkScheduleSheetEditableFocus(editable)
+}
+
+func gtkSheetPointTargetsControl(
+    root: UnsafeMutablePointer<GtkWidget>,
+    rootX: Double,
+    rootY: Double
+) -> Bool {
+    var current = gtk_swift_root_point_pick_widget(root, rootX, rootY)
+    var depth = 0
+    while let widget = current, depth < 64 {
+        if gtk_swift_widget_is_button(widget) != 0
+            || gtk_swift_widget_is_check_button(widget) != 0
+            || gtk_swift_widget_is_switch(widget) != 0
+            || gtk_swift_widget_is_scale(widget) != 0
+            || gtk_swift_widget_is_editable(widget) != 0
+        {
+            return true
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+        depth += 1
+    }
+    return false
 }
 
 private func gtkFocusSheetEditableWidget(_ widget: UnsafeMutablePointer<GtkWidget>) {
@@ -8951,6 +9195,10 @@ extension OverlayView: GTKRenderable {
             gtk_widget_set_vexpand(container, 1)
             gtk_widget_set_valign(baseWidget, GTK_ALIGN_FILL)
         }
+        // Overlay does not participate in its parent's size. Preserve the
+        // base view's layout intent so outer frames and ScrollViews still see
+        // a filling shape through one or more decorative overlays.
+        gtkPropagateSingleChildLayoutMarkers(from: [baseWidget], to: container)
 
         let (hAlign, vAlign) = gtkAlignFromAlignment(alignment)
         // Respect the overlay widget's own expansion intent. A Shape (or any
@@ -9644,6 +9892,10 @@ extension ScrollView: GTKRenderable, GTKDescribable {
         }
 
         let child = widgetFromOpaque(gtkRenderView(content))
+        let horizontalContentWantsViewportHeight =
+            axes.contains(.horizontal)
+            && !axes.contains(.vertical)
+            && gtkHasVerticalFillIntent(child)
         if axes.contains(.vertical) {
             gtk_widget_set_vexpand(child, 0)
         }
@@ -9666,17 +9918,21 @@ extension ScrollView: GTKRenderable, GTKDescribable {
             // below the fold. External FrameView constraints can still make
             // the scroller taller; the primitive itself should fit content.
             gtk_widget_set_vexpand(child, 0)
-            gtk_widget_set_valign(child, GTK_ALIGN_START)
+            gtk_widget_set_valign(
+                child,
+                horizontalContentWantsViewportHeight ? GTK_ALIGN_FILL : GTK_ALIGN_START
+            )
         }
         gtk_scrolled_window_set_child(scrolledOp, child)
         gtkInstallScrollViewCrossAxisFill(
             on: scrolled,
             child: child,
             fillWidth: axes.contains(.vertical) && !axes.contains(.horizontal),
-            fillHeight: false
+            fillHeight: horizontalContentWantsViewportHeight
         )
 
-        let scrollerWantsVerticalFill = axes.contains(.vertical)
+        let scrollerWantsVerticalFill =
+            axes.contains(.vertical) || horizontalContentWantsViewportHeight
         gtk_widget_set_vexpand(scrolled, scrollerWantsVerticalFill ? 1 : 0)
         gtk_widget_set_valign(scrolled, scrollerWantsVerticalFill ? GTK_ALIGN_FILL : GTK_ALIGN_START)
         if scrollerWantsVerticalFill {
@@ -13736,21 +13992,53 @@ private class LazyListContext {
 
 private let gtkStaticLazyStackItemLimit = 64
 
+private func gtkLazyVStackCrossAxisAlignment(_ alignment: HorizontalAlignment) -> GtkAlign {
+    switch alignment {
+    case .leading: return GTK_ALIGN_START
+    case .center: return GTK_ALIGN_CENTER
+    case .trailing: return GTK_ALIGN_END
+    }
+}
+
+private func gtkLazyHStackCrossAxisAlignment(_ alignment: VerticalAlignment) -> GtkAlign {
+    switch alignment {
+    case .top: return GTK_ALIGN_START
+    case .center: return GTK_ALIGN_CENTER
+    case .bottom: return GTK_ALIGN_END
+    }
+}
+
 private func gtkCreateStaticLazyStackWidget<Data, Content: View>(
     items: [Data],
     contentBuilder: @escaping (Data) -> Content,
-    orientation: GtkOrientation
+    orientation: GtkOrientation,
+    spacing: Int,
+    crossAxisAlignment: GtkAlign
 ) -> OpaquePointer? {
     guard items.count <= gtkStaticLazyStackItemLimit else { return nil }
 
-    let box = gtk_box_new(orientation, 0)!
+    let box = gtk_box_new(orientation, gint(resolveStackSpacing(spacing)))!
     var renderedChildren: [UnsafeMutablePointer<GtkWidget>] = []
     renderedChildren.reserveCapacity(items.count)
 
     for item in items {
-        let child = widgetFromOpaque(gtkRenderView(contentBuilder(item)))
-        renderedChildren.append(child)
-        gtk_box_append(boxPointer(box), child)
+        for renderedChild in gtkRenderChildren(contentBuilder(item)) {
+            let child = widgetFromOpaque(renderedChild)
+            if gtkIsEmptyViewWidget(child) { continue }
+            if orientation == GTK_ORIENTATION_VERTICAL {
+                gtk_widget_set_halign(
+                    child,
+                    gtk_widget_get_hexpand(child) != 0 ? GTK_ALIGN_FILL : crossAxisAlignment
+                )
+            } else {
+                gtk_widget_set_valign(
+                    child,
+                    gtk_widget_get_vexpand(child) != 0 ? GTK_ALIGN_FILL : crossAxisAlignment
+                )
+            }
+            renderedChildren.append(child)
+            gtk_box_append(boxPointer(box), child)
+        }
     }
 
     let hasHorizontalExpansion = renderedChildren.contains {
@@ -13913,7 +14201,9 @@ extension LazyVStack: GTKRenderable {
         if let staticWidget = gtkCreateStaticLazyStackWidget(
             items: items,
             contentBuilder: contentBuilder,
-            orientation: GTK_ORIENTATION_VERTICAL
+            orientation: GTK_ORIENTATION_VERTICAL,
+            spacing: spacing,
+            crossAxisAlignment: gtkLazyVStackCrossAxisAlignment(alignment)
         ) {
             return staticWidget
         }
@@ -13927,7 +14217,9 @@ extension LazyHStack: GTKRenderable {
         if let staticWidget = gtkCreateStaticLazyStackWidget(
             items: items,
             contentBuilder: contentBuilder,
-            orientation: GTK_ORIENTATION_HORIZONTAL
+            orientation: GTK_ORIENTATION_HORIZONTAL,
+            spacing: spacing,
+            crossAxisAlignment: gtkLazyHStackCrossAxisAlignment(alignment)
         ) {
             return staticWidget
         }

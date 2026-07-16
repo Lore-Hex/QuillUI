@@ -292,6 +292,9 @@ jobs:
       - name: Upstream IceCubes GTK authenticated Composer submit smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-submit scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-submitted.png
 
+      - name: Upstream IceCubes GTK authenticated Composer media attachment smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-media-attachment scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-media-attachment.png
+
       - name: Upstream IceCubes GTK authenticated Status detail smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail.png
 

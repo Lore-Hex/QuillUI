@@ -65,6 +65,43 @@ final class GTK4FocusTests: XCTestCase {
                        "Button should not be a GtkScale")
     }
 
+    func testSheetFocusBridgeDoesNotRedirectControlClicksToEditor() throws {
+        try requireGTK()
+
+        let panel = gtk_fixed_new()!
+        let button = gtk_button_new_with_label("Media")!
+        let toggle = gtk_check_button_new_with_label("Sensitive")!
+        let scale = gtk_scale_new_with_range(GTK_ORIENTATION_HORIZONTAL, 0, 1, 0.1)!
+        gtk_widget_set_size_request(panel, 320, 220)
+        gtk_widget_set_size_request(button, 100, 40)
+        gtk_widget_set_size_request(toggle, 120, 40)
+        gtk_widget_set_size_request(scale, 140, 40)
+        let fixed = UnsafeMutableRawPointer(panel).assumingMemoryBound(to: GtkFixed.self)
+        gtk_fixed_put(fixed, button, 20, 20)
+        gtk_fixed_put(fixed, toggle, 20, 80)
+        gtk_fixed_put(fixed, scale, 20, 140)
+
+        let window = gtk_window_new()!
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainMainLoop()
+        }
+        gtk_window_set_child(windowPointer(window), panel)
+        gtk_window_present(windowPointer(window))
+        drainMainLoop()
+
+        for point in [(70.0, 40.0), (70.0, 100.0), (70.0, 160.0)] {
+            XCTAssertTrue(
+                gtkSheetPointTargetsControl(root: panel, rootX: point.0, rootY: point.1),
+                "Sheet controls must keep their click instead of refocusing the first editor."
+            )
+        }
+        XCTAssertFalse(
+            gtkSheetPointTargetsControl(root: panel, rootX: 280, rootY: 200),
+            "A genuine sheet-background click may still focus the first editor."
+        )
+    }
+
     // MARK: - DFS ordering stability
 
     /// The contract that matters: two identical renders produce the same

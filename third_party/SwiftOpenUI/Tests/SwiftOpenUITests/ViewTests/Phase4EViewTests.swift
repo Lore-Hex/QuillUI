@@ -7,10 +7,12 @@ final class Phase4EViewTests: XCTestCase {
 
     func testLazyVStackConstruction() {
         let items = ["A", "B", "C"]
-        let stack = LazyVStack(items) { item in
+        let stack = LazyVStack(items, alignment: .trailing, spacing: 12) { item in
             Text(item)
         }
         XCTAssertEqual(stack.items.count, 3)
+        XCTAssertEqual(stack.alignment, .trailing)
+        XCTAssertEqual(stack.spacing, 12)
     }
 
     func testLazyVStackEmpty() {
@@ -22,8 +24,10 @@ final class Phase4EViewTests: XCTestCase {
 
     func testLazyHStackConstruction() {
         let items = [1, 2, 3, 4]
-        let stack = LazyHStack(items) { Text("\($0)") }
+        let stack = LazyHStack(items, alignment: .bottom, spacing: 10) { Text("\($0)") }
         XCTAssertEqual(stack.items.count, 4)
+        XCTAssertEqual(stack.alignment, .bottom)
+        XCTAssertEqual(stack.spacing, 10)
     }
 
     // MARK: - GridItem

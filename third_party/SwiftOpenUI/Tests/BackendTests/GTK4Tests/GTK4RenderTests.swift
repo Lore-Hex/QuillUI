@@ -679,6 +679,43 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertLessThan(labelOrigin.y, 240)
     }
 
+    func testBuilderLazyHStackFlattensForEachChildrenHorizontally() throws {
+        try requireGTK()
+
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack {
+                    ForEach(0..<3, id: \.self) { index in
+                        Text("Item \(index)")
+                            .frame(width: 72, height: 40)
+                    }
+                }
+            }
+            .frame(width: 260, height: 56)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 260, height: 56))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        let itemLabels = labels.filter {
+            String(cString: gtk_label_get_text(OpaquePointer($0))).hasPrefix("Item ")
+        }
+        XCTAssertEqual(itemLabels.count, 3)
+
+        let origins = itemLabels.map { translatedChildOrigin(child: $0, in: wrapper) }
+        XCTAssertLessThan(origins[0].x, origins[1].x)
+        XCTAssertLessThan(origins[1].x, origins[2].x)
+        XCTAssertEqual(origins[0].y, origins[1].y, accuracy: 1)
+        XCTAssertEqual(origins[1].y, origins[2].y, accuracy: 1)
+    }
+
     func testGridSharedLayoutWrapsRowsUsingSharedPlacements() throws {
         try requireGTK()
 
