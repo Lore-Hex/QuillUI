@@ -6294,12 +6294,26 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         left + 520,
         top + 90,
     )
+    first_notification_divider = best_horizontal_segment(
+        image,
+        top + 100,
+        top + 156,
+        left + 240,
+        right - 1,
+        gray_line_pixel,
+        min_width=int(app_width * 0.5),
+    )
+    require(
+        first_notification_divider is not None,
+        "IceCubes authenticated Notifications first row was not compact",
+    )
+    first_notification_divider_y = first_notification_divider[0]
     first_notification_body_pixels = pixel_count(
         image,
-        left + 250,
-        top + 90,
+        left + 305,
+        top + 84,
         right - 20,
-        top + 190,
+        first_notification_divider_y - 4,
         icecubes_notification_text_pixel,
     )
     second_notification_action_pixels = pixel_count(
@@ -6322,7 +6336,7 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         f"IceCubes authenticated Notifications first row header was not detected: pixels={first_notification_header_pixels}",
     )
     require(
-        400 <= first_notification_body_pixels <= 3_600,
+        400 <= first_notification_body_pixels <= 2_400,
         f"IceCubes authenticated Notifications first row content did not look populated/compact: pixels={first_notification_body_pixels}",
     )
     require(
@@ -6337,6 +6351,7 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         f"compose_button_pixels={compose_button_pixels}, "
         f"notifications_label_pixels={notifications_label_pixels}, "
         f"first_notification_header_pixels={first_notification_header_pixels}, "
+        f"first_notification_divider_y={first_notification_divider_y}, "
         f"first_notification_body_pixels={first_notification_body_pixels}, "
         f"second_notification_action_pixels={second_notification_action_pixels}"
     )
