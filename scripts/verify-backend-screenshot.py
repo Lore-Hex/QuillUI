@@ -7542,6 +7542,112 @@ def validate_icecubes_linux_authenticated_composer_media_panel(image: Screenshot
     )
 
 
+def validate_icecubes_linux_authenticated_composer_media_alt_editor(
+    image: Screenshot,
+    *,
+    saved: bool = False,
+) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        320 <= app_width <= 1120 and 260 <= app_height <= 900,
+        f"IceCubes media ALT editor window has unexpected size: {app_width}x{app_height}",
+    )
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        min(bottom, top + 70),
+        icecubes_authenticated_titlebar_pixel,
+    )
+    media_pixels = pixel_count(
+        image,
+        left + 16,
+        top + int(app_height * 0.20),
+        right - 16,
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    )
+    stale_send_button_pixels = pixel_count(
+        image,
+        max(left + int(app_width * 0.55), right - 320),
+        top + 58,
+        min(right - 80, left + int(app_width * 0.88)),
+        min(bottom, top + 132),
+        icecubes_sign_in_button_pixel,
+    )
+    description_text_pixels = dark_pixel_count(
+        image,
+        left + 50,
+        top + 135,
+        right - 50,
+        top + 210,
+    )
+    edge_media_pixels = pixel_count(
+        image,
+        left,
+        top + int(app_height * 0.20),
+        min(right, left + 35),
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    ) + pixel_count(
+        image,
+        max(left, right - 35),
+        top + int(app_height * 0.20),
+        right,
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    )
+    generate_button_pixels = dark_pixel_count(
+        image,
+        left + 45,
+        top + 210,
+        right - 45,
+        top + 275,
+    )
+
+    require(
+        titlebar_pixels >= 3_000,
+        f"IceCubes media ALT editor titlebar was not detected: pixels={titlebar_pixels}",
+    )
+    require(
+        media_pixels >= 8_000,
+        f"IceCubes media ALT editor preview was not detected: pixels={media_pixels}",
+    )
+    require(
+        edge_media_pixels <= 250,
+        "IceCubes media ALT editor sheet is clipped against a window edge: "
+        f"edge_media_pixels={edge_media_pixels}",
+    )
+    require(
+        stale_send_button_pixels <= 150,
+        "IceCubes media ALT editor capture still appears to show the composer: "
+        f"send_button_pixels={stale_send_button_pixels}",
+    )
+    if saved:
+        require(
+            description_text_pixels >= 100,
+            "IceCubes media ALT editor did not retain the saved description: "
+            f"description_text_pixels={description_text_pixels}",
+        )
+        require(
+            generate_button_pixels <= 120,
+            "IceCubes media ALT editor still shows its empty-description action: "
+            f"generate_button_pixels={generate_button_pixels}",
+        )
+    return (
+        f"IceCubes media ALT editor: app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, media_pixels={media_pixels}, "
+        f"edge_media_pixels={edge_media_pixels}, "
+        f"stale_send_button_pixels={stale_send_button_pixels}, "
+        f"description_text_pixels={description_text_pixels}, "
+        f"generate_button_pixels={generate_button_pixels}, saved={saved}"
+    )
+
+
 def validate_icecubes_linux_authenticated_composer_submitted(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -8470,6 +8576,9 @@ def main() -> int:
         "icecubes-linux-authenticated-composer-typed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
+        "icecubes-linux-authenticated-composer-media-alt-editor",
+        "icecubes-linux-authenticated-composer-media-alt-saved",
+        "icecubes-linux-authenticated-composer-media-deleted",
     }
     signal_real_conversation_product = product in {
         "signal-real-conversation",
@@ -8515,6 +8624,9 @@ def main() -> int:
         "icecubes-linux-authenticated-composer-typed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
+        "icecubes-linux-authenticated-composer-media-alt-editor",
+        "icecubes-linux-authenticated-composer-media-alt-saved",
+        "icecubes-linux-authenticated-composer-media-deleted",
         "icecubes-linux-authenticated-reply-composer",
         "icecubes-linux-authenticated-composer-submitted",
         "icecubes-linux-authenticated-status-detail",
@@ -8786,6 +8898,12 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer_media_panel(image))
     elif product == "icecubes-linux-authenticated-composer-media-attachment":
         print(validate_icecubes_linux_authenticated_composer(image, media_attachment=True))
+    elif product == "icecubes-linux-authenticated-composer-media-alt-editor":
+        print(validate_icecubes_linux_authenticated_composer_media_alt_editor(image))
+    elif product == "icecubes-linux-authenticated-composer-media-alt-saved":
+        print(validate_icecubes_linux_authenticated_composer_media_alt_editor(image, saved=True))
+    elif product == "icecubes-linux-authenticated-composer-media-deleted":
+        print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-reply-composer":
         print(validate_icecubes_linux_authenticated_composer(image, allow_quoted_media=True))
     elif product == "icecubes-linux-authenticated-composer-submitted":

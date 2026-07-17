@@ -4095,6 +4095,52 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testItemSheetRootOverlayDismissAfterAwaitRemovesPresentedLayer() async throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        var onDismissCount = 0
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKItemSheetRootOverlayDismissProbeView(dismissAfterYield: true) {
+                onDismissCount += 1
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        drainGTKMainContext(maxIterations: 100)
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: rootContainer, into: &buttons)
+        let dismissButton = try XCTUnwrap(
+            buttons.first,
+            "Expected a dismiss button inside the asynchronous root-overlay sheet."
+        )
+        XCTAssertTrue(gtkTestActivateButton(dismissButton))
+
+        for _ in 0..<100 where onDismissCount == 0 {
+            await Task.yield()
+            drainGTKMainContext(maxIterations: 10)
+        }
+
+        XCTAssertEqual(onDismissCount, 1)
+        XCTAssertFalse(
+            gtkLabelTexts(in: rootContainer).contains("Sheet Content"),
+            "A sheet-scoped dismiss action must survive an awaited task."
+        )
+    }
+
     func testRootOverlaySheetNavigationStackUsesInlineSheetChrome() throws {
         try requireGTK()
 
@@ -4853,29 +4899,39 @@ private struct GTKItemSheetRootOverlayDismissProbeItem: Identifiable {
 
 private struct GTKItemSheetRootOverlayDismissProbeView: View {
     @State private var item: GTKItemSheetRootOverlayDismissProbeItem?
+    let dismissAfterYield: Bool
     let onDismiss: () -> Void
 
-    init(onDismiss: @escaping () -> Void) {
+    init(dismissAfterYield: Bool = false, onDismiss: @escaping () -> Void) {
         _item = State(wrappedValue: GTKItemSheetRootOverlayDismissProbeItem(id: 1))
+        self.dismissAfterYield = dismissAfterYield
         self.onDismiss = onDismiss
     }
 
     var body: some View {
         Text("Host")
             .sheet(item: $item, onDismiss: onDismiss) { _ in
-                GTKItemSheetRootOverlayDismissSheet()
+                GTKItemSheetRootOverlayDismissSheet(dismissAfterYield: dismissAfterYield)
             }
     }
 }
 
 private struct GTKItemSheetRootOverlayDismissSheet: View {
     @Environment(\.dismiss) private var dismiss
+    let dismissAfterYield: Bool
 
     var body: some View {
         VStack {
             Text("Sheet Content")
             Button("Dismiss Sheet") {
-                dismiss()
+                if dismissAfterYield {
+                    Task {
+                        await Task.yield()
+                        dismiss()
+                    }
+                } else {
+                    dismiss()
+                }
             }
         }
     }

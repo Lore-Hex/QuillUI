@@ -313,6 +313,12 @@ jobs:
       - name: Upstream IceCubes GTK authenticated Composer media attachment smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-media-attachment scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-media-attachment.png
 
+      - name: Upstream IceCubes GTK authenticated Composer media ALT edit smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-media-alt-edit scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-media-alt-saved.png
+
+      - name: Upstream IceCubes GTK authenticated Composer media delete smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-media-delete scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-media-deleted.png
+
       - name: Upstream IceCubes GTK authenticated Status detail smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail.png
 

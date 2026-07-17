@@ -677,21 +677,39 @@ func winCurrentColorFill(nativeSlotID: Int) -> Win32ColorDescriptor? {
 
 func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return {
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        action()
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
     }
 }
 
 func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return { value in
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        action(value)
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
     }
 }
 

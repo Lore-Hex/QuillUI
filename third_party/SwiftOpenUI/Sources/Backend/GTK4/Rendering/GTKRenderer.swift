@@ -1277,7 +1277,9 @@ private func gtkMeasureLayoutSubviews(
 /// `docs/architecture/deferred-callback-environment-binding.md`.
 func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return {
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
@@ -1295,7 +1297,9 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
 
 func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return { value in
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
@@ -1327,7 +1331,9 @@ func bindTaskActionToCurrentEnvironment(
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment.environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        await action()
+        await withTaskEnvironment(capturedEnvironment.environment) {
+            await action()
+        }
     }
 }
 
@@ -7466,7 +7472,7 @@ private final class GTKSheetPanelSizeContext {
     }
 }
 
-private func gtkClampedSheetPanelDimension(
+func gtkClampedSheetPanelDimension(
     preferred: gint,
     hostSize: gint,
     margins: gint
@@ -7475,12 +7481,42 @@ private func gtkClampedSheetPanelDimension(
     return min(preferred, max(gint(1), hostSize - margins))
 }
 
+func gtkSheetPanelHostDimension(
+    presentationRootSize: gint,
+    windowRootSize: gint,
+    parentSize: gint,
+    panelSize: gint
+) -> gint {
+    for candidate in [presentationRootSize, windowRootSize, parentSize, panelSize]
+        where candidate > 1
+    {
+        return candidate
+    }
+    return panelSize
+}
+
 private let gtkSheetPanelSizeTickCallback: GtkTickCallback = { widget, _, userData in
     guard let panel = widget, let userData else { return 0 }
     let context = Unmanaged<GTKSheetPanelSizeContext>.fromOpaque(userData).takeUnretainedValue()
-    let host = gtk_widget_get_parent(panel)
-    let hostWidth = host.map { gtk_widget_get_width($0) } ?? gtk_widget_get_width(panel)
-    let hostHeight = host.map { gtk_widget_get_height($0) } ?? gtk_widget_get_height(panel)
+    let presentationRoot = gtkStoredRootPresentationOverlay(on: gpointer(panel)).map {
+        UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWidget.self)
+    }
+    let windowRoot = gtk_widget_get_root(panel).map {
+        UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWidget.self)
+    }
+    let parent = gtk_widget_get_parent(panel)
+    let hostWidth = gtkSheetPanelHostDimension(
+        presentationRootSize: presentationRoot.map { gtk_widget_get_width($0) } ?? 0,
+        windowRootSize: windowRoot.map { gtk_widget_get_width($0) } ?? 0,
+        parentSize: parent.map { gtk_widget_get_width($0) } ?? 0,
+        panelSize: gtk_widget_get_width(panel)
+    )
+    let hostHeight = gtkSheetPanelHostDimension(
+        presentationRootSize: presentationRoot.map { gtk_widget_get_height($0) } ?? 0,
+        windowRootSize: windowRoot.map { gtk_widget_get_height($0) } ?? 0,
+        parentSize: parent.map { gtk_widget_get_height($0) } ?? 0,
+        panelSize: gtk_widget_get_height(panel)
+    )
     let nextWidth = gtkClampedSheetPanelDimension(
         preferred: context.preferredWidth,
         hostSize: hostWidth,
@@ -7666,12 +7702,25 @@ private func gtkRemoveRootSheetLayer(
 }
 
 private func gtkCreateSheetOverlayPanel(
-    sheetWidget: UnsafeMutablePointer<GtkWidget>
+    sheetWidget: UnsafeMutablePointer<GtkWidget>,
+    hostWidget: UnsafeMutablePointer<GtkWidget>? = nil
 ) -> UnsafeMutablePointer<GtkWidget> {
     let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
     let preferredWidth = gtkSheetDefaultWidth()
     let preferredHeight = gtkSheetDefaultHeight()
-    gtk_widget_set_size_request(panel, preferredWidth, preferredHeight)
+    let hostWidth = hostWidget.map { gtk_widget_get_width($0) } ?? 0
+    let hostHeight = hostWidget.map { gtk_widget_get_height($0) } ?? 0
+    let initialWidth = gtkClampedSheetPanelDimension(
+        preferred: preferredWidth,
+        hostSize: hostWidth,
+        margins: gtkSheetOverlayHorizontalMargins
+    )
+    let initialHeight = gtkClampedSheetPanelDimension(
+        preferred: preferredHeight,
+        hostSize: hostHeight,
+        margins: gtkSheetOverlayVerticalMargins
+    )
+    gtk_widget_set_size_request(panel, initialWidth, initialHeight)
     gtkInstallSheetPanelOverlaySizeClamp(
         on: panel,
         preferredWidth: preferredWidth,
@@ -8142,7 +8191,12 @@ extension SheetModifierView: GTKRenderable {
                 }
             )
             setCurrentEnvironment(previous)
-            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let overlayWidget = UnsafeMutableRawPointer(rootOverlay)
+                .assumingMemoryBound(to: GtkWidget.self)
+            let panel = gtkCreateSheetOverlayPanel(
+                sheetWidget: sheetWidget,
+                hostWidget: overlayWidget
+            )
             let layer = gtkCreateSheetOverlayLayer(panel: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
@@ -8423,7 +8477,12 @@ extension ItemSheetModifierView: GTKRenderable {
                 }
             )
             setCurrentEnvironment(previous)
-            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let overlayWidget = UnsafeMutableRawPointer(rootOverlay)
+                .assumingMemoryBound(to: GtkWidget.self)
+            let panel = gtkCreateSheetOverlayPanel(
+                sheetWidget: sheetWidget,
+                hostWidget: overlayWidget
+            )
             let layer = gtkCreateSheetOverlayLayer(panel: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)

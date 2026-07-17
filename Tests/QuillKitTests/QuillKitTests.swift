@@ -4,6 +4,34 @@ import QuillKit
 #if os(Linux)
 import FoundationNetworking
 import Glibc
+
+private final class QuillKitFallbackURLProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url,
+                statusCode: 418,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(#"{"fallback":true}"#.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
 #endif
 
 @Suite("QuillKit platform services", .serialized)
@@ -44,6 +72,72 @@ struct QuillKitTests {
 
         #expect((response as? HTTPURLResponse)?.statusCode == 201)
         #expect(String(decoding: data, as: UTF8.self).contains("fixture-upload"))
+    }
+
+    @Test("fixture-backed mutations can require an exact JSON request body")
+    func fixtureBackedMutationMatchesCanonicalJSONBody() async throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillkit-mutation-\(UUID().uuidString).json")
+        let fixture = """
+        {
+          "fixtures": [
+            {
+              "method": "PUT",
+              "host": "example.invalid",
+              "path": "/api/v1/media/fixture-upload",
+              "requestBody": { "description": "Accessible image description" },
+              "status": 200,
+              "headers": { "Content-Type": "application/json" },
+              "body": {
+                "id": "fixture-upload",
+                "description": "Accessible image description"
+              }
+            }
+          ]
+        }
+        """
+        try Data(fixture.utf8).write(to: fixtureURL)
+        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
+        defer {
+            QuillURLSessionFixtures.resetForTesting()
+            try? FileManager.default.removeItem(at: fixtureURL)
+        }
+
+        var request = URLRequest(
+            url: URL(string: "https://example.invalid/api/v1/media/fixture-upload")!
+        )
+        request.httpMethod = "PUT"
+        request.httpBody = Data(
+            #"{ "description" : "Accessible image description" }"#.utf8
+        )
+        let (data, response) = try await QuillURLSessionFixtures.data(for: request)
+
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+        let object = try #require(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        #expect(object["description"] as? String == "Accessible image description")
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [QuillKitFallbackURLProtocol.self]
+        let fallbackSession = URLSession(configuration: configuration)
+        defer { fallbackSession.invalidateAndCancel() }
+
+        let nonMatchingBodies: [Data?] = [
+            nil,
+            Data(#"{"description":"Different description"}"#.utf8),
+            Data(#"{"description":"Accessible image description","extra":true}"#.utf8),
+            Data("not-json".utf8),
+        ]
+        for body in nonMatchingBodies {
+            request.httpBody = body
+            let (fallbackData, fallbackResponse) = try await QuillURLSessionFixtures.data(
+                for: request,
+                fallbackSession: fallbackSession
+            )
+            #expect((fallbackResponse as? HTTPURLResponse)?.statusCode == 418)
+            #expect(String(decoding: fallbackData, as: UTF8.self).contains("fallback"))
+        }
     }
     #endif
 

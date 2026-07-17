@@ -2862,6 +2862,31 @@
       }
     },
     {
+      "method": "PUT",
+      "host": "mastodon.social",
+      "path": "/api/v1/media/quill-composer-upload-1",
+      "requestBody": {
+        "description": "quillui linux media description"
+      },
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-composer-upload-1",
+        "type": "image",
+        "url": "https://files.mastodon.social/media_attachments/quill-composer-upload-1.png",
+        "preview_url": "https://files.mastodon.social/media_attachments/quill-composer-upload-1.png",
+        "description": "quillui linux media description",
+        "meta": {
+          "original": {
+            "width": 472,
+            "height": 136
+          }
+        }
+      }
+    },
+    {
       "method": "GET",
       "host": "files.mastodon.social",
       "pathPrefix": "/media_attachments/",

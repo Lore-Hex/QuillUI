@@ -137,6 +137,17 @@ AUTH_COMPOSER_LIBRARY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_Y:-600}
 AUTH_COMPOSER_MEDIA_SELECTION_FILE="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_SELECTION_FILE:-$ROOT_DIR/Tests/Fixtures/IceCubes/composer-upload.png}"
 AUTH_COMPOSER_MEDIA_UPLOAD_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v2/media"
 AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG="success https://files.mastodon.social/media_attachments/quill-composer-upload-1.png"
+AUTH_COMPOSER_MEDIA_ALT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_X:-737}"
+AUTH_COMPOSER_MEDIA_ALT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_Y:-522}"
+AUTH_COMPOSER_MEDIA_ALT_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TEXT:-quillui linux media description}"
+AUTH_COMPOSER_MEDIA_ALT_FIELD_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_FIELD_X:-320}"
+AUTH_COMPOSER_MEDIA_ALT_FIELD_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_FIELD_Y:-175}"
+AUTH_COMPOSER_MEDIA_ALT_DONE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_DONE_X:-640}"
+AUTH_COMPOSER_MEDIA_ALT_DONE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_DONE_Y:-93}"
+AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS:-25}"
+AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG="[QuillURLSessionFixtures] direct PUT https://mastodon.social/api/v1/media/quill-composer-upload-1"
+AUTH_COMPOSER_MEDIA_DELETE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_DELETE_X:-737}"
+AUTH_COMPOSER_MEDIA_DELETE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_DELETE_Y:-279}"
 AUTH_STATUS_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_X:-360}"
 AUTH_STATUS_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_Y:-92}"
 AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS:-0.2}"
@@ -333,7 +344,7 @@ if [[ "$INTERACTION" == "seeded-authenticated-media-viewer" ]]; then
     "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
   )
 fi
-if [[ "$INTERACTION" == "seeded-authenticated-composer-media-attachment" ]]; then
+if [[ "$INTERACTION" == seeded-authenticated-composer-media-* ]]; then
   if [[ ! -f "$AUTH_COMPOSER_MEDIA_SELECTION_FILE" ]]; then
     echo "IceCubes composer media selection fixture is missing: $AUTH_COMPOSER_MEDIA_SELECTION_FILE" >&2
     exit 66
@@ -1092,6 +1103,50 @@ attach_authenticated_composer_image() {
   sleep "$AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS"
   click_capture_window_point "$AUTH_COMPOSER_MEDIA_CLOSE_X" "$AUTH_COMPOSER_MEDIA_CLOSE_Y"
   wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+}
+
+open_authenticated_composer_media_alt_editor() {
+  attach_authenticated_composer_image
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-editor"
+}
+
+edit_authenticated_composer_media_alt_text() {
+  if [[ -z "$AUTH_COMPOSER_MEDIA_ALT_TEXT" ]]; then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TEXT must not be empty." >&2
+    exit 2
+  fi
+
+  local previous_update_count
+  open_authenticated_composer_media_alt_editor
+  previous_update_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG")"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_FIELD_X" "$AUTH_COMPOSER_MEDIA_ALT_FIELD_Y"
+  sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
+  DISPLAY="$DISPLAY_ID" xdotool key \
+    --delay "$AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS" \
+    --clearmodifiers ctrl+a BackSpace
+  DISPLAY="$DISPLAY_ID" xdotool type \
+    --delay "$AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS" \
+    --clearmodifiers "$AUTH_COMPOSER_MEDIA_ALT_TEXT"
+  sleep "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_DONE_X" "$AUTH_COMPOSER_MEDIA_ALT_DONE_Y"
+  wait_for_app_log_exact_activity \
+    "$AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG" \
+    "authenticated composer media ALT update" \
+    "$((previous_update_count + 1))"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+}
+
+delete_authenticated_composer_image() {
+  attach_authenticated_composer_image
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_DELETE_X" "$AUTH_COMPOSER_MEDIA_DELETE_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-deleted"
 }
 
 click_authenticated_list_sidebar_row() {
@@ -2136,6 +2191,18 @@ case "$INTERACTION" in
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-attachment"
     attach_authenticated_composer_image
     ;;
+  seeded-authenticated-composer-media-alt-editor)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-alt-editor"
+    open_authenticated_composer_media_alt_editor
+    ;;
+  seeded-authenticated-composer-media-alt-edit)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-alt-saved"
+    edit_authenticated_composer_media_alt_text
+    ;;
+  seeded-authenticated-composer-media-delete)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-deleted"
+    delete_authenticated_composer_image
+    ;;
   seeded-authenticated-status-detail)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail"
     open_authenticated_status_detail
@@ -2216,7 +2283,7 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       # Linux FoundationNetworking cancel-after-completion assertion.
       SETTLE_SECONDS="0"
       ;;
-    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
+    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
       # Notifications has a separate data-source repaint after selection. The
       # route-specific wait above observes IceCubes' post-display refresh (or
       # status-detail/context fetch), so
