@@ -149,8 +149,8 @@ public extension View {
         isPresented: Binding<Bool>,
         allowedContentTypes: [UTType],
         onCompletion: @escaping (Result<URL, Error>) -> Void
-    ) -> OnChangeView<Self, Bool> {
-        onChange(of: isPresented.wrappedValue) { presented in
+    ) -> InitialOnChangeView<Self, Bool> {
+        onChange(of: isPresented.wrappedValue, initial: true) { presented in
             guard presented else { return }
             isPresented.wrappedValue = false
             onCompletion(QuillFileImporter.selectURL(allowedContentTypes: allowedContentTypes))
@@ -162,8 +162,8 @@ public extension View {
         allowedContentTypes: [UTType],
         allowsMultipleSelection: Bool = false,
         onCompletion: @escaping (Result<[URL], Error>) -> Void
-    ) -> OnChangeView<Self, Bool> {
-        onChange(of: isPresented.wrappedValue) { presented in
+    ) -> InitialOnChangeView<Self, Bool> {
+        onChange(of: isPresented.wrappedValue, initial: true) { presented in
             guard presented else { return }
             isPresented.wrappedValue = false
             onCompletion(

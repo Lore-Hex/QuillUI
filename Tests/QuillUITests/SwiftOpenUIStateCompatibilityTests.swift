@@ -9,7 +9,7 @@ import SwiftUI
 // SwiftUI views (TextField/SecureField/Text + @ViewBuilder prompts) whose
 // initializers run a Swift-6 isolation check that SIGTRAPs off the main
 // actor. Swift Testing runs @Test cases off-main, so pin the suite.
-@Suite("SwiftOpenUI state compatibility")
+@Suite("SwiftOpenUI state compatibility", .serialized)
 @MainActor
 struct SwiftOpenUIStateCompatibilityTests {
     @Test("@State observes lowered @Observable object mutations")
@@ -150,17 +150,18 @@ struct SwiftOpenUIStateCompatibilityTests {
         #expect(model.title == "selected")
     }
 
-    @Test("containerRelativeFrame maps axes to fill frame constraints")
-    func containerRelativeFrameMapsAxesToFillFrameConstraints() {
+    @Test("containerRelativeFrame preserves container division metadata")
+    func containerRelativeFramePreservesContainerDivisionMetadata() {
         let bothAxes = Text("media").containerRelativeFrame([.horizontal, .vertical])
 
-        #expect(bothAxes.maxWidth == Double.infinity)
-        #expect(bothAxes.maxHeight == Double.infinity)
+        #expect(bothAxes.axes == [.horizontal, .vertical])
+        #expect(bothAxes.count == 1)
+        #expect(bothAxes.span == 1)
+        #expect(bothAxes.resolvedLength(in: 800) == 800)
 
         let horizontal = Text("media").containerRelativeFrame([.horizontal])
 
-        #expect(horizontal.maxWidth == Double.infinity)
-        #expect(horizontal.maxHeight == nil)
+        #expect(horizontal.axes == .horizontal)
 
         let countedHorizontal = Text("media").containerRelativeFrame(
             .horizontal,
@@ -169,8 +170,71 @@ struct SwiftOpenUIStateCompatibilityTests {
             spacing: 8
         )
 
-        #expect(countedHorizontal.maxWidth == Double.infinity)
-        #expect(countedHorizontal.maxHeight == nil)
+        #expect(countedHorizontal.axes == .horizontal)
+        #expect(countedHorizontal.count == 4)
+        #expect(countedHorizontal.span == 1)
+        #expect(countedHorizontal.spacing == 8)
+        #expect(countedHorizontal.resolvedLength(in: 800) == 194)
+
+        let spanningHorizontal = Text("media").containerRelativeFrame(
+            .horizontal,
+            count: 4,
+            span: 2,
+            spacing: 8
+        )
+
+        #expect(spanningHorizontal.resolvedLength(in: 800) == 396)
+
+        let clamped = Text("media").containerRelativeFrame(
+            .horizontal,
+            count: 4,
+            span: 99,
+            spacing: 8
+        )
+        #expect(clamped.resolvedLength(in: 100) == 100)
+
+        let normalized = Text("media").containerRelativeFrame(
+            .horizontal,
+            count: 0,
+            span: 0,
+            spacing: -12
+        )
+        #expect(normalized.resolvedLength(in: -50) == 0)
+    }
+
+    @Test("initial onChange fires once and explicit false keeps legacy behavior")
+    func initialOnChangeFiresOnce() {
+        clearOnChangeState()
+        defer { clearOnChangeState() }
+
+        var received: [String] = []
+        onChangeCheckAndFire(value: "ready", initial: true) { received.append($0) }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(value: "ready", initial: true) { received.append($0) }
+
+        #expect(received == ["ready"])
+
+        clearOnChangeState()
+        var legacyFired = false
+        onChangeCheckAndFire(value: "ready", initial: false) { _ in legacyFired = true }
+        #expect(legacyFired == false)
+    }
+
+    @Test("two-argument initial onChange reports current value then old and new values")
+    func twoArgumentInitialOnChangePreservesOldAndNewValues() {
+        clearOnChangeState()
+        defer { clearOnChangeState() }
+
+        var received: [(Int, Int)] = []
+        onChangeCheckAndFireTwoArg(value: 10, initial: true) { received.append(($0, $1)) }
+        resetOnChangeTracking()
+        onChangeCheckAndFireTwoArg(value: 12, initial: true) { received.append(($0, $1)) }
+
+        #expect(received.count == 2)
+        #expect(received[0].0 == 10)
+        #expect(received[0].1 == 10)
+        #expect(received[1].0 == 10)
+        #expect(received[1].1 == 12)
     }
 
     @Test("SwiftUI text-input prompt overloads are visible through the shim")

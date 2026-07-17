@@ -2,11 +2,51 @@ import Foundation
 import Testing
 import QuillKit
 #if os(Linux)
+import FoundationNetworking
 import Glibc
 #endif
 
 @Suite("QuillKit platform services", .serialized)
 struct QuillKitTests {
+    #if os(Linux)
+    @Test("fixture-backed uploads return the configured response without network access")
+    func fixtureBackedUploadUsesDirectResponse() async throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillkit-upload-\(UUID().uuidString).json")
+        let fixture = """
+        {
+          "fixtures": [
+            {
+              "method": "POST",
+              "host": "example.invalid",
+              "path": "/api/v2/media",
+              "status": 201,
+              "headers": { "Content-Type": "application/json" },
+              "body": { "id": "fixture-upload" }
+            }
+          ]
+        }
+        """
+        try Data(fixture.utf8).write(to: fixtureURL)
+        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
+        defer {
+            QuillURLSessionFixtures.resetForTesting()
+            try? FileManager.default.removeItem(at: fixtureURL)
+        }
+
+        var request = URLRequest(url: URL(string: "https://example.invalid/api/v2/media")!)
+        request.httpMethod = "POST"
+        let (data, response) = try await QuillURLSessionFixtures.upload(
+            for: request,
+            from: Data("payload".utf8),
+            delegate: nil
+        )
+
+        #expect((response as? HTTPURLResponse)?.statusCode == 201)
+        #expect(String(decoding: data, as: UTF8.self).contains("fixture-upload"))
+    }
+    #endif
+
     @Test("clipboard stores strings and data by type")
     func clipboardStoresValuesByType() {
         let clipboard = QuillClipboard()

@@ -8,7 +8,7 @@ estimates, not release claims.
 
 - Compile coverage: 100% for `IceCubesLinuxApp`.
 - Runnable app graph source coverage: about 97%.
-- Useful runtime behavior estimate: 78-82%.
+- Useful runtime behavior estimate: 80-84%.
 - Exact macOS-quality visual/interaction parity estimate: 25-30%.
 
 ## P0 Runtime Blockers
@@ -33,17 +33,18 @@ estimates, not release claims.
       home pagination, Home refresh, Notifications refresh, Status detail
       refresh, and detail navigation are covered; broader refresh/pagination
       surfaces and deeper row interactions remain open.
-- [ ] Composer flow: text entry and fixture-backed submit are covered; mentions/tags
-      autocomplete, media attachment, drafts, and post-result routing remain open.
+- [ ] Composer flow: text entry, fixture-backed submit, and local image
+      import/upload/preview are covered; mentions/tags autocomplete, attachment
+      ALT/delete mutations, video, drafts, and post-result routing remain open.
 - [ ] Settings flow: root Settings tab and Display Settings child navigation
       render under the authenticated upstream app, including the Display preview
       and upper/lower form controls; Display font-size slider mutation is
       covered. Tab/sidebar settings, content settings, API settings, remote
       timelines, tag groups, icon/support panes, and broader setting mutations
       remain open.
-- [ ] Media flow: images/video attachments, quick look/media viewer, and
-      thumbnails are partly covered; video attachments and share sheet metadata
-      remain open.
+- [ ] Media flow: image upload/preview, quick look/media viewer, and thumbnails
+      are partly covered; attachment editing/deletion, video attachments, and
+      share sheet metadata remain open.
 - [ ] Notifications/conversations/lists/explore/profile tabs: notifications,
       conversations, profile, Explore, and Lists render/navigate are covered;
       Notifications/Messages/List refresh, List pagination, and Messages detail
@@ -58,6 +59,10 @@ estimates, not release claims.
       first window.
 - [ ] Allocation-aware SwiftUI layout parity for split views, lists, grids,
       forms, sheets, popovers, and toolbars.
+- [x] `LazyHStack`/`LazyVStack` preserve builder children, spacing, and
+      cross-axis alignment on the GTK static path; `containerRelativeFrame`
+      preserves count/span metadata and resolves real horizontal scroll
+      viewport sizing for IceCubes attachment previews.
 - [ ] Real menu and command behavior: disabled state, keyboard shortcuts,
       click-outside dismissal, native menu placement.
 - [x] `ToolbarTitleMenu` renders as compact toolbar menu chrome for IceCubes'
@@ -155,7 +160,7 @@ estimates, not release claims.
       Explore navigation, seeded authenticated Notifications navigation, seeded
       authenticated Profile/Messages/List navigation, seeded authenticated
       Explore Links/Tags/Suggested Users/Search routes, Composer window
-      open/text entry/submit, and seeded authenticated Status detail
+      open/text entry/submit/image attachment, and seeded authenticated Status detail
       navigation/action mutation, seeded authenticated media viewer, seeded
       authenticated Home pagination/refresh, seeded authenticated Notifications
       refresh, seeded authenticated Messages refresh, plus seeded authenticated
@@ -163,6 +168,19 @@ estimates, not release claims.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
+
+- 2026-07-16: Added a real upstream composer image-attachment smoke. The
+  harness opens IceCubes' composer and media panel, drives the shared Linux
+  PhotosUI/file-import selection, observes `POST /api/v2/media`, decodes the
+  Mastodon attachment, downloads its fixture-backed image URL, closes the
+  panel, and verifies a full-width attachment preview with ALT/delete chrome.
+  The reusable compatibility work adds fixture-aware URLSession uploads,
+  functional `onChange(of:initial:)`, builder-flattened/aligned lazy stacks,
+  and allocation-aware GTK `containerRelativeFrame` sizing. Qt/Win currently
+  retain a fill-frame fallback for the new container-relative primitive;
+  native count/span sizing there remains open. Attachment ALT/delete actions,
+  video, drafts, autocomplete, post-result routing, and exact visual parity
+  remain open.
 
 - 2026-06-09: Compile-clean GTK Linux target exists. Behavior pass starts with
   canonical SwiftUI app lifecycle and launch smoke.

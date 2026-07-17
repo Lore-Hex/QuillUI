@@ -126,6 +126,17 @@ AUTH_COMPOSER_SEND_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_POINTS:-
 AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_CLICK_RETRY_POLLS:-20}"
 AUTH_COMPOSER_SEND_CLICK_RETRY_POLL_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_SEND_CLICK_RETRY_POLL_SECONDS:-0.25}"
 AUTH_COMPOSER_DISMISS_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_DISMISS_TIMEOUT_SECONDS:-12}"
+AUTH_COMPOSER_MEDIA_TOGGLE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_TOGGLE_X:-336}"
+AUTH_COMPOSER_MEDIA_TOGGLE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_TOGGLE_Y:-598}"
+AUTH_COMPOSER_MEDIA_CLOSE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_X:-336}"
+AUTH_COMPOSER_MEDIA_CLOSE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_Y:-367}"
+AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS:-1.0}"
+AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS:-0.75}"
+AUTH_COMPOSER_LIBRARY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_X:-290}"
+AUTH_COMPOSER_LIBRARY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_Y:-600}"
+AUTH_COMPOSER_MEDIA_SELECTION_FILE="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_SELECTION_FILE:-$ROOT_DIR/Tests/Fixtures/IceCubes/composer-upload.png}"
+AUTH_COMPOSER_MEDIA_UPLOAD_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v2/media"
+AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG="success https://files.mastodon.social/media_attachments/quill-composer-upload-1.png"
 AUTH_STATUS_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_X:-360}"
 AUTH_STATUS_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_Y:-92}"
 AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS:-0.2}"
@@ -320,6 +331,15 @@ fi
 if [[ "$INTERACTION" == "seeded-authenticated-media-viewer" ]]; then
   app_env+=(
     "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
+  )
+fi
+if [[ "$INTERACTION" == "seeded-authenticated-composer-media-attachment" ]]; then
+  if [[ ! -f "$AUTH_COMPOSER_MEDIA_SELECTION_FILE" ]]; then
+    echo "IceCubes composer media selection fixture is missing: $AUTH_COMPOSER_MEDIA_SELECTION_FILE" >&2
+    exit 66
+  fi
+  app_env+=(
+    "QUILLUI_FILE_IMPORTER_SELECTION=$AUTH_COMPOSER_MEDIA_SELECTION_FILE"
   )
 fi
 if [[ "$INTERACTION" == seeded-authenticated-*-refresh ]]; then
@@ -1045,6 +1065,33 @@ open_authenticated_composer_surface() {
     attempt="$((attempt + 1))"
     sleep "$AUTH_COMPOSE_CLICK_RETRY_SECONDS"
   done
+}
+
+open_authenticated_composer_media_panel() {
+  open_authenticated_composer_surface
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_TOGGLE_X" "$AUTH_COMPOSER_MEDIA_TOGGLE_Y"
+  sleep "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-panel"
+}
+
+attach_authenticated_composer_image() {
+  local previous_download_count previous_upload_count
+
+  open_authenticated_composer_media_panel
+  previous_upload_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG")"
+  previous_download_count="$(count_app_log_occurrences "$AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG")"
+  click_capture_window_point "$AUTH_COMPOSER_LIBRARY_X" "$AUTH_COMPOSER_LIBRARY_Y"
+  wait_for_app_log_exact_activity \
+    "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG" \
+    "authenticated composer media upload" \
+    "$((previous_upload_count + 1))"
+  wait_for_app_log_activity \
+    "$AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG" \
+    "authenticated composer media download" \
+    "$((previous_download_count + 1))"
+  sleep "$AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS"
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_CLOSE_X" "$AUTH_COMPOSER_MEDIA_CLOSE_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
 }
 
 click_authenticated_list_sidebar_row() {
@@ -2081,6 +2128,14 @@ case "$INTERACTION" in
     submit_authenticated_composer_text
     wait_for_authenticated_route_visual "$VERIFY_PRODUCT" "authenticated composer submitted shell"
     ;;
+  seeded-authenticated-composer-media-panel)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-panel"
+    open_authenticated_composer_media_panel
+    ;;
+  seeded-authenticated-composer-media-attachment)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-attachment"
+    attach_authenticated_composer_image
+    ;;
   seeded-authenticated-status-detail)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail"
     open_authenticated_status_detail
@@ -2161,7 +2216,7 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       # Linux FoundationNetworking cancel-after-completion assertion.
       SETTLE_SECONDS="0"
       ;;
-    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
+    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
       # Notifications has a separate data-source repaint after selection. The
       # route-specific wait above observes IceCubes' post-display refresh (or
       # status-detail/context fetch), so

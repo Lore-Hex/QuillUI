@@ -139,6 +139,24 @@ jobs:
           QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
         run: scripts/linux-swift-test.sh --scratch-path .build-linux
 
+      - name: GTK lazy-stack layout tests
+        env:
+          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
+          TEST_RUN_TIMEOUT: "180"
+        run: GTK_A11Y=none GSK_RENDERER=cairo xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKLazyStackLayoutTests
+
+      - name: GTK descriptor wrapper tests
+        env:
+          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
+          TEST_RUN_TIMEOUT: "180"
+        run: GTK_A11Y=none GSK_RENDERER=cairo xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKDescribeCycleGuardTests
+
+      - name: GTK IceCubes media layout tests
+        env:
+          QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: "1"
+          TEST_RUN_TIMEOUT: "180"
+        run: GTK_A11Y=none GSK_RENDERER=cairo xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKCustomLayoutTests
+
       # Keep the backend facade modules compile-gated directly on Linux too.
       # The test suite imports both modules, but these explicit target builds
       # make GTK/Qt launch-surface failures obvious before the long smoke and
@@ -291,6 +309,9 @@ jobs:
 
       - name: Upstream IceCubes GTK authenticated Composer submit smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-submit scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-submitted.png
+
+      - name: Upstream IceCubes GTK authenticated Composer media attachment smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-composer-media-attachment scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-composer-media-attachment.png
 
       - name: Upstream IceCubes GTK authenticated Status detail smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-status-detail scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-status-detail.png

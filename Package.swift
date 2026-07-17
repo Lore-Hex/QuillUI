@@ -4036,7 +4036,11 @@ let packageTestTargets: [Target] = {
             #else
             let testDeps: [Target.Dependency] = ["QuillShims"]
             #endif
-            return .testTarget(name: "QuillShimsTests", dependencies: testDeps)
+            return .testTarget(
+                name: "QuillShimsTests",
+                dependencies: testDeps,
+                swiftSettings: appSwiftSettings
+            )
         }(),
         .testTarget(
             name: "QuillAutoLayoutTests",

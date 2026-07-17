@@ -67,9 +67,9 @@ public extension View {
         maxSelectionCount: Int? = nil,
         matching: PHPickerFilter? = nil,
         photoLibrary: PHPhotoLibrary = .shared()
-    ) -> OnChangeView<Self, Bool> {
+    ) -> InitialOnChangeView<Self, Bool> {
         _ = photoLibrary
-        return onChange(of: isPresented.wrappedValue) { presented in
+        return onChange(of: isPresented.wrappedValue, initial: true) { presented in
             guard presented else { return }
             isPresented.wrappedValue = false
             let pickerItems = photosPickerItems(
@@ -88,9 +88,9 @@ public extension View {
         selection: Binding<PhotosPickerItem?>,
         matching: PHPickerFilter? = nil,
         photoLibrary: PHPhotoLibrary = .shared()
-    ) -> OnChangeView<Self, Bool> {
+    ) -> InitialOnChangeView<Self, Bool> {
         _ = photoLibrary
-        return onChange(of: isPresented.wrappedValue) { presented in
+        return onChange(of: isPresented.wrappedValue, initial: true) { presented in
             guard presented else { return }
             isPresented.wrappedValue = false
             let pickerItems = photosPickerItems(

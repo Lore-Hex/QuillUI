@@ -18,12 +18,37 @@ final class OnChangeTests: XCTestCase {
         XCTAssertFalse(fired)
     }
 
+    func testInitialModifierStoresInitialBehavior() {
+        let view = Text("Hello").onChange(of: 1, initial: true) { _ in }
+        XCTAssertTrue(view.initial)
+    }
+
     // MARK: - Value tracking
 
     func testFirstRenderDoesNotFire() {
         var fired = false
         // First render — no previous value stored, should not fire
         onChangeCheckAndFire(value: "hello") { _ in fired = true }
+        XCTAssertFalse(fired)
+    }
+
+    func testInitialFirstRenderFires() {
+        var received: String?
+        onChangeCheckAndFire(value: "hello", initial: true) { received = $0 }
+        XCTAssertEqual(received, "hello")
+    }
+
+    func testInitialOnlyFiresOnceWhenValueStaysEqual() {
+        var fireCount = 0
+        onChangeCheckAndFire(value: "hello", initial: true) { _ in fireCount += 1 }
+        resetOnChangeTracking()
+        onChangeCheckAndFire(value: "hello", initial: true) { _ in fireCount += 1 }
+        XCTAssertEqual(fireCount, 1)
+    }
+
+    func testExplicitlyDisabledInitialBehaviorMatchesLegacyOverload() {
+        var fired = false
+        onChangeCheckAndFire(value: "hello", initial: false) { _ in fired = true }
         XCTAssertFalse(fired)
     }
 
@@ -123,6 +148,15 @@ final class OnChangeTests: XCTestCase {
         let view = Text("Hello").onChange(of: 1) { _, _ in }
         XCTAssertEqual(view.content.content, "Hello")
         XCTAssertEqual(view.value, 1)
+    }
+
+    func testOnChangeTwoArgInitialFirstRenderUsesCurrentValueForOldAndNew() {
+        var received: (Int, Int)?
+        onChangeCheckAndFireTwoArg(value: 10, initial: true) { old, new in
+            received = (old, new)
+        }
+        XCTAssertEqual(received?.0, 10)
+        XCTAssertEqual(received?.1, 10)
     }
 
     func testOnChangeTwoArgFiresWithOldAndNewValue() {

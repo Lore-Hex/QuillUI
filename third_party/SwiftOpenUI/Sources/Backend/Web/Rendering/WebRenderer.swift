@@ -1063,6 +1063,20 @@ extension OnChangeTwoArgView: WebRenderable {
     }
 }
 
+extension InitialOnChangeView: WebRenderable {
+    public func webCreateElement() -> JSValue {
+        onChangeCheckAndFire(value: value, initial: initial, action: action)
+        return webRenderView(content)
+    }
+}
+
+extension InitialOnChangeTwoArgView: WebRenderable {
+    public func webCreateElement() -> JSValue {
+        onChangeCheckAndFireTwoArg(value: value, initial: initial, action: action)
+        return webRenderView(content)
+    }
+}
+
 // MARK: - Appearance modifier Web extensions
 
 extension HiddenView: WebRenderable {
@@ -1946,6 +1960,52 @@ extension FrameView: WebRenderable, WebDescribable {
                 maxWidth: maxWidth, maxHeight: maxHeight,
                 alignment: webAlignmentDescriptor(alignment))),
             children: [webDescribeView(content)])
+    }
+}
+
+extension ContainerRelativeFrameView: WebRenderable, WebDescribable {
+    public func webCreateElement() -> JSValue {
+        let child = webRenderView(content)
+        let resolvedCount = max(1, count)
+        let resolvedSpan = min(max(1, span), resolvedCount)
+        let resolvedSpacing = max(0, spacing)
+        let outerSpacing = Double(resolvedCount - 1) * resolvedSpacing
+        let innerSpacing = Double(resolvedSpan - 1) * resolvedSpacing
+        let length = "calc(((100% - \(outerSpacing)px) / \(resolvedCount) * \(resolvedSpan)) + \(innerSpacing)px)"
+        var styles = [
+            "display: flex",
+            "align-items: center",
+            "justify-content: center",
+        ]
+        if axes.contains(.horizontal) {
+            styles.append("width: \(length)")
+            styles.append("flex: 0 0 \(length)")
+        }
+        if axes.contains(.vertical) {
+            styles.append("height: \(length)")
+        }
+
+        let wrapper = document.createElement("div")
+        wrapper.style = .string(styles.joined(separator: "; ") + ";")
+        _ = wrapper.appendChild(child)
+        return wrapper
+    }
+
+    public func webDescribeNode() -> WebDescriptorNode {
+        WebDescriptorNode(
+            kind: .frame,
+            typeName: "ContainerRelativeFrameView",
+            props: .frame(WebFrameDescriptor(
+                width: nil,
+                height: nil,
+                minWidth: nil,
+                minHeight: nil,
+                maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                maxHeight: axes.contains(.vertical) ? .infinity : nil,
+                alignment: webAlignmentDescriptor(alignment)
+            )),
+            children: [webDescribeView(content)]
+        )
     }
 }
 
@@ -3475,10 +3535,17 @@ extension GridCellSpanView: WebRenderable {
 extension LazyVStack: WebRenderable {
     public func webCreateElement() -> JSValue {
         let div = document.createElement("div")
-        div.style = "display: flex; flex-direction: column;"
+        let crossAxisAlignment: String
+        switch alignment {
+        case .leading: crossAxisAlignment = "flex-start"
+        case .center: crossAxisAlignment = "center"
+        case .trailing: crossAxisAlignment = "flex-end"
+        }
+        div.style = "display: flex; flex-direction: column; gap: \(resolveStackSpacing(spacing))px; align-items: \(crossAxisAlignment);"
         for item in items {
-            let child = webRenderView(contentBuilder(item))
-            _ = div.appendChild(child)
+            webRenderChildren(contentBuilder(item)) { child in
+                _ = div.appendChild(child)
+            }
         }
         return div
     }
@@ -3487,10 +3554,17 @@ extension LazyVStack: WebRenderable {
 extension LazyHStack: WebRenderable {
     public func webCreateElement() -> JSValue {
         let div = document.createElement("div")
-        div.style = "display: flex; flex-direction: row;"
+        let crossAxisAlignment: String
+        switch alignment {
+        case .top: crossAxisAlignment = "flex-start"
+        case .center: crossAxisAlignment = "center"
+        case .bottom: crossAxisAlignment = "flex-end"
+        }
+        div.style = "display: flex; flex-direction: row; gap: \(resolveStackSpacing(spacing))px; align-items: \(crossAxisAlignment);"
         for item in items {
-            let child = webRenderView(contentBuilder(item))
-            _ = div.appendChild(child)
+            webRenderChildren(contentBuilder(item)) { child in
+                _ = div.appendChild(child)
+            }
         }
         return div
     }

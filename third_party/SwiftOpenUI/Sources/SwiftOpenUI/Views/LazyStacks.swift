@@ -5,21 +5,37 @@ public struct LazyVStack<Data, Content: View>: View {
     public typealias Body = Never
 
     public let items: [Data]
+    public let alignment: HorizontalAlignment
+    public let spacing: Int
     public let contentBuilder: (Data) -> Content
 
     public var body: Never { fatalError("LazyVStack is a primitive view") }
 }
 
 extension LazyVStack where Data: Identifiable {
-    public init(_ data: [Data], @ViewBuilder content: @escaping (Data) -> Content) {
+    public init(
+        _ data: [Data],
+        alignment: HorizontalAlignment = .center,
+        spacing: Int = stackDefaultSpacing,
+        @ViewBuilder content: @escaping (Data) -> Content
+    ) {
         self.items = data
+        self.alignment = alignment
+        self.spacing = spacing
         self.contentBuilder = content
     }
 }
 
 extension LazyVStack {
-    public init(_ data: [Data], @ViewBuilder content: @escaping (Data) -> Content) {
+    public init(
+        _ data: [Data],
+        alignment: HorizontalAlignment = .center,
+        spacing: Int = stackDefaultSpacing,
+        @ViewBuilder content: @escaping (Data) -> Content
+    ) {
         self.items = data
+        self.alignment = alignment
+        self.spacing = spacing
         self.contentBuilder = content
     }
 }
@@ -30,21 +46,37 @@ public struct LazyHStack<Data, Content: View>: View {
     public typealias Body = Never
 
     public let items: [Data]
+    public let alignment: VerticalAlignment
+    public let spacing: Int
     public let contentBuilder: (Data) -> Content
 
     public var body: Never { fatalError("LazyHStack is a primitive view") }
 }
 
 extension LazyHStack where Data: Identifiable {
-    public init(_ data: [Data], @ViewBuilder content: @escaping (Data) -> Content) {
+    public init(
+        _ data: [Data],
+        alignment: VerticalAlignment = .center,
+        spacing: Int = stackDefaultSpacing,
+        @ViewBuilder content: @escaping (Data) -> Content
+    ) {
         self.items = data
+        self.alignment = alignment
+        self.spacing = spacing
         self.contentBuilder = content
     }
 }
 
 extension LazyHStack {
-    public init(_ data: [Data], @ViewBuilder content: @escaping (Data) -> Content) {
+    public init(
+        _ data: [Data],
+        alignment: VerticalAlignment = .center,
+        spacing: Int = stackDefaultSpacing,
+        @ViewBuilder content: @escaping (Data) -> Content
+    ) {
         self.items = data
+        self.alignment = alignment
+        self.spacing = spacing
         self.contentBuilder = content
     }
 }
@@ -52,6 +84,8 @@ extension LazyHStack {
 extension LazyHStack where Data == Int {
     public init(@ViewBuilder content: @escaping () -> Content) {
         self.items = [0]
+        self.alignment = .center
+        self.spacing = stackDefaultSpacing
         self.contentBuilder = { _ in content() }
     }
 }

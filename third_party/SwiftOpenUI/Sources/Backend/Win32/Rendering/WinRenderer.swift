@@ -2350,6 +2350,19 @@ extension FrameView: WinRenderable {
     }
 }
 
+extension ContainerRelativeFrameView: WinRenderable {
+    public func winCreateWidget(in context: RenderContext) -> HWND? {
+        winRenderView(
+            content.frame(
+                maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                maxHeight: axes.contains(.vertical) ? .infinity : nil,
+                alignment: alignment
+            ),
+            in: context
+        )
+    }
+}
+
 class FrameLayoutInfo {
     let child: HWND
     let alignment: Alignment
@@ -3547,6 +3560,27 @@ extension FrameView: WinDescribable {
                     minHeight: minHeight,
                     maxWidth: maxWidth,
                     maxHeight: maxHeight,
+                    alignment: winAlignmentDescriptor(alignment)
+                )
+            ),
+            children: [winDescribeView(content)]
+        )
+    }
+}
+
+extension ContainerRelativeFrameView: WinDescribable {
+    public func winDescribeNode() -> Win32DescriptorNode {
+        Win32DescriptorNode(
+            kind: .frame,
+            typeName: String(describing: Self.self),
+            props: .frame(
+                Win32FrameDescriptor(
+                    width: nil,
+                    height: nil,
+                    minWidth: nil,
+                    minHeight: nil,
+                    maxWidth: axes.contains(.horizontal) ? .infinity : nil,
+                    maxHeight: axes.contains(.vertical) ? .infinity : nil,
                     alignment: winAlignmentDescriptor(alignment)
                 )
             ),
@@ -5935,7 +5969,7 @@ private let datePickerNotifyProc: SUBCLASSPROC = { (hwnd, uMsg, wParam, lParam, 
 extension LazyVStack: WinRenderable {
     public func winCreateWidget(in context: RenderContext) -> HWND? {
         // Non-virtualized: render all items in a ScrollView + VStack
-        let vstack = VStack(spacing: 0) {
+        let vstack = VStack(alignment: alignment, spacing: spacing) {
             ForEach(0..<items.count) { i in contentBuilder(items[i]) }
         }
         let scrollView = ScrollView(.vertical) { vstack }
@@ -5945,7 +5979,7 @@ extension LazyVStack: WinRenderable {
 
 extension LazyHStack: WinRenderable {
     public func winCreateWidget(in context: RenderContext) -> HWND? {
-        let hstack = HStack(spacing: 0) {
+        let hstack = HStack(alignment: alignment, spacing: spacing) {
             ForEach(0..<items.count) { i in contentBuilder(items[i]) }
         }
         return winRenderView(hstack, in: context)
@@ -8395,6 +8429,20 @@ extension OnChangeView: WinRenderable {
 extension OnChangeTwoArgView: WinRenderable {
     public func winCreateWidget(in context: RenderContext) -> HWND? {
         onChangeCheckAndFireTwoArg(value: value, action: action)
+        return winRenderView(content, in: context)
+    }
+}
+
+extension InitialOnChangeView: WinRenderable {
+    public func winCreateWidget(in context: RenderContext) -> HWND? {
+        onChangeCheckAndFire(value: value, initial: initial, action: action)
+        return winRenderView(content, in: context)
+    }
+}
+
+extension InitialOnChangeTwoArgView: WinRenderable {
+    public func winCreateWidget(in context: RenderContext) -> HWND? {
+        onChangeCheckAndFireTwoArg(value: value, initial: initial, action: action)
         return winRenderView(content, in: context)
     }
 }

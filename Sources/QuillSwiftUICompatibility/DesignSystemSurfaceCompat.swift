@@ -1792,9 +1792,11 @@ public extension LazyVStack where Data == Int {
         spacing: Double? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        _ = alignment
-        _ = spacing
-        self.init([0]) { _ in content() }
+        self.init(
+            [0],
+            alignment: alignment,
+            spacing: spacing.map { Int($0.rounded()) } ?? stackDefaultSpacing
+        ) { _ in content() }
     }
 }
 
@@ -1804,9 +1806,11 @@ public extension LazyHStack where Data == Int {
         spacing: Double? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
-        _ = alignment
-        _ = spacing
-        self.init([0]) { _ in content() }
+        self.init(
+            [0],
+            alignment: alignment,
+            spacing: spacing.map { Int($0.rounded()) } ?? stackDefaultSpacing
+        ) { _ in content() }
     }
 }
 
@@ -3125,33 +3129,6 @@ public extension View {
         onChange(of: value) { _ in action() }
     }
 
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping () -> Void
-    ) -> OnChangeView<Self, V> {
-        _ = initial
-        return onChange(of: value, action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V) -> Void
-    ) -> OnChangeView<Self, V> {
-        _ = initial
-        return onChange(of: value, perform: action)
-    }
-
-    func onChange<V: Equatable>(
-        of value: V,
-        initial: Bool,
-        _ action: @escaping (V, V) -> Void
-    ) -> OnChangeTwoArgView<Self, V> {
-        _ = initial
-        return onChange(of: value, action)
-    }
-
     func grayscale(_ amount: Double) -> Self {
         _ = amount
         recordSwiftUICompatibilityFallback("grayscale")
@@ -3413,30 +3390,6 @@ public extension View {
         _ = id
         _ = namespace
         return self
-    }
-
-    func containerRelativeFrame(_ axes: [Axis]) -> FrameView<Self> {
-        frame(
-            maxWidth: axes.contains(where: { $0.contains(.horizontal) }) ? .infinity : nil,
-            maxHeight: axes.contains(where: { $0.contains(.vertical) }) ? .infinity : nil
-        )
-    }
-
-    func containerRelativeFrame(
-        _ axes: Axis,
-        count: Int,
-        span: Int,
-        spacing: CGFloat,
-        alignment: Alignment = .center
-    ) -> FrameView<Self> {
-        _ = count
-        _ = span
-        _ = spacing
-        return frame(
-            maxWidth: axes.contains(.horizontal) ? .infinity : nil,
-            maxHeight: axes.contains(.vertical) ? .infinity : nil,
-            alignment: alignment
-        )
     }
 
     func scrollTargetLayout() -> Self {

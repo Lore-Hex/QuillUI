@@ -410,6 +410,8 @@ struct QuillDataSourceLoweringTests {
         #expect(workflow.contains("QUILLUI_DISABLE_UPSTREAM_APP_GRAPHS: \"1\""))
         #expect(workflow.contains("QUILLUI_LINUX_BACKEND: \"gtk\""))
         #expect(workflow.contains("TEST_RUN_TIMEOUT: \"180\""))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKLazyStackLayoutTests"))
+        #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKDescribeCycleGuardTests"))
         #expect(workflow.contains("xvfb-run -a scripts/linux-swift-test.sh --scratch-path .build-linux --filter GTKOffscreenImageRendererTests"))
     }
 
@@ -1899,6 +1901,9 @@ struct QuillDataSourceLoweringTests {
         let onChangeModifier = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"
         )
+        let frameModifier = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/FrameModifier.swift"
+        )
         let controlStyleModifiers = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
         )
@@ -1932,7 +1937,7 @@ struct QuillDataSourceLoweringTests {
                 encoding: .utf8
             ).write(to: destination, atomically: true, encoding: .utf8)
         }
-        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -3061,6 +3066,7 @@ struct QuillDataSourceLoweringTests {
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Views/ScrollView.swift", to: scrollView)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Localization.swift", to: localization)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift", to: onChangeModifier)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/FrameModifier.swift", to: frameModifier)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift", to: controlStyleModifiers)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift", to: confirmationDialogModifier)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Views/Menu.swift", to: menu)
@@ -3107,6 +3113,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("quill_gtk_list_row_paint_hook"))
         #expect(patchScript.contains("private func gtkDebugButtonRootHitTest"))
         #expect(patchScript.contains("gtkHandleActiveMenuOverlayClick(x: x, y: y)"))
+        #expect(patchScript.contains("SwiftOpenUI initial OnChange type insertion shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI container-relative frame type insertion shape was not recognized"))
+        #expect(patchScript.contains("SwiftOpenUI GTK container-relative sizing helper insertion shape was not recognized"))
 
         let patchedSwiftOpenUIManifest = try String(contentsOf: swiftOpenUIManifest, encoding: .utf8)
         #expect(patchedSwiftOpenUIManifest.contains("import Foundation"))
@@ -3119,6 +3128,21 @@ struct QuillDataSourceLoweringTests {
         #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
         let patchedRenderer = try String(contentsOf: renderer, encoding: .utf8)
+        let patchedOnChangeModifier = try String(contentsOf: onChangeModifier, encoding: .utf8)
+        let patchedFrameModifier = try String(contentsOf: frameModifier, encoding: .utf8)
+        #expect(patchedOnChangeModifier.contains("public struct InitialOnChangeView"))
+        #expect(patchedOnChangeModifier.contains("public struct InitialOnChangeTwoArgView"))
+        #expect(patchedOnChangeModifier.contains("initial: Bool"))
+        #expect(patchedFrameModifier.contains("public struct ContainerRelativeFrameView"))
+        #expect(patchedFrameModifier.contains("public func containerRelativeFrame("))
+        #expect(patchedFrameModifier.contains("public func resolvedLength(in containerLength: Double) -> Double"))
+        #expect(patchedRenderer.contains("extension InitialOnChangeView: GTKRenderable"))
+        #expect(patchedRenderer.contains("extension InitialOnChangeTwoArgView: GTKRenderable"))
+        #expect(patchedRenderer.contains("extension ContainerRelativeFrameView: GTKRenderable"))
+        #expect(patchedRenderer.contains("gtkInstallContainerRelativeFrameSizing("))
+        #expect(patchedRenderer.contains("let horizontalContentWantsViewportHeight ="))
+        #expect(patchedRenderer.contains("gtkPropagateSingleChildLayoutMarkers(from: [baseWidget], to: container)"))
+        #expect(patchedRenderer.contains("gtkClearVerticalFillIntent(wrapper)\n        return opaqueFromWidget(wrapper)\n    }\n}\n\n// MARK: - ViewThatFits GTK extension"))
         #expect(patchedRenderer.contains("init(views: [any View], cellMinWidth: Int)"))
         #expect(patchedRenderer.contains("let itemCount = expandedChildren?.count ?? items.count"))
         #expect(patchedRenderer.contains("configuration.maxColumns > 1 ? 160 : 0"))
@@ -3325,7 +3349,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("gtkInstallSheetPanelFocusBridge(on: panel)"))
         #expect(patchedRenderer.contains("gtkScheduleFirstSheetEditableFocus(in: panel)"))
         #expect(patchedRenderer.contains("gtkFindSheetEditable(in: panel, root: root, rootX: rootX, rootY: rootY)"))
-        #expect(patchedRenderer.contains("?? gtkFindFirstSheetEditable(in: panel)"))
+        #expect(patchedRenderer.contains("gtkSheetPointTargetsControl(root: root, rootX: rootX, rootY: rootY)"))
+        #expect(patchedRenderer.contains("sheet focus bridge skipped control root@"))
+        #expect(patchedRenderer.contains("gtk_swift_widget_is_scale(widget)"))
         #expect(patchedRenderer.contains("sheet focus bridge editable root@"))
         #expect(patchedRenderer.contains("gtk_swift_widget_is_topmost_at_root_point(root, widget, rootX, rootY)"))
         #expect(patchedRenderer.contains("gtkScheduleSheetEditableFocus(editable)"))

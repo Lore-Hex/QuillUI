@@ -2518,6 +2518,18 @@ public enum QuillURLSessionFixtures {
     ) async throws -> (Data, URLResponse) {
         try await data(for: URLRequest(url: url), fallbackSession: fallbackSession)
     }
+
+    public static func upload(
+        for request: URLRequest,
+        from bodyData: Data,
+        fallbackSession: URLSession = .shared,
+        delegate: URLSessionTaskDelegate? = nil
+    ) async throws -> (Data, URLResponse) {
+        if let fixtureResponse = QuillURLSessionFixtureProtocol.directResponse(for: request) {
+            return fixtureResponse
+        }
+        return try await fallbackSession.upload(for: request, from: bodyData, delegate: delegate)
+    }
 }
 
 private final class QuillURLSessionFixtureProtocol: URLProtocol {
