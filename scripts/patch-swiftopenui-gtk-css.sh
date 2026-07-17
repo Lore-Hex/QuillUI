@@ -11989,13 +11989,17 @@ if "gtkFlushPendingTextBindingUpdate()\n    let now" not in text:
 # value as Button/submit paths. (No-op once applied.)
 old_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return {
         let previousEnvironment = getCurrentEnvironment()
 '''
 new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return {
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
@@ -12010,13 +12014,17 @@ if (
 
 old_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return { value in
         let previousEnvironment = getCurrentEnvironment()
 '''
 new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return { value in
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
