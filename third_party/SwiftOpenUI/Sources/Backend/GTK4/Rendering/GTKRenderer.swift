@@ -2049,10 +2049,98 @@ struct GTKButtonActivationGate {
 private final class GTKButtonActionBox {
     var action: () -> Void
     var activationGate = GTKButtonActivationGate()
+    let widget: UnsafeMutablePointer<GtkWidget>
 
-    init(_ action: @escaping () -> Void) {
+    init(_ action: @escaping () -> Void, widget: UnsafeMutablePointer<GtkWidget>) {
         self.action = action
+        self.widget = widget
     }
+}
+
+private let gtkListControlActivationGateDataKey = "gtk-swift-list-control-activation-gate"
+
+private final class GTKListControlActivationGate {
+    private var deadline: TimeInterval = -.infinity
+    private var row: UnsafeMutablePointer<GtkWidget>?
+
+    func mark(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) {
+        self.row = row
+        deadline = now + 0.75
+    }
+
+    func consumeIfRecent(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) -> Bool {
+        guard self.row == row, now <= deadline else {
+            self.row = nil
+            deadline = -.infinity
+            return false
+        }
+        self.row = nil
+        deadline = -.infinity
+        return true
+    }
+}
+
+private func gtkListControlActivationGate(
+    for root: UnsafeMutablePointer<GtkWidget>,
+    create: Bool
+) -> GTKListControlActivationGate? {
+    let object = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    if let pointer = g_object_get_data(object, gtkListControlActivationGateDataKey) {
+        return Unmanaged<GTKListControlActivationGate>.fromOpaque(pointer).takeUnretainedValue()
+    }
+    guard create else { return nil }
+
+    let gate = GTKListControlActivationGate()
+    g_object_set_data_full(
+        object,
+        gtkListControlActivationGateDataKey,
+        Unmanaged.passRetained(gate).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListControlActivationGate>.fromOpaque(userData).release()
+        }
+    )
+    return gate
+}
+
+private func gtkMarkListControlActivationAtRoot(
+    _ root: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkListControlActivationGate(for: root, create: true)?.mark(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    )
+}
+
+private func gtkMarkContainingListControlActivation(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var row: UnsafeMutablePointer<GtkWidget>?
+    var listBox: UnsafeMutablePointer<GtkWidget>?
+    while let candidate = current {
+        if row == nil, gtk_swift_widget_is_list_box_row(candidate) != 0 {
+            row = candidate
+        }
+        if gtk_swift_widget_is_list_box(candidate) != 0 {
+            listBox = candidate
+            break
+        }
+        current = gtk_widget_get_parent(candidate)
+    }
+    guard let row, let listBox else { return }
+    let root = gtk_swift_widget_root_widget(widget) ?? listBox
+    gtkMarkListControlActivationAtRoot(root, row: row)
+}
+
+private func gtkConsumeRecentListControlActivation(
+    in listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    let root = gtk_swift_widget_root_widget(listBox) ?? listBox
+    return gtkListControlActivationGate(for: root, create: false)?.consumeIfRecent(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    ) ?? false
 }
 
 private final class GTKButtonIdleActionContext {
@@ -2845,6 +2933,9 @@ private func gtkScheduleButtonAction(
         gtkDebugLog("button duplicate \(source)")
         return
     }
+    if case .pointerPress = phase {
+        gtkMarkContainingListControlActivation(box.widget)
+    }
     gtkDebugLog("button \(source)")
     let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
     g_idle_add({ userData -> gboolean in
@@ -3197,7 +3288,9 @@ extension Button: GTKRenderable, GTKDescribable {
         gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
 
         let boundAction = bindActionToCurrentEnvironment(action)
-        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonActionBox = Unmanaged.passRetained(
+            GTKButtonActionBox(boundAction, widget: button)
+        ).toOpaque()
         g_object_set_data(
             UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
             gtkSwiftButtonActionBoxDataKey,
@@ -3241,7 +3334,11 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: false)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget), phase: .clicked)
+                gtkScheduleButtonAction(
+                    context.box,
+                    source: gtkButtonDebugSource("clicked", widget: context.widget),
+                    phase: .clicked
+                )
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -3256,7 +3353,11 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: true)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget), phase: .pointerPress)
+                gtkScheduleButtonAction(
+                    context.box,
+                    source: gtkButtonDebugSource("gesture", widget: context.widget),
+                    phase: .pointerPress
+                )
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -12829,21 +12930,42 @@ private func gtkInstallListBoxTapFallback(on listBox: UnsafeMutablePointer<GtkWi
     gtk_swift_add_gesture(listBox, gesture)
 }
 
+private func gtkHandleListBoxRowActivation(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    if gtkConsumeRecentListControlActivation(in: listBox, row: row) {
+        gtkDebugLog("list row activation suppressed after nested control")
+        return
+    }
+    guard let actionData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowTapActionDataKey
+    ) else {
+        return
+    }
+    let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+    gtkScheduleListRowTapAction(box, source: "row-activated")
+}
+
+func gtkTestActivateListBoxRow(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkHandleListBoxRowActivation(listBox: listBox, row: row)
+}
+
 private func gtkInstallListBoxRowActivationFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
     gtk_swift_list_box_set_activate_on_single_click(listBox, 1)
     g_signal_connect_data(
         gpointer(listBox),
         "row-activated",
-        unsafeBitCast({ (_: gpointer?, row: gpointer?, _: gpointer?) in
-            guard let row else { return }
-            guard let actionData = g_object_get_data(
-                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
-                gtkListRowTapActionDataKey
-            ) else {
-                return
-            }
-            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
-            gtkScheduleListRowTapAction(box, source: "row-activated")
+        unsafeBitCast({ (listBox: gpointer?, row: gpointer?, _: gpointer?) in
+            guard let listBox, let row else { return }
+            gtkHandleListBoxRowActivation(
+                listBox: listBox.assumingMemoryBound(to: GtkWidget.self),
+                row: row.assumingMemoryBound(to: GtkWidget.self)
+            )
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
         nil,
         nil,

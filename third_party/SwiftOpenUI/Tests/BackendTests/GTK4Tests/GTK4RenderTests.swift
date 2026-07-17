@@ -3649,6 +3649,74 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testNestedListButtonDoesNotAlsoActivateRow() throws {
+        try requireGTK()
+
+        var buttonActivations = 0
+        var rowActivations: [Int] = []
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                HStack {
+                    Text("Status")
+                    Button("Favorite") {
+                        buttonActivations += 1
+                    }
+                }
+                .onTapGesture {
+                    rowActivations.append(1)
+                }
+                Text("Neighbor")
+                    .onTapGesture {
+                        rowActivations.append(2)
+                    }
+            }
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 96))
+        drainGTKMainContext(maxIterations: 100)
+
+        let listBox = try unwrapFirstDescendant(ofType: "GtkListBox", in: wrapper)
+        let row = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: listBox)
+        let neighboringRow = try unwrapNextSibling(of: row)
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: row, into: &buttons)
+        let button = try XCTUnwrap(buttons.first)
+
+        XCTAssertTrue(gtkTestActivateButton(button))
+        gtkTestActivateListBoxRow(listBox: listBox, row: row)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(buttonActivations, 1)
+        XCTAssertEqual(
+            rowActivations,
+            [],
+            "A nested Button activation must not fall through to the List row's navigation action."
+        )
+
+        gtkTestActivateListBoxRow(listBox: listBox, row: row)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(
+            rowActivations,
+            [1],
+            "Consuming a nested-control activation must not disable a later independent row activation."
+        )
+
+        Thread.sleep(forTimeInterval: 0.09)
+        XCTAssertTrue(gtkTestActivateButton(button))
+        gtkTestActivateListBoxRow(listBox: listBox, row: neighboringRow)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(
+            rowActivations,
+            [1, 2],
+            "A nested control in one row must never suppress immediate activation of a neighboring row."
+        )
+        XCTAssertEqual(buttonActivations, 2)
+    }
+
     func testCustomStyledMenuButtonCanBeFoundByVisualHitRegion() throws {
         try requireGTK()
 
@@ -4171,6 +4239,47 @@ final class GTK4RenderTests: XCTestCase {
             1,
             "Root toolbar button actions must capture the active dismiss environment for deferred GTK callbacks."
         )
+    }
+
+    func testDestroyedNavigationContextIgnoresDeferredToolbarRefresh() throws {
+        try requireGTK()
+
+        let parent = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let stack = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                Text("Root")
+                    .navigationTitle("Before")
+            }
+        ))
+        gtk_box_append(boxPointer(parent), stack)
+        let window = presentGTKWidget(parent)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        let context = try XCTUnwrap(gtkTestNavigationContext(in: stack))
+
+        XCTAssertTrue(context.nativeWidgetTreeIsAlive)
+        gtk_box_remove(boxPointer(parent), stack)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertFalse(context.nativeWidgetTreeIsAlive)
+        context.replaceCurrentToolbar(
+            with: GTKNavigationToolbarSnapshot(
+                title: "After",
+                toolbarItems: [],
+                hidden: false
+            )
+        )
+        XCTAssertTrue(context.entries.isEmpty)
+
+        let previousContext = getCurrentNavigationContext()
+        setCurrentNavigationContext(context)
+        XCTAssertFalse(
+            getCurrentNavigationContext() === context,
+            "Captured environments must not return a navigation context after its native stack is destroyed."
+        )
+        setCurrentNavigationContext(previousContext)
     }
 
     func testItemSheetRootOverlayDismissRemovesPresentedLayer() throws {

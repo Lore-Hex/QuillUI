@@ -203,6 +203,7 @@ class GTKNavigationContext {
     private var persistedRoutes: [GTKNavigationPersistedRoute] = []
     private var presentedDestinationBindings: [String: Binding<Bool>] = [:]
     private var pendingPresentedDestinations: [GTKPendingPresentedNavigationDestination] = []
+    private(set) var nativeWidgetTreeIsAlive = true
 
     private var shouldPersistUnboundValueRoutes: Bool {
         pathBinding == nil && typedPathBinding == nil
@@ -220,6 +221,22 @@ class GTKNavigationContext {
         self.stateNamespace = stateNamespace
     }
 
+    deinit {
+        invalidateNativeWidgetTree()
+    }
+
+    func invalidateNativeWidgetTree() {
+        guard nativeWidgetTreeIsAlive else { return }
+        nativeWidgetTreeIsAlive = false
+        for entry in entries {
+            releaseToolbarWidgetReferences(in: entry)
+        }
+        entries.removeAll()
+        representedPath.removeAll()
+        pendingPresentedDestinations.removeAll()
+        presentedDestinationBindings.removeAll()
+    }
+
     /// Push a new view onto the navigation stack.
     @discardableResult
     func push(
@@ -228,6 +245,9 @@ class GTKNavigationContext {
         stateNamespace: String? = nil,
         content: @escaping () -> OpaquePointer
     ) -> String {
+        guard nativeWidgetTreeIsAlive else {
+            return stateNamespace ?? self.stateNamespace
+        }
         let name = "nav-\(nameCounter)"
         nameCounter += 1
 
@@ -302,6 +322,7 @@ class GTKNavigationContext {
     /// Push a hashable value, resolving destination via the registry.
     @discardableResult
     func pushValue(_ value: AnyHashable, persist: Bool = true) -> Bool {
+        guard nativeWidgetTreeIsAlive else { return false }
         guard let resolved = destinationRegistry.resolve(value) else {
             gtkNavigationDebugLog("unresolved path element type=\(type(of: value.base))")
             return false
@@ -336,6 +357,7 @@ class GTKNavigationContext {
         _ route: GTKNavigationPersistedRoute,
         persist: Bool = true
     ) -> Bool {
+        guard nativeWidgetTreeIsAlive else { return false }
         guard case let .destination(routeStateNamespace, makeDestination) = route,
               let resolved = makeDestination(self) else {
             return false
@@ -368,6 +390,7 @@ class GTKNavigationContext {
     }
 
     func restorePersistedRoutesIfNeeded() {
+        guard nativeWidgetTreeIsAlive else { return }
         guard representedPath.isEmpty, entries.count == 1 else {
             return
         }
@@ -438,6 +461,10 @@ class GTKNavigationContext {
     }
 
     func flushPendingPresentedDestinations() {
+        guard nativeWidgetTreeIsAlive else {
+            pendingPresentedDestinations.removeAll()
+            return
+        }
         let pending = pendingPresentedDestinations
         pendingPresentedDestinations.removeAll()
 
@@ -460,10 +487,12 @@ class GTKNavigationContext {
 
     /// Pop the top view from the navigation stack.
     func pop() {
+        guard nativeWidgetTreeIsAlive else { return }
         guard entries.count > 1 else { return }
 
         removeCurrentToolbarWidgets()
         let removed = entries.removeLast()
+        releaseToolbarWidgetReferences(in: removed)
         clearPresentedDestinationBindingIfNeeded(for: removed.stateNamespace)
         if !representedPath.isEmpty {
             representedPath.removeLast()
@@ -518,6 +547,7 @@ class GTKNavigationContext {
     }
 
     func syncFromBoundPath() {
+        guard nativeWidgetTreeIsAlive else { return }
         guard !isSyncing else { return }
         guard pathBinding != nil || typedPathBinding != nil else { return }
         let targetPath = pathBinding?.wrappedValue.elements
@@ -590,6 +620,7 @@ class GTKNavigationContext {
 
     /// Remove current entry's toolbar widgets from the header bar.
     private func removeCurrentToolbarWidgets() {
+        guard nativeWidgetTreeIsAlive else { return }
         guard let current = entries.last else { return }
         for item in current.toolbarWidgets {
             if item.placement == .center {
@@ -604,6 +635,7 @@ class GTKNavigationContext {
         _ toolbarItems: [AnyToolbarItem],
         into entry: inout GTKNavigationEntry
     ) {
+        guard nativeWidgetTreeIsAlive else { return }
         for item in toolbarItems {
             for itemWidget in gtkRenderToolbarItemWidgets(item) {
                 switch item.placement {
@@ -620,7 +652,14 @@ class GTKNavigationContext {
         }
     }
 
+    private func releaseToolbarWidgetReferences(in entry: GTKNavigationEntry) {
+        for item in entry.toolbarWidgets {
+            g_object_unref(gpointer(item.widget))
+        }
+    }
+
     func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {
+        guard nativeWidgetTreeIsAlive else { return }
         guard let current = entries.last else { return }
         guard current.toolbarWidgets.isEmpty else { return }
         let title = snapshot.title.isEmpty ? current.title : snapshot.title
@@ -644,6 +683,7 @@ class GTKNavigationContext {
     }
 
     private func updateHeaderBar() {
+        guard nativeWidgetTreeIsAlive else { return }
         let title = entries.last?.title ?? ""
         if let principal = entries.last?.toolbarWidgets.first(where: { $0.placement == .center })?.widget {
             gtk_header_bar_set_title_widget(headerBar, principal)
@@ -702,6 +742,18 @@ func gtkTestSyncNavigationPath(
     let context = Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()
     context.syncFromBoundPath()
     return context.entries.count
+}
+
+func gtkTestNavigationContext(
+    in stack: UnsafeMutablePointer<GtkWidget>
+) -> GTKNavigationContext? {
+    guard let data = g_object_get_data(
+        UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self),
+        "nav-context"
+    ) else {
+        return nil
+    }
+    return Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()
 }
 
 func gtkTestNavigationEntryCount(
@@ -769,9 +821,13 @@ func setCurrentNavigationContext(_ context: GTKNavigationContext?) {
 
 func getCurrentNavigationContext() -> GTKNavigationContext? {
     if let ptr = pthread_getspecific(_navContextKey) {
-        return Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()
+        let context = Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()
+        if context.nativeWidgetTreeIsAlive {
+            return context
+        }
     }
-    return getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
+    let context = getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
+    return context?.nativeWidgetTreeIsAlive == true ? context : nil
 }
 #else
 private var _currentNavContext: GTKNavigationContext?
@@ -781,7 +837,11 @@ func setCurrentNavigationContext(_ context: GTKNavigationContext?) {
 }
 
 func getCurrentNavigationContext() -> GTKNavigationContext? {
-    _currentNavContext ?? getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
+    if let context = _currentNavContext, context.nativeWidgetTreeIsAlive {
+        return context
+    }
+    let context = getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]
+    return context?.nativeWidgetTreeIsAlive == true ? context : nil
 }
 #endif
 
@@ -1048,7 +1108,8 @@ extension NavigationStack: GTKRenderable {
         let retained = Unmanaged.passRetained(context).toOpaque()
         let gobject = UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self)
         g_object_set_data_full(gobject, "nav-context", retained, { userData in
-            Unmanaged<GTKNavigationContext>.fromOpaque(userData!).release()
+            let context = Unmanaged<GTKNavigationContext>.fromOpaque(userData!).takeRetainedValue()
+            context.invalidateNativeWidgetTree()
         })
         _ = gtk_widget_add_tick_callback(
             stack,

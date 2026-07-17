@@ -7797,6 +7797,14 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         top + 52,
         icecubes_authenticated_titlebar_pixel,
     )
+    detail_back_button_pixels = pixel_count(
+        image,
+        left + 5,
+        top + 5,
+        left + 82,
+        top + 49,
+        lambda rgb: min(rgb) >= 240 and max(rgb) - min(rgb) <= 12,
+    )
     sidebar_pixels = pixel_count(
         image,
         left,
@@ -7932,6 +7940,11 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
 
     require(titlebar_pixels >= 25_000, f"IceCubes authenticated Status detail titlebar chrome was not detected: pixels={titlebar_pixels}")
     require(
+        detail_back_button_pixels >= 1_000,
+        "IceCubes authenticated Status detail Back control was not detected: "
+        f"pixels={detail_back_button_pixels}",
+    )
+    require(
         sidebar_pixels >= 80_000,
         f"IceCubes authenticated Status detail sidebar surface was not detected: pixels={sidebar_pixels}",
     )
@@ -7965,6 +7978,7 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         "IceCubes authenticated Status detail: "
         f"app={app_width}x{app_height}, "
         f"titlebar_pixels={titlebar_pixels}, "
+        f"detail_back_button_pixels={detail_back_button_pixels}, "
         f"sidebar_pixels={sidebar_pixels}, "
         f"detail_header_pixels={detail_header_pixels}, "
         f"detail_body_pixels={detail_body_pixels}, "

@@ -11594,6 +11594,33 @@ struct SourceHygieneTests {
         #expect(gtkRenderer.contains("pointSize * 0.875"))
     }
 
+    @Test("GTK nested controls and navigation teardown stay reproducible")
+    func gtkNestedControlsAndNavigationTeardownStayReproducible() throws {
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let navigation = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift")
+        let renderTests = try packageSource("third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+        let verifier = try packageSource("scripts/verify-backend-screenshot.py")
+
+        #expect(renderer.contains("private final class GTKListControlActivationGate"))
+        #expect(renderer.contains("guard self.row == row, now <= deadline"))
+        #expect(renderer.contains("if case .pointerPress = phase"))
+        #expect(renderer.contains("list row activation suppressed after nested control"))
+        #expect(renderTests.contains("testNestedListButtonDoesNotAlsoActivateRow"))
+        #expect(renderTests.contains("A nested control in one row must never suppress immediate activation of a neighboring row."))
+        #expect(patcher.contains("SwiftOpenUI List row native activation shape was not recognized"))
+
+        #expect(navigation.contains("private(set) var nativeWidgetTreeIsAlive = true"))
+        #expect(navigation.contains("func invalidateNativeWidgetTree()"))
+        #expect(navigation.contains("context.invalidateNativeWidgetTree()"))
+        #expect(navigation.contains("releaseToolbarWidgetReferences(in: removed)"))
+        #expect(renderTests.contains("testDestroyedNavigationContextIgnoresDeferredToolbarRefresh"))
+        #expect(patcher.contains("SwiftOpenUI GTK navigation native-destruction callback shape was not recognized"))
+
+        #expect(verifier.contains("detail_back_button_pixels"))
+        #expect(verifier.contains("IceCubes authenticated Status detail Back control was not detected"))
+    }
+
     @Test("UIKit representables are opaque to GTK metadata extraction")
     func uiKitRepresentablesAreOpaqueToGTKMetadataExtraction() throws {
         let swiftOpenUIView = try packageSource(

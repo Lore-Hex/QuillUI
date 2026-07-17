@@ -4866,7 +4866,9 @@ if 'gtkButtonDebugSource("gesture", widget: context.widget)' not in text:
     if button_action_start == -1 or button_action_end == -1:
         raise SystemExit("SwiftOpenUI Button action callback shape was not recognized")
     button_activation = '''        let boundAction = bindActionToCurrentEnvironment(action)
-        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonActionBox = Unmanaged.passRetained(
+            GTKButtonActionBox(boundAction, widget: button)
+        ).toOpaque()
         let buttonRootEventContext = Unmanaged.passRetained(
             GTKButtonRootEventContext(
                 widget: button,
@@ -4969,7 +4971,9 @@ text = text.replace(
 
 if "let buttonRootEventContext = Unmanaged.passRetained" not in text:
     action_box_line = "        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()\n"
-    root_context_activation = '''        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+    root_context_activation = '''        let buttonActionBox = Unmanaged.passRetained(
+            GTKButtonActionBox(boundAction, widget: button)
+        ).toOpaque()
         let buttonRootEventContext = Unmanaged.passRetained(
             GTKButtonRootEventContext(
                 widget: button,
@@ -5037,6 +5041,242 @@ if 'gtkScheduleButtonAction(box, source: "legacy"' not in text:
     if button_legacy_marker not in text:
         raise SystemExit("SwiftOpenUI Button legacy event insertion point was not recognized")
     text = text.replace(button_legacy_marker, button_legacy_block, 1)
+
+if "gtkListControlActivationGateDataKey" not in text:
+    old_button_action_box = '''private final class GTKButtonActionBox {
+    var action: () -> Void
+    var activationGate = GTKButtonActivationGate()
+
+    init(_ action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+'''
+    new_button_action_box = '''private final class GTKButtonActionBox {
+    var action: () -> Void
+    var activationGate = GTKButtonActivationGate()
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(_ action: @escaping () -> Void, widget: UnsafeMutablePointer<GtkWidget>) {
+        self.action = action
+        self.widget = widget
+    }
+}
+'''
+    if old_button_action_box not in text:
+        raise SystemExit("SwiftOpenUI Button action box list-control shape was not recognized")
+    text = text.replace(old_button_action_box, new_button_action_box, 1)
+
+    idle_context_marker = "private final class GTKButtonIdleActionContext {\n"
+    list_control_activation_gate = r'''private let gtkListControlActivationGateDataKey = "gtk-swift-list-control-activation-gate"
+
+private final class GTKListControlActivationGate {
+    private var deadline: TimeInterval = -.infinity
+    private var row: UnsafeMutablePointer<GtkWidget>?
+
+    func mark(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) {
+        self.row = row
+        deadline = now + 0.75
+    }
+
+    func consumeIfRecent(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) -> Bool {
+        guard self.row == row, now <= deadline else {
+            self.row = nil
+            deadline = -.infinity
+            return false
+        }
+        self.row = nil
+        deadline = -.infinity
+        return true
+    }
+}
+
+private func gtkListControlActivationGate(
+    for root: UnsafeMutablePointer<GtkWidget>,
+    create: Bool
+) -> GTKListControlActivationGate? {
+    let object = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    if let pointer = g_object_get_data(object, gtkListControlActivationGateDataKey) {
+        return Unmanaged<GTKListControlActivationGate>.fromOpaque(pointer).takeUnretainedValue()
+    }
+    guard create else { return nil }
+
+    let gate = GTKListControlActivationGate()
+    g_object_set_data_full(
+        object,
+        gtkListControlActivationGateDataKey,
+        Unmanaged.passRetained(gate).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListControlActivationGate>.fromOpaque(userData).release()
+        }
+    )
+    return gate
+}
+
+private func gtkMarkListControlActivationAtRoot(
+    _ root: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkListControlActivationGate(for: root, create: true)?.mark(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    )
+}
+
+private func gtkMarkContainingListControlActivation(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var row: UnsafeMutablePointer<GtkWidget>?
+    var listBox: UnsafeMutablePointer<GtkWidget>?
+    while let candidate = current {
+        if row == nil, gtk_swift_widget_is_list_box_row(candidate) != 0 {
+            row = candidate
+        }
+        if gtk_swift_widget_is_list_box(candidate) != 0 {
+            listBox = candidate
+            break
+        }
+        current = gtk_widget_get_parent(candidate)
+    }
+    guard let row, let listBox else { return }
+    let root = gtk_swift_widget_root_widget(widget) ?? listBox
+    gtkMarkListControlActivationAtRoot(root, row: row)
+}
+
+private func gtkConsumeRecentListControlActivation(
+    in listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    let root = gtk_swift_widget_root_widget(listBox) ?? listBox
+    return gtkListControlActivationGate(for: root, create: false)?.consumeIfRecent(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    ) ?? false
+}
+
+'''
+    if idle_context_marker not in text:
+        raise SystemExit("SwiftOpenUI Button idle context insertion point was not recognized")
+    text = text.replace(
+        idle_context_marker,
+        list_control_activation_gate + idle_context_marker,
+        1,
+    )
+
+if "gtkMarkContainingListControlActivation(box.widget)" not in text:
+    schedule_start = text.find("private func gtkScheduleButtonAction(")
+    schedule_end = text.find("private func gtkInstallGlobalButtonRootDispatcher", schedule_start)
+    if schedule_start == -1 or schedule_end == -1:
+        raise SystemExit("SwiftOpenUI Button scheduling section was not recognized")
+    schedule_block = text[schedule_start:schedule_end]
+    schedule_log = '    gtkDebugLog("button \\(source)")\n'
+    if schedule_log not in schedule_block:
+        raise SystemExit("SwiftOpenUI Button scheduling activation point was not recognized")
+    schedule_block = schedule_block.replace(
+        schedule_log,
+        "    if case .pointerPress = phase {\n"
+        "        gtkMarkContainingListControlActivation(box.widget)\n"
+        "    }\n" + schedule_log,
+        1,
+    )
+    text = text[:schedule_start] + schedule_block + text[schedule_end:]
+
+text = text.replace(
+    "GTKButtonActionBox(boundAction)).toOpaque()",
+    "GTKButtonActionBox(boundAction, widget: button)).toOpaque()",
+)
+text = text.replace(
+    "        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction, widget: button)).toOpaque()\n",
+    "        let buttonActionBox = Unmanaged.passRetained(\n"
+    "            GTKButtonActionBox(boundAction, widget: button)\n"
+    "        ).toOpaque()\n",
+)
+text = text.replace(
+    '                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget), phase: .clicked)\n',
+    "                gtkScheduleButtonAction(\n"
+    "                    context.box,\n"
+    '                    source: gtkButtonDebugSource("clicked", widget: context.widget),\n'
+    "                    phase: .clicked\n"
+    "                )\n",
+)
+text = text.replace(
+    '                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget), phase: .pointerPress)\n',
+    "                gtkScheduleButtonAction(\n"
+    "                    context.box,\n"
+    '                    source: gtkButtonDebugSource("gesture", widget: context.widget),\n'
+    "                    phase: .pointerPress\n"
+    "                )\n",
+)
+
+if "list row activation suppressed after nested control" not in text:
+    old_list_row_activation = r'''private func gtkInstallListBoxRowActivationFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
+    gtk_swift_list_box_set_activate_on_single_click(listBox, 1)
+    g_signal_connect_data(
+        gpointer(listBox),
+        "row-activated",
+        unsafeBitCast({ (_: gpointer?, row: gpointer?, _: gpointer?) in
+            guard let row else { return }
+            guard let actionData = g_object_get_data(
+                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+                gtkListRowTapActionDataKey
+            ) else {
+                return
+            }
+            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+            gtkScheduleListRowTapAction(box, source: "row-activated")
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        nil,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+}
+'''
+    new_list_row_activation = r'''private func gtkHandleListBoxRowActivation(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    if gtkConsumeRecentListControlActivation(in: listBox, row: row) {
+        gtkDebugLog("list row activation suppressed after nested control")
+        return
+    }
+    guard let actionData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowTapActionDataKey
+    ) else {
+        return
+    }
+    let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+    gtkScheduleListRowTapAction(box, source: "row-activated")
+}
+
+func gtkTestActivateListBoxRow(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkHandleListBoxRowActivation(listBox: listBox, row: row)
+}
+
+private func gtkInstallListBoxRowActivationFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
+    gtk_swift_list_box_set_activate_on_single_click(listBox, 1)
+    g_signal_connect_data(
+        gpointer(listBox),
+        "row-activated",
+        unsafeBitCast({ (listBox: gpointer?, row: gpointer?, _: gpointer?) in
+            guard let listBox, let row else { return }
+            gtkHandleListBoxRowActivation(
+                listBox: listBox.assumingMemoryBound(to: GtkWidget.self),
+                row: row.assumingMemoryBound(to: GtkWidget.self)
+            )
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
+        nil,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+}
+'''
+    if old_list_row_activation not in text:
+        raise SystemExit("SwiftOpenUI List row native activation shape was not recognized")
+    text = text.replace(old_list_row_activation, new_list_row_activation, 1)
 
 text = text.replace("            gpointer(legacyController),\n", "            legacyController,\n")
 
@@ -11177,6 +11417,232 @@ if "gtk_widget_set_size_request(detailWidget, -1, gtkRequestedDefaultWindowHeigh
         "        gtk_widget_set_size_request(detailWidget, -1, gtkRequestedDefaultWindowHeight())\n",
         1,
     )
+
+def replace_navigation_once(marker, old, new, error):
+    global text
+    if marker in text:
+        return
+    if old not in text:
+        raise SystemExit(error)
+    text = text.replace(old, new, 1)
+
+
+replace_navigation_once(
+    "private(set) var nativeWidgetTreeIsAlive = true",
+    "    private var pendingPresentedDestinations: [GTKPendingPresentedNavigationDestination] = []\n",
+    "    private var pendingPresentedDestinations: [GTKPendingPresentedNavigationDestination] = []\n"
+    "    private(set) var nativeWidgetTreeIsAlive = true\n",
+    "SwiftOpenUI GTK navigation native-lifecycle property insertion point was not recognized",
+)
+replace_navigation_once(
+    "func invalidateNativeWidgetTree()",
+    "        self.stateNamespace = stateNamespace\n"
+    "    }\n\n"
+    "    /// Push a new view onto the navigation stack.",
+    "        self.stateNamespace = stateNamespace\n"
+    "    }\n\n"
+    "    deinit {\n"
+    "        invalidateNativeWidgetTree()\n"
+    "    }\n\n"
+    "    func invalidateNativeWidgetTree() {\n"
+    "        guard nativeWidgetTreeIsAlive else { return }\n"
+    "        nativeWidgetTreeIsAlive = false\n"
+    "        for entry in entries {\n"
+    "            releaseToolbarWidgetReferences(in: entry)\n"
+    "        }\n"
+    "        entries.removeAll()\n"
+    "        representedPath.removeAll()\n"
+    "        pendingPresentedDestinations.removeAll()\n"
+    "        presentedDestinationBindings.removeAll()\n"
+    "    }\n\n"
+    "    /// Push a new view onto the navigation stack.",
+    "SwiftOpenUI GTK navigation native-lifecycle method insertion point was not recognized",
+)
+replace_navigation_once(
+    "guard nativeWidgetTreeIsAlive else {\n            return stateNamespace ?? self.stateNamespace",
+    "    ) -> String {\n"
+    "        let name = \"nav-\\(nameCounter)\"",
+    "    ) -> String {\n"
+    "        guard nativeWidgetTreeIsAlive else {\n"
+    "            return stateNamespace ?? self.stateNamespace\n"
+    "        }\n"
+    "        let name = \"nav-\\(nameCounter)\"",
+    "SwiftOpenUI GTK navigation push lifecycle guard insertion point was not recognized",
+)
+for marker, old, new, error in [
+    (
+        "func pushValue(_ value: AnyHashable, persist: Bool = true) -> Bool {\n        guard nativeWidgetTreeIsAlive",
+        "func pushValue(_ value: AnyHashable, persist: Bool = true) -> Bool {\n"
+        "        guard let resolved",
+        "func pushValue(_ value: AnyHashable, persist: Bool = true) -> Bool {\n"
+        "        guard nativeWidgetTreeIsAlive else { return false }\n"
+        "        guard let resolved",
+        "SwiftOpenUI GTK navigation value-push lifecycle guard insertion point was not recognized",
+    ),
+    (
+        ") -> Bool {\n        guard nativeWidgetTreeIsAlive else { return false }\n        guard case let .destination",
+        ") -> Bool {\n"
+        "        guard case let .destination",
+        ") -> Bool {\n"
+        "        guard nativeWidgetTreeIsAlive else { return false }\n"
+        "        guard case let .destination",
+        "SwiftOpenUI GTK navigation destination lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "func restorePersistedRoutesIfNeeded() {\n        guard nativeWidgetTreeIsAlive",
+        "func restorePersistedRoutesIfNeeded() {\n"
+        "        guard representedPath",
+        "func restorePersistedRoutesIfNeeded() {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        guard representedPath",
+        "SwiftOpenUI GTK navigation restore lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "func flushPendingPresentedDestinations() {\n        guard nativeWidgetTreeIsAlive",
+        "func flushPendingPresentedDestinations() {\n"
+        "        let pending = pendingPresentedDestinations",
+        "func flushPendingPresentedDestinations() {\n"
+        "        guard nativeWidgetTreeIsAlive else {\n"
+        "            pendingPresentedDestinations.removeAll()\n"
+        "            return\n"
+        "        }\n"
+        "        let pending = pendingPresentedDestinations",
+        "SwiftOpenUI GTK navigation pending-destination lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "func pop() {\n        guard nativeWidgetTreeIsAlive",
+        "func pop() {\n"
+        "        guard entries.count > 1 else { return }",
+        "func pop() {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        guard entries.count > 1 else { return }",
+        "SwiftOpenUI GTK navigation pop lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "func syncFromBoundPath() {\n        guard nativeWidgetTreeIsAlive",
+        "func syncFromBoundPath() {\n"
+        "        guard !isSyncing else { return }",
+        "func syncFromBoundPath() {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        guard !isSyncing else { return }",
+        "SwiftOpenUI GTK navigation path-sync lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "private func removeCurrentToolbarWidgets() {\n        guard nativeWidgetTreeIsAlive",
+        "private func removeCurrentToolbarWidgets() {\n"
+        "        guard let current = entries.last else { return }",
+        "private func removeCurrentToolbarWidgets() {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        guard let current = entries.last else { return }",
+        "SwiftOpenUI GTK navigation toolbar-removal lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "into entry: inout GTKNavigationEntry\n    ) {\n        guard nativeWidgetTreeIsAlive",
+        "into entry: inout GTKNavigationEntry\n"
+        "    ) {\n"
+        "        for item in toolbarItems",
+        "into entry: inout GTKNavigationEntry\n"
+        "    ) {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        for item in toolbarItems",
+        "SwiftOpenUI GTK navigation toolbar-install lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {\n        guard nativeWidgetTreeIsAlive",
+        "func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {\n"
+        "        guard let current = entries.last else { return }",
+        "func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        guard let current = entries.last else { return }",
+        "SwiftOpenUI GTK navigation toolbar-refresh lifecycle guard insertion point was not recognized",
+    ),
+    (
+        "private func updateHeaderBar() {\n        guard nativeWidgetTreeIsAlive",
+        "private func updateHeaderBar() {\n"
+        "        let title = entries.last?.title ?? \"\"",
+        "private func updateHeaderBar() {\n"
+        "        guard nativeWidgetTreeIsAlive else { return }\n"
+        "        let title = entries.last?.title ?? \"\"",
+        "SwiftOpenUI GTK navigation header lifecycle guard insertion point was not recognized",
+    ),
+]:
+    replace_navigation_once(marker, old, new, error)
+
+replace_navigation_once(
+    "let removed = entries.removeLast()\n        releaseToolbarWidgetReferences(in: removed)",
+    "        let removed = entries.removeLast()\n"
+    "        clearPresentedDestinationBindingIfNeeded",
+    "        let removed = entries.removeLast()\n"
+    "        releaseToolbarWidgetReferences(in: removed)\n"
+    "        clearPresentedDestinationBindingIfNeeded",
+    "SwiftOpenUI GTK navigation popped-toolbar release insertion point was not recognized",
+)
+replace_navigation_once(
+    "private func releaseToolbarWidgetReferences(in entry: GTKNavigationEntry)",
+    "    func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {",
+    "    private func releaseToolbarWidgetReferences(in entry: GTKNavigationEntry) {\n"
+    "        for item in entry.toolbarWidgets {\n"
+    "            g_object_unref(gpointer(item.widget))\n"
+    "        }\n"
+    "    }\n\n"
+    "    func replaceCurrentToolbar(with snapshot: GTKNavigationToolbarSnapshot) {",
+    "SwiftOpenUI GTK navigation toolbar-reference release insertion point was not recognized",
+)
+replace_navigation_once(
+    "func gtkTestNavigationContext(",
+    "func gtkTestNavigationEntryCount(\n",
+    "func gtkTestNavigationContext(\n"
+    "    in stack: UnsafeMutablePointer<GtkWidget>\n"
+    ") -> GTKNavigationContext? {\n"
+    "    guard let data = g_object_get_data(\n"
+    "        UnsafeMutableRawPointer(stack).assumingMemoryBound(to: GObject.self),\n"
+    "        \"nav-context\"\n"
+    "    ) else {\n"
+    "        return nil\n"
+    "    }\n"
+    "    return Unmanaged<GTKNavigationContext>.fromOpaque(data).takeUnretainedValue()\n"
+    "}\n\n"
+    "func gtkTestNavigationEntryCount(\n",
+    "SwiftOpenUI GTK navigation lifecycle test-hook insertion point was not recognized",
+)
+replace_navigation_once(
+    "if context.nativeWidgetTreeIsAlive {\n            return context\n        }\n    }\n    let context = getCurrentEnvironment()",
+    "    if let ptr = pthread_getspecific(_navContextKey) {\n"
+    "        return Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()\n"
+    "    }\n"
+    "    return getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]",
+    "    if let ptr = pthread_getspecific(_navContextKey) {\n"
+    "        let context = Unmanaged<GTKNavigationContext>.fromOpaque(ptr).takeUnretainedValue()\n"
+    "        if context.nativeWidgetTreeIsAlive {\n"
+    "            return context\n"
+    "        }\n"
+    "    }\n"
+    "    let context = getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]\n"
+    "    return context?.nativeWidgetTreeIsAlive == true ? context : nil",
+    "SwiftOpenUI GTK pthread navigation-context lifecycle shape was not recognized",
+)
+replace_navigation_once(
+    "if let context = _currentNavContext, context.nativeWidgetTreeIsAlive",
+    "    _currentNavContext ?? getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]",
+    "    if let context = _currentNavContext, context.nativeWidgetTreeIsAlive {\n"
+    "        return context\n"
+    "    }\n"
+    "    let context = getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]\n"
+    "    return context?.nativeWidgetTreeIsAlive == true ? context : nil",
+    "SwiftOpenUI GTK fallback navigation-context lifecycle shape was not recognized",
+)
+replace_navigation_once(
+    "let context = Unmanaged<GTKNavigationContext>.fromOpaque(userData!).takeRetainedValue()\n"
+    "            context.invalidateNativeWidgetTree()",
+    "        g_object_set_data_full(gobject, \"nav-context\", retained, { userData in\n"
+    "            Unmanaged<GTKNavigationContext>.fromOpaque(userData!).release()\n"
+    "        })",
+    "        g_object_set_data_full(gobject, \"nav-context\", retained, { userData in\n"
+    "            let context = Unmanaged<GTKNavigationContext>.fromOpaque(userData!).takeRetainedValue()\n"
+    "            context.invalidateNativeWidgetTree()\n"
+    "        })",
+    "SwiftOpenUI GTK navigation native-destruction callback shape was not recognized",
+)
 text = text.replace("        gtkInstallToolbar(from: detail, on: paned)\n\n", "")
 path.write_text(text)
 PY
