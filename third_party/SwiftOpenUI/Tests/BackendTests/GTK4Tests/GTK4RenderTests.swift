@@ -2130,6 +2130,59 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(items[0].placement, .leading)
     }
 
+    func testMetadataExtractionDoesNotEnterOpaqueBoundary() throws {
+        try requireGTK()
+
+        final class EvaluationCounter {
+            var value = 0
+        }
+
+        struct Boundary<Content: View>: View, _ViewMetadataExtractionBoundary {
+            let counter: EvaluationCounter
+            let content: Content
+
+            var body: some View {
+                counter.value += 1
+                return content
+            }
+        }
+
+        let counter = EvaluationCounter()
+        let boundary = Boundary(
+            counter: counter,
+            content: Text("Native content")
+                .navigationTitle("Hidden title")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) { Text("Hidden action") }
+                }
+                .toolbar(.hidden, for: .navigationBar)
+        )
+
+        XCTAssertEqual(gtkExtractTitle(from: boundary), "")
+        XCTAssertTrue(gtkExtractToolbarItems(from: boundary).isEmpty)
+        XCTAssertNil(gtkExtractToolbarConfiguration(from: boundary))
+        XCTAssertEqual(counter.value, 0, "Metadata extraction must not evaluate a boundary body")
+    }
+
+    func testMetadataOutsideOpaqueBoundaryStillExtracts() throws {
+        try requireGTK()
+
+        struct Boundary: View, _ViewMetadataExtractionBoundary {
+            var body: some View { Text("Native content") }
+        }
+
+        let view = Boundary()
+            .navigationTitle("Visible title")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) { Text("Visible action") }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+
+        XCTAssertEqual(gtkExtractTitle(from: view), "Visible title")
+        XCTAssertEqual(gtkExtractToolbarItems(from: view).count, 1)
+        XCTAssertEqual(gtkExtractToolbarConfiguration(from: view)?.visibility, .hidden)
+    }
+
     func testToolbarRendersContentPassthrough() throws {
         try requireGTK()
 

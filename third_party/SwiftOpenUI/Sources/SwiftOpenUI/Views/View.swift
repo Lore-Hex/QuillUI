@@ -18,6 +18,11 @@ public protocol View {
 /// and can skip Mirror reflection during rendering.
 public protocol PrimitiveView: View {}
 
+/// A view whose rendered descendants are opaque to ancestor metadata discovery.
+/// Platform representable hosts use this boundary because their native subtree
+/// is not part of the enclosing SwiftUI hierarchy.
+public protocol _ViewMetadataExtractionBoundary: View {}
+
 /// A view that produces no content.
 public struct EmptyView: View, PrimitiveView {
     public typealias Body = Never

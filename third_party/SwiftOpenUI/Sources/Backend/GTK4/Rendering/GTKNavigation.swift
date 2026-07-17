@@ -824,6 +824,13 @@ private func gtkExtractTitleAnyView(_ view: any View, depth: Int) -> String {
 private func gtkExtractTitleTyped<V: View>(from view: V, depth: Int = 0) -> String {
     guard depth < 20 else { return "" }
 
+    if let titled = view as? NavigationTitled {
+        return titled.navigationTitle
+    }
+    if view is any _ViewMetadataExtractionBoundary {
+        return ""
+    }
+
     let reflected = gtkExtractTitleAny(from: view, depth: depth)
     if !reflected.isEmpty {
         return reflected
@@ -884,6 +891,13 @@ private func gtkExtractToolbarItemsTyped<V: View>(
 ) -> [AnyToolbarItem] {
     guard depth < 20 else { return [] }
 
+    if let provider = view as? ToolbarProvider {
+        return provider.toolbarItems
+    }
+    if view is any _ViewMetadataExtractionBoundary {
+        return []
+    }
+
     let reflected = gtkExtractToolbarItemsAny(from: view, depth: depth)
     if !reflected.isEmpty {
         return reflected
@@ -940,6 +954,13 @@ private func gtkExtractToolbarConfigurationTyped<V: View>(
     depth: Int = 0
 ) -> ToolbarConfiguration? {
     guard depth < 20 else { return nil }
+
+    if let provider = view as? ToolbarConfigurationProvider {
+        return provider.toolbarConfiguration
+    }
+    if view is any _ViewMetadataExtractionBoundary {
+        return nil
+    }
 
     if let reflected = gtkExtractToolbarConfigurationAny(from: view, depth: depth) {
         return reflected

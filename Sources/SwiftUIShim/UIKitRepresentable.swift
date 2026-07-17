@@ -118,7 +118,7 @@ public extension UIViewControllerRepresentableContext where Representable: UIVie
     }
 }
 
-public protocol UIViewControllerRepresentable: View {
+public protocol UIViewControllerRepresentable: View, _ViewMetadataExtractionBoundary {
     associatedtype UIViewControllerType: UIViewController
     associatedtype Coordinator = Void
 
@@ -171,7 +171,10 @@ private final class QuillUIViewControllerRepresentableMount<R: UIViewControllerR
 
 /// Host view that lowers common UIKit controller representables into
 /// SwiftOpenUI-native controls on non-UIKit platforms.
-public struct QuillUIViewControllerRepresentableHostView<R: UIViewControllerRepresentable>: View {
+public struct QuillUIViewControllerRepresentableHostView<R: UIViewControllerRepresentable>:
+    View,
+    _ViewMetadataExtractionBoundary
+{
     let representable: R
     @StateObject private var mount: QuillUIViewControllerRepresentableMount<R>
 
@@ -249,7 +252,7 @@ public extension UIViewRepresentableContext where Representable: UIViewRepresent
     }
 }
 
-public protocol UIViewRepresentable: View {
+public protocol UIViewRepresentable: View, _ViewMetadataExtractionBoundary {
     associatedtype UIViewType: UIView
     associatedtype Coordinator = Void
 
@@ -296,7 +299,10 @@ private final class QuillUIViewRepresentableMount<R: UIViewRepresentable>: Obser
 /// Host view that lowers common UIKit representables into SwiftOpenUI-native
 /// controls. This keeps source compatibility for apps that wrap UIKit inputs
 /// in `UIViewRepresentable` while avoiding an app-specific rewrite.
-public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>: View {
+public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>:
+    View,
+    _ViewMetadataExtractionBoundary
+{
     let representable: R
     @StateObject private var mount: QuillUIViewRepresentableMount<R>
 

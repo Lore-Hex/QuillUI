@@ -11592,6 +11592,22 @@ struct SourceHygieneTests {
         #expect(gtkRenderer.contains("pointSize * 0.875"))
     }
 
+    @Test("UIKit representables are opaque to GTK metadata extraction")
+    func uiKitRepresentablesAreOpaqueToGTKMetadataExtraction() throws {
+        let swiftOpenUIView = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUI/Views/View.swift"
+        )
+        let gtkNavigation = try packageSource(
+            "third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
+        )
+        let uiKitRepresentable = try packageSource("Sources/SwiftUIShim/UIKitRepresentable.swift")
+
+        #expect(swiftOpenUIView.contains("public protocol _ViewMetadataExtractionBoundary: View"))
+        #expect(gtkNavigation.components(separatedBy: "if view is any _ViewMetadataExtractionBoundary").count == 4)
+        #expect(uiKitRepresentable.contains("public protocol UIViewRepresentable: View, _ViewMetadataExtractionBoundary"))
+        #expect(uiKitRepresentable.contains("public protocol UIViewControllerRepresentable: View, _ViewMetadataExtractionBoundary"))
+    }
+
     @Test("IceCubes composer typing proves editor focus before text with spaces")
     func iceCubesComposerTypingProvesEditorFocusBeforeTextWithSpaces() throws {
         let script = try packageSource("scripts/icecubes-linux-visual-check.sh")
