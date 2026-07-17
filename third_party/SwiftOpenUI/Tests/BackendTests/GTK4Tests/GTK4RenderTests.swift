@@ -2183,6 +2183,30 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(gtkExtractToolbarConfiguration(from: view)?.visibility, .hidden)
     }
 
+    func testDescriptorExtractionDoesNotEnterOpaqueBoundary() throws {
+        try requireGTK()
+
+        final class EvaluationCounter {
+            var value = 0
+        }
+
+        struct Boundary: View, _ViewMetadataExtractionBoundary {
+            let counter: EvaluationCounter
+
+            var body: some View {
+                counter.value += 1
+                return Text("Native content")
+            }
+        }
+
+        let counter = EvaluationCounter()
+        let descriptor = gtkDescribeView(Boundary(counter: counter))
+
+        XCTAssertEqual(counter.value, 0, "Descriptor extraction must not evaluate a boundary body")
+        XCTAssertEqual(descriptor.kind, .composite)
+        XCTAssertTrue(descriptor.children.isEmpty)
+    }
+
     func testToolbarRendersContentPassthrough() throws {
         try requireGTK()
 
@@ -3843,6 +3867,54 @@ final class GTK4RenderTests: XCTestCase {
         let overlayLabels = gtkLabelTexts(in: rootContainer)
         XCTAssertTrue(overlayLabels.contains("Boost"))
         XCTAssertTrue(overlayLabels.contains("Quote"))
+    }
+
+    func testRootPresentationMenuOverlayConvertsWindowPointsIntoContentCoordinates() throws {
+        try requireGTK()
+
+        var boostActivations = 0
+        var quoteActivations = 0
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let titlebar = gtk_header_bar_new()!
+        gtk_widget_set_size_request(titlebar, -1, 48)
+        gtk_window_set_titlebar(windowPointer(window), titlebar)
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtkTestDismissActiveMenuOverlay()
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        let menu = widgetFromOpaque(gtkRenderView(
+            Menu {
+                MenuItem("Boost") { boostActivations += 1 }
+                MenuItem("Quote") { quoteActivations += 1 }
+            } label: {
+                Text("boost-menu")
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), menu)
+        allocate(widget: rootContainer, size: ViewSize(width: 420, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkTestOpenMenuButton(menu))
+        drainGTKMainContext(maxIterations: 100)
+        let frame = try XCTUnwrap(gtkTestActiveMenuOverlayPanelFrameInRoot())
+
+        XCTAssertTrue(
+            gtkTestActivateActiveMenuOverlayAtRootPoint(
+                x: frame.x + (frame.width / 2),
+                y: frame.y + 24
+            )
+        )
+        XCTAssertEqual(boostActivations, 1)
+        XCTAssertEqual(quoteActivations, 0)
     }
 
     func testCollapsedSplitListMenuControlUsesClickedListWhenMultipleListsAreMapped() throws {

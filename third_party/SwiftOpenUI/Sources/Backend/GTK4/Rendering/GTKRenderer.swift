@@ -2811,6 +2811,29 @@ func gtkTestActiveMenuOverlayLayerTypeName() -> String? {
     return String(cString: g_type_name(gtk_swift_get_widget_type(layer)))
 }
 
+func gtkTestActiveMenuOverlayPanelFrameInRoot() -> (x: Double, y: Double, width: Double, height: Double)? {
+    guard let state = gtkActiveMenuOverlayState else { return nil }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_swift_widget_compute_point(
+        state.coordinateSpace,
+        state.root,
+        state.x,
+        state.y,
+        &rootX,
+        &rootY
+    ) != 0 else { return nil }
+    return (rootX, rootY, state.width, state.height)
+}
+
+func gtkTestActivateActiveMenuOverlayAtRootPoint(x: Double, y: Double) -> Bool {
+    gtkHandleActiveMenuOverlayClick(x: x, y: y) != 0
+}
+
+func gtkTestOpenMenuButton(_ button: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkOpenMenuButton(button, source: "test")
+}
+
 private func gtkScheduleButtonAction(
     _ box: GTKButtonActionBox,
     source: String,
@@ -15554,6 +15577,7 @@ private enum GTKBoundMenuElement {
 
 private final class GTKActiveMenuOverlayState {
     let root: UnsafeMutablePointer<GtkWidget>
+    let coordinateSpace: UnsafeMutablePointer<GtkWidget>
     let controller: gpointer
     let elements: [GTKBoundMenuElement]
     let x: Double
@@ -15563,6 +15587,7 @@ private final class GTKActiveMenuOverlayState {
 
     init(
         root: UnsafeMutablePointer<GtkWidget>,
+        coordinateSpace: UnsafeMutablePointer<GtkWidget>,
         controller: gpointer,
         elements: [GTKBoundMenuElement],
         x: Double,
@@ -15571,6 +15596,7 @@ private final class GTKActiveMenuOverlayState {
         height: Double
     ) {
         self.root = root
+        self.coordinateSpace = coordinateSpace
         self.controller = controller
         self.elements = elements
         self.x = x
@@ -15683,13 +15709,27 @@ private func gtkMenuOverlayAction(
 
 private func gtkHandleActiveMenuOverlayClick(x: Double, y: Double) -> gboolean {
     guard let state = gtkActiveMenuOverlayState else { return 0 }
-    guard x >= state.x, x <= state.x + state.width,
-          y >= state.y, y <= state.y + state.height else {
+    var localX = 0.0
+    var localY = 0.0
+    guard gtk_swift_widget_compute_point(
+        state.root,
+        state.coordinateSpace,
+        x,
+        y,
+        &localX,
+        &localY
+    ) != 0 else {
+        gtkDebugLog("menu overlay action coordinate conversion failed root@\(Int(x)),\(Int(y))")
+        gtkDismissActiveMenuOverlay()
+        return 1
+    }
+    guard localX >= state.x, localX <= state.x + state.width,
+          localY >= state.y, localY <= state.y + state.height else {
         gtkDebugLog("menu overlay action miss root@\(Int(x)),\(Int(y))")
         gtkDismissActiveMenuOverlay()
         return 1
     }
-    guard let item = gtkMenuOverlayAction(in: state.elements, at: y - state.y) else {
+    guard let item = gtkMenuOverlayAction(in: state.elements, at: localY - state.y) else {
         gtkDebugLog("menu overlay action skipped root@\(Int(x)),\(Int(y))")
         gtkDismissActiveMenuOverlay()
         return 1
@@ -15717,6 +15757,7 @@ private func gtkHandleActiveMenuOverlayClick(
 
 private func gtkInstallActiveMenuOverlayController(
     root: UnsafeMutablePointer<GtkWidget>,
+    coordinateSpace: UnsafeMutablePointer<GtkWidget>,
     elements: [GTKBoundMenuElement],
     x: Double,
     y: Double,
@@ -15741,6 +15782,7 @@ private func gtkInstallActiveMenuOverlayController(
     )
     gtkActiveMenuOverlayState = GTKActiveMenuOverlayState(
         root: root,
+        coordinateSpace: coordinateSpace,
         controller: controller,
         elements: elements,
         x: x,
@@ -15849,6 +15891,7 @@ private func gtkOpenMenuOverlay(
     gtkActiveMenuOverlayLayer = layer
     gtkInstallActiveMenuOverlayController(
         root: root,
+        coordinateSpace: overlayWidget,
         elements: model.elements,
         x: panelX,
         y: panelY,

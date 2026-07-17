@@ -7780,6 +7780,10 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
     app_width = right - left + 1
     app_height = bottom - top + 1
 
+    def action_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+        r, g, b = rgb
+        return max(r, g, b) >= 120 and max(r, g, b) - min(r, g, b) >= 55
+
     require(
         760 <= app_width <= 1120 and app_height >= 620,
         f"IceCubes authenticated Status detail window has unexpected size: {app_width}x{app_height}",
@@ -7832,7 +7836,7 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
     detail_media_action_pixels = dark_pixel_count(
         image,
         left + 250,
-        top + 420,
+        top + 390,
         right - 20,
         top + 505,
     )
@@ -7844,17 +7848,55 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         bottom - 4,
     )
     detail_action_pixels = max(detail_top_action_pixels, detail_media_action_pixels, detail_bottom_action_pixels)
+    detail_top_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        right - 20,
+        top + 205,
+        action_accent_pixel,
+    )
+    detail_media_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 390,
+        right - 20,
+        top + 505,
+        action_accent_pixel,
+    )
+    detail_bottom_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        bottom - 62,
+        right - 20,
+        bottom - 4,
+        action_accent_pixel,
+    )
+    # Active actions replace their dark icon with a colored one. Only add
+    # accent pixels to regions that already contain enough dark action chrome,
+    # so a large media attachment cannot masquerade as the action row.
+    detail_action_chrome_pixels = max(
+        detail_top_action_pixels + detail_top_action_accent_pixels
+        if detail_top_action_pixels >= 80
+        else detail_top_action_pixels,
+        detail_media_action_pixels + detail_media_action_accent_pixels
+        if detail_media_action_pixels >= 80
+        else detail_media_action_pixels,
+        detail_bottom_action_pixels + detail_bottom_action_accent_pixels
+        if detail_bottom_action_pixels >= 80
+        else detail_bottom_action_pixels,
+    )
     detail_left_media_action_count_pixels = dark_pixel_count(
         image,
         left + 255,
-        top + 420,
+        top + 390,
         left + 430,
         top + 505,
     )
     detail_centered_media_action_count_pixels = dark_pixel_count(
         image,
         left + 390,
-        top + 420,
+        top + 390,
         min(right - 20, left + 650),
         top + 505,
     )
@@ -7909,8 +7951,9 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"media_pixels={detail_media_pixels}, summary_pixels={detail_summary_pixels}, app_width={app_width}",
     )
     require(
-        detail_action_pixels >= 200,
-        f"IceCubes authenticated Status detail action/context area was not detected: pixels={detail_action_pixels}",
+        detail_action_chrome_pixels >= 200,
+        "IceCubes authenticated Status detail action/context area was not detected: "
+        f"pixels={detail_action_chrome_pixels}, dark_pixels={detail_action_pixels}",
     )
     require(
         detail_action_count_pixels >= 80,
@@ -7933,6 +7976,10 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"detail_top_action_pixels={detail_top_action_pixels}, "
         f"detail_media_action_pixels={detail_media_action_pixels}, "
         f"detail_bottom_action_pixels={detail_bottom_action_pixels}, "
+        f"detail_action_chrome_pixels={detail_action_chrome_pixels}, "
+        f"detail_top_action_accent_pixels={detail_top_action_accent_pixels}, "
+        f"detail_media_action_accent_pixels={detail_media_action_accent_pixels}, "
+        f"detail_bottom_action_accent_pixels={detail_bottom_action_accent_pixels}, "
         f"detail_left_media_action_count_pixels={detail_left_media_action_count_pixels}, "
         f"detail_centered_media_action_count_pixels={detail_centered_media_action_count_pixels}, "
         f"detail_media_action_count_pixels={detail_media_action_count_pixels}, "
@@ -7958,9 +8005,9 @@ def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screensh
     )
     favorite_media_accent_pixels = pixel_count(
         image,
-        left + 370,
-        top + 420,
-        left + 430,
+        left + 395,
+        top + 390,
+        left + 460,
         top + 505,
         favorite_accent_pixel,
     )
@@ -8045,9 +8092,9 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
     )
     boost_media_accent_pixels = pixel_count(
         image,
-        left + 305,
-        top + 420,
-        left + 372,
+        left + 340,
+        top + 390,
+        left + 405,
         top + 505,
         boost_accent_pixel,
     )
@@ -8072,7 +8119,7 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
     boost_media_summary_pixels = dark_pixel_count(
         image,
         left + 255,
-        top + 588,
+        top + 565,
         left + 380,
         min(bottom, top + 640),
     )
@@ -8124,9 +8171,9 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
     )
     bookmark_media_accent_pixels = pixel_count(
         image,
-        left + 555,
-        top + 420,
-        left + 620,
+        left + 450,
+        top + 390,
+        left + 520,
         top + 505,
         bookmark_accent_pixel,
     )
