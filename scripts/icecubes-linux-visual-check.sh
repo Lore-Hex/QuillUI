@@ -113,6 +113,8 @@ AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_WIND
 AUTH_COMPOSE_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRIES:-3}"
 AUTH_COMPOSE_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSER_TYPE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT:-hello from linux}"
+AUTH_COMPOSER_FOCUS_PROBE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT:-quilluiinputprobe}"
+AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS:-0.75}"
 AUTH_COMPOSER_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_DELAY_MS:-25}"
 AUTH_COMPOSER_TYPE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_X:-320}"
 AUTH_COMPOSER_TYPE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_Y:-180}"
@@ -626,6 +628,10 @@ type_authenticated_composer_text() {
     echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT must not be empty." >&2
     exit 2
   fi
+  if [[ -z "$AUTH_COMPOSER_FOCUS_PROBE_TEXT" || "$AUTH_COMPOSER_FOCUS_PROBE_TEXT" == *[[:space:]]* ]]; then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT must be non-empty and contain no whitespace." >&2
+    exit 2
+  fi
   case "$AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS must be a non-negative integer, got: $AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" >&2
@@ -633,8 +639,10 @@ type_authenticated_composer_text() {
       ;;
   esac
 
-  local baseline_path probe_path point point_x point_y change_pixels
+  local baseline_path focus_probe_path probe_path point point_x point_y
+  local focus_change_pixels change_pixels verifier_output
   baseline_path="${SCREENSHOT_PATH%.*}.composer-before-type.png"
+  focus_probe_path="${SCREENSHOT_PATH%.*}.composer-focus-probe.png"
   probe_path="${SCREENSHOT_PATH%.*}.composer-typed-probe.png"
   mkdir -p "$(dirname "$baseline_path")"
   if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$baseline_path"; then
@@ -665,7 +673,43 @@ type_authenticated_composer_text() {
 
     click_capture_window_point "$point_x" "$point_y"
     sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
-    DISPLAY="$DISPLAY_ID" xdotool type --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
+    # A newly presented GTK window can retain keyboard focus on the Send
+    # button even after its first synthetic click. Probe with text that cannot
+    # activate a button, then require the composer chrome to remain visible
+    # before sending the real message (whose spaces would activate a button).
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers ctrl+a
+    DISPLAY="$DISPLAY_ID" xdotool type \
+      --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" \
+      --clearmodifiers "$AUTH_COMPOSER_FOCUS_PROBE_TEXT"
+    sleep "$AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS"
+    if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$focus_probe_path"; then
+      echo "IceCubes authenticated composer focus-probe screenshot capture failed: $focus_probe_path" >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    focus_change_pixels="$(composer_typed_change_pixels "$baseline_path" "$focus_probe_path")"
+    echo "IceCubes authenticated composer focus-probe change pixels at $point: $focus_change_pixels"
+    if ((focus_change_pixels < AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS)); then
+      continue
+    fi
+    if ! verifier_output="$(
+      "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+        "$focus_probe_path" \
+        icecubes-linux-authenticated-composer \
+        2>&1
+    )"; then
+      echo "IceCubes authenticated composer focus probe did not remain on the composer surface at $point." >&2
+      printf '%s\n' "$verifier_output" >&2
+      continue
+    fi
+
+    # Select the probe without mutating the binding first, so the initial
+    # character atomically replaces it and the editor keeps native focus.
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers ctrl+a
+    DISPLAY="$DISPLAY_ID" xdotool type \
+      --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" \
+      --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
     sleep "$AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS"
     if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$probe_path"; then
       echo "IceCubes authenticated composer post-type screenshot capture failed: $probe_path" >&2
@@ -676,7 +720,17 @@ type_authenticated_composer_text() {
     change_pixels="$(composer_typed_change_pixels "$baseline_path" "$probe_path")"
     echo "IceCubes authenticated composer typed text change pixels at $point: $change_pixels"
     if ((change_pixels >= AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS)); then
-      return 0
+      if verifier_output="$(
+        "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+          "$probe_path" \
+          icecubes-linux-authenticated-composer-typed \
+          2>&1
+      )"; then
+        printf '%s\n' "$verifier_output"
+        return 0
+      fi
+      echo "IceCubes authenticated composer typed-text probe did not remain on the composer surface at $point." >&2
+      printf '%s\n' "$verifier_output" >&2
     fi
   done
 

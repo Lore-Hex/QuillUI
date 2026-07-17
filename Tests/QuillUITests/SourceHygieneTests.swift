@@ -11592,6 +11592,20 @@ struct SourceHygieneTests {
         #expect(gtkRenderer.contains("pointSize * 0.875"))
     }
 
+    @Test("IceCubes composer typing proves editor focus before text with spaces")
+    func iceCubesComposerTypingProvesEditorFocusBeforeTextWithSpaces() throws {
+        let script = try packageSource("scripts/icecubes-linux-visual-check.sh")
+
+        #expect(script.contains("AUTH_COMPOSER_FOCUS_PROBE_TEXT=\"${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT:-quilluiinputprobe}\""))
+        #expect(script.contains("AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS=\"${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS:-0.75}\""))
+        #expect(script.contains("QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT must be non-empty and contain no whitespace."))
+        #expect(script.contains("composer-focus-probe.png"))
+        #expect(script.contains("focus_change_pixels < AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS"))
+        #expect(script.contains("icecubes-linux-authenticated-composer-typed"))
+        #expect(script.contains("focus probe did not remain on the composer surface"))
+        #expect(script.contains("typed-text probe did not remain on the composer surface"))
+    }
+
     @Test("IceCubes composer media attachment compatibility is reproducible")
     func iceCubesComposerMediaAttachmentCompatibilityIsReproducible() throws {
         let packageManifest = try packageSource("Package.swift")
