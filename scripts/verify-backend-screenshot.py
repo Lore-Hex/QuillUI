@@ -368,6 +368,13 @@ def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
     return colorful_thumbnail or neutral_placeholder
 
 
+def icecubes_suggestion_media_pixel(rgb: tuple[int, int, int]) -> bool:
+    # The deterministic URL fixture is a decoded black PNG. Accept both that
+    # loaded state and the neutral placeholder used while AsyncImage is empty.
+    loaded_thumbnail = max(rgb) <= 24
+    return icecubes_media_pixel(rgb) or loaded_thumbnail
+
+
 def icecubes_submitted_media_placeholder_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     dimmed_placeholder = (
@@ -4533,7 +4540,7 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         top + 52,
         right - 4,
         bottom - 8,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     top_left_blank_artifact_pixels = pixel_count(
         image,
@@ -4558,7 +4565,7 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         row_pixels = sum(
             1
             for x in range(left + 4, right - 4)
-            if icecubes_media_pixel(image.rgb(x, y))
+            if icecubes_suggestion_media_pixel(image.rgb(x, y))
         )
         if row_pixels >= int(app_width * 0.18):
             if not in_row:
@@ -4649,7 +4656,7 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         top + 280,
         right - 36,
         top + 390,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     media_pixels = pixel_count(
         image,
@@ -4657,7 +4664,7 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         top + 52,
         right - 4,
         bottom - 8,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     top_left_blank_artifact_pixels = pixel_count(
         image,
