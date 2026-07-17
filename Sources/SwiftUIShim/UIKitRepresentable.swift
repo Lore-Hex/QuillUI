@@ -118,7 +118,7 @@ public extension UIViewControllerRepresentableContext where Representable: UIVie
     }
 }
 
-public protocol UIViewControllerRepresentable: View {
+public protocol UIViewControllerRepresentable: View, _ViewMetadataExtractionBoundary {
     associatedtype UIViewControllerType: UIViewController
     associatedtype Coordinator = Void
 
@@ -127,6 +127,10 @@ public protocol UIViewControllerRepresentable: View {
     @MainActor func makeUIViewController(context: Context) -> UIViewControllerType
     @MainActor func updateUIViewController(_ uiViewController: UIViewControllerType, context: Context)
     @MainActor func makeCoordinator() -> Coordinator
+    @MainActor static func dismantleUIViewController(
+        _ uiViewController: UIViewControllerType,
+        coordinator: Coordinator
+    )
 }
 
 public extension UIViewControllerRepresentable {
@@ -135,29 +139,61 @@ public extension UIViewControllerRepresentable {
     }
 
     @MainActor func makeCoordinator() -> Void {}
+
+    @MainActor static func dismantleUIViewController(
+        _ uiViewController: UIViewControllerType,
+        coordinator: Coordinator
+    ) {}
+}
+
+// StateObject's lazy factory prevents a throwaway coordinator from being
+// created before the renderer restores the prior mount's storage.
+@MainActor
+private final class QuillUIViewControllerRepresentableMount<R: UIViewControllerRepresentable>:
+    ObservableObject
+{
+    let coordinator: R.Coordinator
+    let controller: R.UIViewControllerType
+
+    init(_ representable: R) {
+        let coordinator = representable.makeCoordinator()
+        let context = R.Context(coordinator: coordinator)
+        self.coordinator = coordinator
+        self.controller = representable.makeUIViewController(context: context)
+    }
+
+    func update(with representable: R) -> R.UIViewControllerType {
+        let context = R.Context(coordinator: coordinator)
+        representable.updateUIViewController(controller, context: context)
+        return controller
+    }
 }
 
 /// Host view that lowers common UIKit controller representables into
 /// SwiftOpenUI-native controls on non-UIKit platforms.
-public struct QuillUIViewControllerRepresentableHostView<R: UIViewControllerRepresentable>: View {
+public struct QuillUIViewControllerRepresentableHostView<R: UIViewControllerRepresentable>:
+    View,
+    _ViewMetadataExtractionBoundary
+{
     let representable: R
+    @StateObject private var mount: QuillUIViewControllerRepresentableMount<R>
 
     init(_ representable: R) {
         self.representable = representable
+        _mount = StateObject(
+            wrappedValue: QuillUIViewControllerRepresentableMount(representable)
+        )
     }
 
     @ViewBuilder
     public var body: some View {
-        let coordinator = representable.makeCoordinator()
-        let context = R.Context(coordinator: coordinator)
-        let controller = {
-            let controller = representable.makeUIViewController(context: context)
-            representable.updateUIViewController(controller, context: context)
-            return controller
-        }()
+        let controller = mount.update(with: representable)
 
         if let fontPicker = controller as? UIFontPickerViewController {
-            QuillUIFontPickerControllerHost(controller: fontPicker, coordinatorRetainer: coordinator)
+            QuillUIFontPickerControllerHost(
+                controller: fontPicker,
+                coordinatorRetainer: mount.coordinator
+            )
         } else {
             EmptyView()
         }
@@ -216,7 +252,7 @@ public extension UIViewRepresentableContext where Representable: UIViewRepresent
     }
 }
 
-public protocol UIViewRepresentable: View {
+public protocol UIViewRepresentable: View, _ViewMetadataExtractionBoundary {
     associatedtype UIViewType: UIView
     associatedtype Coordinator = Void
 
@@ -225,6 +261,7 @@ public protocol UIViewRepresentable: View {
     @MainActor func makeUIView(context: Context) -> UIViewType
     @MainActor func updateUIView(_ uiView: UIViewType, context: Context)
     @MainActor func makeCoordinator() -> Coordinator
+    @MainActor static func dismantleUIView(_ uiView: UIViewType, coordinator: Coordinator)
 }
 
 public extension UIViewRepresentable {
@@ -233,16 +270,45 @@ public extension UIViewRepresentable {
     }
 
     @MainActor func makeCoordinator() -> Void {}
+
+    @MainActor static func dismantleUIView(_ uiView: UIViewType, coordinator: Coordinator) {}
+}
+
+// Keep UIKit identity stable across SwiftOpenUI body rebuilds, matching
+// SwiftUI's make-once/update-many representable lifecycle.
+@MainActor
+private final class QuillUIViewRepresentableMount<R: UIViewRepresentable>: ObservableObject {
+    let coordinator: R.Coordinator
+    let uiView: R.UIViewType
+
+    init(_ representable: R) {
+        let coordinator = representable.makeCoordinator()
+        let context = R.Context(coordinator: coordinator)
+        self.coordinator = coordinator
+        self.uiView = representable.makeUIView(context: context)
+    }
+
+    func hostedContent(updatingWith representable: R) -> AnyView? {
+        let context = R.Context(coordinator: coordinator)
+        representable.updateUIView(uiView, context: context)
+        return quillFindHostedSwiftUIView(in: coordinator)
+            ?? quillFindHostedSwiftUIView(in: uiView)
+    }
 }
 
 /// Host view that lowers common UIKit representables into SwiftOpenUI-native
 /// controls. This keeps source compatibility for apps that wrap UIKit inputs
 /// in `UIViewRepresentable` while avoiding an app-specific rewrite.
-public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>: View {
+public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>:
+    View,
+    _ViewMetadataExtractionBoundary
+{
     let representable: R
+    @StateObject private var mount: QuillUIViewRepresentableMount<R>
 
     init(_ representable: R) {
         self.representable = representable
+        _mount = StateObject(wrappedValue: QuillUIViewRepresentableMount(representable))
     }
 
     public var body: some View {
@@ -254,7 +320,7 @@ public struct QuillUIViewRepresentableHostView<R: UIViewRepresentable>: View {
         } else if let plainText = quillFindBinding(in: representable, as: String.self) {
             TextEditor(text: plainText)
         } else {
-            if let hostedContent = quillHostedSwiftUIView(from: representable) {
+            if let hostedContent = mount.hostedContent(updatingWith: representable) {
                 hostedContent
             } else {
                 EmptyView()
@@ -295,16 +361,6 @@ private func quillFindBinding<Value>(
         }
     }
     return nil
-}
-
-@MainActor
-private func quillHostedSwiftUIView<R: UIViewRepresentable>(from representable: R) -> AnyView? {
-    let coordinator = representable.makeCoordinator()
-    let context = R.Context(coordinator: coordinator)
-    let uiView = representable.makeUIView(context: context)
-    representable.updateUIView(uiView, context: context)
-    return quillFindHostedSwiftUIView(in: coordinator)
-        ?? quillFindHostedSwiftUIView(in: uiView)
 }
 
 @MainActor

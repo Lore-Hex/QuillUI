@@ -330,6 +330,31 @@ final class ModifierTests: XCTestCase {
         XCTAssertEqual(env_read.wrappedValue.value, 42)
     }
 
+    func testPresentationDismissContextSurvivesChildTaskSuspension() async {
+        let dismissed = expectation(description: "Dismiss action called")
+        let task: Task<Void, Never> = swiftOpenUIWithPresentationDismissAction({
+            dismissed.fulfill()
+        }) {
+            Task {
+                await Task.yield()
+                Environment(\.dismiss).wrappedValue()
+            }
+        }
+        await task.value
+        await fulfillment(of: [dismissed], timeout: 1)
+    }
+
+    func testTaskEnvironmentSurvivesSuspension() async {
+        var environment = EnvironmentValues()
+        environment.colorScheme = .dark
+
+        let value = await withTaskEnvironment(environment) {
+            await Task.yield()
+            return Environment(\.colorScheme).wrappedValue
+        }
+        XCTAssertEqual(value, .dark)
+    }
+
     // MARK: - Environment-read tracker (rebuild-survival)
     //
     // The tracker captures `@Environment(Type.self)` reads so a

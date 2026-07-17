@@ -23,6 +23,96 @@ public enum AsyncImagePhase {
     }
 }
 
+final class AsyncImageLoader: ObservableObject, @unchecked Sendable {
+    let objectWillChange = ObservableObjectPublisher()
+
+    private let lock = NSLock()
+    private let url: URL?
+    private var phase: AsyncImagePhase = .empty
+    private var didStart = false
+
+    init(url: URL?) {
+        self.url = url
+    }
+
+    func phaseStartingIfNeeded() -> AsyncImagePhase {
+        lock.lock()
+        let currentPhase = phase
+        let shouldStart = !didStart
+        didStart = true
+        lock.unlock()
+
+        if shouldStart {
+            Task { @MainActor [weak self] in
+                await self?.load()
+            }
+        }
+        return currentPhase
+    }
+
+    @MainActor
+    private func load() async {
+        guard let url else {
+            updatePhase(.failure(URLError(.badURL)))
+            return
+        }
+        if let cachedPath = AsyncImageFileCache.shared.filePath(for: url) {
+            updatePhase(.success(Image(filePath: cachedPath)))
+            return
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let path = try AsyncImageFileCache.shared.store(data, for: url)
+            updatePhase(.success(Image(filePath: path)))
+        } catch {
+            updatePhase(.failure(error))
+        }
+    }
+
+    @MainActor
+    private func updatePhase(_ newPhase: AsyncImagePhase) {
+        lock.lock()
+        phase = newPhase
+        lock.unlock()
+        objectWillChange.send()
+    }
+}
+
+final class AsyncImageLoaderRegistry: @unchecked Sendable {
+    static let shared = AsyncImageLoaderRegistry()
+
+    private final class WeakLoader: @unchecked Sendable {
+        weak var value: AsyncImageLoader?
+
+        init(_ value: AsyncImageLoader) {
+            self.value = value
+        }
+    }
+
+    private enum Key: Hashable {
+        case url(URL)
+        case missingURL
+    }
+
+    private let lock = NSLock()
+    private var loaders: [Key: WeakLoader] = [:]
+
+    func loader(for url: URL?) -> AsyncImageLoader {
+        let key = url.map(Key.url) ?? .missingURL
+        lock.lock()
+        if let existing = loaders[key]?.value {
+            lock.unlock()
+            return existing
+        }
+        loaders = loaders.filter { $0.value.value != nil }
+        let loader = AsyncImageLoader(url: url)
+        loaders[key] = WeakLoader(loader)
+        lock.unlock()
+        return loader
+    }
+}
+
 /// Mirror of SwiftUI's `AsyncImage`: asynchronously loads and displays an
 /// image from a URL, showing a placeholder until it arrives.
 ///
@@ -40,8 +130,7 @@ public struct AsyncImage: View {
     private let scale: CGFloat
     private let contentForPhase: (AsyncImagePhase) -> AnyView
 
-    @State private var phase: AsyncImagePhase = .empty
-    @State private var didStartLoad = false
+    @ObservedObject private var loader: AsyncImageLoader
 
     /// Phase-based form: the content closure sees every loading phase
     /// (`.empty` / `.success` / `.failure`). Mirrors
@@ -54,6 +143,9 @@ public struct AsyncImage: View {
         self.url = url
         self.scale = scale
         self.contentForPhase = { phase in AnyView(content(phase)) }
+        self._loader = ObservedObject(
+            wrappedValue: AsyncImageLoaderRegistry.shared.loader(for: url)
+        )
     }
 
     /// Content + placeholder form: transform the loaded `Image`, with a
@@ -73,6 +165,9 @@ public struct AsyncImage: View {
             }
             return AnyView(placeholder())
         }
+        self._loader = ObservedObject(
+            wrappedValue: AsyncImageLoaderRegistry.shared.loader(for: url)
+        )
     }
 
     /// Simplest form: the loaded image, or a neutral gray placeholder.
@@ -86,38 +181,13 @@ public struct AsyncImage: View {
             }
             return AnyView(Color.gray)
         }
+        self._loader = ObservedObject(
+            wrappedValue: AsyncImageLoaderRegistry.shared.loader(for: url)
+        )
     }
 
     public var body: some View {
-        contentForPhase(phase)
-            .onAppear { startLoadIfNeeded() }
-    }
-
-    private func startLoadIfNeeded() {
-        // SwiftOpenUI's `.onAppear` can fire repeatedly on GTK (it binds to
-        // the GTK "map" signal), so guard the network fetch to run once.
-        guard !didStartLoad else { return }
-        didStartLoad = true
-        guard let url else {
-            phase = .failure(URLError(.badURL))
-            return
-        }
-        if let cachedPath = AsyncImageFileCache.shared.filePath(for: url) {
-            phase = .success(Image(filePath: cachedPath))
-            return
-        }
-        Task { await load(url) }
-    }
-
-    @MainActor
-    private func load(_ url: URL) async {
-        do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let path = try AsyncImageFileCache.shared.store(data, for: url)
-            phase = .success(Image(filePath: path))
-        } catch {
-            phase = .failure(error)
-        }
+        contentForPhase(loader.phaseStartingIfNeeded())
     }
 }
 

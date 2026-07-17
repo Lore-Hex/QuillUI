@@ -273,17 +273,42 @@ private class EnvironmentBox {
 
 private var _presentationDismissActionStack: [() -> Void] = []
 
+private final class PresentationDismissTaskContext: @unchecked Sendable {
+    let action: () -> Void
+
+    init(action: @escaping () -> Void) {
+        self.action = action
+    }
+}
+
+private enum PresentationDismissTaskLocal {
+    @TaskLocal static var context: PresentationDismissTaskContext?
+}
+
 public func swiftOpenUIWithPresentationDismissAction<T>(
     _ action: @escaping () -> Void,
     perform body: () -> T
 ) -> T {
-    _presentationDismissActionStack.append(action)
-    defer { _ = _presentationDismissActionStack.popLast() }
-    return body()
+    let context = PresentationDismissTaskContext(action: action)
+    return PresentationDismissTaskLocal.$context.withValue(context) {
+        _presentationDismissActionStack.append(action)
+        defer { _ = _presentationDismissActionStack.popLast() }
+        return body()
+    }
 }
 
 public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
-    _presentationDismissActionStack.last
+    _presentationDismissActionStack.last ?? PresentationDismissTaskLocal.context?.action
+}
+
+/// Resolve the dismiss handler captured in an environment snapshot, falling
+/// back to the active presentation context while presentation content renders.
+/// Native backends use this when registering controls so a child `Task` can
+/// still dismiss its sheet after the synchronous control callback returns.
+public func swiftOpenUIResolvePresentationDismissAction(
+    in environment: EnvironmentValues
+) -> (() -> Void)? {
+    environment.dismiss.handler ?? swiftOpenUICurrentPresentationDismissAction()
 }
 
 private func swiftOpenUIDismissDebugLog(_ message: String) {

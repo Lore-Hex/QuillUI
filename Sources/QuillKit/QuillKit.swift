@@ -2544,6 +2544,7 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
         var pathPattern: String?
         var pathPrefix: String?
         var query: String?
+        var requestBodyJSON: Data?
         var statusCode: Int
         var headers: [String: String]
         var body: Data
@@ -2568,7 +2569,24 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
             if let query, query != (url.query ?? "") {
                 return false
             }
+            if let requestBodyJSON,
+               !Self.requestBody(request.httpBody, matchesJSON: requestBodyJSON) {
+                return false
+            }
             return true
+        }
+
+        private static func requestBody(_ body: Data?, matchesJSON expected: Data) -> Bool {
+            guard let body,
+                  let object = try? JSONSerialization.jsonObject(with: body),
+                  JSONSerialization.isValidJSONObject(object),
+                  let canonical = try? JSONSerialization.data(
+                    withJSONObject: object,
+                    options: [.sortedKeys]
+                  ) else {
+                return false
+            }
+            return canonical == expected
         }
 
         private static func path(_ path: String, matchesPattern pattern: String) -> Bool {
@@ -2998,6 +3016,7 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
             let method = (object["method"] as? String)?.uppercased()
             let host = object["host"] as? String
             let query = object["query"] as? String
+            let requestBodyJSON = canonicalJSONData(from: object["requestBody"])
             let statusCode = object["status"] as? Int ?? object["statusCode"] as? Int ?? 200
             let headers = object["headers"] as? [String: String] ?? [:]
             let body = fixtureBodyData(from: object)
@@ -3008,11 +3027,20 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
                 pathPattern: pathPattern,
                 pathPrefix: pathPrefix,
                 query: query,
+                requestBodyJSON: requestBodyJSON,
                 statusCode: statusCode,
                 headers: headers,
                 body: body
             )
         }
+    }
+
+    private static func canonicalJSONData(from object: Any?) -> Data? {
+        guard let object,
+              JSONSerialization.isValidJSONObject(object) else {
+            return nil
+        }
+        return try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
     }
 
     private static func fixtureBodyData(from object: [String: Any]) -> Data {

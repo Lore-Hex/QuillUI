@@ -2130,6 +2130,83 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertEqual(items[0].placement, .leading)
     }
 
+    func testMetadataExtractionDoesNotEnterOpaqueBoundary() throws {
+        try requireGTK()
+
+        final class EvaluationCounter {
+            var value = 0
+        }
+
+        struct Boundary<Content: View>: View, _ViewMetadataExtractionBoundary {
+            let counter: EvaluationCounter
+            let content: Content
+
+            var body: some View {
+                counter.value += 1
+                return content
+            }
+        }
+
+        let counter = EvaluationCounter()
+        let boundary = Boundary(
+            counter: counter,
+            content: Text("Native content")
+                .navigationTitle("Hidden title")
+                .toolbar {
+                    ToolbarItem(placement: .primaryAction) { Text("Hidden action") }
+                }
+                .toolbar(.hidden, for: .navigationBar)
+        )
+
+        XCTAssertEqual(gtkExtractTitle(from: boundary), "")
+        XCTAssertTrue(gtkExtractToolbarItems(from: boundary).isEmpty)
+        XCTAssertNil(gtkExtractToolbarConfiguration(from: boundary))
+        XCTAssertEqual(counter.value, 0, "Metadata extraction must not evaluate a boundary body")
+    }
+
+    func testMetadataOutsideOpaqueBoundaryStillExtracts() throws {
+        try requireGTK()
+
+        struct Boundary: View, _ViewMetadataExtractionBoundary {
+            var body: some View { Text("Native content") }
+        }
+
+        let view = Boundary()
+            .navigationTitle("Visible title")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) { Text("Visible action") }
+            }
+            .toolbar(.hidden, for: .navigationBar)
+
+        XCTAssertEqual(gtkExtractTitle(from: view), "Visible title")
+        XCTAssertEqual(gtkExtractToolbarItems(from: view).count, 1)
+        XCTAssertEqual(gtkExtractToolbarConfiguration(from: view)?.visibility, .hidden)
+    }
+
+    func testDescriptorExtractionDoesNotEnterOpaqueBoundary() throws {
+        try requireGTK()
+
+        final class EvaluationCounter {
+            var value = 0
+        }
+
+        struct Boundary: View, _ViewMetadataExtractionBoundary {
+            let counter: EvaluationCounter
+
+            var body: some View {
+                counter.value += 1
+                return Text("Native content")
+            }
+        }
+
+        let counter = EvaluationCounter()
+        let descriptor = gtkDescribeView(Boundary(counter: counter))
+
+        XCTAssertEqual(counter.value, 0, "Descriptor extraction must not evaluate a boundary body")
+        XCTAssertEqual(descriptor.kind, .composite)
+        XCTAssertTrue(descriptor.children.isEmpty)
+    }
+
     func testToolbarRendersContentPassthrough() throws {
         try requireGTK()
 
@@ -3572,6 +3649,74 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testNestedListButtonDoesNotAlsoActivateRow() throws {
+        try requireGTK()
+
+        var buttonActivations = 0
+        var rowActivations: [Int] = []
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            List {
+                HStack {
+                    Text("Status")
+                    Button("Favorite") {
+                        buttonActivations += 1
+                    }
+                }
+                .onTapGesture {
+                    rowActivations.append(1)
+                }
+                Text("Neighbor")
+                    .onTapGesture {
+                        rowActivations.append(2)
+                    }
+            }
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 320, height: 96))
+        drainGTKMainContext(maxIterations: 100)
+
+        let listBox = try unwrapFirstDescendant(ofType: "GtkListBox", in: wrapper)
+        let row = try unwrapFirstDescendant(ofType: "GtkListBoxRow", in: listBox)
+        let neighboringRow = try unwrapNextSibling(of: row)
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: row, into: &buttons)
+        let button = try XCTUnwrap(buttons.first)
+
+        XCTAssertTrue(gtkTestActivateButton(button))
+        gtkTestActivateListBoxRow(listBox: listBox, row: row)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(buttonActivations, 1)
+        XCTAssertEqual(
+            rowActivations,
+            [],
+            "A nested Button activation must not fall through to the List row's navigation action."
+        )
+
+        gtkTestActivateListBoxRow(listBox: listBox, row: row)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(
+            rowActivations,
+            [1],
+            "Consuming a nested-control activation must not disable a later independent row activation."
+        )
+
+        Thread.sleep(forTimeInterval: 0.09)
+        XCTAssertTrue(gtkTestActivateButton(button))
+        gtkTestActivateListBoxRow(listBox: listBox, row: neighboringRow)
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(
+            rowActivations,
+            [1, 2],
+            "A nested control in one row must never suppress immediate activation of a neighboring row."
+        )
+        XCTAssertEqual(buttonActivations, 2)
+    }
+
     func testCustomStyledMenuButtonCanBeFoundByVisualHitRegion() throws {
         try requireGTK()
 
@@ -3790,6 +3935,54 @@ final class GTK4RenderTests: XCTestCase {
         let overlayLabels = gtkLabelTexts(in: rootContainer)
         XCTAssertTrue(overlayLabels.contains("Boost"))
         XCTAssertTrue(overlayLabels.contains("Quote"))
+    }
+
+    func testRootPresentationMenuOverlayConvertsWindowPointsIntoContentCoordinates() throws {
+        try requireGTK()
+
+        var boostActivations = 0
+        var quoteActivations = 0
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let titlebar = gtk_header_bar_new()!
+        gtk_widget_set_size_request(titlebar, -1, 48)
+        gtk_window_set_titlebar(windowPointer(window), titlebar)
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtkTestDismissActiveMenuOverlay()
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        let menu = widgetFromOpaque(gtkRenderView(
+            Menu {
+                MenuItem("Boost") { boostActivations += 1 }
+                MenuItem("Quote") { quoteActivations += 1 }
+            } label: {
+                Text("boost-menu")
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), menu)
+        allocate(widget: rootContainer, size: ViewSize(width: 420, height: 260))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkTestOpenMenuButton(menu))
+        drainGTKMainContext(maxIterations: 100)
+        let frame = try XCTUnwrap(gtkTestActiveMenuOverlayPanelFrameInRoot())
+
+        XCTAssertTrue(
+            gtkTestActivateActiveMenuOverlayAtRootPoint(
+                x: frame.x + (frame.width / 2),
+                y: frame.y + 24
+            )
+        )
+        XCTAssertEqual(boostActivations, 1)
+        XCTAssertEqual(quoteActivations, 0)
     }
 
     func testCollapsedSplitListMenuControlUsesClickedListWhenMultipleListsAreMapped() throws {
@@ -4048,6 +4241,47 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testDestroyedNavigationContextIgnoresDeferredToolbarRefresh() throws {
+        try requireGTK()
+
+        let parent = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let stack = widgetFromOpaque(gtkRenderView(
+            NavigationStack {
+                Text("Root")
+                    .navigationTitle("Before")
+            }
+        ))
+        gtk_box_append(boxPointer(parent), stack)
+        let window = presentGTKWidget(parent)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        let context = try XCTUnwrap(gtkTestNavigationContext(in: stack))
+
+        XCTAssertTrue(context.nativeWidgetTreeIsAlive)
+        gtk_box_remove(boxPointer(parent), stack)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertFalse(context.nativeWidgetTreeIsAlive)
+        context.replaceCurrentToolbar(
+            with: GTKNavigationToolbarSnapshot(
+                title: "After",
+                toolbarItems: [],
+                hidden: false
+            )
+        )
+        XCTAssertTrue(context.entries.isEmpty)
+
+        let previousContext = getCurrentNavigationContext()
+        setCurrentNavigationContext(context)
+        XCTAssertFalse(
+            getCurrentNavigationContext() === context,
+            "Captured environments must not return a navigation context after its native stack is destroyed."
+        )
+        setCurrentNavigationContext(previousContext)
+    }
+
     func testItemSheetRootOverlayDismissRemovesPresentedLayer() throws {
         try requireGTK()
 
@@ -4092,6 +4326,52 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertFalse(
             gtkLabelTexts(in: rootContainer).contains("Sheet Content"),
             "A programmatic sheet dismiss must unparent the root-overlay layer without waiting for a parent rebuild."
+        )
+    }
+
+    func testItemSheetRootOverlayDismissAfterAwaitRemovesPresentedLayer() async throws {
+        try requireGTK()
+
+        let contentHost = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let window = gtk_window_new()!
+        let rootContainer = gtkCreateRootPresentationContainer(
+            winPtr: windowPointer(window),
+            contentWidget: contentHost
+        )
+        gtk_window_set_child(windowPointer(window), rootContainer)
+        gtk_window_present(windowPointer(window))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        var onDismissCount = 0
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKItemSheetRootOverlayDismissProbeView(dismissAfterYield: true) {
+                onDismissCount += 1
+            }
+        ))
+        gtk_box_append(boxPointer(contentHost), wrapper)
+        drainGTKMainContext(maxIterations: 100)
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectButtons(in: rootContainer, into: &buttons)
+        let dismissButton = try XCTUnwrap(
+            buttons.first,
+            "Expected a dismiss button inside the asynchronous root-overlay sheet."
+        )
+        XCTAssertTrue(gtkTestActivateButton(dismissButton))
+
+        for _ in 0..<100 where onDismissCount == 0 {
+            await Task.yield()
+            drainGTKMainContext(maxIterations: 10)
+        }
+
+        XCTAssertEqual(onDismissCount, 1)
+        XCTAssertFalse(
+            gtkLabelTexts(in: rootContainer).contains("Sheet Content"),
+            "A sheet-scoped dismiss action must survive an awaited task."
         )
     }
 
@@ -4853,29 +5133,39 @@ private struct GTKItemSheetRootOverlayDismissProbeItem: Identifiable {
 
 private struct GTKItemSheetRootOverlayDismissProbeView: View {
     @State private var item: GTKItemSheetRootOverlayDismissProbeItem?
+    let dismissAfterYield: Bool
     let onDismiss: () -> Void
 
-    init(onDismiss: @escaping () -> Void) {
+    init(dismissAfterYield: Bool = false, onDismiss: @escaping () -> Void) {
         _item = State(wrappedValue: GTKItemSheetRootOverlayDismissProbeItem(id: 1))
+        self.dismissAfterYield = dismissAfterYield
         self.onDismiss = onDismiss
     }
 
     var body: some View {
         Text("Host")
             .sheet(item: $item, onDismiss: onDismiss) { _ in
-                GTKItemSheetRootOverlayDismissSheet()
+                GTKItemSheetRootOverlayDismissSheet(dismissAfterYield: dismissAfterYield)
             }
     }
 }
 
 private struct GTKItemSheetRootOverlayDismissSheet: View {
     @Environment(\.dismiss) private var dismiss
+    let dismissAfterYield: Bool
 
     var body: some View {
         VStack {
             Text("Sheet Content")
             Button("Dismiss Sheet") {
-                dismiss()
+                if dismissAfterYield {
+                    Task {
+                        await Task.yield()
+                        dismiss()
+                    }
+                } else {
+                    dismiss()
+                }
             }
         }
     }

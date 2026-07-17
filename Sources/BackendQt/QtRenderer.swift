@@ -566,11 +566,20 @@ func qtRenderLazyVGridCells<V: View>(_ view: V) -> [OpaquePointer] {
 
 func qtBindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let captured = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: captured
+    )
     return {
         let previous = getCurrentEnvironment()
         setCurrentEnvironment(captured)
         defer { setCurrentEnvironment(previous) }
-        action()
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
     }
 }
 
@@ -669,7 +678,9 @@ func qtBindTaskActionToCurrentEnvironment(
         let previous = getCurrentEnvironment()
         setCurrentEnvironment(captured.environment)
         defer { setCurrentEnvironment(previous) }
-        await action()
+        await withTaskEnvironment(captured.environment) {
+            await action()
+        }
     }
 }
 

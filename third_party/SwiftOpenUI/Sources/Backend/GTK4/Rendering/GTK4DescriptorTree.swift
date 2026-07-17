@@ -710,6 +710,12 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     if let describable = view as? GTKDescribable {
         return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
+    if view is any _ViewMetadataExtractionBoundary {
+        return GTK4DescriptorNode(
+            kind: .composite,
+            typeName: String(describing: type(of: view))
+        )
+    }
     if hasReactiveProperties(view) {
         if V.Body.self != Never.self {
             return GTK4DescriptorNode(

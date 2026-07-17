@@ -31,4 +31,28 @@ final class AsyncImageTests: XCTestCase {
         }
         _ = AsyncImage(url: nil)
     }
+
+    func testAsyncImageLoaderRegistryReusesLoaderForMatchingURL() {
+        let firstURL = URL(string: "https://example.test/\(UUID().uuidString).png")!
+        let secondURL = URL(string: "https://example.test/\(UUID().uuidString).png")!
+
+        let first = AsyncImageLoaderRegistry.shared.loader(for: firstURL)
+        let matching = AsyncImageLoaderRegistry.shared.loader(for: firstURL)
+        let different = AsyncImageLoaderRegistry.shared.loader(for: secondURL)
+
+        XCTAssertTrue(first === matching)
+        XCTAssertFalse(first === different)
+    }
+
+    func testAsyncImageLoaderReportsMissingURLFailure() async {
+        let loader = AsyncImageLoader(url: nil)
+        XCTAssertNil(loader.phaseStartingIfNeeded().error)
+
+        for _ in 0..<100 where loader.phaseStartingIfNeeded().error == nil {
+            await Task.yield()
+        }
+
+        let failure = loader.phaseStartingIfNeeded().error as? URLError
+        XCTAssertEqual(failure?.code, .badURL)
+    }
 }

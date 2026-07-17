@@ -368,6 +368,13 @@ def icecubes_media_pixel(rgb: tuple[int, int, int]) -> bool:
     return colorful_thumbnail or neutral_placeholder
 
 
+def icecubes_suggestion_media_pixel(rgb: tuple[int, int, int]) -> bool:
+    # The deterministic URL fixture is a decoded black PNG. Accept both that
+    # loaded state and the neutral placeholder used while AsyncImage is empty.
+    loaded_thumbnail = max(rgb) <= 24
+    return icecubes_media_pixel(rgb) or loaded_thumbnail
+
+
 def icecubes_submitted_media_placeholder_pixel(rgb: tuple[int, int, int]) -> bool:
     red, green, blue = rgb
     dimmed_placeholder = (
@@ -4533,7 +4540,7 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         top + 52,
         right - 4,
         bottom - 8,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     top_left_blank_artifact_pixels = pixel_count(
         image,
@@ -4558,7 +4565,7 @@ def validate_icecubes_linux_add_account(image: Screenshot) -> str:
         row_pixels = sum(
             1
             for x in range(left + 4, right - 4)
-            if icecubes_media_pixel(image.rgb(x, y))
+            if icecubes_suggestion_media_pixel(image.rgb(x, y))
         )
         if row_pixels >= int(app_width * 0.18):
             if not in_row:
@@ -4649,7 +4656,7 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         top + 280,
         right - 36,
         top + 390,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     media_pixels = pixel_count(
         image,
@@ -4657,7 +4664,7 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
         top + 52,
         right - 4,
         bottom - 8,
-        icecubes_media_pixel,
+        icecubes_suggestion_media_pixel,
     )
     top_left_blank_artifact_pixels = pixel_count(
         image,
@@ -6287,12 +6294,26 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         left + 520,
         top + 90,
     )
+    first_notification_divider = best_horizontal_segment(
+        image,
+        top + 100,
+        top + 156,
+        left + 240,
+        right - 1,
+        gray_line_pixel,
+        min_width=int(app_width * 0.5),
+    )
+    require(
+        first_notification_divider is not None,
+        "IceCubes authenticated Notifications first row was not compact",
+    )
+    first_notification_divider_y = first_notification_divider[0]
     first_notification_body_pixels = pixel_count(
         image,
-        left + 250,
-        top + 90,
+        left + 305,
+        top + 84,
         right - 20,
-        top + 190,
+        first_notification_divider_y - 4,
         icecubes_notification_text_pixel,
     )
     second_notification_action_pixels = pixel_count(
@@ -6315,7 +6336,7 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         f"IceCubes authenticated Notifications first row header was not detected: pixels={first_notification_header_pixels}",
     )
     require(
-        400 <= first_notification_body_pixels <= 3_600,
+        400 <= first_notification_body_pixels <= 2_400,
         f"IceCubes authenticated Notifications first row content did not look populated/compact: pixels={first_notification_body_pixels}",
     )
     require(
@@ -6330,6 +6351,7 @@ def validate_icecubes_linux_authenticated_notifications(image: Screenshot) -> st
         f"compose_button_pixels={compose_button_pixels}, "
         f"notifications_label_pixels={notifications_label_pixels}, "
         f"first_notification_header_pixels={first_notification_header_pixels}, "
+        f"first_notification_divider_y={first_notification_divider_y}, "
         f"first_notification_body_pixels={first_notification_body_pixels}, "
         f"second_notification_action_pixels={second_notification_action_pixels}"
     )
@@ -7542,6 +7564,112 @@ def validate_icecubes_linux_authenticated_composer_media_panel(image: Screenshot
     )
 
 
+def validate_icecubes_linux_authenticated_composer_media_alt_editor(
+    image: Screenshot,
+    *,
+    saved: bool = False,
+) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        320 <= app_width <= 1120 and 260 <= app_height <= 900,
+        f"IceCubes media ALT editor window has unexpected size: {app_width}x{app_height}",
+    )
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        min(bottom, top + 70),
+        icecubes_authenticated_titlebar_pixel,
+    )
+    media_pixels = pixel_count(
+        image,
+        left + 16,
+        top + int(app_height * 0.20),
+        right - 16,
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    )
+    stale_send_button_pixels = pixel_count(
+        image,
+        max(left + int(app_width * 0.55), right - 320),
+        top + 58,
+        min(right - 80, left + int(app_width * 0.88)),
+        min(bottom, top + 132),
+        icecubes_sign_in_button_pixel,
+    )
+    description_text_pixels = dark_pixel_count(
+        image,
+        left + 50,
+        top + 135,
+        right - 50,
+        top + 210,
+    )
+    edge_media_pixels = pixel_count(
+        image,
+        left,
+        top + int(app_height * 0.20),
+        min(right, left + 35),
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    ) + pixel_count(
+        image,
+        max(left, right - 35),
+        top + int(app_height * 0.20),
+        right,
+        bottom - 16,
+        icecubes_fixture_media_pixel,
+    )
+    generate_button_pixels = dark_pixel_count(
+        image,
+        left + 45,
+        top + 210,
+        right - 45,
+        top + 275,
+    )
+
+    require(
+        titlebar_pixels >= 3_000,
+        f"IceCubes media ALT editor titlebar was not detected: pixels={titlebar_pixels}",
+    )
+    require(
+        media_pixels >= 8_000,
+        f"IceCubes media ALT editor preview was not detected: pixels={media_pixels}",
+    )
+    require(
+        edge_media_pixels <= 250,
+        "IceCubes media ALT editor sheet is clipped against a window edge: "
+        f"edge_media_pixels={edge_media_pixels}",
+    )
+    require(
+        stale_send_button_pixels <= 150,
+        "IceCubes media ALT editor capture still appears to show the composer: "
+        f"send_button_pixels={stale_send_button_pixels}",
+    )
+    if saved:
+        require(
+            description_text_pixels >= 100,
+            "IceCubes media ALT editor did not retain the saved description: "
+            f"description_text_pixels={description_text_pixels}",
+        )
+        require(
+            generate_button_pixels <= 120,
+            "IceCubes media ALT editor still shows its empty-description action: "
+            f"generate_button_pixels={generate_button_pixels}",
+        )
+    return (
+        f"IceCubes media ALT editor: app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, media_pixels={media_pixels}, "
+        f"edge_media_pixels={edge_media_pixels}, "
+        f"stale_send_button_pixels={stale_send_button_pixels}, "
+        f"description_text_pixels={description_text_pixels}, "
+        f"generate_button_pixels={generate_button_pixels}, saved={saved}"
+    )
+
+
 def validate_icecubes_linux_authenticated_composer_submitted(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -7667,6 +7795,10 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
     app_width = right - left + 1
     app_height = bottom - top + 1
 
+    def action_accent_pixel(rgb: tuple[int, int, int]) -> bool:
+        r, g, b = rgb
+        return max(r, g, b) >= 120 and max(r, g, b) - min(r, g, b) >= 55
+
     require(
         760 <= app_width <= 1120 and app_height >= 620,
         f"IceCubes authenticated Status detail window has unexpected size: {app_width}x{app_height}",
@@ -7679,6 +7811,14 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         right,
         top + 52,
         icecubes_authenticated_titlebar_pixel,
+    )
+    detail_back_button_pixels = pixel_count(
+        image,
+        left + 5,
+        top + 5,
+        left + 82,
+        top + 49,
+        lambda rgb: min(rgb) >= 240 and max(rgb) - min(rgb) <= 12,
     )
     sidebar_pixels = pixel_count(
         image,
@@ -7719,7 +7859,7 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
     detail_media_action_pixels = dark_pixel_count(
         image,
         left + 250,
-        top + 420,
+        top + 390,
         right - 20,
         top + 505,
     )
@@ -7731,17 +7871,55 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         bottom - 4,
     )
     detail_action_pixels = max(detail_top_action_pixels, detail_media_action_pixels, detail_bottom_action_pixels)
+    detail_top_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 135,
+        right - 20,
+        top + 205,
+        action_accent_pixel,
+    )
+    detail_media_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 390,
+        right - 20,
+        top + 505,
+        action_accent_pixel,
+    )
+    detail_bottom_action_accent_pixels = pixel_count(
+        image,
+        left + 250,
+        bottom - 62,
+        right - 20,
+        bottom - 4,
+        action_accent_pixel,
+    )
+    # Active actions replace their dark icon with a colored one. Only add
+    # accent pixels to regions that already contain enough dark action chrome,
+    # so a large media attachment cannot masquerade as the action row.
+    detail_action_chrome_pixels = max(
+        detail_top_action_pixels + detail_top_action_accent_pixels
+        if detail_top_action_pixels >= 80
+        else detail_top_action_pixels,
+        detail_media_action_pixels + detail_media_action_accent_pixels
+        if detail_media_action_pixels >= 80
+        else detail_media_action_pixels,
+        detail_bottom_action_pixels + detail_bottom_action_accent_pixels
+        if detail_bottom_action_pixels >= 80
+        else detail_bottom_action_pixels,
+    )
     detail_left_media_action_count_pixels = dark_pixel_count(
         image,
         left + 255,
-        top + 420,
+        top + 390,
         left + 430,
         top + 505,
     )
     detail_centered_media_action_count_pixels = dark_pixel_count(
         image,
         left + 390,
-        top + 420,
+        top + 390,
         min(right - 20, left + 650),
         top + 505,
     )
@@ -7777,6 +7955,11 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
 
     require(titlebar_pixels >= 25_000, f"IceCubes authenticated Status detail titlebar chrome was not detected: pixels={titlebar_pixels}")
     require(
+        detail_back_button_pixels >= 1_000,
+        "IceCubes authenticated Status detail Back control was not detected: "
+        f"pixels={detail_back_button_pixels}",
+    )
+    require(
         sidebar_pixels >= 80_000,
         f"IceCubes authenticated Status detail sidebar surface was not detected: pixels={sidebar_pixels}",
     )
@@ -7796,8 +7979,9 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"media_pixels={detail_media_pixels}, summary_pixels={detail_summary_pixels}, app_width={app_width}",
     )
     require(
-        detail_action_pixels >= 200,
-        f"IceCubes authenticated Status detail action/context area was not detected: pixels={detail_action_pixels}",
+        detail_action_chrome_pixels >= 200,
+        "IceCubes authenticated Status detail action/context area was not detected: "
+        f"pixels={detail_action_chrome_pixels}, dark_pixels={detail_action_pixels}",
     )
     require(
         detail_action_count_pixels >= 80,
@@ -7809,6 +7993,7 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         "IceCubes authenticated Status detail: "
         f"app={app_width}x{app_height}, "
         f"titlebar_pixels={titlebar_pixels}, "
+        f"detail_back_button_pixels={detail_back_button_pixels}, "
         f"sidebar_pixels={sidebar_pixels}, "
         f"detail_header_pixels={detail_header_pixels}, "
         f"detail_body_pixels={detail_body_pixels}, "
@@ -7820,6 +8005,10 @@ def validate_icecubes_linux_authenticated_status_detail(image: Screenshot) -> st
         f"detail_top_action_pixels={detail_top_action_pixels}, "
         f"detail_media_action_pixels={detail_media_action_pixels}, "
         f"detail_bottom_action_pixels={detail_bottom_action_pixels}, "
+        f"detail_action_chrome_pixels={detail_action_chrome_pixels}, "
+        f"detail_top_action_accent_pixels={detail_top_action_accent_pixels}, "
+        f"detail_media_action_accent_pixels={detail_media_action_accent_pixels}, "
+        f"detail_bottom_action_accent_pixels={detail_bottom_action_accent_pixels}, "
         f"detail_left_media_action_count_pixels={detail_left_media_action_count_pixels}, "
         f"detail_centered_media_action_count_pixels={detail_centered_media_action_count_pixels}, "
         f"detail_media_action_count_pixels={detail_media_action_count_pixels}, "
@@ -7845,9 +8034,9 @@ def validate_icecubes_linux_authenticated_status_detail_favorite(image: Screensh
     )
     favorite_media_accent_pixels = pixel_count(
         image,
-        left + 370,
-        top + 420,
-        left + 430,
+        left + 395,
+        top + 390,
+        left + 460,
         top + 505,
         favorite_accent_pixel,
     )
@@ -7932,9 +8121,9 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
     )
     boost_media_accent_pixels = pixel_count(
         image,
-        left + 305,
-        top + 420,
-        left + 372,
+        left + 340,
+        top + 390,
+        left + 405,
         top + 505,
         boost_accent_pixel,
     )
@@ -7959,7 +8148,7 @@ def validate_icecubes_linux_authenticated_status_detail_boost(image: Screenshot)
     boost_media_summary_pixels = dark_pixel_count(
         image,
         left + 255,
-        top + 588,
+        top + 565,
         left + 380,
         min(bottom, top + 640),
     )
@@ -8011,9 +8200,9 @@ def validate_icecubes_linux_authenticated_status_detail_bookmark(image: Screensh
     )
     bookmark_media_accent_pixels = pixel_count(
         image,
-        left + 555,
-        top + 420,
-        left + 620,
+        left + 450,
+        top + 390,
+        left + 520,
         top + 505,
         bookmark_accent_pixel,
     )
@@ -8470,6 +8659,9 @@ def main() -> int:
         "icecubes-linux-authenticated-composer-typed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
+        "icecubes-linux-authenticated-composer-media-alt-editor",
+        "icecubes-linux-authenticated-composer-media-alt-saved",
+        "icecubes-linux-authenticated-composer-media-deleted",
     }
     signal_real_conversation_product = product in {
         "signal-real-conversation",
@@ -8515,6 +8707,9 @@ def main() -> int:
         "icecubes-linux-authenticated-composer-typed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
+        "icecubes-linux-authenticated-composer-media-alt-editor",
+        "icecubes-linux-authenticated-composer-media-alt-saved",
+        "icecubes-linux-authenticated-composer-media-deleted",
         "icecubes-linux-authenticated-reply-composer",
         "icecubes-linux-authenticated-composer-submitted",
         "icecubes-linux-authenticated-status-detail",
@@ -8786,6 +8981,12 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer_media_panel(image))
     elif product == "icecubes-linux-authenticated-composer-media-attachment":
         print(validate_icecubes_linux_authenticated_composer(image, media_attachment=True))
+    elif product == "icecubes-linux-authenticated-composer-media-alt-editor":
+        print(validate_icecubes_linux_authenticated_composer_media_alt_editor(image))
+    elif product == "icecubes-linux-authenticated-composer-media-alt-saved":
+        print(validate_icecubes_linux_authenticated_composer_media_alt_editor(image, saved=True))
+    elif product == "icecubes-linux-authenticated-composer-media-deleted":
+        print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-reply-composer":
         print(validate_icecubes_linux_authenticated_composer(image, allow_quoted_media=True))
     elif product == "icecubes-linux-authenticated-composer-submitted":

@@ -8,7 +8,7 @@ estimates, not release claims.
 
 - Compile coverage: 100% for `IceCubesLinuxApp`.
 - Runnable app graph source coverage: about 97%.
-- Useful runtime behavior estimate: 80-84%.
+- Useful runtime behavior estimate: 81-85%.
 - Exact macOS-quality visual/interaction parity estimate: 25-30%.
 
 ## P0 Runtime Blockers
@@ -33,18 +33,19 @@ estimates, not release claims.
       home pagination, Home refresh, Notifications refresh, Status detail
       refresh, and detail navigation are covered; broader refresh/pagination
       surfaces and deeper row interactions remain open.
-- [ ] Composer flow: text entry, fixture-backed submit, and local image
-      import/upload/preview are covered; mentions/tags autocomplete, attachment
-      ALT/delete mutations, video, drafts, and post-result routing remain open.
+- [ ] Composer flow: text entry, fixture-backed submit, local image
+      import/upload/preview, attachment ALT editing, exact update payload,
+      persisted ALT state, and attachment deletion are covered; mentions/tags
+      autocomplete, video, drafts, and post-result routing remain open.
 - [ ] Settings flow: root Settings tab and Display Settings child navigation
       render under the authenticated upstream app, including the Display preview
       and upper/lower form controls; Display font-size slider mutation is
       covered. Tab/sidebar settings, content settings, API settings, remote
       timelines, tag groups, icon/support panes, and broader setting mutations
       remain open.
-- [ ] Media flow: image upload/preview, quick look/media viewer, and thumbnails
-      are partly covered; attachment editing/deletion, video attachments, and
-      share sheet metadata remain open.
+- [ ] Media flow: image upload/preview, attachment ALT editing/deletion, quick
+      look/media viewer, and thumbnails are partly covered; video attachments
+      and share sheet metadata remain open.
 - [ ] Notifications/conversations/lists/explore/profile tabs: notifications,
       conversations, profile, Explore, and Lists render/navigate are covered;
       Notifications/Messages/List refresh, List pagination, and Messages detail
@@ -160,14 +161,29 @@ estimates, not release claims.
       Explore navigation, seeded authenticated Notifications navigation, seeded
       authenticated Profile/Messages/List navigation, seeded authenticated
       Explore Links/Tags/Suggested Users/Search routes, Composer window
-      open/text entry/submit/image attachment, and seeded authenticated Status detail
-      navigation/action mutation, seeded authenticated media viewer, seeded
+      open/text entry/submit/image attachment/ALT edit/delete, and seeded
+      authenticated Status detail navigation/action mutation, seeded authenticated media viewer, seeded
       authenticated Home pagination/refresh, seeded authenticated Notifications
       refresh, seeded authenticated Messages refresh, plus seeded authenticated
       Settings root and Display Settings child navigation.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
+
+- 2026-07-16: Completed the upstream attachment ALT-text and deletion journey.
+  The GTK harness opens IceCubes' real `MediaEditView`, types a deterministic
+  description, requires the exact JSON payload on
+  `PUT /api/v1/media/quill-composer-upload-1`, waits for the upstream editor to
+  apply the returned `MediaAttachment`, reopens the sheet to verify retained
+  non-empty state, and separately removes the attachment from the composer.
+  A reusable `AsyncImage` observable loader now shares download phase across
+  descriptor and mounted-host copies, fixing the blank remote preview without
+  app-source changes. The URL-keyed registry keeps only weak loader references,
+  while the existing file cache avoids duplicate downloads after view rebuilds.
+  Deferred control actions retain the sheet's dismiss handler across child-task
+  suspension on GTK, Qt, and Win32 without retaining the full environment, and
+  GTK sheet sizing now clamps against the presentation root instead of an
+  oversized intermediate overlay when a sheet is reopened.
 
 - 2026-07-16: Added a real upstream composer image-attachment smoke. The
   harness opens IceCubes' composer and media panel, drives the shared Linux
@@ -178,9 +194,8 @@ estimates, not release claims.
   functional `onChange(of:initial:)`, builder-flattened/aligned lazy stacks,
   and allocation-aware GTK `containerRelativeFrame` sizing. Qt/Win currently
   retain a fill-frame fallback for the new container-relative primitive;
-  native count/span sizing there remains open. Attachment ALT/delete actions,
-  video, drafts, autocomplete, post-result routing, and exact visual parity
-  remain open.
+  native count/span sizing there remains open. Video, drafts, autocomplete,
+  post-result routing, and exact visual parity remain open.
 
 - 2026-06-09: Compile-clean GTK Linux target exists. Behavior pass starts with
   canonical SwiftUI app lifecycle and launch smoke.

@@ -113,6 +113,8 @@ AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_WIND
 AUTH_COMPOSE_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRIES:-3}"
 AUTH_COMPOSE_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSER_TYPE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT:-hello from linux}"
+AUTH_COMPOSER_FOCUS_PROBE_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT:-quilluiinputprobe}"
+AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS:-0.75}"
 AUTH_COMPOSER_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_DELAY_MS:-25}"
 AUTH_COMPOSER_TYPE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_X:-320}"
 AUTH_COMPOSER_TYPE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_Y:-180}"
@@ -137,6 +139,17 @@ AUTH_COMPOSER_LIBRARY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_Y:-600}
 AUTH_COMPOSER_MEDIA_SELECTION_FILE="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_SELECTION_FILE:-$ROOT_DIR/Tests/Fixtures/IceCubes/composer-upload.png}"
 AUTH_COMPOSER_MEDIA_UPLOAD_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v2/media"
 AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG="success https://files.mastodon.social/media_attachments/quill-composer-upload-1.png"
+AUTH_COMPOSER_MEDIA_ALT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_X:-737}"
+AUTH_COMPOSER_MEDIA_ALT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_Y:-522}"
+AUTH_COMPOSER_MEDIA_ALT_TEXT="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TEXT:-quillui linux media description}"
+AUTH_COMPOSER_MEDIA_ALT_FIELD_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_FIELD_X:-320}"
+AUTH_COMPOSER_MEDIA_ALT_FIELD_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_FIELD_Y:-175}"
+AUTH_COMPOSER_MEDIA_ALT_DONE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_DONE_X:-640}"
+AUTH_COMPOSER_MEDIA_ALT_DONE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_DONE_Y:-93}"
+AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS:-25}"
+AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG="[QuillURLSessionFixtures] direct PUT https://mastodon.social/api/v1/media/quill-composer-upload-1"
+AUTH_COMPOSER_MEDIA_DELETE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_DELETE_X:-737}"
+AUTH_COMPOSER_MEDIA_DELETE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_DELETE_Y:-279}"
 AUTH_STATUS_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_X:-360}"
 AUTH_STATUS_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_Y:-92}"
 AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_PRE_CLICK_DELAY_SECONDS:-0.2}"
@@ -152,22 +165,22 @@ AUTH_STATUS_DETAIL_CONTEXT_GET_LOG="[QuillURLSessionFixtures] direct GET https:/
 AUTH_STATUS_DETAIL_FAVORITED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/favourited_by"
 AUTH_STATUS_DETAIL_REBLOGGED_BY_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/1003/reblogged_by"
 AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/statuses/1003/bookmark"
-AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-272}"
-AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-462}"
-AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-335}"
-AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-462}"
-AUTH_STATUS_DETAIL_BOOST_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y 350,$AUTH_STATUS_DETAIL_BOOST_Y 320,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,444 350,444 $AUTH_STATUS_DETAIL_BOOST_X,170 350,170}"
-AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-335}"
-AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-505}"
-AUTH_STATUS_DETAIL_BOOST_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS:-$AUTH_STATUS_DETAIL_BOOST_MENU_X,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 320,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 350,$AUTH_STATUS_DETAIL_BOOST_MENU_Y $AUTH_STATUS_DETAIL_BOOST_MENU_X,492 $AUTH_STATUS_DETAIL_BOOST_MENU_X,518 $AUTH_STATUS_DETAIL_BOOST_MENU_X,215}"
-AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_X:-335}"
-AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-557}"
-AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-398}"
-AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-462}"
-AUTH_STATUS_DETAIL_FAVORITE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS:-$AUTH_STATUS_DETAIL_FAVORITE_X,$AUTH_STATUS_DETAIL_FAVORITE_Y 412,$AUTH_STATUS_DETAIL_FAVORITE_Y 388,$AUTH_STATUS_DETAIL_FAVORITE_Y $AUTH_STATUS_DETAIL_FAVORITE_X,444 412,444 $AUTH_STATUS_DETAIL_FAVORITE_X,170 412,170}"
-AUTH_STATUS_DETAIL_BOOKMARK_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_X:-583}"
-AUTH_STATUS_DETAIL_BOOKMARK_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_Y:-462}"
-AUTH_STATUS_DETAIL_BOOKMARK_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_POINTS:-$AUTH_STATUS_DETAIL_BOOKMARK_X,$AUTH_STATUS_DETAIL_BOOKMARK_Y 596,$AUTH_STATUS_DETAIL_BOOKMARK_Y 570,$AUTH_STATUS_DETAIL_BOOKMARK_Y $AUTH_STATUS_DETAIL_BOOKMARK_X,444 596,444 $AUTH_STATUS_DETAIL_BOOKMARK_X,170 596,170}"
+AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-319}"
+AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-436}"
+AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-372}"
+AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-436}"
+AUTH_STATUS_DETAIL_BOOST_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y 360,$AUTH_STATUS_DETAIL_BOOST_Y 384,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,444 $AUTH_STATUS_DETAIL_BOOST_X,428 335,170 350,170}"
+AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-425}"
+AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-530}"
+AUTH_STATUS_DETAIL_BOOST_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS:-$AUTH_STATUS_DETAIL_BOOST_MENU_X,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 400,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 450,$AUTH_STATUS_DETAIL_BOOST_MENU_Y $AUTH_STATUS_DETAIL_BOOST_MENU_X,520 $AUTH_STATUS_DETAIL_BOOST_MENU_X,540}"
+AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_X:-425}"
+AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-568}"
+AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-425}"
+AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-436}"
+AUTH_STATUS_DETAIL_FAVORITE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS:-$AUTH_STATUS_DETAIL_FAVORITE_X,$AUTH_STATUS_DETAIL_FAVORITE_Y 413,$AUTH_STATUS_DETAIL_FAVORITE_Y 437,$AUTH_STATUS_DETAIL_FAVORITE_Y $AUTH_STATUS_DETAIL_FAVORITE_X,444 398,444 398,170 412,170}"
+AUTH_STATUS_DETAIL_BOOKMARK_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_X:-483}"
+AUTH_STATUS_DETAIL_BOOKMARK_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_Y:-436}"
+AUTH_STATUS_DETAIL_BOOKMARK_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOKMARK_POINTS:-$AUTH_STATUS_DETAIL_BOOKMARK_X,$AUTH_STATUS_DETAIL_BOOKMARK_Y 471,$AUTH_STATUS_DETAIL_BOOKMARK_Y 495,$AUTH_STATUS_DETAIL_BOOKMARK_Y $AUTH_STATUS_DETAIL_BOOKMARK_X,444 583,444 583,170 596,170}"
 AUTH_MEDIA_VIEWER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_X:-520}"
 AUTH_MEDIA_VIEWER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_Y:-330}"
 AUTH_MEDIA_VIEWER_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_MEDIA_VIEWER_TIMEOUT_SECONDS:-20}"
@@ -333,7 +346,7 @@ if [[ "$INTERACTION" == "seeded-authenticated-media-viewer" ]]; then
     "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
   )
 fi
-if [[ "$INTERACTION" == "seeded-authenticated-composer-media-attachment" ]]; then
+if [[ "$INTERACTION" == seeded-authenticated-composer-media-* ]]; then
   if [[ ! -f "$AUTH_COMPOSER_MEDIA_SELECTION_FILE" ]]; then
     echo "IceCubes composer media selection fixture is missing: $AUTH_COMPOSER_MEDIA_SELECTION_FILE" >&2
     exit 66
@@ -615,6 +628,10 @@ type_authenticated_composer_text() {
     echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPE_TEXT must not be empty." >&2
     exit 2
   fi
+  if [[ -z "$AUTH_COMPOSER_FOCUS_PROBE_TEXT" || "$AUTH_COMPOSER_FOCUS_PROBE_TEXT" == *[[:space:]]* ]]; then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_FOCUS_PROBE_TEXT must be non-empty and contain no whitespace." >&2
+    exit 2
+  fi
   case "$AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS must be a non-negative integer, got: $AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS" >&2
@@ -622,8 +639,10 @@ type_authenticated_composer_text() {
       ;;
   esac
 
-  local baseline_path probe_path point point_x point_y change_pixels
+  local baseline_path focus_probe_path probe_path point point_x point_y
+  local focus_change_pixels change_pixels verifier_output
   baseline_path="${SCREENSHOT_PATH%.*}.composer-before-type.png"
+  focus_probe_path="${SCREENSHOT_PATH%.*}.composer-focus-probe.png"
   probe_path="${SCREENSHOT_PATH%.*}.composer-typed-probe.png"
   mkdir -p "$(dirname "$baseline_path")"
   if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$baseline_path"; then
@@ -654,7 +673,43 @@ type_authenticated_composer_text() {
 
     click_capture_window_point "$point_x" "$point_y"
     sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
-    DISPLAY="$DISPLAY_ID" xdotool type --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
+    # A newly presented GTK window can retain keyboard focus on the Send
+    # button even after its first synthetic click. Probe with text that cannot
+    # activate a button, then require the composer chrome to remain visible
+    # before sending the real message (whose spaces would activate a button).
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers ctrl+a
+    DISPLAY="$DISPLAY_ID" xdotool type \
+      --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" \
+      --clearmodifiers "$AUTH_COMPOSER_FOCUS_PROBE_TEXT"
+    sleep "$AUTH_COMPOSER_FOCUS_PROBE_SETTLE_SECONDS"
+    if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$focus_probe_path"; then
+      echo "IceCubes authenticated composer focus-probe screenshot capture failed: $focus_probe_path" >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+
+    focus_change_pixels="$(composer_typed_change_pixels "$baseline_path" "$focus_probe_path")"
+    echo "IceCubes authenticated composer focus-probe change pixels at $point: $focus_change_pixels"
+    if ((focus_change_pixels < AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS)); then
+      continue
+    fi
+    if ! verifier_output="$(
+      "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+        "$focus_probe_path" \
+        icecubes-linux-authenticated-composer \
+        2>&1
+    )"; then
+      echo "IceCubes authenticated composer focus probe did not remain on the composer surface at $point." >&2
+      printf '%s\n' "$verifier_output" >&2
+      continue
+    fi
+
+    # Select the probe without mutating the binding first, so the initial
+    # character atomically replaces it and the editor keeps native focus.
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" --clearmodifiers ctrl+a
+    DISPLAY="$DISPLAY_ID" xdotool type \
+      --delay "$AUTH_COMPOSER_TYPE_DELAY_MS" \
+      --clearmodifiers "$AUTH_COMPOSER_TYPE_TEXT"
     sleep "$AUTH_COMPOSER_AFTER_TYPE_SETTLE_SECONDS"
     if ! DISPLAY="$DISPLAY_ID" timeout 10 import -window "$capture_window_id" "$probe_path"; then
       echo "IceCubes authenticated composer post-type screenshot capture failed: $probe_path" >&2
@@ -665,7 +720,17 @@ type_authenticated_composer_text() {
     change_pixels="$(composer_typed_change_pixels "$baseline_path" "$probe_path")"
     echo "IceCubes authenticated composer typed text change pixels at $point: $change_pixels"
     if ((change_pixels >= AUTH_COMPOSER_TYPED_CHANGE_MIN_PIXELS)); then
-      return 0
+      if verifier_output="$(
+        "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+          "$probe_path" \
+          icecubes-linux-authenticated-composer-typed \
+          2>&1
+      )"; then
+        printf '%s\n' "$verifier_output"
+        return 0
+      fi
+      echo "IceCubes authenticated composer typed-text probe did not remain on the composer surface at $point." >&2
+      printf '%s\n' "$verifier_output" >&2
     fi
   done
 
@@ -1092,6 +1157,50 @@ attach_authenticated_composer_image() {
   sleep "$AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS"
   click_capture_window_point "$AUTH_COMPOSER_MEDIA_CLOSE_X" "$AUTH_COMPOSER_MEDIA_CLOSE_Y"
   wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+}
+
+open_authenticated_composer_media_alt_editor() {
+  attach_authenticated_composer_image
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-editor"
+}
+
+edit_authenticated_composer_media_alt_text() {
+  if [[ -z "$AUTH_COMPOSER_MEDIA_ALT_TEXT" ]]; then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_ALT_TEXT must not be empty." >&2
+    exit 2
+  fi
+
+  local previous_update_count
+  open_authenticated_composer_media_alt_editor
+  previous_update_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG")"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_FIELD_X" "$AUTH_COMPOSER_MEDIA_ALT_FIELD_Y"
+  sleep "$AUTH_COMPOSER_TYPE_FOCUS_SETTLE_SECONDS"
+  DISPLAY="$DISPLAY_ID" xdotool key \
+    --delay "$AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS" \
+    --clearmodifiers ctrl+a BackSpace
+  DISPLAY="$DISPLAY_ID" xdotool type \
+    --delay "$AUTH_COMPOSER_MEDIA_ALT_TYPE_DELAY_MS" \
+    --clearmodifiers "$AUTH_COMPOSER_MEDIA_ALT_TEXT"
+  sleep "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_DONE_X" "$AUTH_COMPOSER_MEDIA_ALT_DONE_Y"
+  wait_for_app_log_exact_activity \
+    "$AUTH_COMPOSER_MEDIA_ALT_UPDATE_LOG" \
+    "authenticated composer media ALT update" \
+    "$((previous_update_count + 1))"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+}
+
+delete_authenticated_composer_image() {
+  attach_authenticated_composer_image
+  click_capture_window_point "$AUTH_COMPOSER_MEDIA_DELETE_X" "$AUTH_COMPOSER_MEDIA_DELETE_Y"
+  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-deleted"
 }
 
 click_authenticated_list_sidebar_row() {
@@ -2136,6 +2245,18 @@ case "$INTERACTION" in
     VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-attachment"
     attach_authenticated_composer_image
     ;;
+  seeded-authenticated-composer-media-alt-editor)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-alt-editor"
+    open_authenticated_composer_media_alt_editor
+    ;;
+  seeded-authenticated-composer-media-alt-edit)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-alt-saved"
+    edit_authenticated_composer_media_alt_text
+    ;;
+  seeded-authenticated-composer-media-delete)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-composer-media-deleted"
+    delete_authenticated_composer_image
+    ;;
   seeded-authenticated-status-detail)
     VERIFY_PRODUCT="icecubes-linux-authenticated-status-detail"
     open_authenticated_status_detail
@@ -2216,7 +2337,7 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       # Linux FoundationNetworking cancel-after-completion assertion.
       SETTLE_SECONDS="0"
       ;;
-    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
+    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
       # Notifications has a separate data-source repaint after selection. The
       # route-specific wait above observes IceCubes' post-display refresh (or
       # status-detail/context fetch), so

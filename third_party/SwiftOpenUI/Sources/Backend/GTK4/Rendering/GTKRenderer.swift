@@ -1277,7 +1277,9 @@ private func gtkMeasureLayoutSubviews(
 /// `docs/architecture/deferred-callback-environment-binding.md`.
 func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return {
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
@@ -1295,7 +1297,9 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
 
 func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUICurrentPresentationDismissAction()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
     return { value in
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
@@ -1327,7 +1331,9 @@ func bindTaskActionToCurrentEnvironment(
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment.environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        await action()
+        await withTaskEnvironment(capturedEnvironment.environment) {
+            await action()
+        }
     }
 }
 
@@ -2043,10 +2049,98 @@ struct GTKButtonActivationGate {
 private final class GTKButtonActionBox {
     var action: () -> Void
     var activationGate = GTKButtonActivationGate()
+    let widget: UnsafeMutablePointer<GtkWidget>
 
-    init(_ action: @escaping () -> Void) {
+    init(_ action: @escaping () -> Void, widget: UnsafeMutablePointer<GtkWidget>) {
         self.action = action
+        self.widget = widget
     }
+}
+
+private let gtkListControlActivationGateDataKey = "gtk-swift-list-control-activation-gate"
+
+private final class GTKListControlActivationGate {
+    private var deadline: TimeInterval = -.infinity
+    private var row: UnsafeMutablePointer<GtkWidget>?
+
+    func mark(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) {
+        self.row = row
+        deadline = now + 0.75
+    }
+
+    func consumeIfRecent(row: UnsafeMutablePointer<GtkWidget>, now: TimeInterval) -> Bool {
+        guard self.row == row, now <= deadline else {
+            self.row = nil
+            deadline = -.infinity
+            return false
+        }
+        self.row = nil
+        deadline = -.infinity
+        return true
+    }
+}
+
+private func gtkListControlActivationGate(
+    for root: UnsafeMutablePointer<GtkWidget>,
+    create: Bool
+) -> GTKListControlActivationGate? {
+    let object = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    if let pointer = g_object_get_data(object, gtkListControlActivationGateDataKey) {
+        return Unmanaged<GTKListControlActivationGate>.fromOpaque(pointer).takeUnretainedValue()
+    }
+    guard create else { return nil }
+
+    let gate = GTKListControlActivationGate()
+    g_object_set_data_full(
+        object,
+        gtkListControlActivationGateDataKey,
+        Unmanaged.passRetained(gate).toOpaque(),
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKListControlActivationGate>.fromOpaque(userData).release()
+        }
+    )
+    return gate
+}
+
+private func gtkMarkListControlActivationAtRoot(
+    _ root: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkListControlActivationGate(for: root, create: true)?.mark(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    )
+}
+
+private func gtkMarkContainingListControlActivation(_ widget: UnsafeMutablePointer<GtkWidget>) {
+    var current: UnsafeMutablePointer<GtkWidget>? = widget
+    var row: UnsafeMutablePointer<GtkWidget>?
+    var listBox: UnsafeMutablePointer<GtkWidget>?
+    while let candidate = current {
+        if row == nil, gtk_swift_widget_is_list_box_row(candidate) != 0 {
+            row = candidate
+        }
+        if gtk_swift_widget_is_list_box(candidate) != 0 {
+            listBox = candidate
+            break
+        }
+        current = gtk_widget_get_parent(candidate)
+    }
+    guard let row, let listBox else { return }
+    let root = gtk_swift_widget_root_widget(widget) ?? listBox
+    gtkMarkListControlActivationAtRoot(root, row: row)
+}
+
+private func gtkConsumeRecentListControlActivation(
+    in listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) -> Bool {
+    let root = gtk_swift_widget_root_widget(listBox) ?? listBox
+    return gtkListControlActivationGate(for: root, create: false)?.consumeIfRecent(
+        row: row,
+        now: Date().timeIntervalSinceReferenceDate
+    ) ?? false
 }
 
 private final class GTKButtonIdleActionContext {
@@ -2805,6 +2899,29 @@ func gtkTestActiveMenuOverlayLayerTypeName() -> String? {
     return String(cString: g_type_name(gtk_swift_get_widget_type(layer)))
 }
 
+func gtkTestActiveMenuOverlayPanelFrameInRoot() -> (x: Double, y: Double, width: Double, height: Double)? {
+    guard let state = gtkActiveMenuOverlayState else { return nil }
+    var rootX = 0.0
+    var rootY = 0.0
+    guard gtk_swift_widget_compute_point(
+        state.coordinateSpace,
+        state.root,
+        state.x,
+        state.y,
+        &rootX,
+        &rootY
+    ) != 0 else { return nil }
+    return (rootX, rootY, state.width, state.height)
+}
+
+func gtkTestActivateActiveMenuOverlayAtRootPoint(x: Double, y: Double) -> Bool {
+    gtkHandleActiveMenuOverlayClick(x: x, y: y) != 0
+}
+
+func gtkTestOpenMenuButton(_ button: UnsafeMutablePointer<GtkWidget>) -> Bool {
+    gtkOpenMenuButton(button, source: "test")
+}
+
 private func gtkScheduleButtonAction(
     _ box: GTKButtonActionBox,
     source: String,
@@ -2815,6 +2932,9 @@ private func gtkScheduleButtonAction(
     guard box.activationGate.shouldFire(phase, now: now) else {
         gtkDebugLog("button duplicate \(source)")
         return
+    }
+    if case .pointerPress = phase {
+        gtkMarkContainingListControlActivation(box.widget)
     }
     gtkDebugLog("button \(source)")
     let context = Unmanaged.passRetained(GTKButtonIdleActionContext(box: box, source: source)).toOpaque()
@@ -3168,7 +3288,9 @@ extension Button: GTKRenderable, GTKDescribable {
         gtk_widget_set_valign(button, buttonWantsVExpand ? GTK_ALIGN_FILL : GTK_ALIGN_CENTER)
 
         let boundAction = bindActionToCurrentEnvironment(action)
-        let buttonActionBox = Unmanaged.passRetained(GTKButtonActionBox(boundAction)).toOpaque()
+        let buttonActionBox = Unmanaged.passRetained(
+            GTKButtonActionBox(boundAction, widget: button)
+        ).toOpaque()
         g_object_set_data(
             UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self),
             gtkSwiftButtonActionBoxDataKey,
@@ -3212,7 +3334,11 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: false)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("clicked", widget: context.widget), phase: .clicked)
+                gtkScheduleButtonAction(
+                    context.box,
+                    source: gtkButtonDebugSource("clicked", widget: context.widget),
+                    phase: .clicked
+                )
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -3227,7 +3353,11 @@ extension Button: GTKRenderable, GTKDescribable {
                 guard let userData else { return }
                 let context = Unmanaged<GTKButtonRootEventContext>.fromOpaque(userData).takeUnretainedValue()
                 _ = gtkSetCustomButtonStylePressed(context.widget, pressed: true)
-                gtkScheduleButtonAction(context.box, source: gtkButtonDebugSource("gesture", widget: context.widget), phase: .pointerPress)
+                gtkScheduleButtonAction(
+                    context.box,
+                    source: gtkButtonDebugSource("gesture", widget: context.widget),
+                    phase: .pointerPress
+                )
             } as @convention(c) (gpointer?, gint, gdouble, gdouble, gpointer?) -> Void, to: GCallback.self),
             buttonRootEventContext,
             nil,
@@ -7466,7 +7596,7 @@ private final class GTKSheetPanelSizeContext {
     }
 }
 
-private func gtkClampedSheetPanelDimension(
+func gtkClampedSheetPanelDimension(
     preferred: gint,
     hostSize: gint,
     margins: gint
@@ -7475,12 +7605,42 @@ private func gtkClampedSheetPanelDimension(
     return min(preferred, max(gint(1), hostSize - margins))
 }
 
+func gtkSheetPanelHostDimension(
+    presentationRootSize: gint,
+    windowRootSize: gint,
+    parentSize: gint,
+    panelSize: gint
+) -> gint {
+    for candidate in [presentationRootSize, windowRootSize, parentSize, panelSize]
+        where candidate > 1
+    {
+        return candidate
+    }
+    return panelSize
+}
+
 private let gtkSheetPanelSizeTickCallback: GtkTickCallback = { widget, _, userData in
     guard let panel = widget, let userData else { return 0 }
     let context = Unmanaged<GTKSheetPanelSizeContext>.fromOpaque(userData).takeUnretainedValue()
-    let host = gtk_widget_get_parent(panel)
-    let hostWidth = host.map { gtk_widget_get_width($0) } ?? gtk_widget_get_width(panel)
-    let hostHeight = host.map { gtk_widget_get_height($0) } ?? gtk_widget_get_height(panel)
+    let presentationRoot = gtkStoredRootPresentationOverlay(on: gpointer(panel)).map {
+        UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWidget.self)
+    }
+    let windowRoot = gtk_widget_get_root(panel).map {
+        UnsafeMutableRawPointer($0).assumingMemoryBound(to: GtkWidget.self)
+    }
+    let parent = gtk_widget_get_parent(panel)
+    let hostWidth = gtkSheetPanelHostDimension(
+        presentationRootSize: presentationRoot.map { gtk_widget_get_width($0) } ?? 0,
+        windowRootSize: windowRoot.map { gtk_widget_get_width($0) } ?? 0,
+        parentSize: parent.map { gtk_widget_get_width($0) } ?? 0,
+        panelSize: gtk_widget_get_width(panel)
+    )
+    let hostHeight = gtkSheetPanelHostDimension(
+        presentationRootSize: presentationRoot.map { gtk_widget_get_height($0) } ?? 0,
+        windowRootSize: windowRoot.map { gtk_widget_get_height($0) } ?? 0,
+        parentSize: parent.map { gtk_widget_get_height($0) } ?? 0,
+        panelSize: gtk_widget_get_height(panel)
+    )
     let nextWidth = gtkClampedSheetPanelDimension(
         preferred: context.preferredWidth,
         hostSize: hostWidth,
@@ -7666,12 +7826,25 @@ private func gtkRemoveRootSheetLayer(
 }
 
 private func gtkCreateSheetOverlayPanel(
-    sheetWidget: UnsafeMutablePointer<GtkWidget>
+    sheetWidget: UnsafeMutablePointer<GtkWidget>,
+    hostWidget: UnsafeMutablePointer<GtkWidget>? = nil
 ) -> UnsafeMutablePointer<GtkWidget> {
     let panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
     let preferredWidth = gtkSheetDefaultWidth()
     let preferredHeight = gtkSheetDefaultHeight()
-    gtk_widget_set_size_request(panel, preferredWidth, preferredHeight)
+    let hostWidth = hostWidget.map { gtk_widget_get_width($0) } ?? 0
+    let hostHeight = hostWidget.map { gtk_widget_get_height($0) } ?? 0
+    let initialWidth = gtkClampedSheetPanelDimension(
+        preferred: preferredWidth,
+        hostSize: hostWidth,
+        margins: gtkSheetOverlayHorizontalMargins
+    )
+    let initialHeight = gtkClampedSheetPanelDimension(
+        preferred: preferredHeight,
+        hostSize: hostHeight,
+        margins: gtkSheetOverlayVerticalMargins
+    )
+    gtk_widget_set_size_request(panel, initialWidth, initialHeight)
     gtkInstallSheetPanelOverlaySizeClamp(
         on: panel,
         preferredWidth: preferredWidth,
@@ -8142,7 +8315,12 @@ extension SheetModifierView: GTKRenderable {
                 }
             )
             setCurrentEnvironment(previous)
-            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let overlayWidget = UnsafeMutableRawPointer(rootOverlay)
+                .assumingMemoryBound(to: GtkWidget.self)
+            let panel = gtkCreateSheetOverlayPanel(
+                sheetWidget: sheetWidget,
+                hostWidget: overlayWidget
+            )
             let layer = gtkCreateSheetOverlayLayer(panel: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
@@ -8423,7 +8601,12 @@ extension ItemSheetModifierView: GTKRenderable {
                 }
             )
             setCurrentEnvironment(previous)
-            let panel = gtkCreateSheetOverlayPanel(sheetWidget: sheetWidget)
+            let overlayWidget = UnsafeMutableRawPointer(rootOverlay)
+                .assumingMemoryBound(to: GtkWidget.self)
+            let panel = gtkCreateSheetOverlayPanel(
+                sheetWidget: sheetWidget,
+                hostWidget: overlayWidget
+            )
             let layer = gtkCreateSheetOverlayLayer(panel: panel)
             gtkStoreRootPresentationOverlay(rootOverlay, on: layer)
             gtkStoreRootPresentationOverlay(rootOverlay, on: panel)
@@ -12747,21 +12930,42 @@ private func gtkInstallListBoxTapFallback(on listBox: UnsafeMutablePointer<GtkWi
     gtk_swift_add_gesture(listBox, gesture)
 }
 
+private func gtkHandleListBoxRowActivation(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    if gtkConsumeRecentListControlActivation(in: listBox, row: row) {
+        gtkDebugLog("list row activation suppressed after nested control")
+        return
+    }
+    guard let actionData = g_object_get_data(
+        UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
+        gtkListRowTapActionDataKey
+    ) else {
+        return
+    }
+    let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
+    gtkScheduleListRowTapAction(box, source: "row-activated")
+}
+
+func gtkTestActivateListBoxRow(
+    listBox: UnsafeMutablePointer<GtkWidget>,
+    row: UnsafeMutablePointer<GtkWidget>
+) {
+    gtkHandleListBoxRowActivation(listBox: listBox, row: row)
+}
+
 private func gtkInstallListBoxRowActivationFallback(on listBox: UnsafeMutablePointer<GtkWidget>) {
     gtk_swift_list_box_set_activate_on_single_click(listBox, 1)
     g_signal_connect_data(
         gpointer(listBox),
         "row-activated",
-        unsafeBitCast({ (_: gpointer?, row: gpointer?, _: gpointer?) in
-            guard let row else { return }
-            guard let actionData = g_object_get_data(
-                UnsafeMutableRawPointer(row).assumingMemoryBound(to: GObject.self),
-                gtkListRowTapActionDataKey
-            ) else {
-                return
-            }
-            let box = Unmanaged<GTKListRowTapActionBox>.fromOpaque(actionData).takeUnretainedValue()
-            gtkScheduleListRowTapAction(box, source: "row-activated")
+        unsafeBitCast({ (listBox: gpointer?, row: gpointer?, _: gpointer?) in
+            guard let listBox, let row else { return }
+            gtkHandleListBoxRowActivation(
+                listBox: listBox.assumingMemoryBound(to: GtkWidget.self),
+                row: row.assumingMemoryBound(to: GtkWidget.self)
+            )
         } as @convention(c) (gpointer?, gpointer?, gpointer?) -> Void, to: GCallback.self),
         nil,
         nil,
@@ -15495,6 +15699,7 @@ private enum GTKBoundMenuElement {
 
 private final class GTKActiveMenuOverlayState {
     let root: UnsafeMutablePointer<GtkWidget>
+    let coordinateSpace: UnsafeMutablePointer<GtkWidget>
     let controller: gpointer
     let elements: [GTKBoundMenuElement]
     let x: Double
@@ -15504,6 +15709,7 @@ private final class GTKActiveMenuOverlayState {
 
     init(
         root: UnsafeMutablePointer<GtkWidget>,
+        coordinateSpace: UnsafeMutablePointer<GtkWidget>,
         controller: gpointer,
         elements: [GTKBoundMenuElement],
         x: Double,
@@ -15512,6 +15718,7 @@ private final class GTKActiveMenuOverlayState {
         height: Double
     ) {
         self.root = root
+        self.coordinateSpace = coordinateSpace
         self.controller = controller
         self.elements = elements
         self.x = x
@@ -15624,13 +15831,27 @@ private func gtkMenuOverlayAction(
 
 private func gtkHandleActiveMenuOverlayClick(x: Double, y: Double) -> gboolean {
     guard let state = gtkActiveMenuOverlayState else { return 0 }
-    guard x >= state.x, x <= state.x + state.width,
-          y >= state.y, y <= state.y + state.height else {
+    var localX = 0.0
+    var localY = 0.0
+    guard gtk_swift_widget_compute_point(
+        state.root,
+        state.coordinateSpace,
+        x,
+        y,
+        &localX,
+        &localY
+    ) != 0 else {
+        gtkDebugLog("menu overlay action coordinate conversion failed root@\(Int(x)),\(Int(y))")
+        gtkDismissActiveMenuOverlay()
+        return 1
+    }
+    guard localX >= state.x, localX <= state.x + state.width,
+          localY >= state.y, localY <= state.y + state.height else {
         gtkDebugLog("menu overlay action miss root@\(Int(x)),\(Int(y))")
         gtkDismissActiveMenuOverlay()
         return 1
     }
-    guard let item = gtkMenuOverlayAction(in: state.elements, at: y - state.y) else {
+    guard let item = gtkMenuOverlayAction(in: state.elements, at: localY - state.y) else {
         gtkDebugLog("menu overlay action skipped root@\(Int(x)),\(Int(y))")
         gtkDismissActiveMenuOverlay()
         return 1
@@ -15658,6 +15879,7 @@ private func gtkHandleActiveMenuOverlayClick(
 
 private func gtkInstallActiveMenuOverlayController(
     root: UnsafeMutablePointer<GtkWidget>,
+    coordinateSpace: UnsafeMutablePointer<GtkWidget>,
     elements: [GTKBoundMenuElement],
     x: Double,
     y: Double,
@@ -15682,6 +15904,7 @@ private func gtkInstallActiveMenuOverlayController(
     )
     gtkActiveMenuOverlayState = GTKActiveMenuOverlayState(
         root: root,
+        coordinateSpace: coordinateSpace,
         controller: controller,
         elements: elements,
         x: x,
@@ -15790,6 +16013,7 @@ private func gtkOpenMenuOverlay(
     gtkActiveMenuOverlayLayer = layer
     gtkInstallActiveMenuOverlayController(
         root: root,
+        coordinateSpace: overlayWidget,
         elements: model.elements,
         x: panelX,
         y: panelY,
