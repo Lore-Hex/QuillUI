@@ -20,8 +20,6 @@ if [[ ! -d "$SOURCE_DIR" ]]; then
   exit 66
 fi
 
-"$(dirname "$0")/lower-observable-for-swiftopenui.py" "$SOURCE_DIR"
-
 swift_files=()
 while IFS= read -r -d '' source_file; do
   swift_files+=("${source_file#$SOURCE_DIR/}")
@@ -37,7 +35,6 @@ if (( ${#swift_files[@]} > 0 )); then
       s/^[ \t]*\@main[ \t]*\n//gm;
       s/^[ \t]*import[ \t]+Carbon\.[A-Za-z0-9_]+[ \t]*$/import Carbon/gm;
       s/^([ \t]*)import[ \t]+(AppKit|Cocoa|SwiftUI|UIKit)\b/$1\@preconcurrency import $2/gm;
-      s/^[ \t]*\@Observable[ \t]*\n//gm;
       s/^[ \t]*\@Invalidating(?:\([^\n]*\))?[ \t]*\n//gm;
       s/\n[ \t]*#Preview[\s\S]*?#endif\s*\z/\n#endif\n/s;
       s/\n[ \t]*#Preview[\s\S]*\z/\n/s;

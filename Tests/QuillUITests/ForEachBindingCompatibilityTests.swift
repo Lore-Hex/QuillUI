@@ -11,6 +11,25 @@ import Testing
 @Suite("ForEach binding compatibility")
 @MainActor
 struct ForEachBindingCompatibilityTests {
+    @Test("ViewBuilder preserves keyed ForEach beside sibling content")
+    func viewBuilderPreservesKeyedForEach() throws {
+        let rows = [
+            BuilderRow(id: 1, name: "First"),
+            BuilderRow(id: 2, name: "Second"),
+        ]
+        @ViewBuilder func build() -> some View {
+            ForEach(rows) { row in
+                Text(row.name)
+            }
+            Text("Add row")
+        }
+
+        let multi = try #require(build() as? any MultiChildView)
+        #expect(multi.children.count == 2)
+        #expect(multi.children[0] is ForEach<BuilderRow, Int, Text>)
+        #expect(multi.children[1] is Text)
+    }
+
     @Test("Binding collection editActions initializer renders current rows")
     func bindingCollectionEditActionsRendersRows() {
         var rows = [
@@ -92,5 +111,10 @@ private struct EditableRow: Identifiable, Equatable {
 private struct PlainRow: Equatable {
     var name: String
     var detail: String
+}
+
+private struct BuilderRow: Identifiable {
+    let id: Int
+    let name: String
 }
 #endif

@@ -36,6 +36,33 @@ struct SwiftOpenUIStateCompatibilityTests {
         #expect(host.rebuilds == 1)
     }
 
+    @Test("@State observes macro @Observable stored-property observers")
+    func stateStorageObservesMacroObservablePropertyObservers() {
+        let model = MacroObservablePropertyObserverProbe()
+        let storage = StateStorage(model)
+        let host = RebuildProbeHost()
+
+        storage.host = host
+        model.title = "selected"
+
+        #expect(model.observedTitle == "selected")
+        #expect(model.didSetCount == 1)
+        #expect(host.rebuilds >= 1)
+    }
+
+    @Test("@State observes private macro @Observable properties")
+    func stateStorageObservesPrivateMacroObservableProperties() {
+        let model = MacroPrivateObservableProbe()
+        let storage = StateStorage(model)
+        let host = RebuildProbeHost()
+
+        storage.host = host
+        model.select()
+
+        #expect(model.observedTitle == "selected")
+        #expect(host.rebuilds == 1)
+    }
+
     @Test("@Environment observes macro @Observable object mutations")
     func environmentObjectReadObservesMacroObservableObjectMutations() {
         let model = MacroObservableProbe()
@@ -367,6 +394,25 @@ private struct BindingIdentityModel {
 @Observable
 private final class MacroObservableProbe {
     var title = "idle"
+}
+
+@Observable
+private final class MacroObservablePropertyObserverProbe {
+    var title = "idle" {
+        didSet { didSetCount += 1 }
+    }
+    private(set) var didSetCount = 0
+    var observedTitle: String { title }
+}
+
+@Observable
+private final class MacroPrivateObservableProbe {
+    private var title = "idle"
+    var observedTitle: String { title }
+
+    func select() {
+        title = "selected"
+    }
 }
 
 private final class RebuildProbeHost: AnyViewHost {

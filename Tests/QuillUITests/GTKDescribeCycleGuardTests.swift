@@ -69,6 +69,129 @@ struct GTKDescribeCycleGuardTests {
         #expect(alpha.taskPayloads.first?.lifecycleID != beta.taskPayloads.first?.lifecycleID)
     }
 
+    @Test("ForEach descriptor identities survive row reordering")
+    func forEachDescriptorIdentitiesSurviveReordering() throws {
+        let oldRoot = gtkIdentifyDescriptorTree(
+            gtkDescribeView(ForEach([1, 2], id: \.self) { Text("\($0)") })
+        )
+        let newRoot = gtkIdentifyDescriptorTree(
+            gtkDescribeView(ForEach([2, 1], id: \.self) { Text("\($0)") })
+        )
+        let oldByType = Dictionary(
+            uniqueKeysWithValues: oldRoot.children.map { ($0.descriptor.typeName, $0.identity) }
+        )
+        let newByType = Dictionary(
+            uniqueKeysWithValues: newRoot.children.map { ($0.descriptor.typeName, $0.identity) }
+        )
+
+        #expect(Set(oldByType.keys) == Set(newByType.keys))
+        for typeName in oldByType.keys {
+            #expect(typeName.hasPrefix("GTKStateNamespaceView<ForEach["))
+            #expect(try #require(oldByType[typeName]) == newByType[typeName])
+        }
+    }
+
+    @Test("ForEach nested with siblings keeps keyed button actions")
+    func nestedForEachKeepsKeyedButtonActions() throws {
+        var activated: [Int] = []
+        let captured = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(
+                VStack {
+                    ForEach([1, 2], id: \.self) { value in
+                        Button("Account \(value)") {
+                            activated.append(value)
+                        }
+                    }
+                    Text("Add Account")
+                }
+            )
+        }
+        let root = gtkIdentifyDescriptorTree(captured.descriptor)
+        let payloads = gtkButtonPayloadsByIdentity(
+            descriptorRoot: root,
+            payloads: captured.buttonPayloads
+        )
+
+        func firstNode(
+            in node: GTK4IdentifiedDescriptorNode,
+            matching predicate: (GTK4IdentifiedDescriptorNode) -> Bool
+        ) -> GTK4IdentifiedDescriptorNode? {
+            if predicate(node) { return node }
+            for child in node.children {
+                if let match = firstNode(in: child, matching: predicate) {
+                    return match
+                }
+            }
+            return nil
+        }
+
+        let forEach = try #require(firstNode(in: root) {
+            $0.descriptor.typeName.hasPrefix("ForEach<")
+        })
+        #expect(forEach.children.count == 2)
+        #expect(forEach.children.allSatisfy {
+            $0.descriptor.typeName.hasPrefix("GTKStateNamespaceView<ForEach[")
+        })
+
+        for keyedRow in forEach.children {
+            let button = try #require(firstNode(in: keyedRow) {
+                $0.descriptor.kind == .button
+            })
+            let payload = try #require(payloads[button.identity])
+            payload.action()
+        }
+        #expect(activated == [1, 2])
+    }
+
+    @Test("List ForEach buttons execute the model painted in each row")
+    func listForEachButtonsExecutePaintedModel() throws {
+        guard gtkTestDisplayIsAvailable() else { return }
+
+        var activated: [Int] = []
+        let alpha = State(wrappedValue: KeyedButtonProbe(id: 1, title: "alpha loading"))
+        let zulu = State(wrappedValue: KeyedButtonProbe(id: 2, title: "zulu loading"))
+        let widget = widgetFromOpaque(gtkRenderView(
+            List {
+                Section {
+                    ForEach([
+                        KeyedButtonStateProbe(id: 1, account: alpha),
+                        KeyedButtonStateProbe(id: 2, account: zulu),
+                    ]) { row in
+                        KeyedButtonRowProbe(account: row.account) { accountID in
+                            activated.append(accountID)
+                        }
+                    }
+                    Text("Add Account")
+                }
+            }
+        ))
+        let window = gtk_window_new()!
+        gtk_window_set_child(windowPointer(window), widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        drainGTKMainContext(maxIterations: 100)
+
+        // Resolve the rows in the opposite order, matching independent async
+        // credential requests completing after the initial list render.
+        zulu.storage.setValue(KeyedButtonProbe(id: 2, title: "zulu@mastodon.social"))
+        drainGTKMainContext(maxIterations: 100)
+        alpha.storage.setValue(KeyedButtonProbe(id: 1, title: "alpha@mastodon.social"))
+        drainGTKMainContext(maxIterations: 100)
+
+        var buttons: [UnsafeMutablePointer<GtkWidget>] = []
+        collectGTKButtons(in: widget, into: &buttons)
+        let alphaButton = try #require(buttons.first { button in
+            guard let label = try? firstGTKLabel(in: button) else { return false }
+            return String(cString: gtk_label_get_text(OpaquePointer(label))) == "alpha@mastodon.social"
+        })
+
+        #expect(gtkTestActivateButton(alphaButton))
+        drainGTKMainContext(maxIterations: 100)
+        #expect(activated == [1])
+    }
+
     @Test("SwiftUI shadow foregroundStyle reaches GTK labels through wrappers")
     func swiftUIShadowForegroundStyleReachesGTKLabelsThroughWrappers() throws {
         if !gtkTestDisplayIsAvailable() {
@@ -252,6 +375,48 @@ private struct TaskIDProbe: View {
     var body: some View {
         Text("Task ID")
             .task(id: taskID) {}
+    }
+}
+
+private struct KeyedButtonProbe: Identifiable {
+    let id: Int
+    let title: String
+}
+
+private struct KeyedButtonStateProbe: Identifiable {
+    let id: Int
+    let account: State<KeyedButtonProbe>
+}
+
+private struct KeyedButtonRowProbe: View {
+    @State private var account: KeyedButtonProbe
+    let action: (Int) -> Void
+
+    init(account: State<KeyedButtonProbe>, action: @escaping (Int) -> Void) {
+        _account = account
+        self.action = action
+    }
+
+    var body: some View {
+        Button {
+            action(account.id)
+        } label: {
+            Text(account.title)
+        }
+    }
+}
+
+private func collectGTKButtons(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    into buttons: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    if gtk_swift_widget_is_button(widget) != 0 {
+        buttons.append(widget)
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        collectGTKButtons(in: current, into: &buttons)
+        child = gtk_widget_get_next_sibling(current)
     }
 }
 

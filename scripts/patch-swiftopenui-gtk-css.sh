@@ -169,7 +169,8 @@ from pathlib import Path
 observable_path = Path(sys.argv[1])
 bindable_path = Path(sys.argv[2])
 
-observable = observable_path.read_text()
+original_observable = observable_path.read_text()
+observable = original_observable
 if "environmentObservableObjectGeneration" not in observable:
     observable = observable.replace(
         """    private func objectDidChange() {
@@ -222,9 +223,11 @@ elif "private func objectDidChange()" in observable:
         "    func objectDidChange() {",
         1,
     )
-observable_path.write_text(observable)
+if observable != original_observable:
+    observable_path.write_text(observable)
 
-bindable = bindable_path.read_text()
+original_bindable = bindable_path.read_text()
+bindable = original_bindable
 if "notifyEnvironmentObservableObjectMutation(" not in bindable:
     bindable = bindable.replace(
         """            get: { object[keyPath: keyPath] },
@@ -244,7 +247,8 @@ if "notifyEnvironmentObservableObjectMutation(" not in bindable:
 """,
         1,
     )
-bindable_path.write_text(bindable)
+if bindable != original_bindable:
+    bindable_path.write_text(bindable)
 PY
 fi
 
@@ -255,7 +259,8 @@ from pathlib import Path
 path = Path(sys.argv[1])
 if not path.exists():
     raise SystemExit("SwiftOpenUI OnChange modifier source was not found")
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "private struct OnChangeStorageKey: Hashable" not in text:
     old_storage = """/// Global storage for previous onChange values, keyed by render-pass counter.
@@ -362,7 +367,288 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
         raise SystemExit("SwiftOpenUI OnChange two-argument shape was not recognized")
     text = text.replace(old_two_arg, new_two_arg, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+original = path.read_text()
+text = original
+
+transparent_primary_action = '''    if let multi = view as? any TransparentMultiChildView {
+        for child in multi.children {
+            if let action = gtkPrimaryTapAction(inAny: child, depth: depth + 1) {
+                return action
+            }
+        }
+        return nil
+    }
+
+'''
+if transparent_primary_action not in text:
+    marker = '''    let mirror = Mirror(reflecting: view)
+'''
+    function_start = text.find("private func gtkPrimaryTapAction<V: View>")
+    marker_offset = text.find(marker, function_start)
+    if function_start < 0 or marker_offset < 0:
+        raise SystemExit("SwiftOpenUI transparent primary-action traversal shape was not recognized")
+    text = text[:marker_offset] + transparent_primary_action + text[marker_offset:]
+
+test_helper = '''func gtkTestActivatePrimaryTapAction<V: View>(in view: V) -> Bool {
+    guard let action = gtkPrimaryTapAction(in: view) else { return false }
+    action()
+    return true
+}
+
+'''
+if test_helper not in text:
+    marker = "private func gtkScheduleListRowTapAction("
+    function_start = text.find("private func gtkPrimaryTapAction<V: View>")
+    marker_offset = text.find(marker, function_start)
+    if function_start < 0 or marker_offset < 0:
+        raise SystemExit("SwiftOpenUI primary-action test helper insertion point was not recognized")
+    text = text[:marker_offset] + test_helper + text[marker_offset:]
+
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - \
+    "$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/App/App.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/App/WindowSizing.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift" <<'PY'
+from pathlib import Path
+import sys
+
+
+def replace_once(text, old, new, marker, label):
+    if marker in text:
+        return text
+    if old not in text:
+        raise SystemExit(f"SwiftOpenUI {label} shape was not recognized")
+    return text.replace(old, new, 1)
+
+
+app_path, sizing_path, backend_path, renderer_path = map(Path, sys.argv[1:])
+
+original = app_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''    public let quillHidesTitleBar: Bool
+    /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
+''',
+    '''    public let quillHidesTitleBar: Bool
+    /// Rebuilds the startup window content from the original ViewBuilder.
+    /// SwiftUI reevaluates a WindowGroup builder when app-level state changes;
+    /// retaining only the first value would freeze derived environment values.
+    public let quillContentFactory: () -> Content
+    /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
+''',
+    "public let quillContentFactory: () -> Content",
+    "deferred WindowGroup property",
+)
+text = replace_once(
+    text,
+    '''    public init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, content: content())
+    }
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.init(title: "", content: content())
+    }
+
+    public init(id: String, @ViewBuilder content: () -> Content) {
+        self.init(title: id, content: content(), launchesAtStartup: true)
+    }
+''',
+    '''    public init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: title,
+            content: content(),
+            quillContentFactory: content
+        )
+    }
+
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: "",
+            content: content(),
+            quillContentFactory: content
+        )
+    }
+
+    public init(id: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: id,
+            content: content(),
+            launchesAtStartup: true,
+            quillContentFactory: content
+        )
+    }
+''',
+    "public init(_ title: String, @ViewBuilder content: @escaping () -> Content)",
+    "deferred WindowGroup startup initializers",
+)
+text = replace_once(
+    text,
+    '''            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
+''',
+    '''            launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
+            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
+''',
+    "quillContentFactory: { content(.constant(nil)) },\n            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType)",
+    "deferred value WindowGroup factory",
+)
+text = replace_once(
+    text,
+    '''            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
+''',
+    '''            launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
+            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
+''',
+    "quillContentFactory: { content(.constant(nil)) },\n            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType)",
+    "deferred ID value WindowGroup factory",
+)
+text = replace_once(
+    text,
+    '''        launchesAtStartup: Bool = true,
+        quillHidesTitleBar: Bool = false,
+        quillValueTypeKey: String? = nil,
+''',
+    '''        launchesAtStartup: Bool = true,
+        quillHidesTitleBar: Bool = false,
+        quillContentFactory: (() -> Content)? = nil,
+        quillValueTypeKey: String? = nil,
+''',
+    "quillContentFactory: (() -> Content)? = nil",
+    "deferred WindowGroup internal initializer",
+)
+text = replace_once(
+    text,
+    '''        self.launchesAtStartup = launchesAtStartup
+        self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillValueTypeKey = quillValueTypeKey
+''',
+    '''        self.launchesAtStartup = launchesAtStartup
+        self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillContentFactory = quillContentFactory ?? { content }
+        self.quillValueTypeKey = quillValueTypeKey
+''',
+    "self.quillContentFactory = quillContentFactory ?? { content }",
+    "deferred WindowGroup factory storage",
+)
+if text != original:
+    app_path.write_text(text)
+
+original = sizing_path.read_text()
+text = original
+factory_argument = "            quillContentFactory: quillContentFactory,\n"
+if text.count(factory_argument) < 6:
+    anchor = "            quillValueTypeKey: quillValueTypeKey,\n"
+    if text.count(anchor) != 6:
+        raise SystemExit("SwiftOpenUI WindowGroup sizing-copy shape was not recognized")
+    text = text.replace(anchor, factory_argument + anchor)
+if text != original:
+    sizing_path.write_text(text)
+
+original = backend_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''                    content: self.quillContent(forPresentedValue: value),
+                    dismissesWindow: true,
+''',
+    '''                    content: self.quillContent(forPresentedValue: value),
+                    contentFactory: {
+                        self.quillContent(forPresentedValue: value)
+                    },
+                    dismissesWindow: true,
+''',
+    "contentFactory: {\n                        self.quillContent(forPresentedValue: value)",
+    "GTK value-window deferred content",
+)
+text = replace_once(
+    text,
+    "        gtkCreateWindow(app: app, content: content, appStateSource: appStateSource)\n",
+    '''        gtkCreateWindow(
+            app: app,
+            content: content,
+            contentFactory: quillContentFactory,
+            appStateSource: appStateSource
+        )
+''',
+    "contentFactory: quillContentFactory",
+    "GTK startup-window deferred content",
+)
+text = replace_once(
+    text,
+    '''        app: OpaquePointer?,
+        content renderedContent: Content,
+        dismissesWindow: Bool = false,
+''',
+    '''        app: OpaquePointer?,
+        content renderedContent: Content,
+        contentFactory: @escaping () -> Content,
+        dismissesWindow: Bool = false,
+''',
+    "contentFactory: @escaping () -> Content",
+    "GTK deferred content parameter",
+)
+root_call = "gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)"
+if "contentProvider: contentFactory" not in text:
+    if text.count(root_call) != 2:
+        raise SystemExit("SwiftOpenUI GTK WindowGroup root-render shape was not recognized")
+    text = text.replace(
+        root_call,
+        '''gtkRenderWindowRootView(
+                    renderedContent,
+                    appStateSource: appStateSource,
+                    contentProvider: contentFactory
+                )''',
+    )
+if text != original:
+    backend_path.write_text(text)
+
+original = renderer_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> OpaquePointer {
+    let host = GTKViewHost(buildBody: {
+        MainActor.assumeIsolated { gtkRenderView(view) }
+    })
+    host.describeBody = {
+        MainActor.assumeIsolated { gtkDescribeView(view) }
+    }
+''',
+    '''func gtkRenderWindowRootView<V: View>(
+    _ view: V,
+    appStateSource: Any? = nil,
+    contentProvider: (() -> V)? = nil
+) -> OpaquePointer {
+    let buildContent = contentProvider ?? { view }
+    let host = GTKViewHost(buildBody: {
+        gtkAssumeMainActorIsolated { gtkRenderView(buildContent()) }
+    })
+    host.describeBody = {
+        gtkAssumeMainActorIsolated { gtkDescribeView(buildContent()) }
+    }
+''',
+    "contentProvider: (() -> V)? = nil",
+    "GTK root deferred content provider",
+)
+if text != original:
+    renderer_path.write_text(text)
 PY
 
 python3 - "$ON_CHANGE_MODIFIER" <<'PY'
@@ -370,7 +656,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 def replace_once(old: str, new: str, label: str) -> None:
     global text
@@ -630,7 +917,8 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
 """
     replace_once(old_two_arg_tracking, new_two_arg_tracking, "initial two-argument OnChange tracking")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$FRAME_MODIFIER" <<'PY'
@@ -638,7 +926,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "public struct ContainerRelativeFrameView" not in text:
     container_type = r'''
@@ -733,7 +1022,8 @@ if "public func containerRelativeFrame(" not in text:
         raise SystemExit("SwiftOpenUI container-relative frame method insertion shape was not recognized")
     text = text[: -len(close)] + methods + close
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -741,7 +1031,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_single = """extension OnChangeView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
@@ -820,7 +1111,8 @@ extension InitialOnChangeTwoArgView: GTKRenderable {
         raise SystemExit("SwiftOpenUI GTK initial OnChange renderer insertion shape was not recognized")
     text = text.replace(new_two_arg, new_two_arg + initial_renderers, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -828,7 +1120,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "private final class GTKContainerRelativeFrameContext" not in text:
     helpers = r'''private final class GTKContainerRelativeFrameContext {
@@ -1106,7 +1399,8 @@ if "Overlay does not participate in its parent's size" not in overlay:
     overlay = overlay.replace(marker, replacement, 1)
     text = text[:overlay_start] + overlay + text[overlay_end:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$SWIFTOPENUI_MANIFEST" <<'PY'
@@ -1114,7 +1408,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "import Foundation" not in text:
     if "import PackageDescription\n" not in text:
@@ -1248,7 +1543,8 @@ if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
 if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
     raise SystemExit("SwiftOpenUI manifest GTK linker flag patch did not apply")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if [[ -f "$MENU_VIEW" ]]; then
@@ -1257,7 +1553,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_menu = """public struct Menu: View {
     public typealias Body = Never
@@ -1302,7 +1599,8 @@ if "public let labelView: AnyView?" not in text:
 if "public let labelView: AnyView?" not in text or "labelView: AnyView? = nil" not in text:
     raise SystemExit("SwiftOpenUI Menu label storage patch did not apply")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1312,7 +1610,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = """    /// Filled/prominent background.
     case borderedProminent
 """
@@ -1337,7 +1636,8 @@ elif "case quillPaintMacListRow" not in text:
         "    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)\n",
         1,
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1347,7 +1647,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 helpers = r"""
 private protocol SwiftOpenUIButtonRepresentable {
@@ -1498,7 +1799,8 @@ elif (
 ):
     raise SystemExit("SwiftOpenUI confirmationDialog builder overload shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1509,7 +1811,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 accessibility_helpers = """
 // --- Accessibility shims ---
 
@@ -1890,7 +2193,8 @@ gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
     if width_clamp_marker not in text:
         raise SystemExit("SwiftOpenUI GTK compressible width clamp insertion point was not recognized")
     text = text.replace(width_clamp_marker, width_clamp_marker + compressible_height_clamp, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1899,7 +2203,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "public let showsIndicators: Bool" not in text:
     axis_storage = "    public let axes: Axis\n    public let content: Content\n"
@@ -1927,7 +2232,8 @@ if legacy_indicators_init in text:
 elif "self.showsIndicators = showsIndicators" not in text:
     raise SystemExit("SwiftOpenUI ScrollView indicators initializer shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$LOCALIZATION" <<'PY'
@@ -1935,7 +2241,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_plural_struct = """    private struct PluralSubstitution {
         var one: String?
@@ -2130,7 +2437,8 @@ if "private func formatPluralReplacement(_ replacement: String, argument: String
         raise SystemExit("SwiftOpenUI plural replacement helper insertion marker was not recognized")
     text = text.replace(marker, plural_replacement_helper + marker, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$SCROLL_VIEW_READER" <<'PY'
@@ -2138,7 +2446,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 optional_id_helpers = """// MARK: - Optional ID compatibility
 
@@ -2194,7 +2503,8 @@ if "swiftOpenUIHashableScrollID(id)" not in text and old_scroll_to in text:
 elif "swiftOpenUIHashableScrollID(id)" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewProxy.scrollTo shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -2202,7 +2512,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 searchable_visibility_helper = """private func gtkSearchableKeepsChromeVisible(for placement: SearchFieldPlacement) -> Bool {
     switch placement {
@@ -2989,7 +3300,8 @@ insert_search_focus_guard(
     "SwiftOpenUI list row root dispatcher searchable guard shape was not recognized",
 )
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if [[ -f "$SWIFT_DEPENDENCIES_MAIN_QUEUE" ]]; then
@@ -2999,7 +3311,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = "  import Foundation\n"
 insert = """  import Foundation
   #if canImport(OpenCombineDispatch)
@@ -3008,7 +3321,8 @@ insert = """  import Foundation
 """
 if "import OpenCombineDispatch" not in text:
     text = text.replace(needle, insert, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3019,7 +3333,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = "  import Foundation\n"
 insert = """  import Foundation
   #if canImport(OpenCombineFoundation)
@@ -3028,7 +3343,8 @@ insert = """  import Foundation
 """
 if "import OpenCombineFoundation" not in text:
     text = text.replace(needle, insert, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3086,7 +3402,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace("private let lock: os_unfair_lock_t", "private let lock: NSRecursiveLock")
 text = text.replace(
     """self.lock = os_unfair_lock_t.allocate(capacity: 1)
@@ -3135,7 +3452,8 @@ new_extension = """  extension NSRecursiveLock {
   }
 """
 text = text.replace(old_extension, new_extension)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3146,7 +3464,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace("#if DEBUG\n        if store.responds", "#if DEBUG && !os(Linux)\n        if store.responds")
 text = text.replace(
     """      let removeObserver: @Sendable () -> Void
@@ -3206,7 +3525,8 @@ if observer_start != -1 and "#if !os(Linux)\n    private final class Observer" n
             + "\n    #endif"
             + text[observer_end:]
         )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3217,7 +3537,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = """  import CombineSchedulers
   import ConcurrencyExtras
   import Dependencies
@@ -3256,7 +3577,8 @@ if start != -1 and end != -1 and "fileSystemSource: { _, _, _ in" not in text[st
 """
         + text[end:]
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3421,7 +3743,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 if "swiftOpenUIStateDebugLog(_ message: String)" not in text:
     text = text.replace(
         "import Foundation\n",
@@ -3561,21 +3884,23 @@ if 'swiftOpenUIStateDebugLog("state forward type=' not in text:
 """,
         1,
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
-
-perl -0pi \
-  -e 's/css \+= " object-fit: contain;"/css += ""/g;' \
-  -e 's/css \+= " object-fit: cover; overflow: hidden;"/css += " overflow: hidden;"/g;' \
-  "$RENDERER"
 
 python3 - "$RENDERER" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
+text = text.replace('css += " object-fit: contain;"', 'css += ""')
+text = text.replace(
+    'css += " object-fit: cover; overflow: hidden;"',
+    'css += " overflow: hidden;"',
+)
 text = text.replace(
     'applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")',
     'applyCSSToWidget(entry, properties: "background: transparent; background-color: transparent; border: none; outline: none; box-shadow: none; padding: 0;")',
@@ -9367,7 +9692,8 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
         raise SystemExit("SwiftOpenUI ForEach row sizing shape was not recognized")
     text = text.replace(old_patched_foreach, new_patched_foreach, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -9375,7 +9701,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 menu_helper = '''private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
     let className = "gtk-swift-plain-menu-button"
@@ -9549,7 +9876,8 @@ text = text.replace(
 if "host.renderCapturedTaskPayloads(fallback: described.taskPayloads)" not in text:
     raise SystemExit("SwiftOpenUI initial render task lifecycle reconciliation shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$DESCRIPTOR_TREE" <<'PY'
@@ -9557,7 +9885,30 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
+
+if "case statefulLifecycleScope" not in text:
+    marker = "    case listRowLifecycleScope\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor lifecycle-scope enum shape was not recognized")
+    text = text.replace(marker, marker + "    case statefulLifecycleScope\n", 1)
+
+owned_lifecycle_helper = '''/// A stateful host owns lifecycle actions declared in its body even when an
+/// ancestor is suppressing payload collection for its descriptor-only walk.
+func gtkWithOwnedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
+    let previousDepth = gtkDescriptorLifecyclePayloadSuppressionDepth
+    gtkDescriptorLifecyclePayloadSuppressionDepth = 0
+    defer { gtkDescriptorLifecyclePayloadSuppressionDepth = previousDepth }
+    return body()
+}
+
+'''
+if "func gtkWithOwnedDescriptorLifecyclePayloads" not in text:
+    marker = "public func gtkCollectButtonPayload"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor lifecycle ownership insertion point was not recognized")
+    text = text.replace(marker, owned_lifecycle_helper + marker, 1)
 
 render_lifecycle_capture_helper = '''public func gtkCaptureRenderLifecyclePayloads<T>(
     _ render: () -> T
@@ -9588,6 +9939,132 @@ if "gtkCaptureRenderLifecyclePayloads" not in text:
     if marker not in text:
         raise SystemExit("SwiftOpenUI descriptor render lifecycle capture insertion point was not recognized")
     text = text.replace(marker, render_lifecycle_capture_helper + marker, 1)
+
+stateful_descriptor_old = '''                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+'''
+stateful_descriptor_suppressed = '''                children: [gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }]
+'''
+stateful_descriptor_inline_only = r'''            let child: GTK4DescriptorNode
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
+            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [child]
+            )
+'''
+stateful_descriptor_scoped = r'''            let child: GTK4DescriptorNode
+            let kind: GTK4DescriptorKind
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                kind = .composite
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                // The renderer creates a nested GTKViewHost for this view. Its
+                // lifecycle nodes stay available for retained-tree planning,
+                // but the parent host must not map or execute them.
+                kind = .statefulLifecycleScope
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
+            return GTK4DescriptorNode(
+                kind: kind,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [child]
+            )
+'''
+if stateful_descriptor_old in text:
+    text = text.replace(
+        r'''            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+''' + stateful_descriptor_old + '''            )
+''',
+        stateful_descriptor_scoped,
+        1,
+    )
+elif stateful_descriptor_suppressed in text:
+    text = text.replace(
+        r'''            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+''' + stateful_descriptor_suppressed + '''            )
+''',
+        stateful_descriptor_scoped,
+        1,
+    )
+elif stateful_descriptor_inline_only in text:
+    text = text.replace(stateful_descriptor_inline_only, stateful_descriptor_scoped, 1)
+elif stateful_descriptor_scoped not in text:
+    raise SystemExit("SwiftOpenUI stateful descriptor lifecycle ownership shape was not recognized")
+
+text = text.replace(
+    "    case .listRowLifecycleScope: return .none\n",
+    "    case .listRowLifecycleScope, .statefulLifecycleScope: return .none\n",
+    1,
+)
+if "case .listRowLifecycleScope, .statefulLifecycleScope: return .none" not in text:
+    raise SystemExit("SwiftOpenUI stateful lifecycle update-intent shape was not recognized")
+
+task_collector = '''private func gtkCollectTaskDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
+) -> [GTK4DescriptorIdentity] {
+'''
+task_scope_guard = '''    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
+'''
+task_start = text.find(task_collector)
+if task_start < 0:
+    raise SystemExit("SwiftOpenUI task descriptor collector shape was not recognized")
+task_guard_at = task_start + len(task_collector)
+if not text.startswith(task_scope_guard, task_guard_at):
+    text = text[:task_guard_at] + task_scope_guard + text[task_guard_at:]
+
+on_appear_collector = '''private func gtkCollectOnAppearDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
+) -> [GTK4DescriptorIdentity] {
+'''
+on_appear_start = text.find(on_appear_collector)
+if on_appear_start < 0:
+    raise SystemExit("SwiftOpenUI onAppear descriptor collector shape was not recognized")
+on_appear_guard_at = on_appear_start + len(on_appear_collector)
+if not text.startswith(task_scope_guard, on_appear_guard_at):
+    text = text[:on_appear_guard_at] + task_scope_guard + text[on_appear_guard_at:]
+
+payload_function_start = text.find("public func gtkOnAppearPayloadsByIdentity(")
+payload_function_end = text.find("public func gtkButtonPayloadsByIdentity(", payload_function_start)
+if payload_function_start < 0 or payload_function_end < 0:
+    raise SystemExit("SwiftOpenUI onAppear payload mapper shape was not recognized")
+payload_function = text[payload_function_start:payload_function_end]
+plain_mismatch = "    guard identities.count == payloads.count else { return [:] }\n"
+logged_mismatch = r'''    guard identities.count == payloads.count else {
+        gtkDescriptorLifecycleDebugLog(
+            "onAppear payload identity mismatch identities=\(identities.count) payloads=\(payloads.count)"
+        )
+        return [:]
+    }
+'''
+if plain_mismatch in payload_function:
+    payload_function = payload_function.replace(plain_mismatch, logged_mismatch, 1)
+elif logged_mismatch not in payload_function:
+    raise SystemExit("SwiftOpenUI onAppear payload mismatch shape was not recognized")
+text = text[:payload_function_start] + payload_function + text[payload_function_end:]
 
 descriptor_child_helper = '''private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
@@ -9708,7 +10185,8 @@ if (
     if end is None:
         raise SystemExit("SwiftOpenUI descriptor mutation guard end was not recognized")
     text = text[:start] + new_function + text[end:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$ENVIRONMENT" <<'PY'
@@ -9716,7 +10194,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 if "refreshInjectedObjectsFromRegistry" not in text:
     old = '''    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
         setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
@@ -9737,7 +10216,8 @@ if "refreshInjectedObjectsFromRegistry" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI EnvironmentValues latest-object shape was not recognized")
     text = text.replace(old, new, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$GTK_VIEW_HOST" <<'PY'
@@ -9745,7 +10225,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 if "rebuildPresentationRoot" not in text:
     text = text.replace(
         """    private var observationDidFire = false
@@ -9836,13 +10317,16 @@ if "buildBodyCapturingRenderLifecyclePayloads" not in text:
     helper_marker = """    /// Re-runs the describe pass under a fresh withObservationTracking
 """
     helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
-        gtkBeginStateIdentityPass()
-        let captured = gtkCaptureRenderLifecyclePayloads {
-            buildBody()
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                let captured = gtkCaptureRenderLifecyclePayloads {
+                    buildBody()
+                }
+                lastRenderOnAppearPayloads = captured.onAppearPayloads
+                lastRenderTaskPayloads = captured.taskPayloads
+                return captured.value
+            }
         }
-        lastRenderOnAppearPayloads = captured.onAppearPayloads
-        lastRenderTaskPayloads = captured.taskPayloads
-        return captured.value
     }
 
     func renderCapturedOnAppearPayloads(fallback described: [GTK4OnAppearPayload]) -> [GTK4OnAppearPayload] {
@@ -9859,6 +10343,80 @@ if "buildBodyCapturingRenderLifecyclePayloads" not in text:
     text = text.replace(helper_marker, helper + helper_marker, 1)
 elif "renderCapturedTaskPayloads(fallback described" not in text:
     raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle helper shape was not recognized")
+
+legacy_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkBeginStateIdentityPass()
+        let captured = gtkCaptureRenderLifecyclePayloads {
+            buildBody()
+        }
+        lastRenderOnAppearPayloads = captured.onAppearPayloads
+        lastRenderTaskPayloads = captured.taskPayloads
+        return captured.value
+    }
+"""
+namespace_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            let captured = gtkCaptureRenderLifecyclePayloads {
+                buildBody()
+            }
+            lastRenderOnAppearPayloads = captured.onAppearPayloads
+            lastRenderTaskPayloads = captured.taskPayloads
+            return captured.value
+        }
+    }
+"""
+stable_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                let captured = gtkCaptureRenderLifecyclePayloads {
+                    buildBody()
+                }
+                lastRenderOnAppearPayloads = captured.onAppearPayloads
+                lastRenderTaskPayloads = captured.taskPayloads
+                return captured.value
+            }
+        }
+    }
+"""
+if legacy_render_helper in text:
+    text = text.replace(legacy_render_helper, stable_render_helper, 1)
+elif namespace_render_helper in text:
+    text = text.replace(namespace_render_helper, stable_render_helper, 1)
+elif (
+    "private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer" not in text
+    or "gtkWithForcedStateIdentityNamespace(stateIdentityNamespace)" not in text
+    or "gtkWithOwnedDescriptorLifecyclePayloads" not in text
+):
+    raise SystemExit("SwiftOpenUI GTKViewHost lifecycle-owned render shape was not recognized")
+
+legacy_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        gtkBeginStateIdentityPass()
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkDescribeCapturingCanvasPayloads(describeBody)
+"""
+stable_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkDescribeCapturingCanvasPayloads(describeBody)
+        }
+"""
+owned_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                gtkDescribeCapturingCanvasPayloads(describeBody)
+            }
+        }
+"""
+if legacy_describe_scope in text:
+    text = text.replace(legacy_describe_scope, owned_describe_scope, 1)
+elif stable_describe_scope in text:
+    text = text.replace(stable_describe_scope, owned_describe_scope, 1)
+elif owned_describe_scope not in text:
+    raise SystemExit("SwiftOpenUI GTKViewHost lifecycle-owned describe shape was not recognized")
 
 text = text.replace(
     "onAppearPayloads: described.onAppearPayloads",
@@ -9916,7 +10474,8 @@ if "gtkResumeViewHostLifecycleForVisibleSubtree" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI GTKViewHost width tick callback shape was not recognized")
     text = text.replace(old, new, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$LAYOUT" <<'PY'
@@ -9924,7 +10483,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 old = '''    if let maxWidth, maxWidth != .infinity { containerWidth = min(containerWidth, maxWidth) }
     if let maxHeight, maxHeight != .infinity { containerHeight = min(containerHeight, maxHeight) }
 '''
@@ -9937,7 +10497,8 @@ new = '''    if let maxWidth, maxWidth != .infinity {
 '''
 if "expandsToFillWidth && width == nil ? maxWidth" not in text:
     text = text.replace(old, new, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$GTK_BACKEND" <<'PY'
@@ -9945,7 +10506,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
 private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
@@ -10247,7 +10809,8 @@ if "extension Group: GTKWindowRenderable where Content: Scene" not in text:
         text = text.replace(marker, group_scene_rendering + marker, 1)
     else:
         text = text.rstrip() + "\n\n" + group_scene_rendering
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -10255,7 +10818,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = '''        gtk_widget_set_tooltip_text(widget, text)
         return opaqueFromWidget(widget)
 '''
@@ -10275,7 +10839,8 @@ if "gtk_swift_accessible_update_description(widget, textPointer)" not in helpRen
         raise SystemExit("SwiftOpenUI GTK HelpView renderer shape was not recognized")
     helpRenderer = helpRenderer.replace(needle, replacement, 1)
     text = text[:helpStart] + helpRenderer + text[helpEnd:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -10283,7 +10848,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_init = '''    init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content,
                               cellMinWidth: Int) {
@@ -10436,7 +11002,8 @@ while text.count("private func gtkCreateStaticLazyGridWidget(") > 1:
     if second == -1 or end == -1:
         break
     text = text[:second] + text[end + 4:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$TOOLBAR_MODIFIER" <<'PY'
@@ -10444,7 +11011,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old = '''public struct AnyToolbarItem {
     public let placement: ToolbarItemPlacement
@@ -10491,7 +11059,8 @@ if "public let renderedViews: [any View]" not in text:
     if start >= 0 and end > start:
         text = text[:start] + new + text[end:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$NAVIGATION_DESTINATION" <<'PY'
@@ -10499,7 +11068,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "NavigationPresentedDestinationModifier" not in text:
     marker = "\nextension View {"
@@ -10515,7 +11085,8 @@ if "isPresented: Binding<Bool>" not in text:
         raise SystemExit("SwiftOpenUI NavigationDestination closing extension was not recognized")
     text = text[:close] + insertion + text[close:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$NAVIGATION" <<'PY'
@@ -10523,7 +11094,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace(
     "let sidebarW = gtkExtractColumnWidth(from: sidebar) ?? Double(sidebarWidth)",
     "let sidebarW = max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))",
@@ -11644,7 +12216,8 @@ replace_navigation_once(
     "SwiftOpenUI GTK navigation native-destruction callback shape was not recognized",
 )
 text = text.replace("        gtkInstallToolbar(from: detail, on: paned)\n\n", "")
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -11652,7 +12225,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "gtkSwiftNavigationPageInteractivityMarker" not in text:
     text = text.replace(
@@ -11714,7 +12288,8 @@ if "button root skipped inactive navigation page" not in text:
         1,
     )
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
@@ -11735,7 +12310,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 required_symbols = [
     ("arrow.clockwise", "refresh", ["arrow.uturn.clockwise", "calendar"]),
@@ -11822,7 +12398,8 @@ def deduplicate_map_entries(source: str) -> str:
 
 
 text = deduplicate_map_entries(text)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 # Keep direct glyph rendering in sync with the SF -> Material map.
@@ -11832,7 +12409,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 required_codepoints = [
     ("dns", "0xE875", ["description", "find_in_page", "folder"]),
@@ -11883,7 +12461,8 @@ def deduplicate_codepoint_entries(source: str) -> str:
 
 
 text = deduplicate_codepoint_entries(text)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 # Apply QuillPaint integration to GTKRenderer.
@@ -11892,7 +12471,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
@@ -13584,5 +14164,6 @@ if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled
         raise SystemExit("SwiftOpenUI ScrollViewReader vertical horizontal guard shape was not recognized")
     text = text.replace(old_vertical_scroll_horizontal_guard, new_vertical_scroll_horizontal_guard, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY

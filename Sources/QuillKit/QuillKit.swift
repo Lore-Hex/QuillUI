@@ -2544,6 +2544,7 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
         var pathPattern: String?
         var pathPrefix: String?
         var query: String?
+        var requestHeaders: [String: String]
         var requestBodyJSON: Data?
         var statusCode: Int
         var headers: [String: String]
@@ -2567,6 +2568,10 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
                 return false
             }
             if let query, query != (url.query ?? "") {
+                return false
+            }
+            for (field, expectedValue) in requestHeaders
+                where request.value(forHTTPHeaderField: field) != expectedValue {
                 return false
             }
             if let requestBodyJSON,
@@ -3016,6 +3021,7 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
             let method = (object["method"] as? String)?.uppercased()
             let host = object["host"] as? String
             let query = object["query"] as? String
+            let requestHeaders = object["requestHeaders"] as? [String: String] ?? [:]
             let requestBodyJSON = canonicalJSONData(from: object["requestBody"])
             let statusCode = object["status"] as? Int ?? object["statusCode"] as? Int ?? 200
             let headers = object["headers"] as? [String: String] ?? [:]
@@ -3027,6 +3033,7 @@ private final class QuillURLSessionFixtureProtocol: URLProtocol {
                 pathPattern: pathPattern,
                 pathPrefix: pathPrefix,
                 query: query,
+                requestHeaders: requestHeaders,
                 requestBodyJSON: requestBodyJSON,
                 statusCode: statusCode,
                 headers: headers,

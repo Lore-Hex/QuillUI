@@ -2492,13 +2492,25 @@ private final class SwiftUIRewriter: SyntaxRewriter {
 
         if variable.modifiers.contains(where: { modifier in
             let name = modifier.name.text
-            return name == "static" || name == "class" || name == "lazy" || name == "private"
+            return name == "static" || name == "class" || name == "lazy"
         }) {
             return false
         }
 
-        if variable.bindings.contains(where: { $0.accessorBlock != nil }) {
-            return false
+        for binding in variable.bindings {
+            switch binding.accessorBlock?.accessors {
+            case nil:
+                continue
+            case .accessors(let accessors):
+                guard accessors.allSatisfy({ accessor in
+                    let specifier = accessor.accessorSpecifier.text
+                    return specifier == "willSet" || specifier == "didSet"
+                }) else {
+                    return false
+                }
+            case .getter:
+                return false
+            }
         }
 
         return true

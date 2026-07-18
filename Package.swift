@@ -4301,12 +4301,12 @@ let packageTestTargets: [Target] = {
     tests.append(.testTarget(
         name: "SceneKitTests",
         dependencies: ["SceneKit", "AppKit", "UIKit", "QuillFoundation"],
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
     ))
     tests.append(.testTarget(
         name: "CoreGraphicsTests",
         dependencies: ["CoreGraphics"],
-        swiftSettings: appSwiftSettings
+        swiftSettings: quillSwiftTestingAppleOverlaySwiftSettings
     ))
     // Exercises the Apple-framework compatibility modules that real
     // generated Enchanted source imports on Linux. This target stays out of

@@ -711,13 +711,20 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     }
 
     private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
-        gtkBeginStateIdentityPass()
-        let captured = gtkCaptureRenderLifecyclePayloads {
-            buildBody()
+        // A host can be created while a stateless ancestor is rendering under
+        // a forced namespace. Descendants belong to this host, not that
+        // temporary ancestor scope. Re-entering the host namespace here keeps
+        // the initial render and every later rebuild on the same identity path.
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                let captured = gtkCaptureRenderLifecyclePayloads {
+                    buildBody()
+                }
+                lastRenderOnAppearPayloads = captured.onAppearPayloads
+                lastRenderTaskPayloads = captured.taskPayloads
+                return captured.value
+            }
         }
-        lastRenderOnAppearPayloads = captured.onAppearPayloads
-        lastRenderTaskPayloads = captured.taskPayloads
-        return captured.value
     }
 
     func renderCapturedOnAppearPayloads(fallback described: [GTK4OnAppearPayload]) -> [GTK4OnAppearPayload] {
@@ -778,9 +785,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
     ) {
         let previousHost = GTKViewHost.getCurrentRebuilding()
         GTKViewHost.setCurrentRebuilding(self)
-        gtkBeginStateIdentityPass()
         defer { GTKViewHost.setCurrentRebuilding(previousHost) }
-        return gtkDescribeCapturingCanvasPayloads(describeBody)
+        return gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                gtkDescribeCapturingCanvasPayloads(describeBody)
+            }
+        }
     }
 
     func rebuild() {

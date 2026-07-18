@@ -4141,11 +4141,10 @@ extension ForEach: GTKRenderable, GTKDescribable {
             kind: .composite,
             typeName: String(describing: type(of: self)),
             children: data.map { item in
-                gtkWithStateIdentityNamespaceComponent(
-                    gtkForEachStateIdentityComponent(for: item[keyPath: id])
-                ) {
-                    gtkDescribeView(content(item))
-                }
+                GTKStateNamespaceView(
+                    component: gtkForEachStateIdentityComponent(for: item[keyPath: id]),
+                    content: content(item)
+                ).gtkDescribeNode()
             }
         )
     }
@@ -11280,6 +11279,15 @@ private func gtkPrimaryTapAction<V: View>(in view: V, depth: Int = 0) -> (() -> 
         }
     }
 
+    if let multi = view as? any TransparentMultiChildView {
+        for child in multi.children {
+            if let action = gtkPrimaryTapAction(inAny: child, depth: depth + 1) {
+                return action
+            }
+        }
+        return nil
+    }
+
     let mirror = Mirror(reflecting: view)
     if mirror.displayStyle == .optional {
         guard let child = mirror.children.first?.value as? any View else { return nil }
@@ -11317,6 +11325,12 @@ private func gtkPrimaryTapAction<V: View>(in view: V, depth: Int = 0) -> (() -> 
     }
 
     return nil
+}
+
+func gtkTestActivatePrimaryTapAction<V: View>(in view: V) -> Bool {
+    guard let action = gtkPrimaryTapAction(in: view) else { return false }
+    action()
+    return true
 }
 
 private func gtkScheduleListRowTapAction(
@@ -17216,12 +17230,17 @@ private func gtkInstallStateProviders(from source: Any, host: GTKViewHost) -> In
     return providers.count
 }
 
-func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> OpaquePointer {
+func gtkRenderWindowRootView<V: View>(
+    _ view: V,
+    appStateSource: Any? = nil,
+    contentProvider: (() -> V)? = nil
+) -> OpaquePointer {
+    let buildContent = contentProvider ?? { view }
     let host = GTKViewHost(buildBody: {
-        MainActor.assumeIsolated { gtkRenderView(view) }
+        gtkAssumeMainActorIsolated { gtkRenderView(buildContent()) }
     })
     host.describeBody = {
-        MainActor.assumeIsolated { gtkDescribeView(view) }
+        gtkAssumeMainActorIsolated { gtkDescribeView(buildContent()) }
     }
 
     if let appStateSource {

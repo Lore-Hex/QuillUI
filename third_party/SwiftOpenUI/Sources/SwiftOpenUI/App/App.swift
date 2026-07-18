@@ -20,6 +20,29 @@ public extension App {
     }
 }
 
+/// Coordinates callbacks that platform compatibility wrappers register while
+/// an `App` value is being initialized. Backends drain the callbacks after the
+/// complete app value exists and before evaluating its first scene, matching
+/// the ordering of native application launch delegates.
+@MainActor
+public enum SwiftOpenUIAppLifecycle {
+    private static var postInitializationCallbacks: [@MainActor () -> Void] = []
+
+    public static func registerPostInitialization(
+        _ callback: @escaping @MainActor () -> Void
+    ) {
+        postInitializationCallbacks.append(callback)
+    }
+
+    public static func appDidInitialize() {
+        let callbacks = postInitializationCallbacks
+        postInitializationCallbacks.removeAll(keepingCapacity: true)
+        for callback in callbacks {
+            callback()
+        }
+    }
+}
+
 /// A part of an app's user interface with a lifecycle managed by the system.
 /// @MainActor like Apple's SwiftUI.Scene.
 @MainActor @preconcurrency
@@ -58,22 +81,39 @@ public struct WindowGroup<Content: View>: Scene {
     /// Hidden-title-bar request (SwiftUI's `.windowStyle(.hiddenTitleBar)`);
     /// the GTK backend renders the window undecorated when set.
     public let quillHidesTitleBar: Bool
+    /// Rebuilds the startup window content from the original ViewBuilder.
+    /// SwiftUI reevaluates a WindowGroup builder when app-level state changes;
+    /// retaining only the first value would freeze derived environment values.
+    public let quillContentFactory: () -> Content
     /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
     public let quillValueTypeKey: String?
     /// Rebuilds deferred window content with the value passed to
     /// `openWindow(value:)` bound into the `Binding<Value?>` argument.
     public let quillValueContentFactory: ((Any?) -> Content)?
 
-    public init(_ title: String, @ViewBuilder content: () -> Content) {
-        self.init(title: title, content: content())
+    public init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: title,
+            content: content(),
+            quillContentFactory: content
+        )
     }
 
-    public init(@ViewBuilder content: () -> Content) {
-        self.init(title: "", content: content())
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: "",
+            content: content(),
+            quillContentFactory: content
+        )
     }
 
-    public init(id: String, @ViewBuilder content: () -> Content) {
-        self.init(title: id, content: content(), launchesAtStartup: true)
+    public init(id: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: id,
+            content: content(),
+            launchesAtStartup: true,
+            quillContentFactory: content
+        )
     }
 
     public init<Value>(
@@ -84,6 +124,7 @@ public struct WindowGroup<Content: View>: Scene {
             title: String(describing: valueType),
             content: content(.constant(nil)),
             launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
             quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
             quillValueContentFactory: { value in
                 content(.constant(value as? Value))
@@ -100,6 +141,7 @@ public struct WindowGroup<Content: View>: Scene {
             title: id,
             content: content(.constant(nil)),
             launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
             quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
             quillValueContentFactory: { value in
                 content(.constant(value as? Value))
@@ -121,6 +163,7 @@ public struct WindowGroup<Content: View>: Scene {
         windowResizability: WindowResizability? = nil,
         launchesAtStartup: Bool = true,
         quillHidesTitleBar: Bool = false,
+        quillContentFactory: (() -> Content)? = nil,
         quillValueTypeKey: String? = nil,
         quillValueContentFactory: ((Any?) -> Content)? = nil
     ) {
@@ -137,6 +180,7 @@ public struct WindowGroup<Content: View>: Scene {
         self.windowResizability = windowResizability
         self.launchesAtStartup = launchesAtStartup
         self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillContentFactory = quillContentFactory ?? { content }
         self.quillValueTypeKey = quillValueTypeKey
         self.quillValueContentFactory = quillValueContentFactory
     }

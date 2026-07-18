@@ -8,7 +8,7 @@ estimates, not release claims.
 
 - Compile coverage: 100% for `IceCubesLinuxApp`.
 - Runnable app graph source coverage: about 97%.
-- Useful runtime behavior estimate: 83-87%.
+- Useful runtime behavior estimate: 85-89%.
 - Exact macOS-quality visual/interaction parity estimate: 25-30%.
 
 ## P0 Runtime Blockers
@@ -30,9 +30,11 @@ estimates, not release claims.
 - [ ] Login/auth flow: unchanged upstream IceCubes now covers fixture-backed
       app registration, browser authorization, callback URL delivery, token
       exchange, credential verification, account/token persistence,
-      authenticated repaint, and authenticated process relaunch. Account
-      switching/removal, failure recovery, native desktop URL registration,
-      and native Secret Service storage remain open.
+      authenticated repaint, authenticated process relaunch, two-account
+      switching and persistence, current-account removal with deterministic
+      fallback, and failed-token recovery followed by a successful retry.
+      Native desktop URL registration and native Secret Service storage remain
+      open.
 - [ ] Timeline flow: load public/home timelines, render rows, scroll, first
       home pagination, Home refresh, Notifications refresh, Status detail
       refresh, and detail navigation are covered; broader refresh/pagination
@@ -58,7 +60,12 @@ estimates, not release claims.
 
 ## P1 QuillUI/SwiftUI Surface Gaps
 
-- [ ] Exact app lifecycle for canonical `import SwiftUI` apps.
+- [x] `UIApplicationDelegateAdaptor` constructs the unchanged upstream app
+      delegate and delivers `didFinishLaunchingWithOptions` after the complete
+      app value initializes but before the first scene is evaluated on GTK and
+      Qt.
+- [ ] Remaining canonical app lifecycle parity: scene phase transitions,
+      background/foreground events, termination hooks, and restoration.
 - [x] Initial content paint for upstream `TabView`/sidebar app shells. IceCubes
       now paints the logged-out timeline/add-account path instead of a blank
       first window.
@@ -159,7 +166,9 @@ estimates, not release claims.
       QuillUI, QuillKit, QuillData, or Apple framework shim targets.
 - [x] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`.
 - [x] Add CI smokes for upstream Add Account interaction, OAuth callback/token/
-      credential/persistence/relaunch, seeded authenticated shell chrome, seeded
+      credential/persistence/relaunch, failed-token recovery and successful
+      retry, seeded two-account switch/removal/relaunch lifecycle, seeded
+      authenticated shell chrome, seeded
       authenticated Trending sidebar navigation, seeded authenticated Local
       timeline navigation, seeded
       authenticated Federated timeline navigation, seeded authenticated
@@ -174,6 +183,20 @@ estimates, not release claims.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
+
+- 2026-07-18: Completed the unchanged-upstream account lifecycle and OAuth
+  failure-recovery paths. The visual harness seeds two real `AppAccount`
+  records, opens IceCubes' account selector, switches accounts, relaunches to
+  prove the selection persisted, removes the selected account through its real
+  settings action, and relaunches again to prove deterministic fallback. A
+  separate path rejects the first token exchange, proves no account was saved,
+  retries from the same Add Account UI, and reaches the authenticated timeline.
+  The reusable fixes make `@Observable` stored properties with observers
+  publish, persist `AppStorage` writes before cross-process relaunch, preserve
+  keyed `ForEach` structure, give nested GTK state hosts ownership of their
+  lifecycle payloads, construct `UIApplicationDelegateAdaptor` through generic
+  source lowering, and rebuild `WindowGroup` content from its original builder
+  when app-level state changes. No IceCubes UI source is patched.
 
 - 2026-07-17: Completed a deterministic unchanged-upstream IceCubes login and
   persisted-relaunch journey. The GTK harness types `mastodon.social`, invokes

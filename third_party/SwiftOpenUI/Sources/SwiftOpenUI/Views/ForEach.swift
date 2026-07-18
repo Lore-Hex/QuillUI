@@ -15,6 +15,8 @@ public struct ForEach<Data, ID: Hashable, Content: View>: View, TransparentMulti
     }
 }
 
+extension ForEach: _ViewBuilderIdentityPreservingView {}
+
 // MARK: - Identifiable data
 
 public extension ForEach {

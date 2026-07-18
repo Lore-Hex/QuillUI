@@ -1740,6 +1740,9 @@ struct QuillDataSourceLoweringTests {
         final class AppModel {
             var title = "Quill"
             private var cachedTitle = ""
+            var selectedTitle = "" {
+                didSet { cachedTitle = selectedTitle }
+            }
             static var sharedTitle = "Shared"
         }
 
@@ -1825,7 +1828,8 @@ struct QuillDataSourceLoweringTests {
 """))
         #expect(lowered.contains("final class AppModel: QuillObservableObject"))
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
-        #expect(lowered.contains("private var cachedTitle = \"\""))
+        #expect(lowered.contains("@QuillPublished private var cachedTitle = \"\""))
+        #expect(lowered.contains("@QuillPublished var selectedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
         #expect(lowered.contains("image.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))"))
@@ -1858,6 +1862,12 @@ struct QuillDataSourceLoweringTests {
         )
         let swiftOpenUIManifest = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Package.swift"
+        )
+        let app = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/App/App.swift"
+        )
+        let windowSizing = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/App/WindowSizing.swift"
         )
         let descriptorTree = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
@@ -1937,7 +1947,7 @@ struct QuillDataSourceLoweringTests {
                 encoding: .utf8
             ).write(to: destination, atomically: true, encoding: .utf8)
         }
-        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -3051,6 +3061,8 @@ struct QuillDataSourceLoweringTests {
         // contracts, while the patcher is exercised as an idempotent pass over
         // the current vendored upstream.
         try copyVendoredSwiftOpenUIFile("Package.swift", to: swiftOpenUIManifest)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/App/App.swift", to: app)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/App/WindowSizing.swift", to: windowSizing)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKRenderer.swift", to: renderer)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift", to: descriptorTree)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4Backend.swift", to: backend)
@@ -3452,7 +3464,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
-        #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))
+        #expect(!patchedViewHost.contains("gtkBeginStateIdentityPass()"))
+        #expect(patchedViewHost.contains("gtkWithForcedStateIdentityNamespace(stateIdentityNamespace)"))
+        #expect(patchedViewHost.contains("gtkWithOwnedDescriptorLifecyclePayloads"))
         #expect(patchedViewHost.contains("result = buildBodyCapturingRenderLifecyclePayloads()"))
         #expect(patchedViewHost.contains("private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer"))
         #expect(patchedViewHost.contains("var rebuildPresentationRoot: gpointer?"))

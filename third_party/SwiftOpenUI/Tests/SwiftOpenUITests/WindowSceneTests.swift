@@ -51,6 +51,34 @@ final class WindowSceneTests: XCTestCase {
         XCTAssertEqual(openedContent.content, "editor:draft")
     }
 
+    func testStartupWindowGroupReevaluatesOriginalContentFactory() {
+        var label = "signed out"
+        let group = WindowGroup {
+            Text(label)
+        }
+
+        XCTAssertEqual(group.content.content, "signed out")
+
+        label = "signed in"
+        XCTAssertEqual(group.quillContentFactory().content, "signed in")
+    }
+
+    func testStartupWindowGroupContentFactorySurvivesSizingModifiers() {
+        var label = "first"
+        let group = WindowGroup {
+            Text(label)
+        }
+        .defaultSize(width: 700, height: 500)
+        .windowResizability(.contentMinSize)
+
+        label = "replacement"
+
+        XCTAssertEqual(group.quillContentFactory().content, "replacement")
+        XCTAssertEqual(group.defaultWindowWidth, 700)
+        XCTAssertEqual(group.defaultWindowHeight, 500)
+        XCTAssertEqual(group.windowResizability, .contentMinSize)
+    }
+
     func testValueWindowGroupMetadataSurvivesSizingModifiers() {
         let group = WindowGroup(id: "Editor", for: Destination.self) { destination in
             Text(Self.label(for: destination.wrappedValue))

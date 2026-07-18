@@ -146,7 +146,17 @@ struct SwiftUILoweringTests {
             class var subclassValue: Int { 6 }
             private var cached = 7
             private(set) var readOnly = 8
+            var selected = false {
+                didSet { selectionChanges += 1 }
+            }
+            private var selectionChanges = 0 {
+                willSet { _ = newValue }
+            }
             var computed: Int { 9 }
+            var explicitComputed: Int {
+                get { 10 }
+                set { _ = newValue }
+            }
             @Published var alreadyPublished = 10
             @QuillPublished var alreadyQuillPublished = 11
         }
@@ -158,16 +168,18 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("@QuillPublished fileprivate var fileValue = 4"))
         #expect(lowered.contains("static var shared = 5"))
         #expect(lowered.contains("class var subclassValue: Int { 6 }"))
-        #expect(lowered.contains("private var cached = 7"))
-        #expect(lowered.contains("private(set) var readOnly = 8"))
+        #expect(lowered.contains("@QuillPublished private var cached = 7"))
+        #expect(lowered.contains("@QuillPublished private(set) var readOnly = 8"))
+        #expect(lowered.contains("@QuillPublished var selected = false"))
+        #expect(lowered.contains("@QuillPublished private var selectionChanges = 0"))
         #expect(lowered.contains("var computed: Int { 9 }"))
+        #expect(lowered.contains("var explicitComputed: Int"))
         #expect(lowered.contains("@Published var alreadyPublished = 10"))
         #expect(lowered.contains("@QuillPublished var alreadyQuillPublished = 11"))
         #expect(!lowered.contains("@QuillPublished static var"))
         #expect(!lowered.contains("@QuillPublished class var"))
-        #expect(!lowered.contains("@QuillPublished private var"))
-        #expect(!lowered.contains("@QuillPublished private(set)"))
         #expect(!lowered.contains("@QuillPublished var computed"))
+        #expect(!lowered.contains("@QuillPublished var explicitComputed"))
         #expect(!lowered.contains("@QuillPublished @Published"))
         #expect(!lowered.contains("@QuillPublished @QuillPublished"))
     }

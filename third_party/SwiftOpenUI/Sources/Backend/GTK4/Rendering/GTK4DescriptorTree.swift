@@ -31,6 +31,7 @@ public enum GTK4DescriptorKind: Equatable {
     case foregroundColor
     case hStack
     case listRowLifecycleScope
+    case statefulLifecycleScope
     case padding
     case slider
     case spacer
@@ -616,6 +617,15 @@ func gtkWithSuppressedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
     return body()
 }
 
+/// A stateful host owns lifecycle actions declared in its body even when an
+/// ancestor is suppressing payload collection for its descriptor-only walk.
+func gtkWithOwnedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
+    let previousDepth = gtkDescriptorLifecyclePayloadSuppressionDepth
+    gtkDescriptorLifecyclePayloadSuppressionDepth = 0
+    defer { gtkDescriptorLifecyclePayloadSuppressionDepth = previousDepth }
+    return body()
+}
+
 public func gtkCollectButtonPayload(_ payload: GTK4ButtonPayload) {
     guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
     let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
@@ -671,6 +681,13 @@ public func gtkCaptureRenderLifecyclePayloads<T>(
 private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
 
+    // Structural views such as ForEach carry semantic identity in their GTK
+    // descriptor. Flattening them here makes repeated button payloads
+    // positional again, so a reused row can execute a sibling model's action.
+    if view is any GTKDescribable {
+        return [view]
+    }
+
     let mirror = Mirror(reflecting: view)
     if mirror.displayStyle == .optional {
         guard let child = mirror.children.first?.value as? any View else { return [] }
@@ -718,10 +735,27 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     }
     if hasReactiveProperties(view) {
         if V.Body.self != Never.self {
+            let child: GTK4DescriptorNode
+            let kind: GTK4DescriptorKind
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                kind = .composite
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                // The renderer creates a nested GTKViewHost for this view. Its
+                // lifecycle nodes stay available for retained-tree planning,
+                // but the parent host must not map or execute them.
+                kind = .statefulLifecycleScope
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
             return GTK4DescriptorNode(
-                kind: .composite,
+                kind: kind,
                 typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
-                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+                children: [child]
             )
         }
         return GTK4DescriptorNode(
@@ -927,7 +961,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
     case .frame:         return .frameLayout
     case .foregroundColor: return .foregroundColor
     case .hStack:        return .hStackLayout
-    case .listRowLifecycleScope: return .none
+    case .listRowLifecycleScope, .statefulLifecycleScope: return .none
     case .padding:       return .paddingLayout
     case .slider:
         guard case let .slider(oldSlider) = old.props,
@@ -1637,7 +1671,12 @@ public func gtkOnAppearPayloadsByIdentity(
         from: descriptorRoot,
         includingListRowScopes: includingListRowScopes
     )
-    guard identities.count == payloads.count else { return [:] }
+    guard identities.count == payloads.count else {
+        gtkDescriptorLifecycleDebugLog(
+            "onAppear payload identity mismatch identities=\(identities.count) payloads=\(payloads.count)"
+        )
+        return [:]
+    }
 
     var result: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
     for (identity, payload) in zip(identities, payloads) {
@@ -1677,6 +1716,9 @@ private func gtkCollectTaskDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode,
     includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
     if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
         return []
     }
@@ -1709,6 +1751,9 @@ private func gtkCollectOnAppearDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode,
     includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
     if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
         return []
     }

@@ -2,6 +2,9 @@
 @resultBuilder
 public struct ViewBuilder {
     private static func childViews(from view: any View) -> [any View] {
+        if view is any _ViewBuilderIdentityPreservingView {
+            return [view]
+        }
         if let multi = view as? any TransparentMultiChildView {
             return multi.children
         }
@@ -41,6 +44,10 @@ public struct ViewBuilder {
         ViewList(childViews(from: accumulated) + childViews(from: next))
     }
 }
+
+/// Structural views whose identity must survive result-builder composition.
+/// Backends expand these views with their semantic keys intact.
+protocol _ViewBuilderIdentityPreservingView {}
 
 /// Represents a conditional view from if/else in a ViewBuilder.
 public enum _ConditionalView<TrueContent: View, FalseContent: View>: View, PrimitiveView {

@@ -23,6 +23,8 @@ TYPE_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_TYPE_KEY_DELAY_MS:-25}"
 TYPE_INSTANCE_READY_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_TYPE_INSTANCE_READY_TIMEOUT_SECONDS:-20}"
 SIGN_IN_X="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_X:-410}"
 SIGN_IN_Y="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_Y:-256}"
+AUTH_TIMELINE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_X:-82}"
+AUTH_TIMELINE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_Y:-78}"
 AUTH_TRENDING_X="${QUILLUI_ICECUBES_VISUAL_AUTH_TRENDING_X:-82}"
 AUTH_TRENDING_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_TRENDING_Y:-117}"
 AUTH_LOCAL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_LOCAL_X:-82}"
@@ -58,6 +60,8 @@ AUTH_MESSAGES_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_DETAIL_X:-360}"
 AUTH_MESSAGES_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_DETAIL_Y:-92}"
 AUTH_MESSAGES_DETAIL_READ_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v1/conversations/conversation-1001/read"
 AUTH_MESSAGES_DETAIL_CONTEXT_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/conversation-status-1001/context"
+AUTH_PUSH_SUBSCRIPTION_DELETE_LOG="[QuillURLSessionFixtures] direct DELETE https://mastodon.social/api/v1/push/subscription"
+AUTH_PUSH_SUBSCRIPTION_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/push/subscription"
 AUTH_MESSAGES_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRIES:-5}"
 AUTH_MESSAGES_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_PROFILE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_X:-82}"
@@ -91,6 +95,28 @@ AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISU
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X:-289}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y:-278}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS:-0.8}"
+AUTH_ACCOUNT_SELECTOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_X:-5}"
+AUTH_ACCOUNT_SELECTOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_Y:-28}"
+AUTH_ACCOUNT_SELECTOR_ROW_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_ROW_X:-400}"
+AUTH_ACCOUNT_SELECTOR_ROW_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_ROW_Y:-149}"
+AUTH_ACCOUNT_SELECTOR_DONE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_DONE_X:-625}"
+AUTH_ACCOUNT_SELECTOR_DONE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_DONE_Y:-93}"
+AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS:-0.75}"
+AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES:-5}"
+AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CLICK_RETRIES:-5}"
+AUTH_SETTINGS_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CLICK_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_CURRENT_ACCOUNT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CURRENT_ACCOUNT_X:-500}"
+AUTH_SETTINGS_CURRENT_ACCOUNT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CURRENT_ACCOUNT_Y:-487}"
+AUTH_ACCOUNT_LOGOUT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_X:-520}"
+AUTH_ACCOUNT_LOGOUT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_Y:-487}"
+AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS:-0}"
+AUTH_ACCOUNT_PRIMARY_NAME="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_NAME:-zulu@mastodon.social}"
+AUTH_ACCOUNT_PRIMARY_TOKEN="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_TOKEN:-quillui-primary-token}"
+AUTH_ACCOUNT_PRIMARY_CREATED_AT="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_CREATED_AT:-1700000002}"
+AUTH_ACCOUNT_SECONDARY_NAME="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_NAME:-alpha@mastodon.social}"
+AUTH_ACCOUNT_SECONDARY_TOKEN="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_TOKEN:-quillui-secondary-token}"
+AUTH_ACCOUNT_SECONDARY_CREATED_AT="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_CREATED_AT:-1700000001}"
 AUTH_LIST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_X:-32}"
 AUTH_LIST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_Y:-586}"
 AUTH_LIST_REPAINT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_REPAINT_SETTLE_SECONDS:-8}"
@@ -196,6 +222,7 @@ SIGN_IN_OPEN_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SEC
 OPEN_URL_LOG_PATH="${QUILLUI_ICECUBES_VISUAL_OPEN_URL_LOG:-$(dirname "$SCREENSHOT_PATH")/icecubes-open-url.log}"
 OAUTH_CALLBACK_FILE_PATH="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_FILE:-$(dirname "$SCREENSHOT_PATH")/icecubes-web-auth-callback.txt}"
 OAUTH_CALLBACK_URL="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_URL:-icecubesapp://oauth?code=quill-oauth-code}"
+OAUTH_FAILURE_CALLBACK_URL="${QUILLUI_ICECUBES_VISUAL_OAUTH_FAILURE_CALLBACK_URL:-icecubesapp://oauth?code=quill-oauth-failure}"
 OAUTH_CALLBACK_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS:-25}"
 OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS:-0.5}"
 OAUTH_APP_REGISTER_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v1/apps"
@@ -306,13 +333,7 @@ APP_CONFIG_HOME="$APP_HOME/.config"
 rm -rf "$QUILLDATA_HOME"
 mkdir -p "$QUILLDATA_HOME" "$APP_CONFIG_HOME"
 
-if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
-  seed_env=()
-  if [[ "$INTERACTION" == "seeded-authenticated-status-detail-bookmark" ]]; then
-    seed_env+=("QUILLUI_ICECUBES_SEED_STATUS_ACTION_SECONDARY=bookmark")
-  fi
-  mkdir -p "$(dirname "$KEYCHAIN_STORE_PATH")"
-  rm -f "$KEYCHAIN_STORE_PATH"
+run_icecubes_account_helper() {
   env \
     QUILLDATA_HOME="$QUILLDATA_HOME" \
     HOME="$APP_HOME" \
@@ -320,8 +341,102 @@ if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
     QUILLUI_KEYCHAINSWIFT_STORE_PATH="$KEYCHAIN_STORE_PATH" \
     QUILLUI_LINUX_BACKEND=gtk \
     QUILLUI_ICECUBES=1 \
-    "${seed_env[@]}" \
+    "$@"
+}
+
+seed_icecubes_account() {
+  local account_name="$1"
+  local access_token="$2"
+  local created_at="$3"
+
+  run_icecubes_account_helper \
+    QUILLUI_ICECUBES_SEED_ACCOUNT_NAME="$account_name" \
+    QUILLUI_ICECUBES_SEED_ACCESS_TOKEN="$access_token" \
+    QUILLUI_ICECUBES_SEED_CREATED_AT="$created_at" \
     "$SEED_EXECUTABLE"
+}
+
+verify_icecubes_account_snapshot() {
+  local expected_current_token="$1"
+  local expected_count="$2"
+  shift 2
+  local snapshot_path="$QUILLDATA_HOME/account-snapshot.json"
+
+  run_icecubes_account_helper \
+    QUILLUI_ICECUBES_SEED_OPERATION=inspect \
+    "$SEED_EXECUTABLE" >"$snapshot_path"
+
+  python3 - "$snapshot_path" "$expected_current_token" "$expected_count" "$@" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+expected_current_token = sys.argv[2]
+expected_count = int(sys.argv[3])
+expected_tokens = set(sys.argv[4:])
+lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+if not lines:
+    raise SystemExit(f"IceCubes account snapshot is empty: {path}")
+snapshot = json.loads(lines[-1])
+accounts = snapshot.get("accounts") or []
+if len(accounts) != expected_count:
+    raise SystemExit(f"Expected {expected_count} IceCubes accounts, found {len(accounts)}: {accounts!r}")
+
+tokens = {account.get("accessToken") for account in accounts}
+if tokens != expected_tokens:
+    raise SystemExit(f"IceCubes account token set mismatch: expected={expected_tokens!r} actual={tokens!r}")
+if snapshot.get("currentAccessToken") != expected_current_token:
+    raise SystemExit(
+        "IceCubes current account token mismatch: "
+        f"expected={expected_current_token!r} actual={snapshot.get('currentAccessToken')!r}"
+    )
+
+current_id = snapshot.get("currentAccountID")
+current_matches = [
+    account for account in accounts
+    if account.get("id") == current_id and account.get("accessToken") == expected_current_token
+]
+if len(current_matches) != 1:
+    raise SystemExit(f"IceCubes current account identity is inconsistent: {snapshot!r}")
+if len({account.get("id") for account in accounts}) != expected_count:
+    raise SystemExit(f"IceCubes account IDs are not unique: {accounts!r}")
+if any(account.get("server") != "mastodon.social" for account in accounts):
+    raise SystemExit(f"IceCubes account server mismatch: {accounts!r}")
+
+print(
+    "IceCubes account snapshot: "
+    f"current={expected_current_token}, accounts={sorted(expected_tokens)}"
+)
+PY
+}
+
+if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
+  seed_env=()
+  if [[ "$INTERACTION" == "seeded-authenticated-status-detail-bookmark" ]]; then
+    seed_env+=("QUILLUI_ICECUBES_SEED_STATUS_ACTION_SECONDARY=bookmark")
+  fi
+  mkdir -p "$(dirname "$KEYCHAIN_STORE_PATH")"
+  rm -f "$KEYCHAIN_STORE_PATH"
+  if [[ "$INTERACTION" == "seeded-authenticated-account-lifecycle" ]]; then
+    # Seed the secondary account first so the unchanged manager's fallback
+    # order is deterministic after the selected account is removed.
+    seed_icecubes_account \
+      "$AUTH_ACCOUNT_SECONDARY_NAME" \
+      "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+      "$AUTH_ACCOUNT_SECONDARY_CREATED_AT"
+    seed_icecubes_account \
+      "$AUTH_ACCOUNT_PRIMARY_NAME" \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      "$AUTH_ACCOUNT_PRIMARY_CREATED_AT"
+    verify_icecubes_account_snapshot \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      2 \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+  else
+    run_icecubes_account_helper "${seed_env[@]}" "$SEED_EXECUTABLE"
+  fi
 fi
 
 app_env=()
@@ -335,7 +450,9 @@ if [[ -z "${QUILLUI_URLSESSION_FIXTURES_DEBUG:-}" ]]; then
     "QUILLUI_URLSESSION_FIXTURES_DEBUG=1"
   )
 fi
-if [[ "$INTERACTION" == "sign-in-open" || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == "sign-in-open" \
+  || "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   mkdir -p "$(dirname "$OPEN_URL_LOG_PATH")"
   rm -f "$OPEN_URL_LOG_PATH"
   app_env+=(
@@ -343,7 +460,8 @@ if [[ "$INTERACTION" == "sign-in-open" || "$INTERACTION" == "sign-in-callback-pe
     "QUILLUI_OPEN_URL_LOG_ASSUME_HANDLED=1"
   )
 fi
-if [[ "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   mkdir -p "$(dirname "$OAUTH_CALLBACK_FILE_PATH")"
   rm -f "$OAUTH_CALLBACK_FILE_PATH"
   : >"$OAUTH_CALLBACK_FILE_PATH"
@@ -351,7 +469,9 @@ if [[ "$INTERACTION" == "sign-in-callback-persistence" ]]; then
     "QUILLUI_WEB_AUTH_CALLBACK_FILE=$OAUTH_CALLBACK_FILE_PATH"
   )
 fi
-if [[ "$INTERACTION" == seeded-authenticated-* || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == seeded-authenticated-* \
+  || "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   app_env+=(
     "QUILLUI_KEYCHAINSWIFT_STORE_PATH=$KEYCHAIN_STORE_PATH"
   )
@@ -426,6 +546,21 @@ start_icecubes_app() {
   capture_window_id="$window_id"
   trace_visual_window "$trace_label-main" "$window_id"
   trace_visual_windows_for_pid "$trace_label-visible"
+}
+
+stop_icecubes_app() {
+  local pid="${app_pid:-}"
+  [[ -n "$pid" ]] || return 0
+
+  quillui_stop_process_if_running "$pid"
+  for _ in $(seq 1 50); do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+  wait "$pid" 2>/dev/null || true
+  app_pid=""
 }
 
 start_icecubes_app truncate initial
@@ -903,18 +1038,22 @@ submit_authenticated_composer_text() {
 }
 
 verify_oauth_open_url_log() {
-  python3 - "$OPEN_URL_LOG_PATH" <<'PY'
+  local minimum_count="${1:-1}"
+  python3 - "$OPEN_URL_LOG_PATH" "$minimum_count" <<'PY'
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 path = Path(sys.argv[1])
+minimum_count = int(sys.argv[2])
 if not path.exists() or path.stat().st_size == 0:
     raise SystemExit(f"IceCubes OAuth open URL log was not written: {path}")
 
 urls = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-if not urls:
-    raise SystemExit(f"IceCubes OAuth open URL log is empty: {path}")
+if len(urls) < minimum_count:
+    raise SystemExit(
+        f"IceCubes OAuth open URL log has {len(urls)} entries; expected at least {minimum_count}: {path}"
+    )
 
 url = urls[-1]
 parsed = urlparse(url)
@@ -938,6 +1077,7 @@ PY
 
 wait_for_oauth_open_url_log() {
   local retry_click="${1:-0}"
+  local minimum_count="${2:-1}"
   case "$SIGN_IN_OPEN_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS must be a non-negative integer, got: $SIGN_IN_OPEN_TIMEOUT_SECONDS" >&2
@@ -950,7 +1090,7 @@ wait_for_oauth_open_url_log() {
   next_retry_click=$((SECONDS + 2))
   output=""
   while true; do
-    if output="$(verify_oauth_open_url_log 2>&1)"; then
+    if output="$(verify_oauth_open_url_log "$minimum_count" 2>&1)"; then
       printf '%s\n' "$output"
       return 0
     fi
@@ -965,6 +1105,14 @@ wait_for_oauth_open_url_log() {
     fi
     sleep 0.5
   done
+}
+
+count_oauth_open_url_entries() {
+  if [[ -f "$OPEN_URL_LOG_PATH" ]]; then
+    grep -cve '^[[:space:]]*$' "$OPEN_URL_LOG_PATH" || true
+  else
+    echo 0
+  fi
 }
 
 wait_for_authenticated_timeline_activity() {
@@ -1068,6 +1216,7 @@ wait_for_authenticated_api_activity() {
 }
 
 deliver_oauth_callback() {
+  local callback_url="${1:-$OAUTH_CALLBACK_URL}"
   case "$OAUTH_CALLBACK_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS must be a non-negative integer, got: $OAUTH_CALLBACK_TIMEOUT_SECONDS" >&2
@@ -1075,14 +1224,16 @@ deliver_oauth_callback() {
       ;;
   esac
 
-  printf '%s\n' "$OAUTH_CALLBACK_URL" >>"$OAUTH_CALLBACK_FILE_PATH"
+  printf '%s\n' "$callback_url" >>"$OAUTH_CALLBACK_FILE_PATH"
 }
 
 wait_for_oauth_callback_completion() {
+  local minimum_token_count="${1:-1}"
+  local minimum_verify_count="${2:-1}"
   local deadline=$((SECONDS + OAUTH_CALLBACK_TIMEOUT_SECONDS))
   while true; do
-    if (( $(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG") >= 1 )) \
-      && (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= 1 )); then
+    if (( $(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG") >= minimum_token_count )) \
+      && (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= minimum_verify_count )); then
       return 0
     fi
     if ! kill -0 "$app_pid" >/dev/null 2>&1; then
@@ -1097,6 +1248,37 @@ wait_for_oauth_callback_completion() {
     fi
     sleep 0.25
   done
+}
+
+verify_no_persisted_oauth_accounts() {
+  python3 - "$KEYCHAIN_STORE_PATH" <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists() or path.stat().st_size == 0:
+    print(f"IceCubes OAuth failure left no account store at {path}")
+    raise SystemExit(0)
+
+records = json.loads(path.read_text(encoding="utf-8"))
+accounts = []
+for record in records:
+    encoded = record.get("value", {}).get("data")
+    if not encoded:
+        continue
+    try:
+        payload = json.loads(base64.b64decode(encoded).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        continue
+    if isinstance(payload, dict) and payload.get("oauthToken"):
+        accounts.append(payload)
+
+if accounts:
+    raise SystemExit(f"IceCubes OAuth failure unexpectedly persisted accounts: {accounts!r}")
+print(f"IceCubes OAuth failure persisted zero accounts in {path}")
+PY
 }
 
 verify_persisted_oauth_account() {
@@ -1147,7 +1329,7 @@ relaunch_icecubes_with_persisted_oauth_account() {
   local previous_home_count
   previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
 
-  quillui_stop_process_if_running "$app_pid"
+  stop_icecubes_app
   printf '\n[QuillUIIceCubesHarness] persisted OAuth relaunch\n' >>"$APP_LOG_PATH"
   start_icecubes_app append oauth-relaunch
   sleep "$OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS"
@@ -1413,6 +1595,15 @@ wait_for_authenticated_route_visual() {
     fi
     sleep 0.5
   done
+}
+
+authenticated_route_visual_is_ready() {
+  local product="$1"
+  local probe_path="${SCREENSHOT_PATH%.*}.${product}-ready.png"
+
+  kill -0 "$app_pid" >/dev/null 2>&1 || return 1
+  DISPLAY="$DISPLAY_ID" timeout 10 import -window "$window_id" "$probe_path" >/dev/null 2>&1 || return 1
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$product" >/dev/null 2>&1
 }
 
 should_retry_final_visual_capture() {
@@ -1952,8 +2143,155 @@ open_authenticated_list_route() {
 open_authenticated_settings_route() {
   wait_for_authenticated_timeline_activity
   wait_for_authenticated_home_row_visual
-  click_app_window_point "$AUTH_SETTINGS_X" "$AUTH_SETTINGS_Y"
+  local attempt
+  for attempt in $(seq 1 "$AUTH_SETTINGS_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_SETTINGS_X" "$AUTH_SETTINGS_Y"
+    sleep "$AUTH_SETTINGS_CLICK_RETRY_SECONDS"
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings"; then
+      break
+    fi
+  done
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-settings" "authenticated Settings route"
+}
+
+open_authenticated_account_selector() {
+  wait_for_authenticated_timeline_activity
+  wait_for_authenticated_home_row_visual
+  local previous_verify_count
+  previous_verify_count="$(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG")"
+  local expected_verify_count attempt
+  expected_verify_count="$((previous_verify_count + 2))"
+  for attempt in $(seq 1 "$AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_ACCOUNT_SELECTOR_X" "$AUTH_ACCOUNT_SELECTOR_Y"
+    sleep "$AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS"
+    if (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= expected_verify_count )); then
+      break
+    fi
+  done
+  wait_for_app_log_exact_activity \
+    "$OAUTH_VERIFY_CREDENTIALS_LOG" \
+    "account-selector credential refresh" \
+    "$expected_verify_count"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-selector" \
+    "authenticated account selector"
+}
+
+dismiss_authenticated_account_selector() {
+  click_app_window_point "$AUTH_ACCOUNT_SELECTOR_DONE_X" "$AUTH_ACCOUNT_SELECTOR_DONE_Y"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-shell" \
+    "authenticated shell after account-selector dismissal"
+}
+
+switch_authenticated_account() {
+  local previous_home_count
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+  click_app_window_point "$AUTH_ACCOUNT_SELECTOR_ROW_X" "$AUTH_ACCOUNT_SELECTOR_ROW_Y"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "account-switch Home timeline rebuild" \
+    "$((previous_home_count + 1))"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-shell" \
+    "authenticated shell after account switch"
+  verify_icecubes_account_snapshot \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+    2 \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+}
+
+relaunch_icecubes_for_account() {
+  local expected_current_token="$1"
+  local expected_count="$2"
+  local trace_label="$3"
+  shift 3
+  local previous_home_count
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+
+  stop_icecubes_app
+  verify_icecubes_account_snapshot "$expected_current_token" "$expected_count" "$@"
+  printf '\n[QuillUIIceCubesHarness] %s relaunch\n' "$trace_label" >>"$APP_LOG_PATH"
+  start_icecubes_app append "$trace_label"
+  sleep "$OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "$trace_label authenticated relaunch" \
+    "$((previous_home_count + 1))"
+  wait_for_authenticated_home_row_visual
+}
+
+open_authenticated_current_account_settings() {
+  open_authenticated_settings_route
+  sleep "$AUTH_SETTINGS_CHILD_CLICK_SETTLE_SECONDS"
+  local attempt
+  for attempt in $(seq 1 "$AUTH_SETTINGS_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_SETTINGS_CURRENT_ACCOUNT_X" "$AUTH_SETTINGS_CURRENT_ACCOUNT_Y"
+    sleep "$AUTH_SETTINGS_CLICK_RETRY_SECONDS"
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-account-settings"; then
+      break
+    fi
+  done
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-settings" \
+    "authenticated current-account settings"
+}
+
+remove_authenticated_current_account() {
+  local previous_delete_count previous_get_count previous_home_count
+  previous_delete_count="$(count_app_log_exact_occurrences "$AUTH_PUSH_SUBSCRIPTION_DELETE_LOG")"
+  previous_get_count="$(count_app_log_exact_occurrences "$AUTH_PUSH_SUBSCRIPTION_GET_LOG")"
+  scroll_authenticated_settings_content \
+    "$AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS" \
+    "QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-settings" \
+    "authenticated current-account logout action"
+  click_app_window_point "$AUTH_ACCOUNT_LOGOUT_X" "$AUTH_ACCOUNT_LOGOUT_Y"
+  wait_for_app_log_exact_activity \
+    "$AUTH_PUSH_SUBSCRIPTION_DELETE_LOG" \
+    "current-account push-subscription deletion" \
+    "$((previous_delete_count + 1))"
+  wait_for_app_log_exact_activity \
+    "$AUTH_PUSH_SUBSCRIPTION_GET_LOG" \
+    "current-account push-subscription deletion confirmation" \
+    "$((previous_get_count + 1))"
+
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+  click_app_window_point "$AUTH_TIMELINE_X" "$AUTH_TIMELINE_Y"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "fallback-account Home timeline" \
+    "$((previous_home_count + 1))"
+  wait_for_authenticated_home_row_visual
+}
+
+run_authenticated_account_lifecycle() {
+  wait_for_authenticated_timeline_activity
+  wait_for_authenticated_home_row_visual
+  open_authenticated_account_selector
+  switch_authenticated_account
+  relaunch_icecubes_for_account \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+    2 \
+    account-switch \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+  open_authenticated_current_account_settings
+  remove_authenticated_current_account
+  relaunch_icecubes_for_account \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    1 \
+    account-removal-fallback \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN"
+  verify_icecubes_account_snapshot \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    1 \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN"
 }
 
 scroll_authenticated_settings_content() {
@@ -2176,10 +2514,54 @@ case "$INTERACTION" in
     verify_persisted_oauth_account
     relaunch_icecubes_with_persisted_oauth_account
     ;;
+  sign-in-failure-recovery)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
+    type_instance_name
+    wait_for_add_account_selected_instance_visual
+    previous_token_exchange_count="$(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG")"
+    previous_verify_credentials_count="$(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG")"
+    click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+    wait_for_oauth_open_url_log retry-click
+    wait_for_app_log_exact_activity "$OAUTH_APP_REGISTER_LOG" "failed OAuth app registration"
+    deliver_oauth_callback "$OAUTH_FAILURE_CALLBACK_URL"
+    wait_for_app_log_exact_activity \
+      "$OAUTH_TOKEN_EXCHANGE_LOG" \
+      "failed OAuth token exchange" \
+      "$((previous_token_exchange_count + 1))"
+    sleep 0.75
+    if (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") != previous_verify_credentials_count )); then
+      echo "IceCubes unexpectedly verified credentials after the rejected OAuth token exchange." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    verify_no_persisted_oauth_accounts
+    wait_for_add_account_selected_instance_visual
+
+    previous_oauth_url_count="$(count_oauth_open_url_entries)"
+    previous_app_register_count="$(count_app_log_exact_occurrences "$OAUTH_APP_REGISTER_LOG")"
+    previous_token_exchange_count="$(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG")"
+    click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+    wait_for_oauth_open_url_log 0 "$((previous_oauth_url_count + 1))"
+    wait_for_app_log_exact_activity \
+      "$OAUTH_APP_REGISTER_LOG" \
+      "retried OAuth app registration" \
+      "$((previous_app_register_count + 1))"
+    deliver_oauth_callback "$OAUTH_CALLBACK_URL"
+    wait_for_oauth_callback_completion \
+      "$((previous_token_exchange_count + 1))" \
+      "$((previous_verify_credentials_count + 1))"
+    wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
+    verify_persisted_oauth_account
+    ;;
   seeded-authenticated-shell)
     VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
     wait_for_authenticated_timeline_activity
     wait_for_authenticated_home_row_visual
+    ;;
+  seeded-authenticated-account-lifecycle)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
+    run_authenticated_account_lifecycle
     ;;
   seeded-authenticated-home-pagination)
     VERIFY_PRODUCT="icecubes-linux-authenticated-home-pagination"

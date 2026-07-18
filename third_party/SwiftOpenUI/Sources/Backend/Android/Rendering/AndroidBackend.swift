@@ -114,6 +114,7 @@ public func androidCurrentNodeId() -> Int64 {
 /// Render an App's view tree to a JSON string for the Kotlin host.
 public func androidRenderAppToJSON<A: App>(_ appType: A.Type) -> String {
     let instance = A()
+    SwiftOpenUIAppLifecycle.appDidInitialize()
     let scene = instance.body
     return androidRenderSceneToJSON(scene)
 }

@@ -3095,6 +3095,27 @@ final class GTK4RenderTests: XCTestCase {
                        "onAppear should not re-run for unrelated rebuilds of the same descriptor identity")
     }
 
+    func testReactiveGTKRenderableLeavesNestedOnAppearWithEnclosingHost() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKReactiveRenderableOnAppearProbe(counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "A reactive GTKRenderable is rendered inline, so its nested onAppear must be owned by the enclosing host"
+        )
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1)
+    }
+
     func testOnAppearSurvivesParentHostFullRemountWhenStateIdentityMatches() throws {
         try requireGTK()
 
@@ -3119,6 +3140,93 @@ final class GTK4RenderTests: XCTestCase {
 
         XCTAssertEqual(counter.value, 1,
                        "Child onAppear should not re-run when a parent full rebuild remounts the same state identity")
+    }
+
+    func testWindowRootStatefulDescendantKeepsIdentityInsideStatelessWrapper() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKStatelessRootProbeView {
+                GTKParentRemountOnAppearProbeView(tick: tick, counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial descendant onAppear should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(
+            counter.value,
+            1,
+            "A stateful descendant created inside a stateless window-root wrapper must keep the same identity on rebuild"
+        )
+    }
+
+    func testWindowRootNestedTaskRunsOnceInsideStatelessWrapper() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKStatelessRootProbeView {
+                GTKParentRemountTaskProbeView(tick: tick, counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial descendant task should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(
+            counter.value,
+            1,
+            "A nested task must be owned by its stateful host and survive parent remounts"
+        )
+    }
+
+    func testStatefulListRowOwnsNestedOnAppearLifecycle() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderView(
+            List {
+                GTKListRowOnAppearProbeView(counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "A stateful list-row host must collect the onAppear declared in its own body"
+        )
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1)
     }
 
     func testOnAppearRunsAgainAfterConditionalReinsert() throws {
@@ -4174,6 +4282,22 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testFormRowPrimaryActionTraversesViewBuilderChildren() throws {
+        try requireGTK()
+
+        let recorder = GTKButtonActionRecorder()
+        let row = HStack {
+            Text("Account")
+            GTKStatefulFormRowButtonProbeView(recorder: recorder)
+        }
+
+        XCTAssertTrue(
+            gtkTestActivatePrimaryTapAction(in: row),
+            "A Form row must discover a Button nested behind ViewBuilder's transparent ViewList"
+        )
+        XCTAssertEqual(recorder.values, [42])
+    }
+
     func testExplicitIdResetsStatefulSubviewIdentity() throws {
         try requireGTK()
 
@@ -4449,6 +4573,39 @@ final class GTK4RenderTests: XCTestCase {
             generation,
             "Mutating an app-level @Observable stored in @State should publish through the root window host storage."
         )
+    }
+
+    func testWindowRootReevaluatesContentProviderAfterAppObservableMutation() throws {
+        try requireGTK()
+
+        let appState = GTKWindowRootEnvironmentAppStateProbe()
+        let manager = appState.manager
+        let makeContent = {
+            GTKWindowRootEnvironmentReaderProbe()
+                .environment(manager.client)
+        }
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            makeContent(),
+            appStateSource: appState,
+            contentProvider: makeContent
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(gtkLabelTexts(in: widget).contains("client signed-out"))
+
+        manager.client = GTKWindowRootClientProbe(name: "signed-in")
+        drainGTKMainContext(maxIterations: 300)
+
+        let labels = gtkLabelTexts(in: widget)
+        XCTAssertTrue(
+            labels.contains("client signed-in"),
+            "A WindowGroup root rebuild must reevaluate its builder and inject the replacement object; labels: \(labels)"
+        )
+        XCTAssertFalse(labels.contains("client signed-out"))
     }
 
     func testItemSheetRootOverlayProgrammaticDismissBypassesDismissalInterception() throws {
@@ -5391,6 +5548,38 @@ private struct GTKOnAppearOnceProbeView: View {
     }
 }
 
+private struct GTKReactiveRenderableOnAppearProbe: View, GTKRenderable {
+    @State private var marker = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(marker ? "ready" : "waiting")
+            .onAppear {
+                marker = true
+                counter.increment()
+            }
+    }
+
+    @MainActor
+    func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(body)
+    }
+}
+
+private struct GTKListRowOnAppearProbeView: View {
+    @State private var didAppear = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(didAppear ? "appeared" : "waiting")
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                counter.increment()
+            }
+    }
+}
+
 private struct GTKConditionalOnAppearProbeView: View {
     @State private var show: Bool
     let counter: GTKTaskRunCounter
@@ -5434,6 +5623,55 @@ private struct GTKParentRemountOnAppearProbeView: View {
                 }
             }
         }
+    }
+}
+
+private struct GTKStatelessRootProbeView<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+    }
+}
+
+private struct GTKParentRemountTaskProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            GTKChildRemountedTaskProbeView(counter: counter)
+            if tick.isMultiple(of: 2) {
+                Text("even task \(tick)")
+            } else {
+                HStack {
+                    Text("odd task \(tick)")
+                    Text("detail")
+                }
+            }
+        }
+    }
+}
+
+private struct GTKChildRemountedTaskProbeView: View {
+    @State private var loaded = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(loaded ? "task loaded" : "task loading")
+            .task {
+                counter.increment()
+                loaded = true
+            }
     }
 }
 
@@ -5731,6 +5969,17 @@ private struct GTKMutableButtonActionProbeView: View {
     }
 }
 
+private struct GTKStatefulFormRowButtonProbeView: View {
+    @State private var isReady = true
+    let recorder: GTKButtonActionRecorder
+
+    var body: some View {
+        Button(isReady ? "Open account" : "Waiting") {
+            recorder.record(42)
+        }
+    }
+}
+
 private struct GTKMutableIdentifiedStateProbeView: View {
     @State private var selectedID: Int
     let recorder: GTKButtonActionRecorder
@@ -5807,6 +6056,30 @@ private final class GTKWindowRootObservableProbe: ObservableObject {
 
 private struct GTKWindowRootAppStateProbe {
     @State var model = GTKWindowRootObservableProbe()
+}
+
+private final class GTKWindowRootClientProbe: ObservableObject {
+    let name: String
+
+    init(name: String) {
+        self.name = name
+    }
+}
+
+private final class GTKWindowRootClientManagerProbe: ObservableObject {
+    @Published var client = GTKWindowRootClientProbe(name: "signed-out")
+}
+
+private struct GTKWindowRootEnvironmentAppStateProbe {
+    @State var manager = GTKWindowRootClientManagerProbe()
+}
+
+private struct GTKWindowRootEnvironmentReaderProbe: View {
+    @Environment(GTKWindowRootClientProbe.self) private var client
+
+    var body: some View {
+        Text("client \(client.name)")
+    }
 }
 
 private func requireGTK(

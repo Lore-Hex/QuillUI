@@ -85,6 +85,59 @@ struct AppKitLoweringTests {
         #expect(lowered.contains("nonisolated required override init() { super.init() }"))
     }
 
+    @Test("UIApplicationDelegate classes gain a concrete SwiftUI adaptor factory")
+    func uiApplicationDelegateAdaptorFactory() {
+        let source = """
+        import SwiftUI
+        import UIKit
+
+        class AppDelegate: UIResponder, UIApplicationDelegate {
+            func application(
+                _ application: UIApplication,
+                didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+            ) -> Bool {
+                true
+            }
+        }
+        """
+
+        let lowering = AppKitLowering()
+        let lowered = lowering.lower(source)
+        #expect(lowered.contains("class AppDelegate: UIResponder, UIApplicationDelegate, QuillUIApplicationDelegateFactory {"))
+        #expect(lowered.contains("static func quillMakeUIApplicationDelegate() -> any UIApplicationDelegate {"))
+        #expect(lowered.contains("AppDelegate()"))
+        #expect(!lowered.contains("required override init()"))
+        #expect(lowering.lower(lowered) == lowered)
+    }
+
+    @Test("Focused application-delegate lowering leaves unrelated UIKit classes unchanged")
+    func focusedUIApplicationDelegateAdaptorFactory() {
+        let source = """
+        import SwiftUI
+        import UIKit
+
+        class AppDelegate: UIResponder, UIApplicationDelegate {}
+
+        class ActivityViewController: UIViewController {
+            let value: String
+
+            init(value: String) {
+                self.value = value
+                super.init()
+            }
+        }
+        """
+
+        let lowering = ApplicationDelegateAdaptorLowering()
+        let lowered = lowering.lower(source)
+        #expect(lowered.contains("class AppDelegate: UIResponder, UIApplicationDelegate, QuillUIApplicationDelegateFactory {"))
+        #expect(lowered.contains("static func quillMakeUIApplicationDelegate() -> any UIApplicationDelegate {"))
+        #expect(lowered.contains("AppDelegate()"))
+        #expect(lowered.contains("class ActivityViewController: UIViewController {"))
+        #expect(!lowered.contains("nonisolated override init()"))
+        #expect(lowering.lower(lowered) == lowered)
+    }
+
     @Test("NSPanel subclasses get missing no-arg init override in generated Linux source")
     func panelSubclassNoArgInitGetsOverride() {
         let source = """
