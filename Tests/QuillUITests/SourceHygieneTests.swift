@@ -11543,9 +11543,11 @@ struct SourceHygieneTests {
         #expect(script.contains("AUTH_NOTIFICATIONS_INITIAL_ENDPOINT=\"/api/v2/notifications?grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full\""))
         #expect(script.contains("AUTH_NOTIFICATIONS_REFRESH_ENDPOINT=\"/api/v2/notifications?since_id=1002&grouped_types%5B%5D=favourite&grouped_types%5B%5D=follow&grouped_types%5B%5D=reblog&expand_accounts=full\""))
         #expect(script.contains("wait_for_authenticated_api_activity \"$AUTH_NOTIFICATIONS_INITIAL_ENDPOINT\" \"authenticated Notifications sidebar navigation\""))
-        #expect(script.contains("wait_for_authenticated_api_activity \"$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT\" \"authenticated Notifications display refresh\""))
-        #expect(script.contains("authenticated Notifications display refresh"))
-        #expect(script.contains("authenticated Notifications refresh"))
+        #expect(script.contains("""
+        trigger_authenticated_refresh_shortcut \\
+              "$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT" \\
+              "authenticated Notifications refresh" \\
+        """))
         #expect(script.contains("AUTH_NOTIFICATIONS_Y"))
         #expect(script.contains("seeded-authenticated-status-detail"))
         #expect(script.contains("seeded-authenticated-status-detail-boost"))

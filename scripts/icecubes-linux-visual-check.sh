@@ -2097,12 +2097,10 @@ open_authenticated_explore_route() {
 open_authenticated_notifications_route() {
   wait_for_authenticated_timeline_activity
   wait_for_authenticated_home_row_visual
-  local previous_notifications_count previous_notifications_refresh_count
+  local previous_notifications_count
   previous_notifications_count="$(count_app_log_occurrences "$AUTH_NOTIFICATIONS_INITIAL_ENDPOINT")"
-  previous_notifications_refresh_count="$(count_app_log_occurrences "$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT")"
   click_app_window_point "$AUTH_NOTIFICATIONS_X" "$AUTH_NOTIFICATIONS_Y"
   wait_for_authenticated_api_activity "$AUTH_NOTIFICATIONS_INITIAL_ENDPOINT" "authenticated Notifications sidebar navigation" "$((previous_notifications_count + 1))"
-  wait_for_authenticated_api_activity "$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT" "authenticated Notifications display refresh" "$((previous_notifications_refresh_count + 1))"
 }
 
 open_authenticated_messages_route() {
@@ -2861,10 +2859,8 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       SETTLE_SECONDS="0"
       ;;
     sign-in-callback-persistence|seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
-      # Notifications has a separate data-source repaint after selection. The
-      # route-specific wait above observes IceCubes' post-display refresh (or
-      # status-detail/context fetch), so
-      # only leave enough time for GTK to paint the populated row.
+      # Route-specific waits observe the final data request. Leave only enough
+      # time for GTK to paint the populated route.
       SETTLE_SECONDS="0.5"
       ;;
     seeded-authenticated-*)
