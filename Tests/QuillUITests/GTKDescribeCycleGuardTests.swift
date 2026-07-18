@@ -43,10 +43,19 @@ struct GTKDescribeCycleGuardTests {
 
     @Test("Explore-style modifier chain preserves task payloads")
     func exploreStyleModifierChainPreservesTaskPayloads() {
+        let view = ExploreTaskModifierProbe()
+        let parentCaptured = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(view)
+        }
         let captured = gtkDescribeCapturingCanvasPayloads {
-            gtkDescribeView(ExploreTaskModifierProbe())
+            gtkDescribeView(view.body)
         }
 
+        #expect(parentCaptured.descriptor.kind == .statefulLifecycleScope)
+        #expect(
+            parentCaptured.taskPayloads.isEmpty,
+            "The parent descriptor must not steal tasks owned by the nested stateful host"
+        )
         #expect(
             captured.taskPayloads.count == 2,
             "Expected both the load .task and search .task(id:) payloads to survive the Explore modifier chain"

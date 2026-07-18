@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 
 /// Source-compatible accessibility options used by `KeychainSwift` callers.
 public enum KeychainSwiftAccessOptions: String, Sendable {
@@ -43,11 +48,14 @@ private struct KeychainSwiftStorageRecord: Codable {
 open class KeychainSwift: @unchecked Sendable {
     private final class Storage: @unchecked Sendable {
         private let lock = NSLock()
+        private let defaultStoreURL: URL
         private var storeURL: URL
         private var values: [KeychainSwiftStorageKey: KeychainSwiftStorageValue] = [:]
 
         init() {
-            storeURL = Self.defaultStoreURL()
+            let defaultStoreURL = Self.makeDefaultStoreURL()
+            self.defaultStoreURL = defaultStoreURL
+            storeURL = defaultStoreURL
             values = Self.loadValues(from: storeURL)
         }
 
@@ -108,7 +116,7 @@ open class KeychainSwift: @unchecked Sendable {
         func useStoreForTesting(_ url: URL?) {
             lock.lock()
             defer { lock.unlock() }
-            storeURL = url ?? Self.defaultStoreURL()
+            storeURL = url ?? defaultStoreURL
             values = Self.loadValues(from: storeURL)
         }
 
@@ -170,14 +178,25 @@ open class KeychainSwift: @unchecked Sendable {
             return loaded
         }
 
-        private static func defaultStoreURL() -> URL {
-            if let override = ProcessInfo.processInfo.environment["QUILLUI_KEYCHAINSWIFT_STORE_PATH"],
+        private static func environmentValue(for key: String) -> String? {
+            #if canImport(Darwin) || canImport(Glibc)
+            return key.withCString { keyPointer in
+                guard let valuePointer = getenv(keyPointer) else { return nil }
+                return String(validatingCString: valuePointer)
+            }
+            #else
+            return ProcessInfo.processInfo.environment[key]
+            #endif
+        }
+
+        private static func makeDefaultStoreURL() -> URL {
+            if let override = environmentValue(for: "QUILLUI_KEYCHAINSWIFT_STORE_PATH"),
                !override.isEmpty {
                 return URL(fileURLWithPath: override)
             }
 
             #if os(Linux)
-            if let dataHome = ProcessInfo.processInfo.environment["XDG_DATA_HOME"],
+            if let dataHome = environmentValue(for: "XDG_DATA_HOME"),
                !dataHome.isEmpty {
                 return URL(fileURLWithPath: dataHome)
                     .appendingPathComponent("QuillUI", isDirectory: true)
