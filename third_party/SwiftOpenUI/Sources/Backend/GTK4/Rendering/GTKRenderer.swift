@@ -3115,10 +3115,16 @@ private func gtkDispatchButtonRootPress(
 extension Button: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         gtkCollectButtonPayload(GTK4ButtonPayload(action: bindActionToCurrentEnvironment(action)))
-        // Opaque stable leaf. The descriptor payload collector captures the
-        // current action closure and the host refreshes reused GtkButtons
-        // during narrow mutation, so model-dependent actions do not go stale.
-        return GTK4DescriptorNode(kind: .button, typeName: "Button")
+        // Keep the button identity stable while describing its label. The
+        // payload collector refreshes model-dependent actions, and the label
+        // subtree lets retained hosts repaint titles without remounting the
+        // native GtkButton. Labels that cannot be paired to native slots make
+        // the narrow path fail closed and take the full rebuild path.
+        return GTK4DescriptorNode(
+            kind: .button,
+            typeName: "Button",
+            children: [gtkDescribeView(label)]
+        )
     }
 
     public func gtkCreateWidget() -> OpaquePointer {

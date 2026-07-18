@@ -39,6 +39,18 @@ final class GTK4DescriptorTests: XCTestCase {
         XCTAssertEqual(node.children[1].kind, .text)
     }
 
+    func testDescribeButtonIncludesLabelContent() {
+        let node = gtkDescribeView(Button("Resolved account") {})
+
+        XCTAssertEqual(node.kind, .button)
+        XCTAssertEqual(node.children.count, 1)
+        XCTAssertEqual(node.children[0].kind, .text)
+        XCTAssertEqual(
+            node.children[0].props,
+            .text(GTK4TextDescriptor(content: "Resolved account"))
+        )
+    }
+
     func testDescribeMarksReactiveHostLifecycleBoundary() {
         let node = gtkDescribeView(GTKDescriptorStatefulBoundaryProbe())
         XCTAssertEqual(node.kind, .statefulLifecycleScope)
