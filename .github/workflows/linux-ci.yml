@@ -217,8 +217,8 @@ jobs:
       - name: Upstream IceCubes GTK Add Account interaction smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=type-instance scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account-instance.png
 
-      - name: Upstream IceCubes GTK OAuth open smoke
-        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=sign-in-open scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-add-account-oauth-open.png
+      - name: Upstream IceCubes GTK OAuth callback and persisted relaunch smoke
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=sign-in-callback-persistence scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-oauth-callback-persisted.png
 
       - name: Upstream IceCubes GTK authenticated shell smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-shell scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-shell.png

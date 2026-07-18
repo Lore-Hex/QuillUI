@@ -1,6 +1,53 @@
 {
   "fixtures": [
     {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/api/v1/apps",
+      "requestBody": {
+        "client_name": "IceCubesApp",
+        "redirect_uris": "icecubesapp://",
+        "scopes": "read write follow push",
+        "website": "https://github.com/Dimillian/IceCubesApp"
+      },
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-oauth-app",
+        "name": "IceCubesApp",
+        "website": "https://github.com/Dimillian/IceCubesApp",
+        "redirect_uri": "icecubesapp://",
+        "client_id": "quill-oauth-client",
+        "client_secret": "quill-oauth-secret",
+        "vapid_key": "quill-oauth-vapid-key"
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/oauth/token",
+      "requestBody": {
+        "client_id": "quill-oauth-client",
+        "client_secret": "quill-oauth-secret",
+        "code": "quill-oauth-code",
+        "grant_type": "authorization_code",
+        "redirect_uri": "icecubesapp://",
+        "scope": "read write follow push"
+      },
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "access_token": "quill-oauth-access-token",
+        "token_type": "Bearer",
+        "scope": "read write follow push",
+        "created_at": 1784321000
+      }
+    },
+    {
       "method": "GET",
       "host": "mastodon.social",
       "path": "/api/v1/accounts/verify_credentials",

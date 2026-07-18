@@ -194,6 +194,13 @@ WINDOW_TRACE="${QUILLUI_ICECUBES_VISUAL_TRACE_WINDOWS:-0}"
 FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_FINAL_CAPTURE_RETRY_TIMEOUT_SECONDS:-8}"
 SIGN_IN_OPEN_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS:-25}"
 OPEN_URL_LOG_PATH="${QUILLUI_ICECUBES_VISUAL_OPEN_URL_LOG:-$(dirname "$SCREENSHOT_PATH")/icecubes-open-url.log}"
+OAUTH_CALLBACK_FILE_PATH="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_FILE:-$(dirname "$SCREENSHOT_PATH")/icecubes-web-auth-callback.txt}"
+OAUTH_CALLBACK_URL="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_URL:-icecubesapp://oauth?code=quill-oauth-code}"
+OAUTH_CALLBACK_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS:-25}"
+OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS:-0.5}"
+OAUTH_APP_REGISTER_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v1/apps"
+OAUTH_TOKEN_EXCHANGE_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/oauth/token"
+OAUTH_VERIFY_CREDENTIALS_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/accounts/verify_credentials"
 SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_SETTLE_SECONDS:-}"
 INITIAL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_INITIAL_SETTLE_SECONDS:-}"
 DEFAULT_URLSESSION_FIXTURES_FILE="$ROOT_DIR/Tests/Fixtures/IceCubes/mastodon-fixtures.json"
@@ -328,7 +335,7 @@ if [[ -z "${QUILLUI_URLSESSION_FIXTURES_DEBUG:-}" ]]; then
     "QUILLUI_URLSESSION_FIXTURES_DEBUG=1"
   )
 fi
-if [[ "$INTERACTION" == "sign-in-open" ]]; then
+if [[ "$INTERACTION" == "sign-in-open" || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
   mkdir -p "$(dirname "$OPEN_URL_LOG_PATH")"
   rm -f "$OPEN_URL_LOG_PATH"
   app_env+=(
@@ -336,7 +343,15 @@ if [[ "$INTERACTION" == "sign-in-open" ]]; then
     "QUILLUI_OPEN_URL_LOG_ASSUME_HANDLED=1"
   )
 fi
-if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
+if [[ "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+  mkdir -p "$(dirname "$OAUTH_CALLBACK_FILE_PATH")"
+  rm -f "$OAUTH_CALLBACK_FILE_PATH"
+  : >"$OAUTH_CALLBACK_FILE_PATH"
+  app_env+=(
+    "QUILLUI_WEB_AUTH_CALLBACK_FILE=$OAUTH_CALLBACK_FILE_PATH"
+  )
+fi
+if [[ "$INTERACTION" == seeded-authenticated-* || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
   app_env+=(
     "QUILLUI_KEYCHAINSWIFT_STORE_PATH=$KEYCHAIN_STORE_PATH"
   )
@@ -361,40 +376,59 @@ if [[ "$INTERACTION" == seeded-authenticated-*-refresh ]]; then
   )
 fi
 
-env \
-  DISPLAY="$DISPLAY_ID" \
-  GTK_A11Y=none \
-  GSK_RENDERER=cairo \
-  HOME="$APP_HOME" \
-  XDG_CONFIG_HOME="$APP_CONFIG_HOME" \
-  QUILLUI_BACKEND=gtk \
-  QUILLDATA_HOME="$QUILLDATA_HOME" \
-  "${app_env[@]}" \
-  "$APP_EXECUTABLE" >"$APP_LOG_PATH" 2>&1 &
-app_pid=$!
+start_icecubes_app() {
+  local log_mode="${1:-truncate}"
+  local trace_label="${2:-main}"
 
-window_id=""
-for _ in $(seq 1 60); do
-  if ! kill -0 "$app_pid" >/dev/null 2>&1; then
-    echo "IceCubes app exited before a window was visible." >&2
+  case "$log_mode" in
+    truncate)
+      : >"$APP_LOG_PATH"
+      ;;
+    append)
+      ;;
+    *)
+      echo "Unknown IceCubes app log mode: $log_mode" >&2
+      exit 2
+      ;;
+  esac
+
+  env \
+    DISPLAY="$DISPLAY_ID" \
+    GTK_A11Y=none \
+    GSK_RENDERER=cairo \
+    HOME="$APP_HOME" \
+    XDG_CONFIG_HOME="$APP_CONFIG_HOME" \
+    QUILLUI_BACKEND=gtk \
+    QUILLDATA_HOME="$QUILLDATA_HOME" \
+    "${app_env[@]}" \
+    "$APP_EXECUTABLE" >>"$APP_LOG_PATH" 2>&1 &
+  app_pid=$!
+
+  window_id=""
+  for _ in $(seq 1 60); do
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      echo "IceCubes app exited before a window was visible." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
+    [[ -n "$window_id" ]] && break
+    sleep 0.5
+  done
+
+  if [[ -z "$window_id" ]]; then
+    echo "IceCubes app did not map a visible window." >&2
     quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
     exit 1
   fi
-  window_id="$(quillui_find_visible_window_for_pid "$DISPLAY_ID" "$app_pid")"
-  [[ -n "$window_id" ]] && break
-  sleep 0.5
-done
 
-if [[ -z "$window_id" ]]; then
-  echo "IceCubes app did not map a visible window." >&2
-  quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
-  exit 1
-fi
+  quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
+  capture_window_id="$window_id"
+  trace_visual_window "$trace_label-main" "$window_id"
+  trace_visual_windows_for_pid "$trace_label-visible"
+}
 
-quillui_move_window_to_origin "$DISPLAY_ID" "$window_id"
-capture_window_id="$window_id"
-trace_visual_window "initial-main" "$window_id"
-trace_visual_windows_for_pid "initial-visible"
+start_icecubes_app truncate initial
 if [[ -z "$INITIAL_SETTLE_SECONDS" ]]; then
   if [[ -n "$SETTLE_SECONDS" ]]; then
     INITIAL_SETTLE_SECONDS="$SETTLE_SECONDS"
@@ -1031,6 +1065,99 @@ wait_for_authenticated_api_activity() {
   local label="$2"
   local min_count="${3:-1}"
   wait_for_app_log_activity "$pattern" "$label" "$min_count"
+}
+
+deliver_oauth_callback() {
+  case "$OAUTH_CALLBACK_TIMEOUT_SECONDS" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS must be a non-negative integer, got: $OAUTH_CALLBACK_TIMEOUT_SECONDS" >&2
+      exit 2
+      ;;
+  esac
+
+  printf '%s\n' "$OAUTH_CALLBACK_URL" >>"$OAUTH_CALLBACK_FILE_PATH"
+}
+
+wait_for_oauth_callback_completion() {
+  local deadline=$((SECONDS + OAUTH_CALLBACK_TIMEOUT_SECONDS))
+  while true; do
+    if (( $(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG") >= 1 )) \
+      && (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= 1 )); then
+      return 0
+    fi
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      echo "IceCubes app exited while waiting for OAuth callback completion." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    if (( SECONDS >= deadline )); then
+      echo "Timed out waiting for IceCubes OAuth token exchange and credential verification." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 160
+      exit 1
+    fi
+    sleep 0.25
+  done
+}
+
+verify_persisted_oauth_account() {
+  python3 - "$KEYCHAIN_STORE_PATH" <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists() or path.stat().st_size == 0:
+    raise SystemExit(f"IceCubes OAuth keychain store was not written: {path}")
+
+records = json.loads(path.read_text(encoding="utf-8"))
+accounts = []
+for record in records:
+    encoded = record.get("value", {}).get("data")
+    if not encoded:
+        continue
+    try:
+        payload = json.loads(base64.b64decode(encoded).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        continue
+    if isinstance(payload, dict) and payload.get("server") == "mastodon.social":
+        accounts.append(payload)
+
+if len(accounts) != 1:
+    raise SystemExit(f"Expected one persisted mastodon.social account, found {len(accounts)}")
+
+account = accounts[0]
+token = account.get("oauthToken") or {}
+if account.get("accountName") != "quill@mastodon.social":
+    raise SystemExit(f"Persisted IceCubes account name mismatch: {account.get('accountName')!r}")
+if token.get("accessToken") != "quill-oauth-access-token":
+    raise SystemExit(f"Persisted IceCubes OAuth access token mismatch: {token.get('accessToken')!r}")
+if token.get("tokenType") != "Bearer":
+    raise SystemExit(f"Persisted IceCubes OAuth token type mismatch: {token.get('tokenType')!r}")
+if set((token.get("scope") or "").split()) != {"read", "write", "follow", "push"}:
+    raise SystemExit(f"Persisted IceCubes OAuth scope mismatch: {token.get('scope')!r}")
+if token.get("createdAt") != 1784321000:
+    raise SystemExit(f"Persisted IceCubes OAuth creation time mismatch: {token.get('createdAt')!r}")
+
+print(f"IceCubes OAuth account persisted in {path}")
+PY
+}
+
+relaunch_icecubes_with_persisted_oauth_account() {
+  local previous_home_count
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+
+  quillui_stop_process_if_running "$app_pid"
+  printf '\n[QuillUIIceCubesHarness] persisted OAuth relaunch\n' >>"$APP_LOG_PATH"
+  start_icecubes_app append oauth-relaunch
+  sleep "$OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS"
+
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "persisted OAuth authenticated relaunch" \
+    "$((previous_home_count + 1))"
+  wait_for_authenticated_home_row_visual
+  verify_persisted_oauth_account
 }
 
 wait_for_authenticated_compose_surface() {
@@ -2035,6 +2162,20 @@ case "$INTERACTION" in
     wait_for_oauth_open_url_log retry-click
     VERIFY_PRODUCT="icecubes-linux-add-account-instance"
     ;;
+  sign-in-callback-persistence)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
+    type_instance_name
+    wait_for_add_account_selected_instance_visual
+    click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+    wait_for_oauth_open_url_log retry-click
+    wait_for_app_log_exact_activity "$OAUTH_APP_REGISTER_LOG" "OAuth app registration"
+    deliver_oauth_callback
+    wait_for_oauth_callback_completion
+    wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
+    verify_persisted_oauth_account
+    relaunch_icecubes_with_persisted_oauth_account
+    ;;
   seeded-authenticated-shell)
     VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
     wait_for_authenticated_timeline_activity
@@ -2337,7 +2478,7 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       # Linux FoundationNetworking cancel-after-completion assertion.
       SETTLE_SECONDS="0"
       ;;
-    seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
+    sign-in-callback-persistence|seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
       # Notifications has a separate data-source repaint after selection. The
       # route-specific wait above observes IceCubes' post-display refresh (or
       # status-detail/context fetch), so

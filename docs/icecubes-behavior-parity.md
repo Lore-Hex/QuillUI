@@ -8,7 +8,7 @@ estimates, not release claims.
 
 - Compile coverage: 100% for `IceCubesLinuxApp`.
 - Runnable app graph source coverage: about 97%.
-- Useful runtime behavior estimate: 81-85%.
+- Useful runtime behavior estimate: 83-87%.
 - Exact macOS-quality visual/interaction parity estimate: 25-30%.
 
 ## P0 Runtime Blockers
@@ -27,8 +27,12 @@ estimates, not release claims.
 
 ## P1 Core App Behavior
 
-- [ ] Login/auth flow: browser authentication, callback URL handling, account
-      persistence, token storage, account switching.
+- [ ] Login/auth flow: unchanged upstream IceCubes now covers fixture-backed
+      app registration, browser authorization, callback URL delivery, token
+      exchange, credential verification, account/token persistence,
+      authenticated repaint, and authenticated process relaunch. Account
+      switching/removal, failure recovery, native desktop URL registration,
+      and native Secret Service storage remain open.
 - [ ] Timeline flow: load public/home timelines, render rows, scroll, first
       home pagination, Home refresh, Notifications refresh, Status detail
       refresh, and detail navigation are covered; broader refresh/pagination
@@ -154,9 +158,10 @@ estimates, not release claims.
 - [ ] Keep IceCubes-specific shims isolated; move reusable behavior into
       QuillUI, QuillKit, QuillData, or Apple framework shim targets.
 - [x] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`.
-- [x] Add CI smokes for upstream Add Account interaction, OAuth browser-boundary
-      launch, seeded authenticated shell chrome, seeded authenticated Trending
-      sidebar navigation, seeded authenticated Local timeline navigation, seeded
+- [x] Add CI smokes for upstream Add Account interaction, OAuth callback/token/
+      credential/persistence/relaunch, seeded authenticated shell chrome, seeded
+      authenticated Trending sidebar navigation, seeded authenticated Local
+      timeline navigation, seeded
       authenticated Federated timeline navigation, seeded authenticated
       Explore navigation, seeded authenticated Notifications navigation, seeded
       authenticated Profile/Messages/List navigation, seeded authenticated
@@ -169,6 +174,19 @@ estimates, not release claims.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
+
+- 2026-07-17: Completed a deterministic unchanged-upstream IceCubes login and
+  persisted-relaunch journey. The GTK harness types `mastodon.social`, invokes
+  the real Sign in action, exact-matches Mastodon app registration and the
+  generated authorization URL, delivers an `icecubesapp://` callback through
+  QuillKit's desktop callback bridge, and requires the real token exchange and
+  credential verification requests. IceCubes then saves the returned account
+  and OAuth token through its existing `AppAccount.save()` path, repaints to a
+  fixture-backed authenticated Home timeline, terminates, and launches again
+  against the same app data. The restarted process must issue a new Home
+  request, render authenticated content, and retain the exact account identity,
+  token, scopes, type, and creation time. The CI interaction is
+  `sign-in-callback-persistence`; no IceCubes source is patched for this path.
 
 - 2026-07-16: Completed the upstream attachment ALT-text and deletion journey.
   The GTK harness opens IceCubes' real `MediaEditView`, types a deterministic
