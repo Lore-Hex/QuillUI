@@ -169,6 +169,23 @@ final class StateTests: XCTestCase {
         XCTAssertNil(focus.storage.value as Any?)
     }
 
+    func testStateStorageForwardsStaleReadsAndMutations() {
+        let stale = StateStorage("stale")
+        let intermediate = StateStorage("intermediate")
+        let current = StateStorage("current")
+
+        stale.forwardMutations(to: intermediate)
+        intermediate.forwardMutations(to: current)
+
+        XCTAssertEqual(stale.value, "current")
+
+        stale.setValue("updated")
+
+        XCTAssertEqual(stale.value, "updated")
+        XCTAssertEqual(intermediate.value, "updated")
+        XCTAssertEqual(current.value, "updated")
+    }
+
     func testFocusStateStorageForwardsStaleMutations() {
         let stale = FocusStateStorage(false, default: false)
         let current = FocusStateStorage(false, default: false)

@@ -24,7 +24,7 @@ public protocol AnyStateStorage: AnyObject {
     var host: AnyViewHost? { get set }
     /// Copy the stored value from another storage of the same concrete type.
     func restoreValue(from other: AnyStateStorage)
-    /// Forward writes from stale widget closures to the current render storage.
+    /// Forward access from stale widget closures to the current render storage.
     func forwardMutations(to other: AnyStateStorage)
 }
 
@@ -103,8 +103,12 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     public var value: Value {
         lock.lock()
+        let forwarded = forwardedStorage
         let value = _value
         lock.unlock()
+        if let forwarded {
+            return forwarded.value
+        }
         recordDependencyRead(self)
         return value
     }
