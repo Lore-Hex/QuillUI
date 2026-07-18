@@ -103,6 +103,33 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
     }
 
+    @Test("@Observable lowering imports its SwiftUI compatibility helpers")
+    func observableClassAddsSwiftUIImport() {
+        let source = """
+        // Model-only files commonly have no UI import before lowering.
+        import Foundation
+
+        @Observable
+        final class AppModel {
+            private var title = "Quill"
+        }
+        """
+
+        let first = SwiftUILowering().lower(source)
+        let second = SwiftUILowering().lower(first)
+        let importRange = first.range(of: "import SwiftUI")
+        let classRange = first.range(of: "final class AppModel")
+
+        #expect(first == second)
+        #expect(first.components(separatedBy: "import SwiftUI").count == 2)
+        #expect(importRange != nil)
+        #expect(classRange != nil)
+        if let importRange, let classRange {
+            #expect(importRange.lowerBound < classRange.lowerBound)
+        }
+        #expect(first.contains("@QuillPublished private var title = \"Quill\""))
+    }
+
     @Test("@Observable inheritance prepends QuillObservableObject")
     func observableInheritancePrepended() {
         let source = """
