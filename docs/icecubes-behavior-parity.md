@@ -193,8 +193,10 @@ estimates, not release claims.
   transitions. The route retries the Display row only while screenshot
   verification proves the unchanged form remains visible, repeating the
   complete pointer-and-keyboard activation sequence that opens the picker. It
-  retries the Inter button only while the picker remains visible, preventing a
-  successful route transition or dismissal from receiving another click. The
+  presses the Inter button without re-raising or refocusing the already-active
+  app window, then retries only while the picker remains visible. A second
+  screenshot state check immediately before each retry prevents a late route
+  dismissal from receiving another click in the underlying Display form. The
   same pushed CI runs already passed the deferred-environment Notifications
   refresh regression before these later automation-only failures. No IceCubes
   source is patched.

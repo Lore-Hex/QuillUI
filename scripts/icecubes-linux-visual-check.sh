@@ -96,7 +96,7 @@ AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTIN
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y:-216}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS:-0.8}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES:-3}"
-AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS:-0.25}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS:-0.75}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X:-289}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y:-278}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS:-0.8}"
@@ -2654,7 +2654,11 @@ select_authenticated_settings_display_font_picker_inter() {
   fi
 
   while true; do
-    click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
+    # Opening the picker already leaves the app window focused. Do not raise or
+    # refocus it before each child-button press: some window managers consume
+    # that first press as part of the focus transition. Resolve the current
+    # window origin without changing focus and deliver the press directly.
+    click_app_window_relative_screen_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
     sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
 
     if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
@@ -2673,6 +2677,15 @@ select_authenticated_settings_display_font_picker_inter() {
 
     attempt="$((attempt + 1))"
     sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS"
+
+    # Recheck after the grace period immediately before another press so a
+    # late dismissal cannot receive a second click in the Display form.
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
+      return 0
+    fi
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
   done
 }
 
