@@ -45,7 +45,8 @@ estimates, not release claims.
       autocomplete, video, drafts, and post-result routing remain open.
 - [ ] Settings flow: root Settings tab and Display Settings child navigation
       render under the authenticated upstream app, including the Display preview
-      and upper/lower form controls; Display font-size slider mutation is
+      and upper/lower form controls; Display font-size slider mutation,
+      system-color mutation, and font-picker route/select/dismiss behavior are
       covered. Tab/sidebar settings, content settings, API settings, remote
       timelines, tag groups, icon/support panes, and broader setting mutations
       remain open.
@@ -77,6 +78,9 @@ estimates, not release claims.
       viewport sizing for IceCubes attachment previews.
 - [ ] Real menu and command behavior: disabled state, keyboard shortcuts,
       click-outside dismissal, native menu placement.
+- [x] GTK `Picker` opens through both native allocation hits and visually
+      transformed/custom-layout hits, then preserves native keyboard selection
+      and SwiftUI binding callbacks.
 - [x] `ToolbarTitleMenu` renders as compact toolbar menu chrome for IceCubes'
       authenticated timeline shell instead of dumping menu contents into the
       main content area.
@@ -437,6 +441,18 @@ estimates, not release claims.
   `.qa/icecubes-auth-settings-display-font-picker-route-v4.png`, and the
   select/dismiss smoke passed at
   `.qa/icecubes-auth-settings-display-font-picker-select-v2.png`.
+- 2026-07-18: Fixed GTK `Picker` pointer delivery when SwiftUI layout paints a
+  dropdown away from its native GTK allocation. A root capture dispatcher now
+  resolves native or visual `GtkDropDown` hits, activates on primary-button
+  release so that release cannot immediately dismiss the popup, and rejects
+  inactive navigation pages or sheet-occluded controls. The IceCubes visual
+  harness derives the picker row from the rendered font-scale track instead of
+  a fixed Y coordinate, so restored scroll offsets cannot redirect the click.
+  Verification: the upstream `seeded-authenticated-settings-display-font-picker`
+  flow opened the real GTK dropdown and reached the unchanged `Choose Font`
+  route with `End Return`; the vendor patcher reconstructed byte-identical GTK
+  shim/renderer files from the previous commit and remained idempotent on a
+  second pass; repeated warm builds retained SwiftPM output-file metadata.
 - 2026-06-17: Tightened authenticated status-detail chrome: SwiftUI
   `Text(date, style: .time)` now formats as a time instead of duplicating the
   date, GTK `NavigationStack` preserves empty destination titles instead of

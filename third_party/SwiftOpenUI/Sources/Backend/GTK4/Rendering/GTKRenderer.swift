@@ -3022,6 +3022,14 @@ func gtkTestWidgetTreeContainsVisualTapActionAtRootPoint(
     gtkWidgetTreeContainsVisualTapActionAtRootPoint(widget, root: root, x: x, y: y)
 }
 
+func gtkTestActivateVisualDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkActivateVisualDropDownAtRootPoint(root: root, x: x, y: y, source: "test")
+}
+
 func gtkTestPreferredTapActionMatchesWidgetTapData(
     _ widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
@@ -11412,6 +11420,140 @@ private func gtkActivateToggleControlAtWidgetPoint(
     gtkActivateToggleControlAtRootPoint(root: widget, x: x, y: y, source: source)
 }
 
+private func gtkNativeDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    while let widget = current {
+        if gtk_swift_widget_is_drop_down(widget) != 0 {
+            return widget
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+    }
+    return nil
+}
+
+private func gtkVisualDropDownAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    if gtk_swift_widget_is_drop_down(widget) != 0,
+       !gtkWidgetIsInsideInactiveNavigationPage(widget),
+       gtk_widget_get_visible(widget) != 0,
+       gtk_widget_get_mapped(widget) != 0,
+       gtk_widget_get_sensitive(widget) != 0,
+       gtk_widget_get_opacity(widget) > 0.001,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualDropDownAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkDebugDropDownCandidates(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var total = 0
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 160 else { return }
+        if gtk_swift_widget_is_drop_down(widget) != 0 {
+            let contains = gtkWidgetOrDescendantVisuallyContainsRootPoint(
+                widget,
+                root: root,
+                x: x,
+                y: y
+            )
+            gtkDebugLog(
+                "\(source) drop-down-candidate[\(total)] hit=\(contains ? 1 : 0) "
+                + "sensitive=\(gtk_widget_get_sensitive(widget)) "
+                + "inactive=\(gtkWidgetIsInsideInactiveNavigationPage(widget) ? 1 : 0) "
+                + gtkDebugVisualFrameDescription(widget, root: root)
+            )
+            total += 1
+        }
+
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    gtkDebugLog("\(source) drop-down-candidates total=\(total) root@\(Int(x)),\(Int(y))")
+}
+
+private func gtkActivateVisualDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    // Root-level compatibility dispatchers can prevent GTK's internal
+    // GtkDropDown button from completing its own event sequence. Activate and
+    // consume both native and transformed hits so Picker behavior is stable in
+    // either layout path.
+    guard let dropDown = gtkActionableDropDownAtRootPoint(root: root, x: x, y: y) else {
+        gtkDebugDropDownCandidates(root: root, x: x, y: y, source: source)
+        return false
+    }
+
+    gtk_widget_grab_focus(dropDown)
+    let activated = gtk_widget_activate(dropDown) != 0
+    gtkDebugLog(
+        "drop-down visual activation \(source) root@\(Int(x)),\(Int(y)) activated=\(activated ? 1 : 0) "
+        + gtkDebugVisualFrameDescription(dropDown, root: root)
+    )
+    return activated
+}
+
+private func gtkActionableDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard let dropDown = gtkNativeDropDownAtRootPoint(root: root, x: x, y: y)
+        ?? gtkVisualDropDownAtRootPoint(root, root: root, x: x, y: y) else {
+        return nil
+    }
+    guard !gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: dropDown
+    ) else {
+        return nil
+    }
+    return dropDown
+}
+
 private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"
 private let gtkListRowGeometryDataKey = "gtk-swift-list-row-geometry"
 private let gtkCollapsedListRowControlsDataKey = "gtk-swift-collapsed-list-row-controls"
@@ -14963,6 +15105,136 @@ private class SegmentClosureBox {
     }
 }
 
+private let gtkDropDownGlobalDispatcherDataKey = "gtk-swift-drop-down-global-dispatcher"
+
+private final class GTKDropDownRootInstallContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
+private final class GTKDropDownGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+    var hasPendingPrimaryPress = false
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
+private func gtkInstallGlobalDropDownRootDispatcher(
+    for widget: UnsafeMutablePointer<GtkWidget>
+) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkDropDownGlobalDispatcherDataKey) == nil else {
+        return
+    }
+
+    let dispatcher = GTKDropDownGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkDropDownGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("drop-down global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            let isPrimaryPress = gtk_swift_event_is_primary_button_press(event) != 0
+            let isPrimaryRelease = gtk_swift_event_is_primary_button_release(event) != 0
+            guard isPrimaryPress || isPrimaryRelease else { return 0 }
+            let dispatcher = Unmanaged<GTKDropDownGlobalRootDispatcher>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+
+            if isPrimaryPress {
+                dispatcher.hasPendingPrimaryPress = gtkActionableDropDownAtRootPoint(
+                    root: dispatcher.root,
+                    x: rootX,
+                    y: rootY
+                ) != nil
+                return dispatcher.hasPendingPrimaryPress ? 1 : 0
+            }
+
+            guard dispatcher.hasPendingPrimaryPress else { return 0 }
+            dispatcher.hasPendingPrimaryPress = false
+            return gtkActivateVisualDropDownAtRootPoint(
+                root: dispatcher.root,
+                x: rootX,
+                y: rootY,
+                source: "global-root"
+            ) ? 1 : 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkDropDownRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallGlobalDropDownRootDispatcher(for: context.widget)
+    return gtk_swift_widget_root_widget(context.widget) == nil ? 1 : 0
+}
+
+private func gtkInstallDropDownRootDispatcherWhenMapped(
+    _ widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let context = GTKDropDownRootInstallContext(widget: widget)
+    let mapContext = Unmanaged.passRetained(context).toOpaque()
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKDropDownRootInstallContext>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            gtkInstallGlobalDropDownRootDispatcher(for: context.widget)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        mapContext,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let tickContext = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkDropDownRootInstallTickCallback,
+        tickContext,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).release()
+        }
+    )
+}
+
 extension Picker: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
@@ -15030,6 +15302,8 @@ extension Picker: GTKRenderable, GTKDescribable {
                 GConnectFlags(rawValue: 0)
             )
         }
+
+        gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))
 
         let displayedLabel = effectiveLabel
         if !displayedLabel.isEmpty {

@@ -5,13 +5,16 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH="${1:-$ROOT_DIR/.build-linux}"
 PACKAGE_PATH="${QUILLUI_SWIFT_PACKAGE_PATH:-$ROOT_DIR}"
 SWIFTOPENUI_ROOT="${QUILLUI_SWIFTOPENUI_ROOT:-$PACKAGE_PATH/third_party/SwiftOpenUI}"
+CANONICAL_SWIFTOPENUI_ROOT="$ROOT_DIR/third_party/SwiftOpenUI"
 SWIFTOPENUI_MANIFEST="$SWIFTOPENUI_ROOT/Package.swift"
 RENDERER="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+CANONICAL_RENDERER="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
 DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
 GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
 GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
 NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
 GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
+CANONICAL_GTK_SHIM="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
 NAVIGATION_DESTINATION="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Navigation/NavigationDestination.swift"
 TOOLBAR_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
 LAYOUT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Layout/Layout.swift"
@@ -2225,6 +2228,49 @@ gtk_swift_attach_context_popover(GtkWidget *anchor, GtkWidget *popover) {
     if popover_marker not in text:
         raise SystemExit("SwiftOpenUI GTK popover shim insertion point was not recognized")
     text = text.replace(popover_marker, popover_marker + context_popover_helpers, 1)
+if text != original:
+    path.write_text(text)
+PY
+fi
+
+if [[ -f "$GTK_SHIM" ]]; then
+python3 - "$GTK_SHIM" "$CANONICAL_GTK_SHIM" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+original = text
+canonical = canonical_path.read_text()
+
+
+def canonical_block(start: str, end: str) -> str:
+    start_index = canonical.index(start)
+    end_index = canonical.index(end, start_index)
+    return canonical[start_index:end_index]
+
+
+if "gtk_swift_event_is_primary_button_release" not in text:
+    marker = "static inline gboolean\ngtk_swift_event_get_position"
+    release_helper = canonical_block(
+        "static inline gboolean\ngtk_swift_event_is_primary_button_release",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK primary-button event shim shape was not recognized")
+    text = text.replace(marker, release_helper + marker, 1)
+
+if "gtk_swift_widget_is_drop_down" not in text:
+    marker = "static inline GtkWidget *\ngtk_swift_root_point_pick_toggle_control"
+    drop_down_helper = canonical_block(
+        "static inline gboolean\ngtk_swift_widget_is_drop_down",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK drop-down type shim shape was not recognized")
+    text = text.replace(marker, drop_down_helper + marker, 1)
+
 if text != original:
     path.write_text(text)
 PY
@@ -9803,6 +9849,67 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
     if old_patched_foreach not in text:
         raise SystemExit("SwiftOpenUI ForEach row sizing shape was not recognized")
     text = text.replace(old_patched_foreach, new_patched_foreach, 1)
+
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - "$RENDERER" "$CANONICAL_RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+original = text
+canonical = canonical_path.read_text()
+
+
+def canonical_block(start: str, end: str) -> str:
+    start_index = canonical.index(start)
+    end_index = canonical.index(end, start_index)
+    return canonical[start_index:end_index]
+
+
+if "func gtkTestActivateVisualDropDownAtRootPoint(" not in text:
+    marker = "func gtkTestPreferredTapActionMatchesWidgetTapData("
+    test_helper = canonical_block(
+        "func gtkTestActivateVisualDropDownAtRootPoint(",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK test-helper insertion point was not recognized")
+    text = text.replace(marker, test_helper + marker, 1)
+
+if "private func gtkNativeDropDownAtRootPoint(" not in text:
+    marker = 'private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"'
+    hit_recovery = canonical_block(
+        "private func gtkNativeDropDownAtRootPoint(",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK drop-down hit-recovery insertion point was not recognized")
+    text = text.replace(marker, hit_recovery + marker, 1)
+
+if "private let gtkDropDownGlobalDispatcherDataKey" not in text:
+    marker = "extension Picker: GTKRenderable, GTKDescribable {"
+    dispatcher = canonical_block(
+        "private let gtkDropDownGlobalDispatcherDataKey",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK Picker dispatcher insertion point was not recognized")
+    text = text.replace(marker, dispatcher + marker, 1)
+
+if "gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))" not in text:
+    marker = "        let displayedLabel = effectiveLabel\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK Picker drop-down render shape was not recognized")
+    text = text.replace(
+        marker,
+        "        gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))\n\n" + marker,
+        1,
+    )
 
 if text != original:
     path.write_text(text)

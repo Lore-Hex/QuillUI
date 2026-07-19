@@ -608,6 +608,14 @@ gtk_swift_event_is_primary_button_press(gpointer event) {
 }
 
 static inline gboolean
+gtk_swift_event_is_primary_button_release(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_RELEASE
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
 gtk_swift_event_get_position(gpointer event, double *x, double *y) {
     GdkEvent *gdk_event = (GdkEvent *)event;
     return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
@@ -779,6 +787,11 @@ gtk_swift_widget_is_check_button(GtkWidget *widget) {
 static inline gboolean
 gtk_swift_widget_is_switch(GtkWidget *widget) {
     return widget != NULL && GTK_IS_SWITCH(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_drop_down(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_DROP_DOWN(widget);
 }
 
 static inline GtkWidget *

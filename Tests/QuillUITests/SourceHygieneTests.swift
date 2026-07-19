@@ -3612,6 +3612,10 @@ struct SourceHygieneTests {
         #expect(preparationScript.contains("REQUESTED_BACKEND=\"$(quillui_require_linux_build_backend_identifier \"${REQUESTED_BACKEND:-gtk}\")\""))
         #expect(preparationScript.contains("gtk)\n    \"$ROOT_DIR/scripts/patch-swiftopenui-gtk-css.sh\" \"$SCRATCH_PATH\""))
         #expect(preparationScript.contains("qt)\n    ;;"))
+        #expect(preparationScript.contains("retaining SwiftPM's output-file-map.json and sources metadata"))
+        #expect(preparationScript.contains("\"$build_dir\"/*.swiftdeps"))
+        #expect(preparationScript.contains("Modules/\"$ocd\".*"))
+        #expect(!preparationScript.contains("rm -rf \"$SCRATCH_PATH\"/*/debug/\"$ocd\".build"))
         #expect(linuxSwiftTest.contains(": \"${QUILLUI_LINUX_BACKEND:=gtk}\""))
         #expect(linuxSwiftTest.contains("export QUILLUI_LINUX_BACKEND"))
         #expect(preserveScript.contains("PACKAGE_RESOLVED=\"$PACKAGE_DIR/Package.resolved\""))
@@ -11740,6 +11744,30 @@ struct SourceHygieneTests {
         #expect(gtkRenderer.contains("list row tap fallback installed"))
         #expect(gtkRenderer.contains("gtkCSSFontSizePixels(forApplePointSize: size)"))
         #expect(gtkRenderer.contains("pointSize * 0.875"))
+    }
+
+    @Test("GTK Picker visual hit compatibility stays reproducible")
+    func gtkPickerVisualHitCompatibilityStaysReproducible() throws {
+        let script = try packageSource("scripts/icecubes-linux-visual-check.sh")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+        let renderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let shim = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h")
+        let renderTests = try packageSource("third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift")
+
+        #expect(script.contains("AUTH_SETTINGS_DISPLAY_FONT_PICKER_X=\"${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-}\""))
+        #expect(script.contains("AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y=\"${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-}\""))
+        #expect(script.contains("AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y=\"${AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-$((detected_slider_y - 50))}\""))
+        #expect(patcher.contains("CANONICAL_SWIFTOPENUI_ROOT"))
+        #expect(patcher.contains("gtk_swift_event_is_primary_button_release"))
+        #expect(patcher.contains("gtk_swift_widget_is_drop_down"))
+        #expect(patcher.contains("gtkInstallDropDownRootDispatcherWhenMapped"))
+        #expect(patcher.contains("SwiftOpenUI GTK drop-down hit-recovery insertion point was not recognized"))
+        #expect(renderer.contains("private func gtkVisualDropDownAtRootPoint"))
+        #expect(renderer.contains("private func gtkActionableDropDownAtRootPoint"))
+        #expect(renderer.contains("private final class GTKDropDownGlobalRootDispatcher"))
+        #expect(renderer.contains("let isPrimaryRelease = gtk_swift_event_is_primary_button_release(event) != 0"))
+        #expect(shim.contains("gtk_swift_widget_is_drop_down"))
+        #expect(renderTests.contains("testOffsetPickerOpensThroughVisualRootHitFallback"))
     }
 
     @Test("GTK nested controls and navigation teardown stay reproducible")

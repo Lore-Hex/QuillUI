@@ -2442,6 +2442,60 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testOffsetPickerOpensThroughVisualRootHitFallback() throws {
+        try requireGTK()
+
+        var selection = 0
+        let offset = 140.0
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Picker(
+                "Timeline Font",
+                selection: Binding(
+                    get: { selection },
+                    set: { selection = $0 }
+                ),
+                options: ["System", "Rounded", "Custom"]
+            )
+            .offset(x: offset)
+            .frame(width: 360, height: 80, alignment: .leading)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        let dropDown = try XCTUnwrap(gtkFirstDescendant(ofType: "GtkDropDown", in: wrapper))
+        let logicalOrigin = translatedChildOrigin(child: dropDown, in: wrapper)
+        let size = allocatedSize(of: dropDown)
+        let visualX = logicalOrigin.x + offset + max(1, size.width / 2)
+        let visualY = logicalOrigin.y + max(1, size.height / 2)
+
+        XCTAssertFalse(
+            visualX >= logicalOrigin.x && visualX < logicalOrigin.x + size.width,
+            "The probe point must sit outside the drop-down's untransformed GTK allocation."
+        )
+        XCTAssertTrue(
+            gtkTestActivateVisualDropDownAtRootPoint(root: wrapper, x: visualX, y: visualY),
+            "A visibly offset Picker must open even when GTK's native allocation does not own the painted pixel."
+        )
+        drainGTKMainContext(maxIterations: 100)
+
+        let popover = try XCTUnwrap(gtkFirstDescendant(ofType: "GtkPopover", in: dropDown))
+        XCTAssertNotEqual(
+            gtk_widget_get_mapped(popover),
+            0,
+            "The visual root fallback should activate GtkDropDown and map its choices popover."
+        )
+
+        gtk_drop_down_set_selected(OpaquePointer(dropDown), guint(2))
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(selection, 2)
+    }
+
     func testNavigationStackSyncsTypedBoundPathDestinationContentFromSwitchBuilder() throws {
         try requireGTK()
 
