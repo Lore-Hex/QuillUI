@@ -2193,6 +2193,38 @@ gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
     if width_clamp_marker not in text:
         raise SystemExit("SwiftOpenUI GTK compressible width clamp insertion point was not recognized")
     text = text.replace(width_clamp_marker, width_clamp_marker + compressible_height_clamp, 1)
+if "gtk_swift_attach_context_popover" not in text:
+    context_popover_helpers = """static inline void
+gtk_swift_context_popover_anchor_destroy(GtkWidget *anchor, gpointer user_data) {
+    GtkWidget *popover = GTK_WIDGET(user_data);
+    if (popover != NULL && gtk_widget_get_parent(popover) == anchor) {
+        gtk_widget_unparent(popover);
+    }
+}
+
+static inline void
+gtk_swift_context_popover_release(gpointer user_data, GClosure *closure) {
+    (void)closure;
+    g_object_unref(user_data);
+}
+
+static inline void
+gtk_swift_attach_context_popover(GtkWidget *anchor, GtkWidget *popover) {
+    gtk_widget_set_parent(popover, anchor);
+    g_signal_connect_data(
+        anchor,
+        "destroy",
+        G_CALLBACK(gtk_swift_context_popover_anchor_destroy),
+        g_object_ref(popover),
+        gtk_swift_context_popover_release,
+        0);
+}
+
+"""
+    popover_marker = "// --- GtkPopover shims ---\n\n"
+    if popover_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK popover shim insertion point was not recognized")
+    text = text.replace(popover_marker, popover_marker + context_popover_helpers, 1)
 if text != original:
     path.write_text(text)
 PY
@@ -10537,7 +10569,7 @@ public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
 ''',
         "SwiftOpenUI scoped environment read recording shape was not recognized",
     )
-sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
+legacy_sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
     _ env: EnvironmentValues,
     operation: () throws -> T
 ) rethrows -> T {
@@ -10547,6 +10579,31 @@ sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
 }
 
 '''
+sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    // Swift 6.2's task-local runtime can corrupt its lookup marker when a
+    // scope is opened from a native callback that has no current Swift task
+    // and the operation releases an actor-isolated object. Keep direct uses
+    // safe with the thread-local environment; backends that need child Task
+    // inheritance must first enter a real Swift task.
+    let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+    guard hasCurrentTask else {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        return try operation()
+    }
+
+    return try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
+}
+
+'''
+if legacy_sync_task_environment in text:
+    text = text.replace(legacy_sync_task_environment, sync_task_environment, 1)
 if sync_task_environment not in text:
     async_task_environment = '''public func withTaskEnvironment<T>(
     _ env: EnvironmentValues,
@@ -13569,6 +13626,7 @@ new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escap
 '''
 if (
     "func bindActionToCurrentEnvironment(_ action:" in text
+    and "private final class GTKDeferredAction<Value>" not in text
     and "return {\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_action_flush not in text:
@@ -13594,15 +13652,16 @@ new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ actio
 '''
 if (
     "func bindActionToCurrentEnvironment<T>" in text
+    and "private final class GTKDeferredAction<Value>" not in text
     and "return { value in\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_value_action_flush not in text:
         raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
     text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
 
-# Refresh scoped object captures before a deferred action runs and bind the
-# environment as a task-local value. Child Tasks created by a synchronous
-# native callback then inherit the same environment across suspension.
+# Refresh scoped object captures before a deferred action runs. GTK's native
+# callbacks first enter a MainActor task so task-local storage has a real task
+# owner and child Tasks inherit the same environment across suspension.
 old_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
@@ -13645,7 +13704,7 @@ intermediate_bound_action_environment_refresh = '''func bindActionToCurrentEnvir
     }
 }
 '''
-new_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+task_local_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
         in: capturedEnvironment
@@ -13669,11 +13728,86 @@ new_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ 
     }
 }
 '''
+new_bound_action_environment_refresh = '''private final class GTKDeferredAction<Value>: @unchecked Sendable {
+    private let capturedEnvironment: EnvironmentValues
+    private let capturedPresentationDismissAction: (() -> Void)?
+    private let action: (Value) -> Void
+
+    init(
+        environment: EnvironmentValues,
+        presentationDismissAction: (() -> Void)?,
+        action: @escaping (Value) -> Void
+    ) {
+        capturedEnvironment = environment
+        capturedPresentationDismissAction = presentationDismissAction
+        self.action = action
+    }
+
+    func schedule(_ value: Value) {
+        let invocation = GTKDeferredActionInvocation(action: self, value: value)
+        Task { @MainActor [invocation] in
+            invocation.run()
+        }
+    }
+
+    @MainActor
+    fileprivate func run(_ value: Value) {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
+                action(value)
+            }
+        }
+    }
+}
+
+private final class GTKDeferredActionInvocation<Value>: @unchecked Sendable {
+    private let action: GTKDeferredAction<Value>
+    private let value: Value
+
+    init(action: GTKDeferredAction<Value>, value: Value) {
+        self.action = action
+        self.value = value
+    }
+
+    @MainActor
+    func run() {
+        action.run(value)
+    }
+}
+
+/// Capture the current environment at registration time and restore it around
+/// a deferred callback that may read `@Environment(...)`. Native GTK callbacks
+/// have no Swift task, so enter a MainActor task before opening task-local
+/// scopes. See `docs/architecture/deferred-callback-environment-binding.md`.
+func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<Void>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: { _ in action() }
+    )
+    return { deferredAction.schedule(()) }
+}
+'''
 if new_bound_action_environment_refresh not in text:
     if old_bound_action_environment_refresh in text:
         old_bound_action_source = old_bound_action_environment_refresh
     elif intermediate_bound_action_environment_refresh in text:
         old_bound_action_source = intermediate_bound_action_environment_refresh
+    elif task_local_bound_action_environment_refresh in text:
+        old_bound_action_source = task_local_bound_action_environment_refresh
     else:
         raise SystemExit("SwiftOpenUI refreshed action binding shape was not recognized")
     text = text.replace(
@@ -13724,7 +13858,7 @@ intermediate_bound_value_action_environment_refresh = '''func bindActionToCurren
     }
 }
 '''
-new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+task_local_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
         in: capturedEnvironment
@@ -13748,11 +13882,25 @@ new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironm
     }
 }
 '''
+new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<T>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: action
+    )
+    return { value in deferredAction.schedule(value) }
+}
+'''
 if new_bound_value_action_environment_refresh not in text:
     if old_bound_value_action_environment_refresh in text:
         old_bound_value_action_source = old_bound_value_action_environment_refresh
     elif intermediate_bound_value_action_environment_refresh in text:
         old_bound_value_action_source = intermediate_bound_value_action_environment_refresh
+    elif task_local_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = task_local_bound_value_action_environment_refresh
     else:
         raise SystemExit("SwiftOpenUI refreshed value action binding shape was not recognized")
     text = text.replace(
@@ -14830,6 +14978,27 @@ if "var fallbackVerticalApplied = false" not in text:
     text = text.replace(old_apply_footer, new_apply_footer, 1)
 elif "isSwiftUIVerticalScrollView" not in text or "return fallbackVerticalApplied" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll shape was not recognized")
+
+if "gtk_swift_attach_context_popover(widget, popover)" not in text:
+    old_context_popover = '''        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        gtk_widget_set_parent(popover, widget)
+
+        // Attach action group to the content widget so menu items can resolve actions
+        gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+'''
+    new_context_popover = '''        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        gtk_swift_attach_context_popover(widget, popover)
+
+        // Attach action group to the content widget so menu items can resolve actions
+        gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+        g_object_unref(gpointer(actionGroup))
+        g_object_unref(menuModel)
+'''
+    if old_context_popover not in text:
+        raise SystemExit("SwiftOpenUI GTK context-menu popover ownership shape was not recognized")
+    text = text.replace(old_context_popover, new_context_popover, 1)
+elif "g_object_unref(gpointer(actionGroup))" not in text or "g_object_unref(menuModel)" not in text:
+    raise SystemExit("SwiftOpenUI GTK context-menu GObject ownership shape was not recognized")
 
 if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled_window_get_hadjustment" not in text:
     old_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {

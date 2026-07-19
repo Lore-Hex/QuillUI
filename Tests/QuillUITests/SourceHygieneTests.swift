@@ -9228,8 +9228,10 @@ struct SourceHygieneTests {
         #expect(renderer.contains("gtk_overlay_add_overlay(OpaquePointer(overlay), placeholderLabel)"))
         #expect(renderer.contains("gtkInstallTextInputFocusGesture(on: overlay, target: textView)"))
         #expect(renderer.contains("let buffer = gtk_text_view_get_buffer(textViewPtr)!\n        let box = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(binding, value: newText)\n        }).toOpaque()"))
-        #expect(renderer.contains("return {\n        gtkFlushPendingTextBindingUpdate()\n        var environment = capturedEnvironment\n        environment.refreshInjectedObjectsFromRegistry()\n        let previousEnvironment = getCurrentEnvironment()\n        setCurrentEnvironment(environment)"))
-        #expect(renderer.contains("return { value in\n        gtkFlushPendingTextBindingUpdate()\n        var environment = capturedEnvironment\n        environment.refreshInjectedObjectsFromRegistry()\n        let previousEnvironment = getCurrentEnvironment()\n        setCurrentEnvironment(environment)"))
+        #expect(renderer.contains("fileprivate func run(_ value: Value)"))
+        #expect(renderer.contains("gtkFlushPendingTextBindingUpdate()\n        var environment = capturedEnvironment\n        environment.refreshInjectedObjectsFromRegistry()"))
+        #expect(renderer.contains("return { deferredAction.schedule(()) }"))
+        #expect(renderer.contains("return { value in deferredAction.schedule(value) }"))
         #expect(renderer.contains("let changedBox = Unmanaged.passRetained(StringClosureBox"))
         #expect(renderer.contains("gtk_editable_get_text(OpaquePointer(editable))"))
         #expect(patcher.contains("SwiftOpenUI TextField changed-signal insert shape was not recognized"))
@@ -9245,6 +9247,7 @@ struct SourceHygieneTests {
         #expect(smallPatcher.contains("private func gtkFontCSS(_ font: Font)"))
         #expect(smallPatcher.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
         #expect(smallPatcher.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
+        #expect(smallPatcher.contains("private final class GTKDeferredAction<Value>"))
         #expect(smallPatcher.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
         #expect(smallPatcher.contains("old_text_editor_options = '''        gtk_text_view_set_wrap_mode(textViewPtr, GTK_WRAP_WORD_CHAR)"))
         #expect(smallPatcher.contains("gtk_text_view_set_accepts_tab(textViewPtr, 1)"))
@@ -10174,7 +10177,7 @@ struct SourceHygieneTests {
         #expect(environment.contains("swiftOpenUICurrentPresentationDismissAction"))
         #expect(patcher.contains("SwiftOpenUI presentation task context precedence shape was not recognized"))
         #expect(compatibility.contains("if let contextualDismiss = swiftOpenUICurrentPresentationDismissAction()"))
-        #expect(renderer.contains("let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction("))
+        #expect(renderer.contains("presentationDismissAction: swiftOpenUIResolvePresentationDismissAction("))
         #expect(patcher.contains("let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction("))
         #expect(renderer.contains("swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction)"))
         #expect(patcher.contains("private final class GTKSheetLifecycleScope"))
@@ -11893,15 +11896,61 @@ struct SourceHygieneTests {
         let renderTests = try packageSource(
             "third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift"
         )
+        let environmentTests = try packageSource(
+            "Tests/QuillUITests/EnvironmentCaptureTests.swift"
+        )
+        let architecture = try packageSource(
+            "third_party/SwiftOpenUI/docs/architecture/deferred-callback-environment-binding.md"
+        )
         let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
 
         #expect(environment.contains("operation: () throws -> T"))
-        #expect(renderer.components(separatedBy: "withSynchronousTaskEnvironment(environment)").count >= 3)
+        #expect(environment.contains("let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }"))
+        #expect(environment.contains("guard hasCurrentTask else"))
+        #expect(renderer.contains("private final class GTKDeferredAction<Value>: @unchecked Sendable"))
+        #expect(renderer.contains("Task { @MainActor [invocation] in"))
+        #expect(renderer.contains("withSynchronousTaskEnvironment(environment)"))
         #expect(renderTests.contains("testBoundActionPropagatesEnvironmentIntoChildTask"))
+        #expect(renderTests.contains("testBoundActionReleasesMainActorStateInsideSwiftTask"))
+        #expect(renderTests.contains("withUnsafeCurrentTask { $0 }"))
         #expect(renderTests.contains("XCTAssertTrue(property.wrappedValue === model)"))
+        #expect(environmentTests.contains("synchronousEnvironmentWithoutCurrentTaskUsesThreadScope"))
+        #expect(environmentTests.contains("Thread.detachNewThread"))
+        #expect(architecture.contains("Native callbacks and Swift tasks"))
+        #expect(architecture.contains("Task { @MainActor in ... }"))
         #expect(patcher.contains("SwiftOpenUI synchronous task environment helper shape was not recognized"))
+        #expect(patcher.contains("legacy_sync_task_environment"))
+        #expect(patcher.contains("task_local_bound_action_environment_refresh"))
+        #expect(patcher.contains("Task { @MainActor [invocation] in"))
         #expect(patcher.contains("intermediate_bound_action_environment_refresh"))
         #expect(patcher.contains("intermediate_bound_value_action_environment_refresh"))
+    }
+
+    @Test("Vendored GTK context menus detach popovers before anchor finalization")
+    func vendoredGTKContextMenusDetachPopoversBeforeAnchorFinalization() throws {
+        let shim = try packageSource(
+            "third_party/SwiftOpenUI/Sources/Backend/GTK4/CGTK/shim.h"
+        )
+        let renderer = try packageSource(
+            "third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+        )
+        let renderTests = try packageSource(
+            "third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift"
+        )
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(shim.contains("gtk_swift_attach_context_popover"))
+        #expect(shim.contains("gtk_widget_unparent(popover)"))
+        #expect(shim.contains("g_signal_connect_data("))
+        #expect(shim.contains("g_object_ref(popover)"))
+        #expect(shim.contains("gtk_swift_context_popover_release"))
+        #expect(renderer.contains("gtk_swift_attach_context_popover(widget, popover)"))
+        #expect(renderer.contains("g_object_unref(gpointer(actionGroup))"))
+        #expect(renderer.contains("g_object_unref(menuModel)"))
+        #expect(renderTests.contains("testContextMenuUnparentsPopoverBeforeAnchorFinalization"))
+        #expect(renderTests.contains("testDetachedContextMenuPopoverLivesUntilAnchorFinalization"))
+        #expect(patcher.contains("SwiftOpenUI GTK context-menu popover ownership shape was not recognized"))
+        #expect(patcher.contains("gtk_swift_attach_context_popover(widget, popover)"))
     }
 
     @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")

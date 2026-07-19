@@ -1286,39 +1286,30 @@ private func gtkMeasureLayoutSubviews(
 
 // MARK: - Deferred callback environment binding
 
-/// Capture the current environment at registration time and restore it around
-/// a deferred callback that may read `@Environment(...)`.  See
-/// `docs/architecture/deferred-callback-environment-binding.md`.
-func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
-    let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
-        in: capturedEnvironment
-    )
-    return {
-        gtkFlushPendingTextBindingUpdate()
-        var environment = capturedEnvironment
-        environment.refreshInjectedObjectsFromRegistry()
-        let previousEnvironment = getCurrentEnvironment()
-        setCurrentEnvironment(environment)
-        defer { setCurrentEnvironment(previousEnvironment) }
-        withSynchronousTaskEnvironment(environment) {
-            if let capturedPresentationDismissAction {
-                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
-                    action()
-                }
-            } else {
-                action()
-            }
+private final class GTKDeferredAction<Value>: @unchecked Sendable {
+    private let capturedEnvironment: EnvironmentValues
+    private let capturedPresentationDismissAction: (() -> Void)?
+    private let action: (Value) -> Void
+
+    init(
+        environment: EnvironmentValues,
+        presentationDismissAction: (() -> Void)?,
+        action: @escaping (Value) -> Void
+    ) {
+        capturedEnvironment = environment
+        capturedPresentationDismissAction = presentationDismissAction
+        self.action = action
+    }
+
+    func schedule(_ value: Value) {
+        let invocation = GTKDeferredActionInvocation(action: self, value: value)
+        Task { @MainActor [invocation] in
+            invocation.run()
         }
     }
-}
 
-func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
-    let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
-        in: capturedEnvironment
-    )
-    return { value in
+    @MainActor
+    fileprivate func run(_ value: Value) {
         gtkFlushPendingTextBindingUpdate()
         var environment = capturedEnvironment
         environment.refreshInjectedObjectsFromRegistry()
@@ -1335,6 +1326,49 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
             }
         }
     }
+}
+
+private final class GTKDeferredActionInvocation<Value>: @unchecked Sendable {
+    private let action: GTKDeferredAction<Value>
+    private let value: Value
+
+    init(action: GTKDeferredAction<Value>, value: Value) {
+        self.action = action
+        self.value = value
+    }
+
+    @MainActor
+    func run() {
+        action.run(value)
+    }
+}
+
+/// Capture the current environment at registration time and restore it around
+/// a deferred callback that may read `@Environment(...)`. Native GTK callbacks
+/// have no Swift task, so enter a MainActor task before opening task-local
+/// scopes. See `docs/architecture/deferred-callback-environment-binding.md`.
+func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<Void>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: { _ in action() }
+    )
+    return { deferredAction.schedule(()) }
+}
+
+func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<T>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: action
+    )
+    return { value in deferredAction.schedule(value) }
 }
 
 private final class GTKEnvironmentCapture: @unchecked Sendable {
@@ -6153,10 +6187,12 @@ extension ContextMenuView: GTKRenderable {
 
         // Create popover menu from the model
         let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
-        gtk_widget_set_parent(popover, widget)
+        gtk_swift_attach_context_popover(widget, popover)
 
         // Attach action group to the content widget so menu items can resolve actions
         gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+        g_object_unref(gpointer(actionGroup))
+        g_object_unref(menuModel)
 
         // Attach actionBox for lifetime management
         let retained = Unmanaged.passRetained(actionBox).toOpaque()

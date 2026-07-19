@@ -128,6 +128,25 @@ The important properties are:
 - nested callback execution composes correctly because each layer saves/restores independently
 - the generic overload covers payload-bearing callbacks like gestures and expansion handlers
 
+## Native callbacks and Swift tasks
+
+GTK invokes signal closures from C with no current Swift task. A backend must not open a Swift
+task-local scope directly from that callback. Swift 6.2 has a runtime defect in that path: releasing
+an actor-isolated object while the scope is active can corrupt the task-local lookup marker during
+`swift_task_deinitOnExecutor`.
+
+GTK therefore schedules bound actions into a `Task { @MainActor in ... }` before installing the
+captured task-local environment. This does three jobs at once:
+
+- UI state mutation runs on the same actor used by SwiftUI view code
+- task-local storage has a real task owner, avoiding the Swift 6.2 runtime defect
+- child `Task { ... }` values created by the action inherit the captured environment across awaits
+
+`withSynchronousTaskEnvironment` also falls back to thread-local environment storage when no Swift
+task exists. That fallback keeps direct native callers memory-safe, but cannot give a newly-created
+child task an inherited value. Backends that permit actions to create child tasks must schedule the
+action into a Swift task first, as GTK does.
+
 ## Where to Apply the Binding
 
 Bind at the registration boundary, not later.

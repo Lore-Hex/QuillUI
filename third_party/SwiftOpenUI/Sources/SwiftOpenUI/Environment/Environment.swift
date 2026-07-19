@@ -254,7 +254,20 @@ public func withSynchronousTaskEnvironment<T>(
     _ env: EnvironmentValues,
     operation: () throws -> T
 ) rethrows -> T {
-    try EnvironmentTaskLocal.$values.withValue(env) {
+    // Swift 6.2's task-local runtime can corrupt its lookup marker when a
+    // scope is opened from a native callback that has no current Swift task
+    // and the operation releases an actor-isolated object. Keep direct uses
+    // safe with the thread-local environment; backends that need child Task
+    // inheritance must first enter a real Swift task.
+    let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+    guard hasCurrentTask else {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        return try operation()
+    }
+
+    return try EnvironmentTaskLocal.$values.withValue(env) {
         try operation()
     }
 }

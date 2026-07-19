@@ -2903,29 +2903,35 @@ final class GTK4RenderTests: XCTestCase {
 
     // MARK: - Deferred callback environment binding
 
-    func testBindActionToCurrentEnvironmentCapturesAndRestores() throws {
+    func testBindActionToCurrentEnvironmentCapturesAndRestores() async throws {
         try requireGTK()
 
         let model = GTKDelayedEnvModel()
+        let completed = expectation(description: "Bound action completed")
         var env = getCurrentEnvironment()
         env.setObject(model)
 
         let previousEnv = getCurrentEnvironment()
         setCurrentEnvironment(env)
-        let bound = bindActionToCurrentEnvironment { model.count += 1 }
+        let bound = bindActionToCurrentEnvironment {
+            model.count += 1
+            completed.fulfill()
+        }
         setCurrentEnvironment(previousEnv)
 
         // The closure should still access the captured environment even though
         // the current environment no longer contains the model.
         bound()
+        await fulfillment(of: [completed], timeout: 1)
         XCTAssertEqual(model.count, 1,
                        "Bound callback should execute with the captured render-time environment")
     }
 
-    func testBindActionToCurrentEnvironmentGenericCapturesAndRestores() throws {
+    func testBindActionToCurrentEnvironmentGenericCapturesAndRestores() async throws {
         try requireGTK()
 
         let model = GTKDelayedEnvModel()
+        let completed = expectation(description: "Generic bound action completed")
         var env = getCurrentEnvironment()
         env.setObject(model)
 
@@ -2933,12 +2939,33 @@ final class GTK4RenderTests: XCTestCase {
         setCurrentEnvironment(env)
         let bound: (Int) -> Void = bindActionToCurrentEnvironment { value in
             model.count += value
+            completed.fulfill()
         }
         setCurrentEnvironment(previousEnv)
 
         bound(5)
+        await fulfillment(of: [completed], timeout: 1)
         XCTAssertEqual(model.count, 5,
                        "Generic bound callback should execute with the captured environment")
+    }
+
+    @MainActor
+    func testBoundActionReleasesMainActorStateInsideSwiftTask() async throws {
+        try requireGTK()
+
+        let completed = expectation(description: "Main-actor state released")
+        let bound = bindActionToCurrentEnvironment {
+            XCTAssertNotNil(
+                withUnsafeCurrentTask { $0 },
+                "Native callbacks must enter a Swift task before opening task-local scopes."
+            )
+            var models = [GTKMainActorDeinitProbe()]
+            models.removeAll()
+            completed.fulfill()
+        }
+
+        bound()
+        await fulfillment(of: [completed], timeout: 1)
     }
 
     func testBoundActionPropagatesEnvironmentIntoChildTask() async throws {
@@ -2965,6 +2992,60 @@ final class GTK4RenderTests: XCTestCase {
         bound()
         await fulfillment(of: [completed], timeout: 1)
         XCTAssertEqual(model.count, 1)
+    }
+
+    func testContextMenuUnparentsPopoverBeforeAnchorFinalization() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Account") {}
+                .contextMenu {
+                    Button("Switch") {}
+                }
+        ))
+        let popover = try unwrapFirstDescendant(
+            ofType: "GtkPopoverMenu",
+            in: widget
+        )
+        XCTAssertEqual(gtk_widget_get_parent(popover), widget)
+
+        g_object_ref(gpointer(popover))
+        let window = presentGTKWidget(widget)
+        gtk_window_destroy(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertNil(
+            gtk_widget_get_parent(popover),
+            "Context-menu popovers must be detached before a plain GTK anchor is finalized."
+        )
+        g_object_unref(gpointer(popover))
+    }
+
+    func testDetachedContextMenuPopoverLivesUntilAnchorFinalization() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Account") {}
+                .contextMenu {
+                    Button("Switch") {}
+                }
+        ))
+        let popover = try unwrapFirstDescendant(
+            ofType: "GtkPopoverMenu",
+            in: widget
+        )
+        let window = presentGTKWidget(widget)
+
+        gtk_widget_unparent(popover)
+        XCTAssertNil(gtk_widget_get_parent(popover))
+        XCTAssertNotEqual(
+            gtk_swift_is_widget(popover),
+            0,
+            "The anchor's signal closure must keep a detached popover alive until teardown."
+        )
+
+        gtk_window_destroy(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
     }
 
     func testButtonRendersWithEnvironmentBinding() throws {
@@ -5415,6 +5496,11 @@ final class GTK4RenderTests: XCTestCase {
 
 private final class GTKDelayedEnvModel {
     var count: Int = 0
+}
+
+@MainActor
+private final class GTKMainActorDeinitProbe {
+    let payload = NSObject()
 }
 
 private final class GTKThemeBootstrapModel: SwiftOpenUI.ObservableObject {

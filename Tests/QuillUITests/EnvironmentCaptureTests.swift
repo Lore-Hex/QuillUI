@@ -29,6 +29,27 @@ private final class QuillLockedCounter: @unchecked Sendable {
 
 private final class QuillInjectedEnvironmentProbe: @unchecked Sendable {}
 
+private final class QuillEnvironmentValuesBox: @unchecked Sendable {
+    let values: EnvironmentValues
+
+    init(_ values: EnvironmentValues) {
+        self.values = values
+    }
+}
+
+private final class QuillEnvironmentScopeResult: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: (value: String, hadTask: Bool)?
+
+    func store(value: String, hadTask: Bool) {
+        lock.withLock { storage = (value, hadTask) }
+    }
+
+    var value: (value: String, hadTask: Bool)? {
+        lock.withLock { storage }
+    }
+}
+
 @Suite("Deferred presentation context")
 struct EnvironmentCaptureTests {
     @Test("A task created by a sheet action can dismiss after await")
@@ -99,6 +120,28 @@ struct EnvironmentCaptureTests {
         }
 
         #expect(await task.value)
+    }
+
+    @Test("A native thread without a Swift task uses the safe environment fallback")
+    func synchronousEnvironmentWithoutCurrentTaskUsesThreadScope() {
+        var environment = EnvironmentValues()
+        environment.quillDeferredValue = "native-thread"
+        let environmentBox = QuillEnvironmentValuesBox(environment)
+        let result = QuillEnvironmentScopeResult()
+        let completed = DispatchSemaphore(value: 0)
+
+        Thread.detachNewThread {
+            let value = withSynchronousTaskEnvironment(environmentBox.values) {
+                let hadTask = withUnsafeCurrentTask { $0 != nil }
+                return (Environment(\.quillDeferredValue).wrappedValue, hadTask)
+            }
+            result.store(value: value.0, hadTask: value.1)
+            completed.signal()
+        }
+
+        #expect(completed.wait(timeout: .now() + 2) == .success)
+        #expect(result.value?.value == "native-thread")
+        #expect(result.value?.hadTask == false)
     }
 }
 #endif
