@@ -188,13 +188,16 @@ estimates, not release claims.
 
 ## Checkpoints
 
-- 2026-07-19: Hardened the unchanged-upstream font-picker selection smoke after
-  GitHub Actions consumed one synthetic pointer press as a focus transition.
-  The route now retries the Inter button only while screenshot verification
-  proves the picker remains visible, preventing a successful dismissal from
-  double-clicking the underlying Display form. The same pushed CI run already
-  passed the deferred-environment Notifications refresh regression before this
-  later automation-only failure. No IceCubes source is patched.
+- 2026-07-19: Hardened the unchanged-upstream font-picker open and selection
+  smokes after GitHub Actions consumed synthetic pointer presses as focus
+  transitions. The route retries the Display row only while screenshot
+  verification proves the unchanged form remains visible, repeating the
+  complete pointer-and-keyboard activation sequence that opens the picker. It
+  retries the Inter button only while the picker remains visible, preventing a
+  successful route transition or dismissal from receiving another click. The
+  same pushed CI runs already passed the deferred-environment Notifications
+  refresh regression before these later automation-only failures. No IceCubes
+  source is patched.
 
 - 2026-07-18: Preserved typed `@Environment` objects for callbacks that outlive
   GTK descriptor and mounted-host render scopes. SwiftOpenUI now primes only

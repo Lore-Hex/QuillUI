@@ -87,6 +87,8 @@ AUTH_SETTINGS_DISPLAY_FONT_SCALE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS:-0.3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES:-3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS:-0.25}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS:-End Return}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS:-80}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS:-0.8}"
@@ -2487,7 +2489,7 @@ toggle_authenticated_settings_display_system_color() {
 }
 
 select_authenticated_settings_display_font_picker() {
-  local detected_slider_y probe_path
+  local attempt=1 detected_slider_y probe_path
   probe_path="${SCREENSHOT_PATH%.*}.icecubes-linux-authenticated-settings-display-ready.png"
   read -r _ _ detected_slider_y < <(
     "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
@@ -2500,15 +2502,48 @@ select_authenticated_settings_display_font_picker() {
   # stable when GTK restores a different scroll offset between launches.
   AUTH_SETTINGS_DISPLAY_FONT_PICKER_X="${AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-420}"
   AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y="${AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-$((detected_slider_y - 50))}"
-  click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y"
-  sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS"
+
+  case "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" >&2
+    exit 2
+  fi
+
   read -r -a font_picker_keys <<<"$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS"
   if ((${#font_picker_keys[@]} == 0)); then
     echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS must contain at least one xdotool key name." >&2
     exit 1
   fi
-  DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS" --clearmodifiers "${font_picker_keys[@]}"
-  sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS"
+
+  while true; do
+    click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS"
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS" --clearmodifiers "${font_picker_keys[@]}"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS"
+
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
+
+    # A focused GTK window can consume the first synthetic pointer press.
+    # Retry the complete focus-and-keyboard activation only while the unchanged
+    # Display form is still visible; an in-flight route transition must not
+    # receive another click.
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display"; then
+      return 0
+    fi
+    if ((attempt >= AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES)); then
+      return 0
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS"
+  done
 }
 
 select_authenticated_settings_display_font_picker_inter() {
