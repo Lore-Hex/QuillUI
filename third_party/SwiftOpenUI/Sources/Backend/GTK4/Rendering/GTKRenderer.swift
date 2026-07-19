@@ -1301,12 +1301,14 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        if let capturedPresentationDismissAction {
-            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action()
+                }
+            } else {
                 action()
             }
-        } else {
-            action()
         }
     }
 }
@@ -1323,12 +1325,14 @@ func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        if let capturedPresentationDismissAction {
-            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
                 action(value)
             }
-        } else {
-            action(value)
         }
     }
 }

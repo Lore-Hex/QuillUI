@@ -2952,10 +2952,10 @@ final class GTK4RenderTests: XCTestCase {
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(environment)
         let property = Environment(GTKDelayedEnvModel.self)
-        XCTAssertTrue(property.wrappedValue === model)
         let bound = bindActionToCurrentEnvironment {
             Task {
                 await Task.yield()
+                XCTAssertTrue(property.wrappedValue === model)
                 property.wrappedValue.count += 1
                 completed.fulfill()
             }

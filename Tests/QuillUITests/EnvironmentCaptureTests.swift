@@ -27,6 +27,8 @@ private final class QuillLockedCounter: @unchecked Sendable {
     }
 }
 
+private final class QuillInjectedEnvironmentProbe: @unchecked Sendable {}
+
 @Suite("Deferred presentation context")
 struct EnvironmentCaptureTests {
     @Test("A task created by a sheet action can dismiss after await")
@@ -81,6 +83,22 @@ struct EnvironmentCaptureTests {
             return Environment(\.quillDeferredValue).wrappedValue
         }
         #expect(value == "async")
+    }
+
+    @Test("A child task inherits a synchronous callback environment before its first read")
+    func childTaskInheritsSynchronousEnvironment() async {
+        let probe = QuillInjectedEnvironmentProbe()
+        var environment = EnvironmentValues()
+        environment.setObject(probe)
+
+        let task: Task<Bool, Never> = withSynchronousTaskEnvironment(environment) {
+            Task {
+                await Task.yield()
+                return Environment(QuillInjectedEnvironmentProbe.self).wrappedValue === probe
+            }
+        }
+
+        #expect(await task.value)
     }
 }
 #endif

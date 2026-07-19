@@ -10537,6 +10537,29 @@ public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
 ''',
         "SwiftOpenUI scoped environment read recording shape was not recognized",
     )
+sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
+}
+
+'''
+if sync_task_environment not in text:
+    async_task_environment = '''public func withTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () async -> T
+) async -> T {
+'''
+    if async_task_environment not in text:
+        raise SystemExit("SwiftOpenUI synchronous task environment helper shape was not recognized")
+    text = text.replace(
+        async_task_environment,
+        sync_task_environment + async_task_environment,
+        1,
+    )
 if "if let taskEnvironment = EnvironmentTaskLocal.values" not in text:
     old_posix_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
     guard let ptr = pthread_getspecific(_envKey) else {
@@ -13577,9 +13600,9 @@ if (
         raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
     text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
 
-# Refresh scoped object captures before a deferred action runs. The
-# @Environment object wrapper itself retains the resolved render-time object
-# for child Tasks that outlive this synchronous native callback.
+# Refresh scoped object captures before a deferred action runs and bind the
+# environment as a task-local value. Child Tasks created by a synchronous
+# native callback then inherit the same environment across suspension.
 old_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
@@ -13589,6 +13612,28 @@ old_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ 
         gtkFlushPendingTextBindingUpdate()
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(capturedEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+}
+'''
+intermediate_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previousEnvironment) }
         if let capturedPresentationDismissAction {
             swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
@@ -13612,21 +13657,27 @@ new_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ 
         let previousEnvironment = getCurrentEnvironment()
         setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        if let capturedPresentationDismissAction {
-            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action()
+                }
+            } else {
                 action()
             }
-        } else {
-            action()
         }
     }
 }
 '''
 if new_bound_action_environment_refresh not in text:
-    if old_bound_action_environment_refresh not in text:
+    if old_bound_action_environment_refresh in text:
+        old_bound_action_source = old_bound_action_environment_refresh
+    elif intermediate_bound_action_environment_refresh in text:
+        old_bound_action_source = intermediate_bound_action_environment_refresh
+    else:
         raise SystemExit("SwiftOpenUI refreshed action binding shape was not recognized")
     text = text.replace(
-        old_bound_action_environment_refresh,
+        old_bound_action_source,
         new_bound_action_environment_refresh,
         1,
     )
@@ -13651,7 +13702,7 @@ old_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironm
     }
 }
 '''
-new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+intermediate_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
     let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
         in: capturedEnvironment
@@ -13673,11 +13724,39 @@ new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironm
     }
 }
 '''
+new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
+                action(value)
+            }
+        }
+    }
+}
+'''
 if new_bound_value_action_environment_refresh not in text:
-    if old_bound_value_action_environment_refresh not in text:
+    if old_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = old_bound_value_action_environment_refresh
+    elif intermediate_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = intermediate_bound_value_action_environment_refresh
+    else:
         raise SystemExit("SwiftOpenUI refreshed value action binding shape was not recognized")
     text = text.replace(
-        old_bound_value_action_environment_refresh,
+        old_bound_value_action_source,
         new_bound_value_action_environment_refresh,
         1,
     )

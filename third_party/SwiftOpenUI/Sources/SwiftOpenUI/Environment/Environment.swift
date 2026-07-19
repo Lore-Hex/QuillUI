@@ -250,6 +250,15 @@ private enum EnvironmentTaskLocal {
     @TaskLocal static var values: EnvironmentValues?
 }
 
+public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
+}
+
 public func withTaskEnvironment<T>(
     _ env: EnvironmentValues,
     operation: () async -> T

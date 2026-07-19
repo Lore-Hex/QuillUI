@@ -11862,12 +11862,14 @@ struct SourceHygieneTests {
         #expect(environment.contains("PresentationDismissTaskLocal.context?.action ?? _presentationDismissActionStack.last"))
         #expect(environment.contains("if let taskEnvironment = EnvironmentTaskLocal.values"))
         #expect(environment.contains("EnvironmentTaskLocal.values ?? _currentEnvironment"))
+        #expect(environment.contains("operation: () throws -> T"))
         #expect(environment.contains("private final class EnvironmentInjectedObjectStorage"))
         #expect(environment.contains("if let object = storage.load() as? Value"))
         #expect(environment.contains("private final class WeakObjectBox"))
         #expect(environment.contains("private var scopedObjects: [ScopedKey: WeakObjectBox]"))
         #expect(gtkRenderer.contains("swiftOpenUIResolvePresentationDismissAction"))
         #expect(gtkRenderer.contains("environment.refreshInjectedObjectsFromRegistry()"))
+        #expect(gtkRenderer.contains("withSynchronousTaskEnvironment(environment)"))
         #expect(gtkRenderer.contains("await withTaskEnvironment(capturedEnvironment.environment)"))
         #expect(gtkRenderer.contains("gtkStoredRootPresentationOverlay(on: gpointer(panel))"))
         #expect(gtkRenderer.contains("func gtkSheetPanelHostDimension("))
@@ -11878,6 +11880,28 @@ struct SourceHygieneTests {
         #expect(photosUI.contains("initial: true"))
         #expect(frameModifier.contains("public struct ContainerRelativeFrameView"))
         #expect(frameModifier.contains("public func resolvedLength(in containerLength: Double) -> Double"))
+    }
+
+    @Test("Deferred callback task environments remain reproducible")
+    func deferredCallbackTaskEnvironmentsRemainReproducible() throws {
+        let environment = try packageSource(
+            "third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift"
+        )
+        let renderer = try packageSource(
+            "third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+        )
+        let renderTests = try packageSource(
+            "third_party/SwiftOpenUI/Tests/BackendTests/GTK4Tests/GTK4RenderTests.swift"
+        )
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(environment.contains("operation: () throws -> T"))
+        #expect(renderer.components(separatedBy: "withSynchronousTaskEnvironment(environment)").count >= 3)
+        #expect(renderTests.contains("testBoundActionPropagatesEnvironmentIntoChildTask"))
+        #expect(renderTests.contains("XCTAssertTrue(property.wrappedValue === model)"))
+        #expect(patcher.contains("SwiftOpenUI synchronous task environment helper shape was not recognized"))
+        #expect(patcher.contains("intermediate_bound_action_environment_refresh"))
+        #expect(patcher.contains("intermediate_bound_value_action_environment_refresh"))
     }
 
     @Test("Vendored GTK ScrollViewReader uses deferred ID adjustment scrolling")
