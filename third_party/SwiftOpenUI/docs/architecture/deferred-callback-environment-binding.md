@@ -135,8 +135,9 @@ task-local scope directly from that callback. Swift 6.2 has a runtime defect in 
 an actor-isolated object while the scope is active can corrupt the task-local lookup marker during
 `swift_task_deinitOnExecutor`.
 
-GTK therefore schedules bound actions into a `Task { @MainActor in ... }` before installing the
-captured task-local environment. This does three jobs at once:
+GTK therefore schedules a bound action into a `Task { @MainActor in ... }` when invocation has no
+current Swift task, then installs the captured task-local environment. Calls that already have a
+Swift task remain synchronous. This does three jobs at once:
 
 - UI state mutation runs on the same actor used by SwiftUI view code
 - task-local storage has a real task owner, avoiding the Swift 6.2 runtime defect

@@ -13743,14 +13743,19 @@ new_bound_action_environment_refresh = '''private final class GTKDeferredAction<
         self.action = action
     }
 
-    func schedule(_ value: Value) {
+    func invoke(_ value: Value) {
+        let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+        guard !hasCurrentTask else {
+            run(value)
+            return
+        }
+
         let invocation = GTKDeferredActionInvocation(action: self, value: value)
         Task { @MainActor [invocation] in
             invocation.run()
         }
     }
 
-    @MainActor
     fileprivate func run(_ value: Value) {
         gtkFlushPendingTextBindingUpdate()
         var environment = capturedEnvironment
@@ -13798,7 +13803,7 @@ func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Voi
         ),
         action: { _ in action() }
     )
-    return { deferredAction.schedule(()) }
+    return { deferredAction.invoke(()) }
 }
 '''
 if new_bound_action_environment_refresh not in text:
@@ -13891,7 +13896,7 @@ new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironm
         ),
         action: action
     )
-    return { value in deferredAction.schedule(value) }
+    return { value in deferredAction.invoke(value) }
 }
 '''
 if new_bound_value_action_environment_refresh not in text:

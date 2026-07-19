@@ -2953,6 +2953,7 @@ final class GTK4RenderTests: XCTestCase {
     func testBoundActionReleasesMainActorStateInsideSwiftTask() async throws {
         try requireGTK()
 
+        let nativeCallbackReturned = expectation(description: "Native callback returned")
         let completed = expectation(description: "Main-actor state released")
         let bound = bindActionToCurrentEnvironment {
             XCTAssertNotNil(
@@ -2963,9 +2964,15 @@ final class GTK4RenderTests: XCTestCase {
             models.removeAll()
             completed.fulfill()
         }
+        let nativeCallback = GTKNativeCallbackProbe(
+            action: bound,
+            onReturn: { nativeCallbackReturned.fulfill() }
+        )
 
-        bound()
-        await fulfillment(of: [completed], timeout: 1)
+        Thread.detachNewThread {
+            nativeCallback.invoke()
+        }
+        await fulfillment(of: [nativeCallbackReturned, completed], timeout: 1)
     }
 
     func testBoundActionPropagatesEnvironmentIntoChildTask() async throws {
@@ -5501,6 +5508,22 @@ private final class GTKDelayedEnvModel {
 @MainActor
 private final class GTKMainActorDeinitProbe {
     let payload = NSObject()
+}
+
+private final class GTKNativeCallbackProbe: @unchecked Sendable {
+    private let action: () -> Void
+    private let onReturn: () -> Void
+
+    init(action: @escaping () -> Void, onReturn: @escaping () -> Void) {
+        self.action = action
+        self.onReturn = onReturn
+    }
+
+    func invoke() {
+        XCTAssertNil(withUnsafeCurrentTask { $0 })
+        action()
+        onReturn()
+    }
 }
 
 private final class GTKThemeBootstrapModel: SwiftOpenUI.ObservableObject {
