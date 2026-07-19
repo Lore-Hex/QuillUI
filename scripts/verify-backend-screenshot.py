@@ -7785,6 +7785,28 @@ def validate_icecubes_linux_authenticated_composer_media_panel(image: Screenshot
     )
 
 
+def validate_icecubes_linux_authenticated_composer_media_panel_closed(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_composer(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    thumbnail_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.24),
+        top + int(app_height * 0.52),
+        right - int(app_width * 0.24),
+        bottom - 64,
+        icecubes_media_pixel,
+    )
+
+    require(
+        thumbnail_pixels <= 5_000,
+        "IceCubes authenticated composer media panel has started opening: "
+        f"thumbnail_pixels={thumbnail_pixels}",
+    )
+    return baseline + ", " + f"media_panel_closed_thumbnail_pixels={thumbnail_pixels}"
+
+
 def validate_icecubes_linux_authenticated_composer_media_alt_editor(
     image: Screenshot,
     *,
@@ -8878,6 +8900,7 @@ def main() -> int:
     compact_icecubes_dialog_product = product in {
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel-closed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
         "icecubes-linux-authenticated-composer-media-alt-editor",
@@ -8929,6 +8952,7 @@ def main() -> int:
         "icecubes-linux-authenticated-settings-display-system-color",
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel-closed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
         "icecubes-linux-authenticated-composer-media-alt-editor",
@@ -9209,6 +9233,8 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-composer-typed":
         print(validate_icecubes_linux_authenticated_composer(image, typed=True))
+    elif product == "icecubes-linux-authenticated-composer-media-panel-closed":
+        print(validate_icecubes_linux_authenticated_composer_media_panel_closed(image))
     elif product == "icecubes-linux-authenticated-composer-media-panel":
         print(validate_icecubes_linux_authenticated_composer_media_panel(image))
     elif product == "icecubes-linux-authenticated-composer-media-attachment":

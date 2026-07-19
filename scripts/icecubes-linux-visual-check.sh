@@ -164,6 +164,8 @@ AUTH_COMPOSER_MEDIA_TOGGLE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_TOGG
 AUTH_COMPOSER_MEDIA_CLOSE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_X:-336}"
 AUTH_COMPOSER_MEDIA_CLOSE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_Y:-367}"
 AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS:-0.25}"
+AUTH_COMPOSER_CHILD_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES:-3}"
+AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS:-1.0}"
 AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS:-0.75}"
 AUTH_COMPOSER_LIBRARY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_X:-290}"
@@ -1462,19 +1464,87 @@ open_authenticated_composer_surface() {
   done
 }
 
+click_until_authenticated_compose_surface() {
+  local expected_product="$1"
+  local current_product="$2"
+  local target_x="$3"
+  local target_y="$4"
+  local settle_seconds="$5"
+  local label="$6"
+  local attempt=1
+
+  case "$AUTH_COMPOSER_CHILD_CLICK_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSER_CHILD_CLICK_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_COMPOSER_CHILD_CLICK_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSER_CHILD_CLICK_RETRIES" >&2
+    exit 2
+  fi
+
+  while true; do
+    click_capture_window_point "$target_x" "$target_y"
+    sleep "$settle_seconds"
+
+    if wait_for_authenticated_compose_surface "$expected_product" 0 2>/dev/null; then
+      return 0
+    fi
+
+    # GTK can consume a synthetic press while focusing a newly mounted child.
+    # Retry only while screenshot verification proves the previous composer
+    # surface is unchanged, so an in-flight transition cannot be clicked twice.
+    if ! wait_for_authenticated_compose_surface "$current_product" 0 >/dev/null 2>&1; then
+      break
+    fi
+    if ((attempt >= AUTH_COMPOSER_CHILD_CLICK_RETRIES)); then
+      break
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS"
+
+    # Recheck after the grace period immediately before another press. This
+    # closes the interval where an expected surface can finish mounting after
+    # the first screenshots but before a retry reaches the window.
+    if wait_for_authenticated_compose_surface "$expected_product" 0 2>/dev/null; then
+      return 0
+    fi
+    if ! wait_for_authenticated_compose_surface "$current_product" 0 >/dev/null 2>&1; then
+      break
+    fi
+  done
+
+  if ! wait_for_authenticated_compose_surface "$expected_product"; then
+    echo "IceCubes $label did not reach its expected composer surface after $attempt click attempt(s)." >&2
+    return 1
+  fi
+}
+
 open_authenticated_composer_media_panel() {
   open_authenticated_composer_surface
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_TOGGLE_X" "$AUTH_COMPOSER_MEDIA_TOGGLE_Y"
-  sleep "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-panel"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-panel" \
+    "icecubes-linux-authenticated-composer-media-panel-closed" \
+    "$AUTH_COMPOSER_MEDIA_TOGGLE_X" \
+    "$AUTH_COMPOSER_MEDIA_TOGGLE_Y" \
+    "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS" \
+    "authenticated composer media panel"
 }
 
 attach_authenticated_composer_image() {
-  local previous_download_count previous_upload_count
+  local current_upload_count previous_download_count previous_upload_count
 
-  open_authenticated_composer_media_panel
   previous_upload_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG")"
   previous_download_count="$(count_app_log_occurrences "$AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG")"
+  open_authenticated_composer_media_panel
+  current_upload_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG")"
+  if ((current_upload_count != previous_upload_count)); then
+    echo "IceCubes composer media-panel transition unexpectedly activated the Library action." >&2
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+    exit 1
+  fi
   click_capture_window_point "$AUTH_COMPOSER_LIBRARY_X" "$AUTH_COMPOSER_LIBRARY_Y"
   wait_for_app_log_exact_activity \
     "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG" \
@@ -1485,14 +1555,24 @@ attach_authenticated_composer_image() {
     "authenticated composer media download" \
     "$((previous_download_count + 1))"
   sleep "$AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS"
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_CLOSE_X" "$AUTH_COMPOSER_MEDIA_CLOSE_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "icecubes-linux-authenticated-composer-media-panel" \
+    "$AUTH_COMPOSER_MEDIA_CLOSE_X" \
+    "$AUTH_COMPOSER_MEDIA_CLOSE_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media panel dismissal"
 }
 
 open_authenticated_composer_media_alt_editor() {
   attach_authenticated_composer_image
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-editor"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-alt-editor" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_ALT_X" \
+    "$AUTH_COMPOSER_MEDIA_ALT_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media ALT editor"
 }
 
 edit_authenticated_composer_media_alt_text() {
@@ -1523,14 +1603,24 @@ edit_authenticated_composer_media_alt_text() {
     "$((previous_update_count + 1))"
   wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
 
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-alt-saved" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_ALT_X" \
+    "$AUTH_COMPOSER_MEDIA_ALT_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer saved media ALT editor"
 }
 
 delete_authenticated_composer_image() {
   attach_authenticated_composer_image
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_DELETE_X" "$AUTH_COMPOSER_MEDIA_DELETE_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-deleted"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-deleted" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_DELETE_X" \
+    "$AUTH_COMPOSER_MEDIA_DELETE_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media deletion"
 }
 
 click_authenticated_list_sidebar_row() {

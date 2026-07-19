@@ -199,6 +199,16 @@ estimates, not release claims.
   refresh regression before these later automation-only failures. No IceCubes
   source is patched.
 
+- 2026-07-19: Generalized focus-safe child transitions across IceCubes'
+  unchanged composer media workflow after the GitHub runner consumed the media
+  panel toggle press. The harness now retries only while screenshot
+  verification proves the prior composer surface is unchanged, covering panel
+  open/close, ALT editor open/reopen, and media deletion without blind clicks
+  into a successful or in-flight transition. A second state check immediately
+  before retry closes late-mount timing windows, while a pre-transition upload
+  counter asserts that opening the panel cannot activate its Library action.
+  The upload, download, and app behavior remain unchanged.
+
 - 2026-07-18: Preserved typed `@Environment` objects for callbacks that outlive
   GTK descriptor and mounted-host render scopes. SwiftOpenUI now primes only
   available injected-object wrappers before evaluating `body`; missing unused
