@@ -11918,7 +11918,7 @@ struct SourceHygieneTests {
         #expect(environment.contains("EnvironmentTaskLocal.values ?? _currentEnvironment"))
         #expect(environment.contains("operation: () throws -> T"))
         #expect(environment.contains("private final class EnvironmentInjectedObjectStorage"))
-        #expect(environment.contains("if let object = storage.load() as? Value"))
+        #expect(environment.contains("return storage.load() as? Value"))
         #expect(environment.contains("private final class WeakObjectBox"))
         #expect(environment.contains("private var scopedObjects: [ScopedKey: WeakObjectBox]"))
         #expect(gtkRenderer.contains("swiftOpenUIResolvePresentationDismissAction"))
