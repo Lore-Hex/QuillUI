@@ -3136,6 +3136,53 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testDescriptorPassPrimesEnvironmentForNestedDeferredCallback() throws {
+        try requireGTK()
+
+        let model = GTKDescriptorDeferredEnvironmentModel()
+        let callbacks = GTKDeferredEnvironmentCallbackBox()
+        var environment = getCurrentEnvironment()
+        environment.setObject(model, scope: "descriptor-deferred-callback")
+
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        let described = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(
+                GTKDescriptorDeferredEnvironmentProbe(callbacks: callbacks)
+            )
+        }
+        setCurrentEnvironment(previousEnvironment)
+
+        guard let onAppear = described.onAppearPayloads.first else {
+            XCTFail("Descriptor pass did not capture the probe's onAppear action")
+            return
+        }
+        onAppear.action()
+        guard let deferred = callbacks.action else {
+            XCTFail("onAppear did not install its nested deferred callback")
+            return
+        }
+
+        // The outer action has restored its bound environment by this point.
+        // The nested callback must use the object primed on the wrapper during
+        // descriptor evaluation rather than an ambient registry fallback.
+        deferred()
+        XCTAssertEqual(model.count, 1)
+    }
+
+    func testDescriptorPrimingSkipsUnavailableUnusedEnvironmentObject() throws {
+        try requireGTK()
+
+        let descriptor = gtkDescribeView(
+            GTKUnusedEnvironmentDependencyProbe()
+        )
+
+        XCTAssertTrue(
+            gtkDescriptorContainsText(descriptor, "unused dependency"),
+            "Declaring an environment dependency must not trap until its value is read"
+        )
+    }
+
     func testOnAppearRendersWithEnvironmentBinding() throws {
         try requireGTK()
 
@@ -3145,6 +3192,28 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertNotNil(widget,
                         "onAppear view with .environment(model) should render a widget")
+    }
+
+    @MainActor
+    func testStatefulHostPrimesEnvironmentForNestedOnAppearCallback() async throws {
+        try requireGTK()
+
+        let model = GTKHostedDeferredEnvironmentModel()
+        let completed = expectation(description: "Nested onAppear callback completed")
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKHostedDeferredEnvironmentProbe(onCompletion: {
+                completed.fulfill()
+            })
+            .environment(model)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        await fulfillment(of: [completed], timeout: 1)
+        XCTAssertEqual(model.count, 1)
     }
 
     func testOnDisappearRendersWithEnvironmentBinding() throws {
@@ -5559,6 +5628,20 @@ private final class GTKDelayedEnvModel {
     var count: Int = 0
 }
 
+private final class GTKDescriptorDeferredEnvironmentModel {
+    var count: Int = 0
+}
+
+private final class GTKHostedDeferredEnvironmentModel {
+    var count: Int = 0
+}
+
+private final class GTKUnavailableEnvironmentModel {}
+
+private final class GTKDeferredEnvironmentCallbackBox {
+    var action: (() -> Void)?
+}
+
 @MainActor
 private final class GTKMainActorDeinitProbe {
     let payload = NSObject()
@@ -6216,6 +6299,46 @@ private struct GTKDelayedEnvDescriptorTextView: View {
 
     var body: some View {
         Text("count \(model.count)")
+    }
+}
+
+private struct GTKDescriptorDeferredEnvironmentProbe: View, GTKRenderable {
+    @Environment(GTKDescriptorDeferredEnvironmentModel.self) var model
+    let callbacks: GTKDeferredEnvironmentCallbackBox
+
+    var body: some View {
+        Text("deferred environment")
+            .onAppear {
+                callbacks.action = { model.count += 1 }
+            }
+    }
+
+    @MainActor
+    func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(body)
+    }
+}
+
+private struct GTKHostedDeferredEnvironmentProbe: View {
+    @Environment(GTKHostedDeferredEnvironmentModel.self) var model
+    let onCompletion: () -> Void
+
+    var body: some View {
+        Text("hosted deferred environment")
+            .onAppear {
+                DispatchQueue.main.async {
+                    model.count += 1
+                    onCompletion()
+                }
+            }
+    }
+}
+
+private struct GTKUnusedEnvironmentDependencyProbe: View {
+    @Environment(GTKUnavailableEnvironmentModel.self) var unusedModel
+
+    var body: some View {
+        Text("unused dependency")
     }
 }
 

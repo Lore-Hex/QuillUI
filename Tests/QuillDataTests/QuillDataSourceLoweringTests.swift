@@ -1878,6 +1878,9 @@ struct QuillDataSourceLoweringTests {
         let viewHost = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
         )
+        let coreViewHost = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/ViewHost.swift"
+        )
         let navigation = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
         )
@@ -1947,7 +1950,7 @@ struct QuillDataSourceLoweringTests {
                 encoding: .utf8
             ).write(to: destination, atomically: true, encoding: .utf8)
         }
-        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, coreViewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -3067,6 +3070,7 @@ struct QuillDataSourceLoweringTests {
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift", to: descriptorTree)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4Backend.swift", to: backend)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKViewHost.swift", to: viewHost)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/ViewHost.swift", to: coreViewHost)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKNavigation.swift", to: navigation)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/CGTK/shim.h", to: shim)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Navigation/NavigationDestination.swift", to: navigationDestination)
@@ -3451,6 +3455,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private protocol GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("extension StrokedShape: GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
+        #expect(patchedRenderer.contains("primeInjectedEnvironmentObjects(view)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
         // The button-action-capture rationale comment was reworded into the
@@ -3462,6 +3467,7 @@ struct QuillDataSourceLoweringTests {
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.
         #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
+        #expect(patchedDescriptorTree.contains("primeInjectedEnvironmentObjects(view)"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
         #expect(!patchedViewHost.contains("gtkBeginStateIdentityPass()"))
@@ -3472,6 +3478,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedViewHost.contains("var rebuildPresentationRoot: gpointer?"))
         #expect(patchedViewHost.contains("var stateIdentityNamespace = \"root\""))
         #expect(patchedViewHost.contains("let presentationRoot = gtk_widget_get_root(container).map { gpointer($0) }"))
+
+        let patchedCoreViewHost = try String(contentsOf: coreViewHost, encoding: .utf8)
+        #expect(patchedCoreViewHost.contains("public func primeInjectedEnvironmentObjects<V>(_ view: V)"))
+        #expect(patchedCoreViewHost.contains("environment.wireInjectedObject(to: nil)"))
 
         let patchedScrollViewReader = try String(contentsOf: scrollViewReader, encoding: .utf8)
         #expect(patchedScrollViewReader.contains("fileprivate protocol _SwiftOpenUIOptionalHashableID"))
@@ -3515,6 +3525,9 @@ struct QuillDataSourceLoweringTests {
 
         let patchedEnvironment = try String(contentsOf: environment, encoding: .utf8)
         #expect(patchedEnvironment.contains("refreshInjectedObjectsFromRegistry"))
+        #expect(patchedEnvironment.contains("case injectedObject(() -> Value?)"))
+        #expect(patchedEnvironment.contains("guard case .injectedObject(let resolve) = reader"))
+        #expect(patchedEnvironment.contains("guard let host else { return }"))
 
         let patchedIssueReporter = try String(contentsOf: issueReporter, encoding: .utf8)
         #expect(!patchedIssueReporter.contains("canImport(os)"))

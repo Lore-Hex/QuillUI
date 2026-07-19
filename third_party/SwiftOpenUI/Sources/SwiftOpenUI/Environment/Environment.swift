@@ -467,7 +467,7 @@ public struct Environment<Value> {
     /// from the constrained init.
     private enum Reader {
         case keyPath(KeyPath<EnvironmentValues, Value>)
-        case injectedObject(() -> Value)
+        case injectedObject(() -> Value?)
     }
 
     private let reader: Reader
@@ -509,13 +509,7 @@ public struct Environment<Value> {
                 recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
                 return object
             }
-            if let object = storage.load() as? Value {
-                return object
-            }
-            fatalError(
-                "@Environment(\(type).self) lookup failed — no object of this type was injected. " +
-                "Call `.environment(object)` on an ancestor view."
-            )
+            return storage.load() as? Value
         }
     }
 
@@ -524,7 +518,13 @@ public struct Environment<Value> {
         case .keyPath(let keyPath):
             return getCurrentEnvironment()[keyPath: keyPath]
         case .injectedObject(let read):
-            return read()
+            guard let object = read() else {
+                fatalError(
+                    "@Environment(\(Value.self).self) lookup failed — no object of this type was injected. " +
+                    "Call `.environment(object)` on an ancestor view."
+                )
+            }
+            return object
         }
     }
 }
@@ -537,9 +537,10 @@ extension Environment: DynamicProperty {}
 /// distinguishes the two constructors.
 extension Environment: AnyObjectInjectionEnvironment {
     public func wireInjectedObject(to host: AnyViewHost?) {
-        guard isInjectedObject else { return }
-        guard let object = wrappedValue as? AnyObject else { return }
-        wireEnvironmentObservableObjectRead(object, host: host)
+        guard case .injectedObject(let resolve) = reader,
+              let object = resolve() else { return }
+        guard let host else { return }
+        wireEnvironmentObservableObjectRead(object as AnyObject, host: host)
     }
 }
 

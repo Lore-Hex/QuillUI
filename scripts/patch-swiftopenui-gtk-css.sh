@@ -12,6 +12,7 @@ CANONICAL_RENDERER="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/G
 DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
 GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
 GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
+SWIFTOPENUI_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ViewHost.swift"
 NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
 GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
 CANONICAL_GTK_SHIM="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
@@ -22,6 +23,7 @@ STATE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/State.swift"
 OBSERVABLE_OBJECT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ObservableObject.swift"
 BINDABLE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/Bindable.swift"
 ENVIRONMENT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Environment/Environment.swift"
+CANONICAL_ENVIRONMENT="$CANONICAL_SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Environment/Environment.swift"
 CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
 CONFIRMATION_DIALOG_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
 ON_CHANGE_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"
@@ -88,6 +90,11 @@ if [[ ! -f "$GTK_VIEW_HOST" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$SWIFTOPENUI_VIEW_HOST" ]]; then
+  echo "SwiftOpenUI core view host was not found at $SWIFTOPENUI_VIEW_HOST" >&2
+  exit 1
+fi
+
 if [[ ! -f "$NAVIGATION" ]]; then
   echo "SwiftOpenUI GTK navigation renderer was not found at $NAVIGATION" >&2
   exit 1
@@ -134,7 +141,7 @@ if [[ ! -f "$LOCALIZATION" ]]; then
   exit 1
 fi
 
-chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$NAVIGATION_DESTINATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW" "$SCROLL_VIEW_READER" "$LOCALIZATION"
+chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$SWIFTOPENUI_VIEW_HOST" "$NAVIGATION" "$NAVIGATION_DESTINATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW" "$SCROLL_VIEW_READER" "$LOCALIZATION"
 
 chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
 if [[ -f "$MENU_VIEW" ]]; then
@@ -9911,6 +9918,16 @@ if "gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))" no
         1,
     )
 
+if "Views hosted solely because they use @Environment(Type.self) still need" not in text:
+    start = "private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {"
+    end = "private func gtkRestoreAndInstallInlineState<V>("
+    if start not in text or end not in text:
+        raise SystemExit("SwiftOpenUI GTK stateful environment installation shape was not recognized")
+    replacement = canonical_block(start, end)
+    start_index = text.index(start)
+    end_index = text.index(end, start_index)
+    text = text[:start_index] + replacement + text[end_index:]
+
 if text != original:
     path.write_text(text)
 PY
@@ -10099,6 +10116,40 @@ if text != original:
     path.write_text(text)
 PY
 
+python3 - "$SWIFTOPENUI_VIEW_HOST" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+original = path.read_text()
+text = original
+
+if "public func primeInjectedEnvironmentObjects" not in text:
+    marker = '''/// Connect all @State / @ObservedObject / @StateObject / @EnvironmentObject
+/// storages found on a view (via Mirror) to the given ViewHost.
+'''
+    helper = '''/// Resolve injected `@Environment(Type.self)` wrappers while the view's
+/// render-time environment is active. The wrapper retains the resolved object,
+/// allowing callbacks created from this view value to outlive that environment
+/// scope in the same way SwiftUI's dynamic-property update phase does.
+public func primeInjectedEnvironmentObjects<V>(_ view: V) {
+    let mirror = Mirror(reflecting: view)
+    for child in mirror.children {
+        if let environment = child.value as? AnyObjectInjectionEnvironment {
+            environment.wireInjectedObject(to: nil)
+        }
+    }
+}
+
+'''
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI injected environment priming insertion point was not recognized")
+    text = text.replace(marker, helper + marker, 1)
+
+if text != original:
+    path.write_text(text)
+PY
+
 python3 - "$DESCRIPTOR_TREE" <<'PY'
 import sys
 from pathlib import Path
@@ -10106,6 +10157,20 @@ from pathlib import Path
 path = Path(sys.argv[1])
 original = path.read_text()
 text = original
+
+if "primeInjectedEnvironmentObjects(view)" not in text:
+    marker = '''    if let describable = view as? GTKDescribable {
+'''
+    priming = '''    // Descriptor passes evaluate fresh view values independently of the
+    // mounted render pass. Prime injected environment wrappers before body
+    // creates deferred callbacks so those callbacks retain the scoped object
+    // after the descriptor environment has been restored.
+    primeInjectedEnvironmentObjects(view)
+
+'''
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor environment priming insertion point was not recognized")
+    text = text.replace(marker, priming + marker, 1)
 
 if "case statefulLifecycleScope" not in text:
     marker = "    case listRowLifecycleScope\n"
@@ -10408,13 +10473,15 @@ if text != original:
     path.write_text(text)
 PY
 
-python3 - "$ENVIRONMENT" <<'PY'
+python3 - "$ENVIRONMENT" "$CANONICAL_ENVIRONMENT" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
 original = path.read_text()
 text = original
+canonical = canonical_path.read_text()
 if "refreshInjectedObjectsFromRegistry" not in text:
     old = '''    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
         setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
@@ -10859,6 +10926,20 @@ private final class EnvironmentInjectedObjectStorage {
         old_injected_object_reader,
         new_injected_object_reader,
         1,
+    )
+if "case injectedObject(() -> Value?)" not in text:
+    start = "@propertyWrapper\npublic struct Environment<Value> {"
+    end = "// MARK: - Environment object lookup"
+    if start not in text or end not in text or start not in canonical or end not in canonical:
+        raise SystemExit("SwiftOpenUI lazy injected environment priming shape was not recognized")
+    source_start = text.index(start)
+    source_end = text.index(end, source_start)
+    canonical_start = canonical.index(start)
+    canonical_end = canonical.index(end, canonical_start)
+    text = (
+        text[:source_start]
+        + canonical[canonical_start:canonical_end]
+        + text[source_end:]
     )
 if text != original:
     path.write_text(text)

@@ -742,6 +742,12 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
         }
     }
 
+    // Descriptor passes evaluate fresh view values independently of the
+    // mounted render pass. Prime injected environment wrappers before body
+    // creates deferred callbacks so those callbacks retain the scoped object
+    // after the descriptor environment has been restored.
+    primeInjectedEnvironmentObjects(view)
+
     if let describable = view as? GTKDescribable {
         return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }

@@ -1060,20 +1060,24 @@ private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
     host.stateIdentityNamespace = key
     let mirror = Mirror(reflecting: view)
     let providers = mirror.children.compactMap { $0.value as? AnyStateStorageProvider }
-    guard !providers.isEmpty else { return }
-
-    gtkDebugLog("state install type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
-    if let cached = gtkStateCache[key], cached.count == providers.count {
-        for (provider, old) in zip(providers, cached) {
-            provider.anyStorage.restoreValue(from: old)
-            old.forwardMutations(to: provider.anyStorage)
+    if !providers.isEmpty {
+        gtkDebugLog("state install type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
+        if let cached = gtkStateCache[key], cached.count == providers.count {
+            for (provider, old) in zip(providers, cached) {
+                provider.anyStorage.restoreValue(from: old)
+                old.forwardMutations(to: provider.anyStorage)
+            }
         }
+        for provider in providers {
+            provider.anyStorage.host = host
+        }
+        gtkStateCache[key] = providers.map { $0.anyStorage }
     }
 
-    for provider in providers {
-        provider.anyStorage.host = host
-    }
-    gtkStateCache[key] = providers.map { $0.anyStorage }
+    // Views hosted solely because they use @Environment(Type.self) still need
+    // those wrappers primed before body creates deferred callbacks. Body reads
+    // register the observable dependencies actually used by this host.
+    primeInjectedEnvironmentObjects(view)
 }
 
 private func gtkRestoreAndInstallInlineState<V>(_ view: V, host: AnyViewHost?) -> String {

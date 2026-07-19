@@ -10596,6 +10596,29 @@ struct SourceHygieneTests {
         #expect(quillCompat.contains("extension SwiftOpenUI.ListRowBackgroundView: QuillWrappedViewRepresentable"))
     }
 
+    @Test("SwiftOpenUI deferred environment priming is reproducible")
+    func swiftOpenUIDeferredEnvironmentPrimingIsReproducible() throws {
+        let gtkRenderer = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKRenderer.swift")
+        let gtkDescriptorTree = try packageSource("third_party/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift")
+        let viewHost = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/State/ViewHost.swift")
+        let environment = try packageSource("third_party/SwiftOpenUI/Sources/SwiftOpenUI/Environment/Environment.swift")
+        let patcher = try packageSource("scripts/patch-swiftopenui-gtk-css.sh")
+
+        #expect(gtkRenderer.contains("Views hosted solely because they use @Environment(Type.self) still need"))
+        #expect(gtkRenderer.contains("primeInjectedEnvironmentObjects(view)"))
+        #expect(gtkDescriptorTree.contains("primeInjectedEnvironmentObjects(view)"))
+        #expect(viewHost.contains("public func primeInjectedEnvironmentObjects<V>(_ view: V)"))
+        #expect(viewHost.contains("environment.wireInjectedObject(to: nil)"))
+        #expect(environment.contains("case injectedObject(() -> Value?)"))
+        #expect(environment.contains("guard case .injectedObject(let resolve) = reader"))
+        #expect(environment.contains("guard let host else { return }"))
+        #expect(patcher.contains("SWIFTOPENUI_VIEW_HOST=\"$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ViewHost.swift\""))
+        #expect(patcher.contains("SwiftOpenUI injected environment priming insertion point was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI descriptor environment priming insertion point was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI GTK stateful environment installation shape was not recognized"))
+        #expect(patcher.contains("SwiftOpenUI lazy injected environment priming shape was not recognized"))
+    }
+
     @Test("Upstream IceCubes visual smoke is a first-class Linux artifact")
     func upstreamIceCubesVisualSmokeIsFirstClassLinuxArtifact() throws {
         let script = try packageSource("scripts/icecubes-linux-visual-check.sh")

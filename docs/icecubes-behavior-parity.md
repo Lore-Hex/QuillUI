@@ -188,6 +188,17 @@ estimates, not release claims.
 
 ## Checkpoints
 
+- 2026-07-18: Preserved typed `@Environment` objects for callbacks that outlive
+  GTK descriptor and mounted-host render scopes. SwiftOpenUI now primes only
+  available injected-object wrappers before evaluating `body`; missing unused
+  dependencies remain lazy and still trap if actually read. This fixes the
+  unchanged IceCubes Notifications tab's nested `onAppear` refresh callback
+  without eagerly subscribing every observable or changing the property-wrapper
+  layout. Verification: repeated x86_64 Notifications refresh and font-picker
+  select/dismiss smokes passed, the same two workflows passed on ARM64, both
+  architectures compiled `GTK4RenderTests`, and the hermetic vendor patcher and
+  focused source guard passed. No IceCubes source is patched.
+
 - 2026-07-18: Completed the unchanged-upstream account lifecycle and OAuth
   failure-recovery paths. The visual harness seeds two real `AppAccount`
   records, opens IceCubes' account selector, switches accounts, relaunches to

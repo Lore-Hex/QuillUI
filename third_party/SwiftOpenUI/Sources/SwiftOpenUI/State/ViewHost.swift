@@ -41,6 +41,19 @@ extension AnyViewHost {
     public var isActiveForForwardedStateUpdates: Bool { true }
 }
 
+/// Resolve injected `@Environment(Type.self)` wrappers while the view's
+/// render-time environment is active. The wrapper retains the resolved object,
+/// allowing callbacks created from this view value to outlive that environment
+/// scope in the same way SwiftUI's dynamic-property update phase does.
+public func primeInjectedEnvironmentObjects<V>(_ view: V) {
+    let mirror = Mirror(reflecting: view)
+    for child in mirror.children {
+        if let environment = child.value as? AnyObjectInjectionEnvironment {
+            environment.wireInjectedObject(to: nil)
+        }
+    }
+}
+
 /// Connect all @State / @ObservedObject / @StateObject / @EnvironmentObject
 /// storages found on a view (via Mirror) to the given ViewHost.
 public func installState<V>(_ view: V, host: AnyViewHost) {
