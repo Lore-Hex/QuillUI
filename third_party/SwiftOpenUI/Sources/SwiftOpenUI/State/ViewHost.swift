@@ -25,6 +25,10 @@ public protocol AnyViewHost: AnyObject {
     /// Leave interactive mode. When the last nested level exits and a
     /// rebuild was deferred, one rebuild is scheduled.
     func endInteractiveUpdate()
+
+    /// Whether a host that now reads forwarded state still owns visible
+    /// native content and must be refreshed alongside the newest host.
+    var isActiveForForwardedStateUpdates: Bool { get }
 }
 
 extension AnyViewHost {
@@ -34,6 +38,7 @@ extension AnyViewHost {
 
     public func beginInteractiveUpdate() {}
     public func endInteractiveUpdate() {}
+    public var isActiveForForwardedStateUpdates: Bool { true }
 }
 
 /// Connect all @State / @ObservedObject / @StateObject / @EnvironmentObject

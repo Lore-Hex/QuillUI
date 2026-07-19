@@ -3,6 +3,7 @@ import XCTest
 
 private final class RecordingViewHost: AnyViewHost {
     var rebuildCount = 0
+    var isActiveForForwardedStateUpdates = true
 
     func scheduleRebuild() { rebuildCount += 1 }
     func suppressNextFocusRestore() {}
@@ -184,6 +185,45 @@ final class StateTests: XCTestCase {
         XCTAssertEqual(stale.value, "updated")
         XCTAssertEqual(intermediate.value, "updated")
         XCTAssertEqual(current.value, "updated")
+    }
+
+    func testForwardedObservableStateSchedulesCurrentAndActivePredecessorHosts() {
+        let counter = Counter()
+        let stale = StateStorage(counter)
+        let intermediate = StateStorage(counter)
+        let current = StateStorage(counter)
+        let staleHost = RecordingViewHost()
+        let intermediateHost = RecordingViewHost()
+        let currentHost = RecordingViewHost()
+
+        stale.host = staleHost
+        intermediate.host = intermediateHost
+        current.host = currentHost
+        intermediateHost.isActiveForForwardedStateUpdates = false
+        stale.forwardMutations(to: intermediate)
+        intermediate.forwardMutations(to: current)
+
+        counter.count = 1
+
+        XCTAssertEqual(staleHost.rebuildCount, 1)
+        XCTAssertEqual(intermediateHost.rebuildCount, 0)
+        XCTAssertEqual(currentHost.rebuildCount, 1)
+    }
+
+    func testForwardedStateWriteSchedulesMappedPredecessorHost() {
+        let stale = StateStorage(1)
+        let current = StateStorage(1)
+        let staleHost = RecordingViewHost()
+        let currentHost = RecordingViewHost()
+
+        stale.host = staleHost
+        current.host = currentHost
+        stale.forwardMutations(to: current)
+        stale.setValue(2)
+
+        XCTAssertEqual(stale.value, 2)
+        XCTAssertEqual(staleHost.rebuildCount, 1)
+        XCTAssertEqual(currentHost.rebuildCount, 1)
     }
 
     func testFocusStateStorageForwardsStaleMutations() {

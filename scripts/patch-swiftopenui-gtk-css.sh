@@ -4092,6 +4092,86 @@ if "private var gtkStateTypeCounters: [String: Int]" in text:
 elif "gtkStateCacheKey" not in text:
     text = text.replace(marker, state_identity + marker, 1)
 
+if "gtkEnvironmentObjectTypeCounters" not in text:
+    old_counter = "private var gtkStateTypeCounters: [String: [String: Int]] = [:]\n"
+    new_counter = old_counter + "private var gtkEnvironmentObjectTypeCounters: [String: [String: Int]] = [:]\n"
+    if old_counter not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope counter insertion point was not recognized")
+    text = text.replace(old_counter, new_counter, 1)
+
+    reset_marker = "    gtkMountTypeCounters[namespace] = [:]\n"
+    begin_reset_marker = "    gtkMountTypeCounters[gtkStateIdentityNamespace()] = [:]\n"
+    if text.count(reset_marker) < 2 or begin_reset_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope reset shape was not recognized")
+    text = text.replace(
+        begin_reset_marker,
+        begin_reset_marker + "    gtkEnvironmentObjectTypeCounters[gtkStateIdentityNamespace()] = [:]\n",
+        1,
+    )
+    text = text.replace(
+        reset_marker,
+        reset_marker + "    gtkEnvironmentObjectTypeCounters[namespace] = [:]\n",
+    )
+
+    mount_identity = r'''public func gtkMountIdentity(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkMountTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkMountTypeCounters[namespace] = counters
+    return "\(namespace)|mount|\(typeName)#\(index)"
+}
+'''
+    environment_scope = mount_identity + r'''
+private func gtkEnvironmentObjectScope(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkEnvironmentObjectTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkEnvironmentObjectTypeCounters[namespace] = counters
+    return "\(namespace)|environment|\(typeName)#\(index)"
+}
+'''
+    if mount_identity not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope helper insertion point was not recognized")
+    text = text.replace(mount_identity, environment_scope, 1)
+
+    object_injection = "        env.setObject(object)\n"
+    scoped_object_injection = (
+        "        env.setObject(object, scope: "
+        "gtkEnvironmentObjectScope(for: ObjectType.self))\n"
+    )
+    if text.count(object_injection) < 4:
+        raise SystemExit("SwiftOpenUI GTK scoped environment modifier shape was not recognized")
+    text = text.replace(object_injection, scoped_object_injection)
+
+if 'let capturedEnvironment = getCurrentEnvironment()\n        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")' not in text:
+    old_geometry_environment = '''        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")
+        self.renderContent = { proxy in
+            gtkWithForcedStateIdentityNamespace(stateNamespace) {
+                gtkRenderView(content(proxy))
+            }
+        }
+'''
+    new_geometry_environment = '''        let capturedEnvironment = getCurrentEnvironment()
+        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")
+        self.renderContent = { proxy in
+            let previousEnvironment = getCurrentEnvironment()
+            var environment = capturedEnvironment
+            environment.refreshInjectedObjectsFromRegistry()
+            setCurrentEnvironment(environment)
+            defer { setCurrentEnvironment(previousEnvironment) }
+            return gtkWithForcedStateIdentityNamespace(stateNamespace) {
+                gtkRenderView(content(proxy))
+            }
+        }
+'''
+    if old_geometry_environment not in text:
+        raise SystemExit("SwiftOpenUI GTK GeometryReader deferred environment shape was not recognized")
+    text = text.replace(old_geometry_environment, new_geometry_environment, 1)
+
 if "private func gtkDebugLog(_ message: String)" not in text:
     debug_helper = '''private func gtkDebugLog(_ message: String) {
     guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else {
@@ -10216,6 +10296,383 @@ if "refreshInjectedObjectsFromRegistry" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI EnvironmentValues latest-object shape was not recognized")
     text = text.replace(old, new, 1)
+if "public struct EnvironmentObjectCapture" not in text:
+    def replace_once(old, new, message):
+        global text
+        if old not in text:
+            raise SystemExit(message)
+        text = text.replace(old, new, 1)
+
+    replace_once(
+        '''public extension DynamicProperty {
+    mutating func update() {}
+}
+''',
+        '''public extension DynamicProperty {
+    mutating func update() {}
+}
+
+/// A reference-typed environment object together with the structural scope
+/// that injected it. Backends retain these captures across body rebuilds so
+/// same-typed objects installed by sibling views cannot replace one another.
+public struct EnvironmentObjectCapture: @unchecked Sendable {
+    public let object: AnyObject
+    public let scope: String?
+
+    public init(object: AnyObject, scope: String? = nil) {
+        self.object = object
+        self.scope = scope
+    }
+}
+''',
+        "SwiftOpenUI EnvironmentObjectCapture insertion point was not recognized",
+    )
+    replace_once(
+        "    private var objects: [ObjectIdentifier: AnyObject] = [:]\n",
+        "    private var objects: [ObjectIdentifier: EnvironmentObjectCapture] = [:]\n",
+        "SwiftOpenUI scoped environment object storage shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setObject<T: AnyObject>(_ object: T) {
+        let id = ObjectIdentifier(T.self)
+        objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    }
+''',
+        '''    public mutating func setObject<T: AnyObject>(_ object: T, scope: String? = nil) {
+        let id = ObjectIdentifier(T.self)
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
+    }
+''',
+        "SwiftOpenUI scoped setObject shape was not recognized",
+    )
+    replace_once(
+        '''        return objects[id] as? T ?? EnvironmentObjectRegistry.shared.object(id: id) as? T
+''',
+        '''        return objects[id]?.object as? T
+            ?? EnvironmentObjectRegistry.shared.object(id: id, scope: nil) as? T
+''',
+        "SwiftOpenUI scoped getObject shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setObjectByID(_ id: ObjectIdentifier, _ object: AnyObject) {
+        objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    }
+''',
+        '''    public mutating func setObjectByID(
+        _ id: ObjectIdentifier,
+        _ object: AnyObject,
+        scope: String? = nil
+    ) {
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
+    }
+''',
+        "SwiftOpenUI scoped setObjectByID shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
+        setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
+    }
+''',
+        '''    public mutating func setLatestObjectByID(
+        _ id: ObjectIdentifier,
+        fallback object: AnyObject,
+        scope: String? = nil
+    ) {
+        setObjectByID(
+            id,
+            EnvironmentObjectRegistry.shared.object(id: id, scope: scope) ?? object,
+            scope: scope
+        )
+    }
+''',
+        "SwiftOpenUI scoped latest-object shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func refreshInjectedObjectsFromRegistry() {
+        for (id, object) in objects {
+            setLatestObjectByID(id, fallback: object)
+        }
+    }
+''',
+        '''    public mutating func refreshInjectedObjectsFromRegistry() {
+        for (id, capture) in objects {
+            setLatestObjectByID(id, fallback: capture.object, scope: capture.scope)
+        }
+    }
+
+    internal func objectScope(for id: ObjectIdentifier) -> String? {
+        objects[id]?.scope
+    }
+''',
+        "SwiftOpenUI scoped environment refresh shape was not recognized",
+    )
+    replace_once(
+        '''private final class EnvironmentObjectRegistry: @unchecked Sendable {
+    static let shared = EnvironmentObjectRegistry()
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: AnyObject] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier) {
+        lock.lock()
+        objects[id] = object
+        lock.unlock()
+    }
+
+    func object(id: ObjectIdentifier) -> AnyObject? {
+        lock.lock()
+        let object = objects[id]
+        lock.unlock()
+        return object
+    }
+}
+''',
+        '''private final class EnvironmentObjectRegistry: @unchecked Sendable {
+    static let shared = EnvironmentObjectRegistry()
+
+    private final class WeakObjectBox {
+        weak var object: AnyObject?
+
+        init(_ object: AnyObject) {
+            self.object = object
+        }
+    }
+
+    private struct ScopedKey: Hashable {
+        let typeID: ObjectIdentifier
+        let scope: String
+    }
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: WeakObjectBox] = [:]
+    private var scopedObjects: [ScopedKey: WeakObjectBox] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier, scope: String?) {
+        lock.lock()
+        if let scope {
+            scopedObjects[ScopedKey(typeID: id, scope: scope)] = WeakObjectBox(object)
+        } else {
+            objects[id] = WeakObjectBox(object)
+        }
+        lock.unlock()
+    }
+
+    func object(id: ObjectIdentifier, scope: String?) -> AnyObject? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let scope {
+            let key = ScopedKey(typeID: id, scope: scope)
+            guard let object = scopedObjects[key]?.object else {
+                scopedObjects.removeValue(forKey: key)
+                return nil
+            }
+            return object
+        }
+        guard let object = objects[id]?.object else {
+            objects.removeValue(forKey: id)
+            return nil
+        }
+        return object
+    }
+}
+''',
+        "SwiftOpenUI scoped environment registry shape was not recognized",
+    )
+    replace_once(
+        "private var _envReadTrackerStack: [[ObjectIdentifier: AnyObject]] = []\n",
+        "private var _envReadTrackerStack: [[ObjectIdentifier: EnvironmentObjectCapture]] = []\n",
+        "SwiftOpenUI scoped environment read tracker storage shape was not recognized",
+    )
+    replace_once(
+        '''public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+    guard !_envReadTrackerStack.isEmpty else { return nil }
+    let result = _envReadTrackerStack.removeLast()
+    if !_envReadTrackerStack.isEmpty {
+        let parentIndex = _envReadTrackerStack.count - 1
+        for (typeID, object) in result {
+            _envReadTrackerStack[parentIndex][typeID] = object
+        }
+    }
+    return result
+}
+''',
+        '''private func endEnvironmentObjectCaptureTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
+    guard !_envReadTrackerStack.isEmpty else { return nil }
+    let result = _envReadTrackerStack.removeLast()
+    if !_envReadTrackerStack.isEmpty {
+        let parentIndex = _envReadTrackerStack.count - 1
+        for (typeID, capture) in result {
+            _envReadTrackerStack[parentIndex][typeID] = capture
+        }
+    }
+    return result
+}
+
+/// Finish tracking while preserving each object's structural injection scope.
+/// Reactive backends use this form when rebuilding hosts independently.
+public func endScopedEnvironmentReadTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
+    endEnvironmentObjectCaptureTracking()
+}
+
+/// Finish tracking using the original object-only result shape.
+public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+    endEnvironmentObjectCaptureTracking()?.mapValues(\\.object)
+}
+''',
+        "SwiftOpenUI scoped environment read tracker result shape was not recognized",
+    )
+    replace_once(
+        '''    _envReadTrackerStack[index][typeID] = object
+    recordEnvironmentObservableObjectRead(object)
+''',
+        '''    _envReadTrackerStack[index][typeID] = EnvironmentObjectCapture(
+        object: object,
+        scope: getCurrentEnvironment().objectScope(for: typeID)
+    )
+    recordEnvironmentObservableObjectRead(object)
+''',
+        "SwiftOpenUI scoped environment read recording shape was not recognized",
+    )
+if "if let taskEnvironment = EnvironmentTaskLocal.values" not in text:
+    old_posix_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    guard let ptr = pthread_getspecific(_envKey) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    new_posix_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
+    }
+    guard let ptr = pthread_getspecific(_envKey) else { return EnvironmentValues() }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    old_windows_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    guard let ptr = TlsGetValue(_tlsIndex) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    new_windows_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
+    }
+    guard let ptr = TlsGetValue(_tlsIndex) else { return EnvironmentValues() }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    old_fallback_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    _currentEnvironment ?? EnvironmentTaskLocal.values ?? EnvironmentValues()
+}
+'''
+    new_fallback_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    EnvironmentTaskLocal.values ?? _currentEnvironment ?? EnvironmentValues()
+}
+'''
+    for old, new, message in [
+        (old_posix_environment, new_posix_environment, "POSIX"),
+        (old_windows_environment, new_windows_environment, "Windows"),
+        (old_fallback_environment, new_fallback_environment, "fallback"),
+    ]:
+        if old not in text:
+            raise SystemExit(f"SwiftOpenUI {message} task environment precedence shape was not recognized")
+        text = text.replace(old, new, 1)
+old_presentation_precedence = '''public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
+    _presentationDismissActionStack.last ?? PresentationDismissTaskLocal.context?.action
+}
+'''
+new_presentation_precedence = '''public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
+    PresentationDismissTaskLocal.context?.action ?? _presentationDismissActionStack.last
+}
+'''
+if old_presentation_precedence in text:
+    text = text.replace(old_presentation_precedence, new_presentation_precedence, 1)
+elif new_presentation_precedence not in text:
+    raise SystemExit("SwiftOpenUI presentation task context precedence shape was not recognized")
+if "private final class EnvironmentInjectedObjectStorage" not in text:
+    object_environment_protocol = '''public protocol AnyObjectInjectionEnvironment {
+    func wireInjectedObject(to host: AnyViewHost?)
+}
+'''
+    object_environment_storage = object_environment_protocol + '''
+private final class EnvironmentInjectedObjectStorage {
+    private let lock = NSLock()
+    private var object: AnyObject?
+
+    func store(_ object: AnyObject) {
+        lock.lock()
+        self.object = object
+        lock.unlock()
+    }
+
+    func load() -> AnyObject? {
+        lock.lock()
+        defer { lock.unlock() }
+        return object
+    }
+}
+'''
+    if object_environment_protocol not in text:
+        raise SystemExit("SwiftOpenUI injected environment object storage insertion shape was not recognized")
+    text = text.replace(
+        object_environment_protocol,
+        object_environment_storage,
+        1,
+    )
+
+    old_injected_object_reader = '''        self.reader = .injectedObject {
+            guard let object = getCurrentEnvironment().getObject(type) else {
+                fatalError(
+                    "@Environment(\\(type).self) lookup failed — no object of this type was injected. " +
+                    "Call `.environment(object)` on an ancestor view."
+                )
+            }
+            // Record the read so the enclosing ViewHost can re-push
+            // this object into env on rebuild, even if the
+            // `.environment(object)` modifier that originally pushed
+            // it lives inside a parent's body (between two ViewHosts
+            // in the render tree) and wouldn't otherwise be
+            // guaranteed to re-run before this read fires again.
+            recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
+            return object
+        }
+'''
+    new_injected_object_reader = '''        let storage = EnvironmentInjectedObjectStorage()
+        self.reader = .injectedObject {
+            if let object = getCurrentEnvironment().getObject(type) {
+                storage.store(object)
+                // Record the read so the enclosing ViewHost can re-push
+                // this object into env on rebuild, even if the
+                // `.environment(object)` modifier that originally pushed
+                // it lives inside a parent's body (between two ViewHosts
+                // in the render tree) and wouldn't otherwise be
+                // guaranteed to re-run before this read fires again.
+                recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
+                return object
+            }
+            if let object = storage.load() as? Value {
+                return object
+            }
+            fatalError(
+                "@Environment(\\(type).self) lookup failed — no object of this type was injected. " +
+                "Call `.environment(object)` on an ancestor view."
+            )
+        }
+'''
+    if old_injected_object_reader not in text:
+        raise SystemExit("SwiftOpenUI injected environment object reader shape was not recognized")
+    text = text.replace(
+        old_injected_object_reader,
+        new_injected_object_reader,
+        1,
+    )
 if text != original:
     path.write_text(text)
 PY
@@ -10474,6 +10931,43 @@ if "gtkResumeViewHostLifecycleForVisibleSubtree" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI GTKViewHost width tick callback shape was not recognized")
     text = text.replace(old, new, 1)
+if "capturedInjectedObjects: [ObjectIdentifier: EnvironmentObjectCapture]" not in text:
+    old_capture_storage = "    private var capturedInjectedObjects: [ObjectIdentifier: AnyObject] = [:]\n"
+    new_capture_storage = "    private var capturedInjectedObjects: [ObjectIdentifier: EnvironmentObjectCapture] = [:]\n"
+    if old_capture_storage not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment capture storage was not recognized")
+    text = text.replace(old_capture_storage, new_capture_storage, 1)
+
+    old_rebuild_environment = '''        for (typeID, object) in capturedInjectedObjects {
+            env.setLatestObjectByID(typeID, fallback: object)
+        }
+'''
+    new_rebuild_environment = '''        for (typeID, capture) in capturedInjectedObjects {
+            env.setLatestObjectByID(
+                typeID,
+                fallback: capture.object,
+                scope: capture.scope
+            )
+        }
+'''
+    if old_rebuild_environment not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment rebuild shape was not recognized")
+    text = text.replace(old_rebuild_environment, new_rebuild_environment, 1)
+
+    read_capture = "            if let reads = endEnvironmentReadTracking() {\n"
+    fallback_read_capture = "        if let reads = endEnvironmentReadTracking() {\n"
+    if read_capture not in text or fallback_read_capture not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment read completion shape was not recognized")
+    text = text.replace(
+        read_capture,
+        "            if let reads = endScopedEnvironmentReadTracking() {\n",
+        1,
+    )
+    text = text.replace(
+        fallback_read_capture,
+        "        if let reads = endScopedEnvironmentReadTracking() {\n",
+        1,
+    )
 if text != original:
     path.write_text(text)
 PY
@@ -13052,7 +13546,7 @@ new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escap
 '''
 if (
     "func bindActionToCurrentEnvironment(_ action:" in text
-    and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    and "return {\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_action_flush not in text:
         raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
@@ -13077,11 +13571,116 @@ new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ actio
 '''
 if (
     "func bindActionToCurrentEnvironment<T>" in text
-    and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    and "return { value in\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_value_action_flush not in text:
         raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
     text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
+
+# Refresh scoped object captures before a deferred action runs. The
+# @Environment object wrapper itself retains the resolved render-time object
+# for child Tasks that outlive this synchronous native callback.
+old_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+}
+'''
+new_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+}
+'''
+if new_bound_action_environment_refresh not in text:
+    if old_bound_action_environment_refresh not in text:
+        raise SystemExit("SwiftOpenUI refreshed action binding shape was not recognized")
+    text = text.replace(
+        old_bound_action_environment_refresh,
+        new_bound_action_environment_refresh,
+        1,
+    )
+
+old_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
+    }
+}
+'''
+new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
+    }
+}
+'''
+if new_bound_value_action_environment_refresh not in text:
+    if old_bound_value_action_environment_refresh not in text:
+        raise SystemExit("SwiftOpenUI refreshed value action binding shape was not recognized")
+    text = text.replace(
+        old_bound_value_action_environment_refresh,
+        new_bound_value_action_environment_refresh,
+        1,
+    )
 
 text = text.replace(
     "includeValueWhenUnidentified: Bool = true",

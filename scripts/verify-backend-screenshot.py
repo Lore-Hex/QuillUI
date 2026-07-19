@@ -7311,6 +7311,33 @@ def validate_icecubes_linux_authenticated_settings_display_font_scale(image: Scr
     )
 
 
+def locate_icecubes_linux_authenticated_settings_display_font_scale_control(image: Screenshot) -> str:
+    validate_icecubes_linux_authenticated_settings_display(image)
+    left, right, top, bottom = content_bounds(image)
+    candidates: list[tuple[int, int, Segment]] = []
+
+    for y in range(top + 520, bottom - 24):
+        for segment in image.segments_at(
+            y,
+            left + 260,
+            right - 36,
+            icecubes_authenticated_accent_pixel,
+            min_width=80,
+        ):
+            candidates.append((segment.width, y, segment))
+
+    require(candidates, "IceCubes authenticated Settings Display font-scale track could not be located")
+    _, slider_y, active_track = max(candidates, key=lambda candidate: candidate[0])
+    start_x = active_track.end + 1
+    end_x = right - 88
+    require(
+        end_x >= start_x + 80,
+        "IceCubes authenticated Settings Display font-scale track has insufficient drag range: "
+        f"start_x={start_x}, end_x={end_x}, y={slider_y}",
+    )
+    return f"{start_x} {end_x} {slider_y}"
+
+
 def validate_icecubes_linux_authenticated_settings_display_font_picker(image: Screenshot) -> str:
     left, right, top, bottom = content_bounds(image)
     app_width = right - left + 1
@@ -8896,6 +8923,7 @@ def main() -> int:
         "icecubes-linux-authenticated-account-settings",
         "icecubes-linux-authenticated-settings-display",
         "icecubes-linux-authenticated-settings-display-font-scale",
+        "icecubes-linux-authenticated-settings-display-font-scale-control",
         "icecubes-linux-authenticated-settings-display-font-picker",
         "icecubes-linux-authenticated-settings-display-font-picker-selected",
         "icecubes-linux-authenticated-settings-display-system-color",
@@ -8956,6 +8984,10 @@ def main() -> int:
         image.stddev > minimum_stddev,
         f"Screenshot appears visually flat: standard-deviation={image.stddev:.1f}",
     )
+
+    if product == "icecubes-linux-authenticated-settings-display-font-scale-control":
+        print(locate_icecubes_linux_authenticated_settings_display_font_scale_control(image))
+        return 0
 
     print(
         f"Visual smoke screenshot: {path} "

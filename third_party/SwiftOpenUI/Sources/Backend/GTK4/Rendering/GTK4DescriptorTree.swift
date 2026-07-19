@@ -31,6 +31,7 @@ public enum GTK4DescriptorKind: Equatable {
     case foregroundColor
     case hStack
     case listRowLifecycleScope
+    case menu
     case statefulLifecycleScope
     case padding
     case slider
@@ -228,6 +229,14 @@ public final class GTK4ButtonPayload {
 
     public init(action: @escaping () -> Void) {
         self.action = action
+    }
+}
+
+public final class GTK4MenuPayload {
+    public let apply: (Int) -> Bool
+
+    public init(apply: @escaping (Int) -> Bool) {
+        self.apply = apply
     }
 }
 
@@ -539,6 +548,7 @@ private final class GTK4DescriptorPayloadCollector {
     var onAppearPayloads: [GTK4OnAppearPayload] = []
     var taskPayloads: [GTK4TaskPayload] = []
     var buttonPayloads: [GTK4ButtonPayload] = []
+    var menuPayloads: [GTK4MenuPayload] = []
 }
 
 private var gtkDescriptorPayloadCollectorKey: pthread_key_t = {
@@ -632,6 +642,12 @@ public func gtkCollectButtonPayload(_ payload: GTK4ButtonPayload) {
     collector.buttonPayloads.append(payload)
 }
 
+public func gtkCollectMenuPayload(_ payload: GTK4MenuPayload) {
+    guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
+    let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
+    collector.menuPayloads.append(payload)
+}
+
 public func gtkDescribeCapturingCanvasPayloads(
     _ describe: () -> GTK4DescriptorNode
 ) -> (
@@ -639,7 +655,8 @@ public func gtkDescribeCapturingCanvasPayloads(
     canvasPayloads: [GTK4CanvasPayload],
     onAppearPayloads: [GTK4OnAppearPayload],
     taskPayloads: [GTK4TaskPayload],
-    buttonPayloads: [GTK4ButtonPayload]
+    buttonPayloads: [GTK4ButtonPayload],
+    menuPayloads: [GTK4MenuPayload]
 ) {
     let collector = GTK4DescriptorPayloadCollector()
     let retained = Unmanaged.passRetained(collector)
@@ -653,7 +670,8 @@ public func gtkDescribeCapturingCanvasPayloads(
         collector.canvasPayloads,
         collector.onAppearPayloads,
         collector.taskPayloads,
-        collector.buttonPayloads
+        collector.buttonPayloads,
+        collector.menuPayloads
     )
 }
 
@@ -977,6 +995,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
     case .zStack:        return .zStackLayout
     case .animated:      return .animatedTiming
     case .button:        return .none
+    case .menu:          return .none
     case .divider:       return .none
     case .font:          return .fontStyle
     case .offset:        return .offsetTransform
@@ -1459,6 +1478,26 @@ public func gtkCaptureButtonNativeSlots(
     return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
 }
 
+public func gtkCaptureMenuNativeSlots(
+    from widgetRoot: UnsafeMutablePointer<GtkWidget>,
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    executorRoot: GTK4RetainedExecutorNode
+) -> GTK4RetainedExecutorNode {
+    let menuDescriptors = gtkCollectMenuDescriptorIdentities(from: descriptorRoot)
+    var menuWidgets: [UnsafeMutablePointer<GtkWidget>] = []
+    gtkCollectSwiftUIMenuWidgets(from: widgetRoot, into: &menuWidgets)
+
+    guard menuDescriptors.count == menuWidgets.count else {
+        return executorRoot
+    }
+
+    var slotsByIdentity: [GTK4DescriptorIdentity: Int] = [:]
+    for (identity, widget) in zip(menuDescriptors, menuWidgets) {
+        slotsByIdentity[identity] = gtkNativeSlotID(for: widget)
+    }
+    return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
+}
+
 private func gtkCollectSupportedLeafDescriptors(
     from node: GTK4IdentifiedDescriptorNode
 ) -> [(identity: GTK4DescriptorIdentity, kind: GTK4DescriptorKind)] {
@@ -1503,6 +1542,25 @@ private func gtkCollectSwiftUIButtonWidgets(
     while let c = child {
         gtkCollectSwiftUIButtonWidgets(from: c, into: &result)
         child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func gtkCollectSwiftUIMenuWidgets(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    into result: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if gtk_swift_widget_is_menu_button(widget) != 0,
+       g_object_get_data(gobject, gtkSwiftMenuOverlayModelKey) != nil {
+        result.append(widget)
+        return
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollectSwiftUIMenuWidgets(from: current, into: &result)
+        child = gtk_widget_get_next_sibling(current)
     }
 }
 
@@ -1699,6 +1757,20 @@ public func gtkButtonPayloadsByIdentity(
     return result
 }
 
+public func gtkMenuPayloadsByIdentity(
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    payloads: [GTK4MenuPayload]
+) -> [GTK4DescriptorIdentity: GTK4MenuPayload] {
+    let identities = gtkCollectMenuDescriptorIdentities(from: descriptorRoot)
+    guard identities.count == payloads.count else { return [:] }
+
+    var result: [GTK4DescriptorIdentity: GTK4MenuPayload] = [:]
+    for (identity, payload) in zip(identities, payloads) {
+        result[identity] = payload
+    }
+    return result
+}
+
 private func gtkCollectCanvasDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode
 ) -> [GTK4DescriptorIdentity] {
@@ -1782,6 +1854,19 @@ private func gtkCollectButtonDescriptorIdentities(
     }
     for child in node.children {
         result.append(contentsOf: gtkCollectButtonDescriptorIdentities(from: child))
+    }
+    return result
+}
+
+private func gtkCollectMenuDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode
+) -> [GTK4DescriptorIdentity] {
+    var result: [GTK4DescriptorIdentity] = []
+    if node.descriptor.kind == .menu {
+        result.append(node.identity)
+    }
+    for child in node.children {
+        result.append(contentsOf: gtkCollectMenuDescriptorIdentities(from: child))
     }
     return result
 }
