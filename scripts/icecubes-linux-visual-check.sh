@@ -93,6 +93,8 @@ AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X:-282}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y:-216}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS:-0.8}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES:-3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS:-0.25}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X:-289}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y:-278}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS:-0.8}"
@@ -2510,10 +2512,43 @@ select_authenticated_settings_display_font_picker() {
 }
 
 select_authenticated_settings_display_font_picker_inter() {
+  local attempt=1
+
   select_authenticated_settings_display_font_picker
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-settings-display-font-picker" "authenticated Settings Display font-picker route"
-  click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
-  sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
+
+  case "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" >&2
+    exit 2
+  fi
+
+  while true; do
+    click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
+
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
+      return 0
+    fi
+
+    # A focused GTK window can consume the first synthetic pointer press.
+    # Retry only while the picker is still visible so a successful dismissal
+    # cannot click an unrelated control in the underlying Display form.
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
+    if ((attempt >= AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES)); then
+      return 0
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS"
+  done
 }
 
 scroll_authenticated_timeline_for_pagination() {
