@@ -193,13 +193,14 @@ estimates, not release claims.
   transitions. The route retries the Display row only while screenshot
   verification proves the unchanged form remains visible, repeating the
   complete pointer-and-keyboard activation sequence that opens the picker. It
-  presses the Inter button without re-raising or refocusing the already-active
-  app window, then retries only while the picker remains visible. A second
-  screenshot state check immediately before each retry prevents a late route
-  dismissal from receiving another click in the underlying Display form. The
-  same pushed CI runs already passed the deferred-environment Notifications
-  refresh regression before these later automation-only failures. No IceCubes
-  source is patched.
+  now establishes direct X focus, delivers a harmless fresh pointer press in
+  empty titlebar content, allows the pointer to settle over Inter, and then
+  retries only while the picker remains visible. This covers runners that show
+  the fully rendered picker but consume a child-control press while activating
+  the toplevel. A second screenshot state check immediately before each retry
+  prevents a late route dismissal from receiving another click in the
+  underlying Display form. Click and window traces remain enabled for this CI
+  checkpoint. No IceCubes source is patched.
 
 - 2026-07-19: Generalized focus-safe child transitions across IceCubes'
   unchanged composer media workflow after the GitHub runner consumed the media

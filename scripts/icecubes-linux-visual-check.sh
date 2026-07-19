@@ -97,6 +97,8 @@ AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTIN
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS:-0.8}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES:-3}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS:-0.5}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS:-0.5}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X:-289}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y:-278}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS:-0.8}"
@@ -618,12 +620,13 @@ click_screen_point() {
   local x="$1"
   local y="$2"
   local label="${3:-screen}"
+  local settle_seconds="${4:-$CLICK_SETTLE_SECONDS}"
 
   if [[ "$CLICK_TRACE" == "1" ]]; then
     echo "IceCubes visual click: $label screen=${x},${y}" >&2
   fi
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
-  sleep "$CLICK_SETTLE_SECONDS"
+  sleep "$settle_seconds"
   DISPLAY="$DISPLAY_ID" xdotool mousedown 1
   sleep "$CLICK_HOLD_SECONDS"
   DISPLAY="$DISPLAY_ID" xdotool mouseup 1
@@ -677,6 +680,49 @@ click_app_window_relative_screen_point() {
   # Menu popovers are focus-sensitive: raising/focusing the main window for
   # the second click can dismiss the popover before the item receives it.
   click_screen_point "$((window_x + x))" "$((window_y + y))" "relative-screen@${x},${y}"
+}
+
+click_app_window_point_with_fresh_focus() {
+  local x="$1"
+  local y="$2"
+  local focus_settle_seconds="$3"
+  local pointer_settle_seconds="$4"
+  local key value window_x=0 window_y=0 focused_window_id=""
+
+  DISPLAY="$DISPLAY_ID" xdotool windowraise "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      X) window_x="$value" ;;
+      Y) window_y="$value" ;;
+    esac
+  done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+
+  # CI may consume a synthetic child-control press while transitioning the
+  # toplevel into an active pointer state. A harmless press in empty titlebar
+  # content clears that transition before the actual control receives input.
+  if [[ "$CLICK_FOCUS_PRIME" == "1" ]]; then
+    click_screen_point \
+      "$((window_x + CLICK_FOCUS_PRIME_X))" \
+      "$((window_y + CLICK_FOCUS_PRIME_Y))" \
+      "fresh-focus-prime window@${CLICK_FOCUS_PRIME_X},${CLICK_FOCUS_PRIME_Y}"
+    click_focus_primed=1
+  fi
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  sleep "$focus_settle_seconds"
+
+  if [[ "$CLICK_TRACE" == "1" ]]; then
+    focused_window_id="$(DISPLAY="$DISPLAY_ID" xdotool getwindowfocus 2>/dev/null || true)"
+    echo "IceCubes visual focus: expected=$window_id actual=${focused_window_id:-unknown}" >&2
+  fi
+
+  click_screen_point \
+    "$((window_x + x))" \
+    "$((window_y + y))" \
+    "fresh-focus-window@${x},${y}" \
+    "$pointer_settle_seconds"
 }
 
 click_capture_window_point() {
@@ -2654,11 +2700,14 @@ select_authenticated_settings_display_font_picker_inter() {
   fi
 
   while true; do
-    # Opening the picker already leaves the app window focused. Do not raise or
-    # refocus it before each child-button press: some window managers consume
-    # that first press as part of the focus transition. Resolve the current
-    # window origin without changing focus and deliver the press directly.
-    click_app_window_relative_screen_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
+    # Re-establish both X input focus and GTK's active pointer state after each
+    # screenshot check. GitHub runners can otherwise consume the Inter press as
+    # the toplevel's focus transition even though the picker remains visible.
+    click_app_window_point_with_fresh_focus \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS"
     sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
 
     if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
