@@ -12977,6 +12977,93 @@ replace_navigation_once(
     "        })",
     "SwiftOpenUI GTK navigation native-destruction callback shape was not recognized",
 )
+if "GTKNavigationActionTarget" in text:
+    replace_navigation_once(
+        "let windowID: Int\n    weak var owner: GTKViewHost?",
+        "private final class GTKNavigationActionTargetRegistryEntry {\n"
+        "    weak var owner: GTKViewHost?\n"
+        "    let hasOwner: Bool\n"
+        "    weak var target: GTKNavigationActionTarget?\n\n"
+        "    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {\n"
+        "        self.owner = owner\n"
+        "        hasOwner = owner != nil\n"
+        "        self.target = target\n"
+        "    }\n\n"
+        "    func belongs(to candidate: GTKViewHost?) -> Bool {\n"
+        "        if hasOwner {\n"
+        "            guard let owner, let candidate else { return false }\n"
+        "            return owner === candidate\n"
+        "        }\n"
+        "        return candidate == nil\n"
+        "    }\n"
+        "}",
+        "private final class GTKNavigationActionTargetRegistryEntry {\n"
+        "    let windowID: Int\n"
+        "    weak var owner: GTKViewHost?\n"
+        "    let hasOwner: Bool\n"
+        "    weak var target: GTKNavigationActionTarget?\n\n"
+        "    init(windowID: Int, owner: GTKViewHost?, target: GTKNavigationActionTarget) {\n"
+        "        self.windowID = windowID\n"
+        "        self.owner = owner\n"
+        "        hasOwner = owner != nil\n"
+        "        self.target = target\n"
+        "    }\n\n"
+        "    func belongs(toWindowID candidateWindowID: Int, owner candidate: GTKViewHost?) -> Bool {\n"
+        "        if windowID != 0 || candidateWindowID != 0 {\n"
+        "            return windowID != 0 && windowID == candidateWindowID\n"
+        "        }\n"
+        "        if hasOwner {\n"
+        "            guard let owner, let candidate else { return false }\n"
+        "            return owner === candidate\n"
+        "        }\n"
+        "        return candidate == nil\n"
+        "    }\n"
+        "}",
+        "SwiftOpenUI GTK window-scoped navigation registry shape was not recognized",
+    )
+    replace_navigation_once(
+        "let windowID = getCurrentEnvironment().windowID",
+        "private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {\n"
+        "    let owner = GTKViewHost.getCurrentRebuilding()\n"
+        "    gtkNavigationActionTargetsLock.lock()\n"
+        "    defer { gtkNavigationActionTargetsLock.unlock() }\n\n"
+        "    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]\n"
+        "    entries.removeAll { $0.target == nil }\n"
+        "    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {\n"
+        "        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "        return target\n"
+        "    }\n"
+        "    let target = GTKNavigationActionTarget()\n"
+        "    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))\n"
+        "    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "    return target\n"
+        "}",
+        "private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {\n"
+        "    let windowID = getCurrentEnvironment().windowID\n"
+        "    let owner = GTKViewHost.getCurrentRebuilding()\n"
+        "    gtkNavigationActionTargetsLock.lock()\n"
+        "    defer { gtkNavigationActionTargetsLock.unlock() }\n\n"
+        "    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]\n"
+        "    entries.removeAll { $0.target == nil }\n"
+        "    if let target = entries.first(where: {\n"
+        "        $0.belongs(toWindowID: windowID, owner: owner)\n"
+        "    })?.target {\n"
+        "        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "        return target\n"
+        "    }\n"
+        "    let target = GTKNavigationActionTarget()\n"
+        "    entries.append(\n"
+        "        GTKNavigationActionTargetRegistryEntry(\n"
+        "            windowID: windowID,\n"
+        "            owner: owner,\n"
+        "            target: target\n"
+        "        )\n"
+        "    )\n"
+        "    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "    return target\n"
+        "}",
+        "SwiftOpenUI GTK window-scoped navigation target shape was not recognized",
+    )
 if "GTKNavigationActionTarget" not in text:
     text = text.replace(
         "private enum GTKNavigationPersistedRoute {",
@@ -13035,17 +13122,22 @@ fileprivate final class GTKNavigationActionTarget {
 }
 
 private final class GTKNavigationActionTargetRegistryEntry {
+    let windowID: Int
     weak var owner: GTKViewHost?
     let hasOwner: Bool
     weak var target: GTKNavigationActionTarget?
 
-    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+    init(windowID: Int, owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+        self.windowID = windowID
         self.owner = owner
         hasOwner = owner != nil
         self.target = target
     }
 
-    func belongs(to candidate: GTKViewHost?) -> Bool {
+    func belongs(toWindowID candidateWindowID: Int, owner candidate: GTKViewHost?) -> Bool {
+        if windowID != 0 || candidateWindowID != 0 {
+            return windowID != 0 && windowID == candidateWindowID
+        }
         if hasOwner {
             guard let owner, let candidate else { return false }
             return owner === candidate
@@ -13058,18 +13150,27 @@ private let gtkNavigationActionTargetsLock = NSLock()
 private var gtkNavigationActionTargetsByNamespace: [String: [GTKNavigationActionTargetRegistryEntry]] = [:]
 
 private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {
+    let windowID = getCurrentEnvironment().windowID
     let owner = GTKViewHost.getCurrentRebuilding()
     gtkNavigationActionTargetsLock.lock()
     defer { gtkNavigationActionTargetsLock.unlock() }
 
     var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]
     entries.removeAll { $0.target == nil }
-    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {
+    if let target = entries.first(where: {
+        $0.belongs(toWindowID: windowID, owner: owner)
+    })?.target {
         gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
         return target
     }
     let target = GTKNavigationActionTarget()
-    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))
+    entries.append(
+        GTKNavigationActionTargetRegistryEntry(
+            windowID: windowID,
+            owner: owner,
+            target: target
+        )
+    )
     gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
     return target
 }

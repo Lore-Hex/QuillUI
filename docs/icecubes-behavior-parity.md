@@ -188,6 +188,16 @@ estimates, not release claims.
 
 ## Checkpoints
 
+- 2026-07-20: Fixed unchanged-upstream Display font selection after a theme
+  mutation replaces IceCubes' nested GTK view host. Navigation dismiss actions
+  are now scoped by the backend's stable window identity, so rebuilt
+  `NavigationStack` instances inherit the current action target without leaking
+  actions into another window; headless contexts retain view-host isolation.
+  The exact authenticated Settings > Display > Font > Inter selection and
+  dismissal journey passes on ARM64 and x86_64 Linux, alongside focused native
+  GTK regressions for host replacement, cross-window isolation, and the
+  no-window fallback. No IceCubes source is patched.
+
 - 2026-07-19: Hardened the unchanged-upstream font-picker open and selection
   smokes after GitHub Actions consumed synthetic pointer presses as focus
   transitions. The route retries the Display row only while screenshot

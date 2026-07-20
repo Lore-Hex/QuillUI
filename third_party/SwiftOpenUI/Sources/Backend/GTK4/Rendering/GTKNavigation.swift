@@ -132,17 +132,22 @@ fileprivate final class GTKNavigationActionTarget {
 }
 
 private final class GTKNavigationActionTargetRegistryEntry {
+    let windowID: Int
     weak var owner: GTKViewHost?
     let hasOwner: Bool
     weak var target: GTKNavigationActionTarget?
 
-    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+    init(windowID: Int, owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+        self.windowID = windowID
         self.owner = owner
         hasOwner = owner != nil
         self.target = target
     }
 
-    func belongs(to candidate: GTKViewHost?) -> Bool {
+    func belongs(toWindowID candidateWindowID: Int, owner candidate: GTKViewHost?) -> Bool {
+        if windowID != 0 || candidateWindowID != 0 {
+            return windowID != 0 && windowID == candidateWindowID
+        }
         if hasOwner {
             guard let owner, let candidate else { return false }
             return owner === candidate
@@ -155,18 +160,27 @@ private let gtkNavigationActionTargetsLock = NSLock()
 private var gtkNavigationActionTargetsByNamespace: [String: [GTKNavigationActionTargetRegistryEntry]] = [:]
 
 private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {
+    let windowID = getCurrentEnvironment().windowID
     let owner = GTKViewHost.getCurrentRebuilding()
     gtkNavigationActionTargetsLock.lock()
     defer { gtkNavigationActionTargetsLock.unlock() }
 
     var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]
     entries.removeAll { $0.target == nil }
-    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {
+    if let target = entries.first(where: {
+        $0.belongs(toWindowID: windowID, owner: owner)
+    })?.target {
         gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
         return target
     }
     let target = GTKNavigationActionTarget()
-    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))
+    entries.append(
+        GTKNavigationActionTargetRegistryEntry(
+            windowID: windowID,
+            owner: owner,
+            target: target
+        )
+    )
     gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
     return target
 }
