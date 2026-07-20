@@ -13,6 +13,8 @@ DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Descriptor
 GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
 GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
 SWIFTOPENUI_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ViewHost.swift"
+KEYBOARD_SHORTCUT_REGISTRY="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
+CANONICAL_KEYBOARD_SHORTCUT_REGISTRY="$CANONICAL_SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
 NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
 GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
 CANONICAL_GTK_SHIM="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
@@ -9860,6 +9862,28 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
 if text != original:
     path.write_text(text)
 PY
+
+if [[ -f "$KEYBOARD_SHORTCUT_REGISTRY" ]]; then
+python3 - "$KEYBOARD_SHORTCUT_REGISTRY" "$CANONICAL_KEYBOARD_SHORTCUT_REGISTRY" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+canonical = canonical_path.read_text()
+
+required_markers = (
+    "public final class KeyboardShortcutRegistry",
+    "isEnabled: @escaping () -> Bool = { true }",
+    "let match = candidates.last(where: { $0.isEnabled() })",
+)
+if not all(marker in canonical for marker in required_markers):
+    raise SystemExit("Canonical SwiftOpenUI keyboard shortcut availability shape was not recognized")
+if text != canonical:
+    path.write_text(canonical)
+PY
+fi
 
 python3 - "$RENDERER" "$CANONICAL_RENDERER" <<'PY'
 import sys

@@ -21,6 +21,7 @@ public final class KeyboardShortcutRegistry {
 	private struct Entry {
 		let id: ShortcutRegistrationID
 		let windowID: Int
+		let isEnabled: () -> Bool
 		let action: () -> Void
 	}
 
@@ -35,14 +36,21 @@ public final class KeyboardShortcutRegistry {
 	/// Register a shortcut → action binding scoped to a window.
 	/// Returns a registration ID for targeted unregistration.
 	@discardableResult
-	public func register(_ shortcut: KeyboardShortcut, windowID: Int, action: @escaping () -> Void) -> ShortcutRegistrationID {
+	public func register(
+		_ shortcut: KeyboardShortcut,
+		windowID: Int,
+		isEnabled: @escaping () -> Bool = { true },
+		action: @escaping () -> Void
+	) -> ShortcutRegistrationID {
 		#if canImport(Foundation)
 		lock.lock()
 		defer { lock.unlock() }
 		#endif
 		let id = ShortcutRegistrationID(value: nextID)
 		nextID += 1
-		entries[shortcut, default: []].append(Entry(id: id, windowID: windowID, action: action))
+		entries[shortcut, default: []].append(
+			Entry(id: id, windowID: windowID, isEnabled: isEnabled, action: action)
+		)
 		return id
 	}
 
@@ -67,16 +75,18 @@ public final class KeyboardShortcutRegistry {
 	}
 
 	/// Dispatch a key event for a specific window.
-	/// Fires the most recently registered action matching the
-	/// shortcut within the given window. Returns true if handled.
+	/// Fires the most recently registered enabled action matching the shortcut
+	/// within the given window. Availability is evaluated outside the registry
+	/// lock so a backend can inspect live UI state or unregister stale entries.
 	public func dispatch(_ shortcut: KeyboardShortcut, windowID: Int) -> Bool {
 		#if canImport(Foundation)
 		lock.lock()
-		let match = entries[shortcut]?.last(where: { $0.windowID == windowID })
+		let candidates = entries[shortcut]?.filter { $0.windowID == windowID } ?? []
 		lock.unlock()
 		#else
-		let match = entries[shortcut]?.last(where: { $0.windowID == windowID })
+		let candidates = entries[shortcut]?.filter { $0.windowID == windowID } ?? []
 		#endif
+		let match = candidates.last(where: { $0.isEnabled() })
 		if let match {
 			match.action()
 			return true

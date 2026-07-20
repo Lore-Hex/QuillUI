@@ -188,6 +188,15 @@ estimates, not release claims.
 
 ## Checkpoints
 
+- 2026-07-20: Routed duplicate GTK keyboard shortcuts to the visible SwiftUI
+  destination. Shortcut registrations now expose a live availability predicate,
+  and dispatch falls back through older matching registrations when a newer one
+  belongs to an unmapped `GtkStack` page. This fixes unchanged-upstream status
+  detail refresh after the hidden Home timeline had intercepted Ctrl-R. A
+  focused GTK stack regression and the exact authenticated status-detail refresh
+  journey pass locally; the latter verifies the refreshed detail body and both
+  `/api/v1/statuses/1003` requests. No IceCubes source is patched.
+
 - 2026-07-20: Fixed unchanged-upstream Display font selection after a theme
   mutation replaces IceCubes' nested GTK view host. Navigation dismiss actions
   are now scoped by the backend's stable window identity, so rebuilt

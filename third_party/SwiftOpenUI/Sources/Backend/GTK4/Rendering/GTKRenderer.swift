@@ -10267,7 +10267,10 @@ private func gtkAttachRefreshAction(
     let windowID = getCurrentEnvironment().windowID
     let registrationID = KeyboardShortcutRegistry.shared.register(
         KeyboardShortcut(KeyEquivalent("r"), modifiers: .command),
-        windowID: windowID
+        windowID: windowID,
+        isEnabled: {
+            gtk_swift_is_widget(widget) != 0 && gtk_widget_get_mapped(widget) != 0
+        }
     ) {
         actionBox.trigger(source: "keyboard")
     }

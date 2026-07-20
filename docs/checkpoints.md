@@ -3506,3 +3506,21 @@ The unchanged upstream IceCubes
 Docker/GTK. The new Linux tests also force a full `TextEditor` remount after
 every character and exercise two prefix-related fields. No IceCubes source
 change is part of this checkpoint.
+
+## Checkpoint 210: Visible GTK Refresh Shortcut Routing
+
+Status: implemented locally; guarded by source hygiene, hermetic SwiftOpenUI
+patch replay, a focused Linux GTK stack regression, and the real upstream
+authenticated status-detail refresh smoke.
+
+The window shortcut registry now supports live registration availability and
+selects the newest enabled match. GTK refresh actions report availability from
+their widget's mapped state, so a refreshable view retained on a hidden
+`GtkStack` page cannot intercept Ctrl-R from the visible destination. Registry
+callbacks are evaluated outside the registry lock, allowing backend visibility
+checks and stale-registration cleanup without deadlock.
+
+The unchanged upstream IceCubes status-detail route now refreshes the visible
+detail body and issues the expected status and context requests instead of
+refreshing the hidden Home timeline. No IceCubes source change is part of this
+checkpoint.

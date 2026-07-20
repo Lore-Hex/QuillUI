@@ -1878,6 +1878,9 @@ struct QuillDataSourceLoweringTests {
         let viewHost = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
         )
+        let keyboardShortcutRegistry = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
+        )
         let coreViewHost = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/ViewHost.swift"
         )
@@ -1950,7 +1953,7 @@ struct QuillDataSourceLoweringTests {
                 encoding: .utf8
             ).write(to: destination, atomically: true, encoding: .utf8)
         }
-        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, coreViewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, keyboardShortcutRegistry, coreViewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -3070,6 +3073,7 @@ struct QuillDataSourceLoweringTests {
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift", to: descriptorTree)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4Backend.swift", to: backend)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKViewHost.swift", to: viewHost)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift", to: keyboardShortcutRegistry)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/ViewHost.swift", to: coreViewHost)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKNavigation.swift", to: navigation)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/CGTK/shim.h", to: shim)
@@ -3121,6 +3125,8 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
         #expect(patchScript.contains("private final class GTKTextBindingUpdateSource"))
         #expect(patchScript.contains("gtkFlushPendingTextBindingUpdate(for: self)"))
+        #expect(patchScript.contains("CANONICAL_KEYBOARD_SHORTCUT_REGISTRY"))
+        #expect(patchScript.contains("Canonical SwiftOpenUI keyboard shortcut availability shape was not recognized"))
         #expect(patchScript.contains("replace_with_canonical_section"))
         #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
@@ -3143,6 +3149,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
+
+        let patchedKeyboardShortcutRegistry = try String(contentsOf: keyboardShortcutRegistry, encoding: .utf8)
+        #expect(patchedKeyboardShortcutRegistry.contains("isEnabled: @escaping () -> Bool = { true }"))
+        #expect(patchedKeyboardShortcutRegistry.contains("let match = candidates.last(where: { $0.isEnabled() })"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
         #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
