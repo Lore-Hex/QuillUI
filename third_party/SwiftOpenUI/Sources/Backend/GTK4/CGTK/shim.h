@@ -608,6 +608,14 @@ gtk_swift_event_is_primary_button_press(gpointer event) {
 }
 
 static inline gboolean
+gtk_swift_event_is_primary_button_release(gpointer event) {
+    GdkEvent *gdk_event = (GdkEvent *)event;
+    return gdk_event != NULL
+        && gdk_event_get_event_type(gdk_event) == GDK_BUTTON_RELEASE
+        && gdk_button_event_get_button(gdk_event) == GDK_BUTTON_PRIMARY;
+}
+
+static inline gboolean
 gtk_swift_event_get_position(gpointer event, double *x, double *y) {
     GdkEvent *gdk_event = (GdkEvent *)event;
     return gdk_event != NULL ? gdk_event_get_position(gdk_event, x, y) : FALSE;
@@ -779,6 +787,11 @@ gtk_swift_widget_is_check_button(GtkWidget *widget) {
 static inline gboolean
 gtk_swift_widget_is_switch(GtkWidget *widget) {
     return widget != NULL && GTK_IS_SWITCH(widget);
+}
+
+static inline gboolean
+gtk_swift_widget_is_drop_down(GtkWidget *widget) {
+    return widget != NULL && GTK_IS_DROP_DOWN(widget);
 }
 
 static inline GtkWidget *
@@ -1551,6 +1564,32 @@ gtk_swift_gesture_single_set_button(GtkGesture *gesture, guint button) {
 }
 
 // --- GtkPopover shims ---
+
+static inline void
+gtk_swift_context_popover_anchor_destroy(GtkWidget *anchor, gpointer user_data) {
+    GtkWidget *popover = GTK_WIDGET(user_data);
+    if (popover != NULL && gtk_widget_get_parent(popover) == anchor) {
+        gtk_widget_unparent(popover);
+    }
+}
+
+static inline void
+gtk_swift_context_popover_release(gpointer user_data, GClosure *closure) {
+    (void)closure;
+    g_object_unref(user_data);
+}
+
+static inline void
+gtk_swift_attach_context_popover(GtkWidget *anchor, GtkWidget *popover) {
+    gtk_widget_set_parent(popover, anchor);
+    g_signal_connect_data(
+        anchor,
+        "destroy",
+        G_CALLBACK(gtk_swift_context_popover_anchor_destroy),
+        g_object_ref(popover),
+        gtk_swift_context_popover_release,
+        0);
+}
 
 static inline void
 gtk_swift_popover_set_pointing_to(GtkWidget *popover, int x, int y, int w, int h) {

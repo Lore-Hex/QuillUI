@@ -39,11 +39,55 @@ final class GTK4DescriptorTests: XCTestCase {
         XCTAssertEqual(node.children[1].kind, .text)
     }
 
-    func testDescribeStopsAtReactiveHostBoundary() {
+    func testDescribeButtonIncludesLabelContent() {
+        let node = gtkDescribeView(Button("Resolved account") {})
+
+        XCTAssertEqual(node.kind, .button)
+        XCTAssertEqual(node.children.count, 1)
+        XCTAssertEqual(node.children[0].kind, .text)
+        XCTAssertEqual(
+            node.children[0].props,
+            .text(GTK4TextDescriptor(content: "Resolved account"))
+        )
+    }
+
+    func testDescribeMarksReactiveHostLifecycleBoundary() {
         let node = gtkDescribeView(GTKDescriptorStatefulBoundaryProbe())
-        XCTAssertEqual(node.kind, .composite)
+        XCTAssertEqual(node.kind, .statefulLifecycleScope)
         XCTAssertTrue(node.typeName.hasPrefix("GTKStatefulHost<"))
-        XCTAssertTrue(node.children.isEmpty)
+        XCTAssertEqual(node.children.count, 1)
+    }
+
+    func testLifecyclePayloadMappingSkipsNestedStatefulHostScope() throws {
+        let root = GTK4DescriptorNode(kind: .vStack, typeName: "VStack", children: [
+            GTK4DescriptorNode(kind: .onAppear, typeName: "ParentOnAppear"),
+            GTK4DescriptorNode(
+                kind: .statefulLifecycleScope,
+                typeName: "GTKStatefulHost<Child>",
+                children: [
+                    GTK4DescriptorNode(kind: .onAppear, typeName: "ChildOnAppear"),
+                    GTK4DescriptorNode(kind: .task, typeName: "ChildTask"),
+                ]
+            ),
+            GTK4DescriptorNode(kind: .task, typeName: "ParentTask"),
+        ])
+        let identified = gtkIdentifyDescriptorTree(root)
+
+        let onAppear = try XCTUnwrap(
+            gtkOnAppearPayloadsByIdentity(
+                descriptorRoot: identified,
+                payloads: [GTK4OnAppearPayload {}]
+            ).keys.first
+        )
+        let task = try XCTUnwrap(
+            gtkTaskPayloadsByIdentity(
+                descriptorRoot: identified,
+                payloads: [GTK4TaskPayload(priority: .medium) {}]
+            ).keys.first
+        )
+
+        XCTAssertEqual(onAppear.path, [0])
+        XCTAssertEqual(task.path, [2])
     }
 
     // MARK: - Identify
@@ -79,6 +123,28 @@ final class GTK4DescriptorTests: XCTestCase {
         XCTAssertEqual(oldIdentity, newIdentity)
         XCTAssertNotEqual(oldIdentity.path, newIdentity.path)
         XCTAssertTrue(oldIdentity.components.contains("key:IdView<stable-list-route>"))
+    }
+
+    func testForEachDescriptorIdentitySurvivesReordering() {
+        let oldRoot = gtkIdentifyDescriptorTree(
+            gtkDescribeView(ForEach([1, 2], id: \.self) { Text("\($0)") })
+        )
+        let newRoot = gtkIdentifyDescriptorTree(
+            gtkDescribeView(ForEach([2, 1], id: \.self) { Text("\($0)") })
+        )
+
+        let oldIdentities = Dictionary(
+            uniqueKeysWithValues: oldRoot.children.map { ($0.descriptor.typeName, $0.identity) }
+        )
+        let newIdentities = Dictionary(
+            uniqueKeysWithValues: newRoot.children.map { ($0.descriptor.typeName, $0.identity) }
+        )
+
+        XCTAssertEqual(oldIdentities.keys, newIdentities.keys)
+        for key in oldIdentities.keys {
+            XCTAssertEqual(oldIdentities[key], newIdentities[key])
+            XCTAssertTrue(key.hasPrefix("GTKStateNamespaceView<ForEach["))
+        }
     }
 
     // MARK: - Match

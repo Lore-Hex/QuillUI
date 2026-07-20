@@ -593,18 +593,28 @@ public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> 
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
 public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil
 
-private final class GTKTextBindingIdleUpdate {
+private final class GTKTextBindingUpdateSource {
     let binding: Binding<String>
+    weak var ownerHost: GTKViewHost?
+
+    init(binding: Binding<String>, ownerHost: GTKViewHost? = GTKViewHost.getCurrentRebuilding()) {
+        self.binding = binding
+        self.ownerHost = ownerHost
+    }
+}
+
+private final class GTKTextBindingIdleUpdate {
+    let source: GTKTextBindingUpdateSource
     let value: String
 
-    init(binding: Binding<String>, value: String) {
-        self.binding = binding
+    init(source: GTKTextBindingUpdateSource, value: String) {
+        self.source = source
         self.value = value
     }
 
     func apply() {
-        if binding.wrappedValue != value {
-            binding.wrappedValue = value
+        if source.binding.wrappedValue != value {
+            source.binding.wrappedValue = value
         }
     }
 }
@@ -612,36 +622,37 @@ private final class GTKTextBindingIdleUpdate {
 private var gtkPendingTextBindingUpdate: GTKTextBindingIdleUpdate?
 private var gtkPendingTextBindingSourceID: guint = 0
 
-func gtkFlushPendingTextBindingUpdate() {
+func gtkFlushPendingTextBindingUpdate(for ownerHost: GTKViewHost? = nil) {
+    guard let pending = gtkPendingTextBindingUpdate else { return }
+    if let ownerHost, pending.source.ownerHost !== ownerHost {
+        return
+    }
     if gtkPendingTextBindingSourceID != 0 {
         g_source_remove(gtkPendingTextBindingSourceID)
         gtkPendingTextBindingSourceID = 0
     }
-    let pending = gtkPendingTextBindingUpdate
     gtkPendingTextBindingUpdate = nil
-    pending?.apply()
+    pending.apply()
 }
 
 /// Debounced entry->binding writes. Writing the binding on every keystroke
 /// schedules a rebuild per keystroke, and any host whose plan is not
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
-/// One pending write replaces the previous and flushes after a typing pause,
+/// One pending write per native input replaces its previous value and flushes
+/// after a typing pause,
 /// or eagerly before any app action, keyboard shortcut, or submit runs
-/// (actions read the model, never the entry). Same-field edits always keep a
-/// prefix relation between successive values; unrelated values mean a
-/// different field, so the previous field's pending write flushes first and
-/// is never lost.
-private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
-    if let pending = gtkPendingTextBindingUpdate,
-       !value.hasPrefix(pending.value), !pending.value.hasPrefix(value) {
+/// (actions read the model, never the entry). A different input source flushes
+/// the previous field first, even when their values happen to share a prefix.
+private func gtkScheduleTextBindingUpdate(_ source: GTKTextBindingUpdateSource, value: String) {
+    if let pending = gtkPendingTextBindingUpdate, pending.source !== source {
         gtkFlushPendingTextBindingUpdate()
     }
     if gtkPendingTextBindingSourceID != 0 {
         g_source_remove(gtkPendingTextBindingSourceID)
         gtkPendingTextBindingSourceID = 0
     }
-    gtkPendingTextBindingUpdate = GTKTextBindingIdleUpdate(binding: binding, value: value)
+    gtkPendingTextBindingUpdate = GTKTextBindingIdleUpdate(source: source, value: value)
     gtkPendingTextBindingSourceID = g_timeout_add(250, { _ -> gboolean in
         gtkPendingTextBindingSourceID = 0
         let pending = gtkPendingTextBindingUpdate
@@ -944,6 +955,7 @@ public protocol GTKMultiChildRenderable {
 
 private var gtkStateCache: [String: [AnyStateStorage]] = [:]
 private var gtkStateTypeCounters: [String: [String: Int]] = [:]
+private var gtkEnvironmentObjectTypeCounters: [String: [String: Int]] = [:]
 
 private var gtkForcedStateIdentityNamespace: String?
 
@@ -956,6 +968,7 @@ private func gtkStateIdentityNamespace() -> String {
 public func gtkBeginStateIdentityPass() {
     gtkStateTypeCounters[gtkStateIdentityNamespace()] = [:]
     gtkMountTypeCounters[gtkStateIdentityNamespace()] = [:]
+    gtkEnvironmentObjectTypeCounters[gtkStateIdentityNamespace()] = [:]
 }
 
 // MARK: - Mount identity for external renderable leaves
@@ -978,6 +991,16 @@ public func gtkMountIdentity(for type: Any.Type) -> String {
     counters[typeName] = index + 1
     gtkMountTypeCounters[namespace] = counters
     return "\(namespace)|mount|\(typeName)#\(index)"
+}
+
+private func gtkEnvironmentObjectScope(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkEnvironmentObjectTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkEnvironmentObjectTypeCounters[namespace] = counters
+    return "\(namespace)|environment|\(typeName)#\(index)"
 }
 
 /// Claims a stable child namespace slot in the current namespace. Deferred
@@ -1006,6 +1029,7 @@ private func gtkWithStateIdentityNamespaceComponent<T>(_ component: String, _ bo
     gtkForcedStateIdentityNamespace = namespace
     gtkStateTypeCounters[namespace] = [:]
     gtkMountTypeCounters[namespace] = [:]
+    gtkEnvironmentObjectTypeCounters[namespace] = [:]
     defer { gtkForcedStateIdentityNamespace = previous }
     return body()
 }
@@ -1017,6 +1041,7 @@ func gtkWithForcedStateIdentityNamespace<T>(_ namespace: String, _ body: () -> T
     gtkForcedStateIdentityNamespace = namespace
     gtkStateTypeCounters[namespace] = [:]
     gtkMountTypeCounters[namespace] = [:]
+    gtkEnvironmentObjectTypeCounters[namespace] = [:]
     defer { gtkForcedStateIdentityNamespace = previous }
     return body()
 }
@@ -1046,20 +1071,24 @@ private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {
     host.stateIdentityNamespace = key
     let mirror = Mirror(reflecting: view)
     let providers = mirror.children.compactMap { $0.value as? AnyStateStorageProvider }
-    guard !providers.isEmpty else { return }
-
-    gtkDebugLog("state install type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
-    if let cached = gtkStateCache[key], cached.count == providers.count {
-        for (provider, old) in zip(providers, cached) {
-            provider.anyStorage.restoreValue(from: old)
-            old.forwardMutations(to: provider.anyStorage)
+    if !providers.isEmpty {
+        gtkDebugLog("state install type=\(String(reflecting: type(of: view))) key=\(key) providers=\(providers.count) cached=\(gtkStateCache[key] != nil)")
+        if let cached = gtkStateCache[key], cached.count == providers.count {
+            for (provider, old) in zip(providers, cached) {
+                provider.anyStorage.restoreValue(from: old)
+                old.forwardMutations(to: provider.anyStorage)
+            }
         }
+        for provider in providers {
+            provider.anyStorage.host = host
+        }
+        gtkStateCache[key] = providers.map { $0.anyStorage }
     }
 
-    for provider in providers {
-        provider.anyStorage.host = host
-    }
-    gtkStateCache[key] = providers.map { $0.anyStorage }
+    // Views hosted solely because they use @Environment(Type.self) still need
+    // those wrappers primed before body creates deferred callbacks. Body reads
+    // register the observable dependencies actually used by this host.
+    primeInjectedEnvironmentObjects(view)
 }
 
 private func gtkRestoreAndInstallInlineState<V>(_ view: V, host: AnyViewHost?) -> String {
@@ -1272,47 +1301,94 @@ private func gtkMeasureLayoutSubviews(
 
 // MARK: - Deferred callback environment binding
 
-/// Capture the current environment at registration time and restore it around
-/// a deferred callback that may read `@Environment(...)`.  See
-/// `docs/architecture/deferred-callback-environment-binding.md`.
-func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
-    let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
-        in: capturedEnvironment
-    )
-    return {
+private final class GTKDeferredAction<Value>: @unchecked Sendable {
+    private let capturedEnvironment: EnvironmentValues
+    private let capturedPresentationDismissAction: (() -> Void)?
+    private let action: (Value) -> Void
+
+    init(
+        environment: EnvironmentValues,
+        presentationDismissAction: (() -> Void)?,
+        action: @escaping (Value) -> Void
+    ) {
+        capturedEnvironment = environment
+        capturedPresentationDismissAction = presentationDismissAction
+        self.action = action
+    }
+
+    func invoke(_ value: Value) {
+        let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+        guard !hasCurrentTask else {
+            run(value)
+            return
+        }
+
+        let invocation = GTKDeferredActionInvocation(action: self, value: value)
+        Task { @MainActor [invocation] in
+            invocation.run()
+        }
+    }
+
+    fileprivate func run(_ value: Value) {
         gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
         let previousEnvironment = getCurrentEnvironment()
-        setCurrentEnvironment(capturedEnvironment)
+        setCurrentEnvironment(environment)
         defer { setCurrentEnvironment(previousEnvironment) }
-        if let capturedPresentationDismissAction {
-            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
-                action()
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
+                action(value)
             }
-        } else {
-            action()
         }
     }
 }
 
+private final class GTKDeferredActionInvocation<Value>: @unchecked Sendable {
+    private let action: GTKDeferredAction<Value>
+    private let value: Value
+
+    init(action: GTKDeferredAction<Value>, value: Value) {
+        self.action = action
+        self.value = value
+    }
+
+    @MainActor
+    func run() {
+        action.run(value)
+    }
+}
+
+/// Capture the current environment at registration time and restore it around
+/// a deferred callback that may read `@Environment(...)`. Native GTK callbacks
+/// have no Swift task, so enter a MainActor task before opening task-local
+/// scopes. See `docs/architecture/deferred-callback-environment-binding.md`.
+func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<Void>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: { _ in action() }
+    )
+    return { deferredAction.invoke(()) }
+}
+
 func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
     let capturedEnvironment = getCurrentEnvironment()
-    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
-        in: capturedEnvironment
+    let deferredAction = GTKDeferredAction<T>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: action
     )
-    return { value in
-        gtkFlushPendingTextBindingUpdate()
-        let previousEnvironment = getCurrentEnvironment()
-        setCurrentEnvironment(capturedEnvironment)
-        defer { setCurrentEnvironment(previousEnvironment) }
-        if let capturedPresentationDismissAction {
-            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
-                action(value)
-            }
-        } else {
-            action(value)
-        }
-    }
+    return { value in deferredAction.invoke(value) }
 }
 
 private final class GTKEnvironmentCapture: @unchecked Sendable {
@@ -1453,19 +1529,19 @@ extension Divider: GTKRenderable, GTKDescribable {
 }
 
 private final class GTKMultilineTextFieldBindingBox {
-    let binding: Binding<String>
+    let updateSource: GTKTextBindingUpdateSource
     let placeholderLabel: UnsafeMutablePointer<GtkWidget>?
 
     init(
         binding: Binding<String>,
         placeholderLabel: UnsafeMutablePointer<GtkWidget>?
     ) {
-        self.binding = binding
+        self.updateSource = GTKTextBindingUpdateSource(binding: binding)
         self.placeholderLabel = placeholderLabel
     }
 
     func apply(_ newText: String) {
-        gtkScheduleTextBindingUpdate(binding, value: newText)
+        gtkScheduleTextBindingUpdate(updateSource, value: newText)
         updatePlaceholderVisibility(text: newText)
     }
 
@@ -1718,8 +1794,9 @@ extension TextField: GTKRenderable, GTKDescribable {
         // Listen on the GtkEntryBuffer's "notify::text" signal so we catch
         // all changes (typing, paste, programmatic).
         let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: binding)
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -1742,7 +1819,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
         // SecureField so user edits always reach SwiftUI bindings before dismissal.
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -2431,6 +2508,7 @@ private func gtkWidgetTreeContainsVisualButtonAtRootPoint(
     depth: Int = 0
 ) -> Bool {
     guard depth < 96 else { return false }
+    guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return false }
     guard gtk_widget_get_visible(widget) != 0,
           gtk_widget_get_sensitive(widget) != 0,
           gtk_widget_get_opacity(widget) > 0.001 else { return false }
@@ -2606,6 +2684,7 @@ private func gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
     depth: Int = 0
 ) -> UnsafeMutablePointer<GtkWidget>? {
     guard depth < 96 else { return nil }
+    guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }
     if let menuButton = gtkMenuOwnerButton(for: widget),
        gtk_widget_get_visible(menuButton) != 0,
        gtk_widget_get_sensitive(menuButton) != 0,
@@ -2633,6 +2712,146 @@ private func gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
         child = gtk_widget_get_next_sibling(current)
     }
     return nil
+}
+
+private typealias GTKVisualMenuButtonCandidate = (
+    menuButton: UnsafeMutablePointer<GtkWidget>,
+    menuBranchDistance: Int,
+    pickedBranchDistance: Int,
+    depth: Int,
+    area: Double
+)
+
+private func gtkClosestCommonAncestorDistances(
+    _ first: UnsafeMutablePointer<GtkWidget>,
+    _ second: UnsafeMutablePointer<GtkWidget>,
+    stoppingAt searchRoot: UnsafeMutablePointer<GtkWidget>
+) -> (first: Int, second: Int)? {
+    var firstNode: UnsafeMutablePointer<GtkWidget>? = first
+    var firstDistance = 0
+    while let currentFirst = firstNode, firstDistance < 160 {
+        var secondNode: UnsafeMutablePointer<GtkWidget>? = second
+        var secondDistance = 0
+        while let currentSecond = secondNode, secondDistance < 160 {
+            if currentFirst == currentSecond {
+                return (firstDistance, secondDistance)
+            }
+            if currentSecond == searchRoot { break }
+            secondNode = gtk_widget_get_parent(currentSecond)
+            secondDistance += 1
+        }
+        if currentFirst == searchRoot { break }
+        firstNode = gtk_widget_get_parent(currentFirst)
+        firstDistance += 1
+    }
+    return nil
+}
+
+private func gtkPreferredVisualMenuButtonCandidate(
+    _ current: GTKVisualMenuButtonCandidate?,
+    _ proposed: GTKVisualMenuButtonCandidate
+) -> GTKVisualMenuButtonCandidate {
+    guard let current else { return proposed }
+    if proposed.pickedBranchDistance < current.pickedBranchDistance { return proposed }
+    if proposed.pickedBranchDistance > current.pickedBranchDistance { return current }
+    if proposed.menuBranchDistance < current.menuBranchDistance { return proposed }
+    if proposed.menuBranchDistance > current.menuBranchDistance { return current }
+    if proposed.depth > current.depth { return proposed }
+    if proposed.depth < current.depth { return current }
+    if proposed.area < current.area { return proposed }
+    if proposed.area > current.area { return current }
+    // GTK paints later siblings above earlier siblings.
+    return proposed
+}
+
+private func gtkVisualMenuButtonCandidateAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    searchRoot: UnsafeMutablePointer<GtkWidget>,
+    picked: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> GTKVisualMenuButtonCandidate? {
+    guard depth < 96 else { return nil }
+    guard !gtkWidgetIsInsideInactiveNavigationPage(widget) else { return nil }
+    guard gtk_widget_get_visible(widget) != 0,
+          gtk_widget_get_sensitive(widget) != 0,
+          gtk_widget_get_opacity(widget) > 0.001 else { return nil }
+    var best: GTKVisualMenuButtonCandidate?
+
+    if gtk_swift_widget_is_menu_button(widget) != 0,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        let distances = gtkClosestCommonAncestorDistances(
+            widget,
+            picked,
+            stoppingAt: searchRoot
+        ) ?? (Int.max, Int.max)
+        let frame = gtkWidgetVisualFrameInRoot(widget, root: root)
+        let area = frame.map { max(1, $0.width * $0.height) }
+            ?? Double.greatestFiniteMagnitude
+        if let frame {
+            gtkDebugLog(
+                "visual menu candidate root@\(Int(x)),\(Int(y)) "
+                + "frame=\(Int(frame.x)),\(Int(frame.y)) \(Int(frame.width))x\(Int(frame.height)) "
+                + "menuDistance=\(distances.first) pickedDistance=\(distances.second) depth=\(depth)"
+            )
+        }
+        best = gtkPreferredVisualMenuButtonCandidate(
+            best,
+            (widget, distances.first, distances.second, depth, area)
+        )
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualMenuButtonCandidateAtRootPoint(
+            current,
+            searchRoot: searchRoot,
+            picked: picked,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            best = gtkPreferredVisualMenuButtonCandidate(best, match)
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return best
+}
+
+private func gtkPreferredVisualMenuButtonAtRootPoint(
+    searching searchRoot: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    // GTK's native pick is z-order and clipping aware, so prefer it over
+    // the transformed-frame fallback. The latter intentionally scans
+    // non-native hit regions and can otherwise select an offscreen List row
+    // whose allocation overlaps the visible row after scrolling.
+    if let picked = gtk_swift_root_point_pick_menu_button(root, x, y),
+       gtk_swift_widget_is_ancestor_or_self(searchRoot, picked) != 0 {
+        return picked
+    }
+    if let picked = gtk_swift_root_point_pick_widget(root, x, y),
+       let candidate = gtkVisualMenuButtonCandidateAtRootPoint(
+        searchRoot,
+        searchRoot: searchRoot,
+        picked: picked,
+        root: root,
+        x: x,
+        y: y
+       ) {
+        gtkDebugLog(
+            "picked-branch visual menu hit root@\(Int(x)),\(Int(y)) "
+            + "menuDistance=\(candidate.menuBranchDistance) "
+            + "pickedDistance=\(candidate.pickedBranchDistance)"
+        )
+        return candidate.menuButton
+    }
+    return gtkWidgetTreeFindVisualMenuButtonAtRootPoint(searchRoot, root: root, x: x, y: y)
 }
 
 private final class GTKMenuPopupRootPointContext {
@@ -2663,12 +2882,12 @@ private func gtkScheduleVisualMenuButtonPopup(
         let context = Unmanaged<GTKMenuPopupRootPointContext>
             .fromOpaque(userData)
             .takeRetainedValue()
-        let menuButton = gtkWidgetTreeFindVisualMenuButtonAtRootPoint(
-            context.root,
+        let menuButton = gtkPreferredVisualMenuButtonAtRootPoint(
+            searching: context.root,
             root: context.root,
             x: context.x,
             y: context.y
-        ) ?? gtk_swift_root_point_pick_menu_button(context.root, context.x, context.y)
+        )
         guard let menuButton else {
             gtkDebugLog("list row tap missed visual menu button \(context.source)")
             return 0
@@ -2819,6 +3038,14 @@ func gtkTestWidgetTreeContainsVisualTapActionAtRootPoint(
     gtkWidgetTreeContainsVisualTapActionAtRootPoint(widget, root: root, x: x, y: y)
 }
 
+func gtkTestActivateVisualDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> Bool {
+    gtkActivateVisualDropDownAtRootPoint(root: root, x: x, y: y, source: "test")
+}
+
 func gtkTestPreferredTapActionMatchesWidgetTapData(
     _ widget: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
@@ -2840,6 +3067,43 @@ func gtkTestFindVisualMenuButtonAtRootPoint(
     y: Double
 ) -> UnsafeMutablePointer<GtkWidget>? {
     gtkWidgetTreeFindVisualMenuButtonAtRootPoint(widget, root: root, x: x, y: y)
+}
+
+func gtkTestPreferredVisualMenuButtonAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkPreferredVisualMenuButtonAtRootPoint(searching: root, root: root, x: x, y: y)
+}
+
+func gtkTestRankedVisualMenuButtonAtRootPoint(
+    searching searchRoot: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    picked: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    gtkVisualMenuButtonCandidateAtRootPoint(
+        searchRoot,
+        searchRoot: searchRoot,
+        picked: picked,
+        root: root,
+        x: x,
+        y: y
+    )?.menuButton
+}
+
+func gtkTestSetNavigationPageInactive(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    _ isInactive: Bool
+) {
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    g_object_set_data(
+        gobject,
+        gtkSwiftNavigationPageInteractivityMarker,
+        isInactive ? gtkSwiftNavigationPageInactiveValue : nil
+    )
 }
 
 func gtkTestMenuOwnerButton(
@@ -3115,10 +3379,16 @@ private func gtkDispatchButtonRootPress(
 extension Button: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         gtkCollectButtonPayload(GTK4ButtonPayload(action: bindActionToCurrentEnvironment(action)))
-        // Opaque stable leaf. The descriptor payload collector captures the
-        // current action closure and the host refreshes reused GtkButtons
-        // during narrow mutation, so model-dependent actions do not go stale.
-        return GTK4DescriptorNode(kind: .button, typeName: "Button")
+        // Keep the button identity stable while describing its label. The
+        // payload collector refreshes model-dependent actions, and the label
+        // subtree lets retained hosts repaint titles without remounting the
+        // native GtkButton. Labels that cannot be paired to native slots make
+        // the narrow path fail closed and take the full rebuild path.
+        return GTK4DescriptorNode(
+            kind: .button,
+            typeName: "Button",
+            children: [gtkDescribeView(label)]
+        )
     }
 
     public func gtkCreateWidget() -> OpaquePointer {
@@ -4141,11 +4411,10 @@ extension ForEach: GTKRenderable, GTKDescribable {
             kind: .composite,
             typeName: String(describing: type(of: self)),
             children: data.map { item in
-                gtkWithStateIdentityNamespaceComponent(
-                    gtkForEachStateIdentityComponent(for: item[keyPath: id])
-                ) {
-                    gtkDescribeView(content(item))
-                }
+                GTKStateNamespaceView(
+                    component: gtkForEachStateIdentityComponent(for: item[keyPath: id]),
+                    content: content(item)
+                ).gtkDescribeNode()
             }
         )
     }
@@ -5947,10 +6216,12 @@ extension ContextMenuView: GTKRenderable {
 
         // Create popover menu from the model
         let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
-        gtk_widget_set_parent(popover, widget)
+        gtk_swift_attach_context_popover(widget, popover)
 
         // Attach action group to the content widget so menu items can resolve actions
         gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+        g_object_unref(gpointer(actionGroup))
+        g_object_unref(menuModel)
 
         // Attach actionBox for lifetime management
         let retained = Unmanaged.passRetained(actionBox).toOpaque()
@@ -8950,11 +9221,9 @@ extension SecureField: GTKRenderable, GTKDescribable {
             }
         }
 
-        let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: text)
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            if newText != binding.wrappedValue {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -9025,9 +9294,10 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         }
 
         let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: binding)
         let buffer = gtk_text_view_get_buffer(textViewPtr)!
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(buffer),
@@ -9997,7 +10267,10 @@ private func gtkAttachRefreshAction(
     let windowID = getCurrentEnvironment().windowID
     let registrationID = KeyboardShortcutRegistry.shared.register(
         KeyboardShortcut(KeyEquivalent("r"), modifiers: .command),
-        windowID: windowID
+        windowID: windowID,
+        isEnabled: {
+            gtk_swift_is_widget(widget) != 0 && gtk_widget_get_mapped(widget) != 0
+        }
     ) {
         actionBox.trigger(source: "keyboard")
     }
@@ -11165,6 +11438,140 @@ private func gtkActivateToggleControlAtWidgetPoint(
     gtkActivateToggleControlAtRootPoint(root: widget, x: x, y: y, source: source)
 }
 
+private func gtkNativeDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    var current = gtk_swift_root_point_pick_widget(root, x, y)
+    while let widget = current {
+        if gtk_swift_widget_is_drop_down(widget) != 0 {
+            return widget
+        }
+        if widget == root {
+            break
+        }
+        current = gtk_widget_get_parent(widget)
+    }
+    return nil
+}
+
+private func gtkVisualDropDownAtRootPoint(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    depth: Int = 0
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard depth < 160 else { return nil }
+    if gtk_swift_widget_is_drop_down(widget) != 0,
+       !gtkWidgetIsInsideInactiveNavigationPage(widget),
+       gtk_widget_get_visible(widget) != 0,
+       gtk_widget_get_mapped(widget) != 0,
+       gtk_widget_get_sensitive(widget) != 0,
+       gtk_widget_get_opacity(widget) > 0.001,
+       gtkWidgetOrDescendantVisuallyContainsRootPoint(widget, root: root, x: x, y: y) {
+        return widget
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        if let match = gtkVisualDropDownAtRootPoint(
+            current,
+            root: root,
+            x: x,
+            y: y,
+            depth: depth + 1
+        ) {
+            return match
+        }
+        child = gtk_widget_get_next_sibling(current)
+    }
+    return nil
+}
+
+private func gtkDebugDropDownCandidates(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) {
+    guard ProcessInfo.processInfo.environment["QUILLUI_GTK_DEBUG_ACTIONS"] == "1" else { return }
+    var total = 0
+
+    func walk(_ widget: UnsafeMutablePointer<GtkWidget>, depth: Int) {
+        guard depth < 160 else { return }
+        if gtk_swift_widget_is_drop_down(widget) != 0 {
+            let contains = gtkWidgetOrDescendantVisuallyContainsRootPoint(
+                widget,
+                root: root,
+                x: x,
+                y: y
+            )
+            gtkDebugLog(
+                "\(source) drop-down-candidate[\(total)] hit=\(contains ? 1 : 0) "
+                + "sensitive=\(gtk_widget_get_sensitive(widget)) "
+                + "inactive=\(gtkWidgetIsInsideInactiveNavigationPage(widget) ? 1 : 0) "
+                + gtkDebugVisualFrameDescription(widget, root: root)
+            )
+            total += 1
+        }
+
+        var child = gtk_widget_get_first_child(widget)
+        while let current = child {
+            walk(current, depth: depth + 1)
+            child = gtk_widget_get_next_sibling(current)
+        }
+    }
+
+    walk(root, depth: 0)
+    gtkDebugLog("\(source) drop-down-candidates total=\(total) root@\(Int(x)),\(Int(y))")
+}
+
+private func gtkActivateVisualDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    // Root-level compatibility dispatchers can prevent GTK's internal
+    // GtkDropDown button from completing its own event sequence. Activate and
+    // consume both native and transformed hits so Picker behavior is stable in
+    // either layout path.
+    guard let dropDown = gtkActionableDropDownAtRootPoint(root: root, x: x, y: y) else {
+        gtkDebugDropDownCandidates(root: root, x: x, y: y, source: source)
+        return false
+    }
+
+    gtk_widget_grab_focus(dropDown)
+    let activated = gtk_widget_activate(dropDown) != 0
+    gtkDebugLog(
+        "drop-down visual activation \(source) root@\(Int(x)),\(Int(y)) activated=\(activated ? 1 : 0) "
+        + gtkDebugVisualFrameDescription(dropDown, root: root)
+    )
+    return activated
+}
+
+private func gtkActionableDropDownAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double
+) -> UnsafeMutablePointer<GtkWidget>? {
+    guard let dropDown = gtkNativeDropDownAtRootPoint(root: root, x: x, y: y)
+        ?? gtkVisualDropDownAtRootPoint(root, root: root, x: x, y: y) else {
+        return nil
+    }
+    guard !gtkRootSheetLayerOccludesRootPoint(
+        root: root,
+        x: x,
+        y: y,
+        excludingDescendant: dropDown
+    ) else {
+        return nil
+    }
+    return dropDown
+}
+
 private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"
 private let gtkListRowGeometryDataKey = "gtk-swift-list-row-geometry"
 private let gtkCollapsedListRowControlsDataKey = "gtk-swift-collapsed-list-row-controls"
@@ -11280,6 +11687,15 @@ private func gtkPrimaryTapAction<V: View>(in view: V, depth: Int = 0) -> (() -> 
         }
     }
 
+    if let multi = view as? any TransparentMultiChildView {
+        for child in multi.children {
+            if let action = gtkPrimaryTapAction(inAny: child, depth: depth + 1) {
+                return action
+            }
+        }
+        return nil
+    }
+
     let mirror = Mirror(reflecting: view)
     if mirror.displayStyle == .optional {
         guard let child = mirror.children.first?.value as? any View else { return nil }
@@ -11317,6 +11733,12 @@ private func gtkPrimaryTapAction<V: View>(in view: V, depth: Int = 0) -> (() -> 
     }
 
     return nil
+}
+
+func gtkTestActivatePrimaryTapAction<V: View>(in view: V) -> Bool {
+    guard let action = gtkPrimaryTapAction(in: view) else { return false }
+    action()
+    return true
 }
 
 private func gtkScheduleListRowTapAction(
@@ -12465,6 +12887,26 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
                 gtkDebugLog("listbox-root skipped root sheet root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
+            if gtkWidgetIsInsideInactiveNavigationPage(context.listBox) {
+                gtkDebugLog("listbox-root skipped inactive navigation page root@\(Int(rootX)),\(Int(rootY))")
+                return 0
+            }
+
+            var listX: Double = 0
+            var listY: Double = 0
+            let rowAtPoint: UnsafeMutablePointer<GtkWidget>?
+            if gtk_swift_widget_compute_point(
+                root,
+                context.listBox,
+                rootX,
+                rootY,
+                &listX,
+                &listY
+            ) != 0 {
+                rowAtPoint = gtk_swift_list_box_row_at_point(context.listBox, listX, listY)
+            } else {
+                rowAtPoint = nil
+            }
 
             let visibleContainer = gtk_widget_get_parent(context.listBox) ?? context.listBox
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.listBox, rootX, rootY) != 0
@@ -12493,13 +12935,16 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
                 + gtkDebugVisualFrameDescription(visibleContainer, root: root)
             )
 
-            if gtkOpenVisualMenuButtonAtRootPoint(
-                root: root,
-                x: rootX,
-                y: rootY,
-                source: "listbox-root@\(Int(rootX)),\(Int(rootY))"
-            ) {
-                return 1
+            if let rowAtPoint {
+                if gtkOpenVisualMenuButtonAtRootPoint(
+                    searching: rowAtPoint,
+                    root: root,
+                    x: rootX,
+                    y: rootY,
+                    source: "listbox-root@\(Int(rootX)),\(Int(rootY))"
+                ) {
+                    return 1
+                }
             }
             if gtkActivateToggleControlAtRootPoint(
                 root: root,
@@ -12513,7 +12958,13 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
                 gtkDebugLog("list row tap skipped button listbox-root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
-            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: rootX, y: rootY) else {
+            let controlSearchRoot = rowAtPoint ?? context.listBox
+            guard !gtkWidgetTreeContainsVisualButtonAtRootPoint(
+                controlSearchRoot,
+                root: root,
+                x: rootX,
+                y: rootY
+            ) else {
                 gtkDebugLog("list row tap skipped visual button listbox-root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
@@ -12522,12 +12973,7 @@ private func gtkInstallListBoxRootEventFallback(_ context: GTKListBoxRootEventCo
                 return 0
             }
 
-            var listX: Double = 0
-            var listY: Double = 0
-            guard gtk_swift_widget_compute_point(root, context.listBox, rootX, rootY, &listX, &listY) != 0 else {
-                return 0
-            }
-            guard let row = gtk_swift_list_box_row_at_point(context.listBox, listX, listY) else {
+            guard let row = rowAtPoint else {
                 gtkDebugLog("list row tap miss listbox-root@\(Int(rootX)),\(Int(rootY))")
                 return 0
             }
@@ -12604,6 +13050,10 @@ private func gtkInstallListRowRootEventFallback(_ context: GTKListRowRootEventCo
                 gtkDebugLog("list row tap skipped root sheet root@\(Int(x)),\(Int(y)) \(context.box.source)")
                 return 0
             }
+            if gtkWidgetIsInsideInactiveNavigationPage(context.row) {
+                gtkDebugLog("list row tap skipped inactive navigation page root@\(Int(x)),\(Int(y)) \(context.box.source)")
+                return 0
+            }
             let isTopmost = gtk_swift_widget_is_topmost_at_root_point(root, context.row, x, y) != 0
             let isVisualHit = gtkWidgetOrDescendantVisuallyContainsRootPoint(context.row, root: root, x: x, y: y)
             guard isTopmost || isVisualHit else {
@@ -12615,6 +13065,7 @@ private func gtkInstallListRowRootEventFallback(_ context: GTKListRowRootEventCo
             }
             let source = isTopmost ? "root" : "root-visual"
             if gtkOpenVisualMenuButtonAtRootPoint(
+                searching: context.row,
                 root: root,
                 x: x,
                 y: y,
@@ -13103,7 +13554,7 @@ extension List: GTKRenderable, GTKDescribable {
 extension EnvironmentObjectModifierView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         var env = getCurrentEnvironment()
-        env.setObject(object)
+        env.setObject(object, scope: gtkEnvironmentObjectScope(for: ObjectType.self))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
@@ -13116,7 +13567,7 @@ extension EnvironmentObjectModifierView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
-        env.setObject(object)
+        env.setObject(object, scope: gtkEnvironmentObjectScope(for: ObjectType.self))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         let widget = gtkRenderView(content)
@@ -13128,7 +13579,7 @@ extension EnvironmentObjectModifierView: GTKRenderable, GTKDescribable {
 extension EnvironmentObservableModifierView: GTKRenderable, GTKDescribable {
     public func gtkDescribeNode() -> GTK4DescriptorNode {
         var env = getCurrentEnvironment()
-        env.setObject(object)
+        env.setObject(object, scope: gtkEnvironmentObjectScope(for: ObjectType.self))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         defer { setCurrentEnvironment(prev) }
@@ -13141,7 +13592,7 @@ extension EnvironmentObservableModifierView: GTKRenderable, GTKDescribable {
 
     public func gtkCreateWidget() -> OpaquePointer {
         var env = getCurrentEnvironment()
-        env.setObject(object)
+        env.setObject(object, scope: gtkEnvironmentObjectScope(for: ObjectType.self))
         let prev = getCurrentEnvironment()
         setCurrentEnvironment(env)
         let widget = gtkRenderView(content)
@@ -14672,6 +15123,136 @@ private class SegmentClosureBox {
     }
 }
 
+private let gtkDropDownGlobalDispatcherDataKey = "gtk-swift-drop-down-global-dispatcher"
+
+private final class GTKDropDownRootInstallContext {
+    let widget: UnsafeMutablePointer<GtkWidget>
+
+    init(widget: UnsafeMutablePointer<GtkWidget>) {
+        self.widget = widget
+    }
+}
+
+private final class GTKDropDownGlobalRootDispatcher {
+    let root: UnsafeMutablePointer<GtkWidget>
+    var controller: gpointer?
+    var hasPendingPrimaryPress = false
+
+    init(root: UnsafeMutablePointer<GtkWidget>) {
+        self.root = root
+    }
+}
+
+private func gtkInstallGlobalDropDownRootDispatcher(
+    for widget: UnsafeMutablePointer<GtkWidget>
+) {
+    guard let root = gtk_swift_widget_root_widget(widget) else { return }
+    let rootObject = UnsafeMutableRawPointer(root).assumingMemoryBound(to: GObject.self)
+    guard g_object_get_data(rootObject, gtkDropDownGlobalDispatcherDataKey) == nil else {
+        return
+    }
+
+    let dispatcher = GTKDropDownGlobalRootDispatcher(root: root)
+    let controller = gtk_swift_legacy_capture_controller()!
+    dispatcher.controller = controller
+    let dispatcherPointer = Unmanaged.passRetained(dispatcher).toOpaque()
+    g_object_set_data_full(
+        rootObject,
+        gtkDropDownGlobalDispatcherDataKey,
+        dispatcherPointer,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownGlobalRootDispatcher>.fromOpaque(userData).release()
+        }
+    )
+
+    gtkDebugLog("drop-down global root dispatcher installed")
+    g_signal_connect_data(
+        controller,
+        "event",
+        unsafeBitCast({ (_: gpointer?, event: gpointer?, userData: gpointer?) -> gboolean in
+            guard let event, let userData else { return 0 }
+            let isPrimaryPress = gtk_swift_event_is_primary_button_press(event) != 0
+            let isPrimaryRelease = gtk_swift_event_is_primary_button_release(event) != 0
+            guard isPrimaryPress || isPrimaryRelease else { return 0 }
+            let dispatcher = Unmanaged<GTKDropDownGlobalRootDispatcher>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            var rootX: Double = 0
+            var rootY: Double = 0
+            guard gtk_swift_event_get_position(event, &rootX, &rootY) != 0 else { return 0 }
+
+            if isPrimaryPress {
+                dispatcher.hasPendingPrimaryPress = gtkActionableDropDownAtRootPoint(
+                    root: dispatcher.root,
+                    x: rootX,
+                    y: rootY
+                ) != nil
+                return dispatcher.hasPendingPrimaryPress ? 1 : 0
+            }
+
+            guard dispatcher.hasPendingPrimaryPress else { return 0 }
+            dispatcher.hasPendingPrimaryPress = false
+            return gtkActivateVisualDropDownAtRootPoint(
+                root: dispatcher.root,
+                x: rootX,
+                y: rootY,
+                source: "global-root"
+            ) ? 1 : 0
+        } as @convention(c) (gpointer?, gpointer?, gpointer?) -> gboolean, to: GCallback.self),
+        dispatcherPointer,
+        nil,
+        GConnectFlags(rawValue: 0)
+    )
+    gtk_swift_add_event_controller(root, controller)
+}
+
+private func gtkDropDownRootInstallTickCallback(
+    _ widget: UnsafeMutablePointer<GtkWidget>?,
+    _ frameClock: OpaquePointer?,
+    _ userData: gpointer?
+) -> gboolean {
+    guard let userData else { return 0 }
+    let context = Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).takeUnretainedValue()
+    gtkInstallGlobalDropDownRootDispatcher(for: context.widget)
+    return gtk_swift_widget_root_widget(context.widget) == nil ? 1 : 0
+}
+
+private func gtkInstallDropDownRootDispatcherWhenMapped(
+    _ widget: UnsafeMutablePointer<GtkWidget>
+) {
+    let context = GTKDropDownRootInstallContext(widget: widget)
+    let mapContext = Unmanaged.passRetained(context).toOpaque()
+    g_signal_connect_data(
+        gpointer(widget),
+        "map",
+        unsafeBitCast({ (_: gpointer?, userData: gpointer?) in
+            guard let userData else { return }
+            let context = Unmanaged<GTKDropDownRootInstallContext>
+                .fromOpaque(userData)
+                .takeUnretainedValue()
+            gtkInstallGlobalDropDownRootDispatcher(for: context.widget)
+        } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
+        mapContext,
+        { userData, _ in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).release()
+        },
+        GConnectFlags(rawValue: 0)
+    )
+
+    let tickContext = Unmanaged.passRetained(context).toOpaque()
+    _ = gtk_widget_add_tick_callback(
+        widget,
+        gtkDropDownRootInstallTickCallback,
+        tickContext,
+        { userData in
+            guard let userData else { return }
+            Unmanaged<GTKDropDownRootInstallContext>.fromOpaque(userData).release()
+        }
+    )
+}
+
 extension Picker: GTKRenderable, GTKDescribable {
     public func gtkCreateWidget() -> OpaquePointer {
         let widget: OpaquePointer
@@ -14739,6 +15320,8 @@ extension Picker: GTKRenderable, GTKDescribable {
                 GConnectFlags(rawValue: 0)
             )
         }
+
+        gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))
 
         let displayedLabel = effectiveLabel
         if !displayedLabel.isEmpty {
@@ -14899,9 +15482,15 @@ private class GeometryReaderContext {
         // with no rebuilding host. Capture a stable state-identity namespace
         // now (inside the live render pass) so @State under this reader
         // keeps one cache lineage across geometry re-renders.
+        let capturedEnvironment = getCurrentEnvironment()
         let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")
         self.renderContent = { proxy in
-            gtkWithForcedStateIdentityNamespace(stateNamespace) {
+            let previousEnvironment = getCurrentEnvironment()
+            var environment = capturedEnvironment
+            environment.refreshInjectedObjectsFromRegistry()
+            setCurrentEnvironment(environment)
+            defer { setCurrentEnvironment(previousEnvironment) }
+            return gtkWithForcedStateIdentityNamespace(stateNamespace) {
                 gtkRenderView(content(proxy))
             }
         }
@@ -15084,11 +15673,13 @@ private class SearchScopeActionBox {
 private class SearchBox {
     let entry: UnsafeMutablePointer<GtkWidget>
     let binding: Binding<String>
+    let updateSource: GTKTextBindingUpdateSource
     let isPresented: Binding<Bool>?
 
     init(entry: UnsafeMutablePointer<GtkWidget>, binding: Binding<String>, isPresented: Binding<Bool>? = nil) {
         self.entry = entry
         self.binding = binding
+        self.updateSource = GTKTextBindingUpdateSource(binding: binding)
         self.isPresented = isPresented
     }
 }
@@ -15527,9 +16118,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
             gtk_widget_set_visible(entryContainer, 0)
         }
 
-        let callbackBox = Unmanaged.passRetained(
-            SearchBox(entry: entry, binding: binding, isPresented: presentedBinding)
-        ).toOpaque()
+        let callbackBox = Unmanaged.passRetained(searchFocusBox).toOpaque()
 
         g_signal_connect_data(
             gpointer(entry),
@@ -15540,7 +16129,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
                 let newValue = cStr.map { String(cString: $0) } ?? ""
                 if newValue != box.binding.wrappedValue {
                     gtkDebugLog("searchable search-changed text='\(newValue)'")
-                    gtkScheduleTextBindingUpdate(box.binding, value: newValue)
+                    gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)
                 }
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             callbackBox,
@@ -15551,7 +16140,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
         )
 
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -15733,7 +16322,7 @@ private final class GTKActiveMenuOverlayState {
 }
 
 private let gtkSwiftMenuPopupGestureInstalledKey = "gtk-swift-menu-popup-gesture-installed"
-private let gtkSwiftMenuOverlayModelKey = "gtk-swift-menu-overlay-model"
+let gtkSwiftMenuOverlayModelKey = "gtk-swift-menu-overlay-model"
 private let gtkMenuOverlayPreferredWidth: gint = 156
 private let gtkMenuOverlayRowHeight = 48.0
 private let gtkMenuOverlayDividerHeight = 10.0
@@ -15827,6 +16416,28 @@ private func gtkMenuOverlayAction(
         }
     }
     return nil
+}
+
+func gtkTestActivateMenuItem(
+    _ widget: UnsafeMutablePointer<GtkWidget>,
+    index: Int
+) -> Bool {
+    guard index >= 0, gtk_swift_is_widget(widget) != 0 else { return false }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    guard let modelData = g_object_get_data(gobject, gtkSwiftMenuOverlayModelKey) else {
+        return false
+    }
+    let model = Unmanaged<GTKMenuOverlayModel>.fromOpaque(modelData).takeUnretainedValue()
+    var currentIndex = 0
+    for element in model.elements {
+        guard case .item(_, let action) = element else { continue }
+        if currentIndex == index {
+            action()
+            return true
+        }
+        currentIndex += 1
+    }
+    return false
 }
 
 private func gtkHandleActiveMenuOverlayClick(x: Double, y: Double) -> gboolean {
@@ -15981,9 +16592,25 @@ private func gtkOpenMenuOverlay(
     guard let rootOverlay = gtkMenuOverlayRoot(for: menuButton, root: root) else { return false }
     let overlayWidget = UnsafeMutableRawPointer(rootOverlay).assumingMemoryBound(to: GtkWidget.self)
 
-    let frame = anchorFrame
+    let rootFrame = anchorFrame
         ?? gtkWidgetVisualFrameInRoot(menuButton, root: root)
         ?? (x: 0, y: 0, width: Double(gtk_widget_get_width(menuButton)), height: Double(gtk_widget_get_height(menuButton)))
+    var localFrameX = rootFrame.x
+    var localFrameY = rootFrame.y
+    _ = gtk_swift_widget_compute_point(
+        root,
+        overlayWidget,
+        rootFrame.x,
+        rootFrame.y,
+        &localFrameX,
+        &localFrameY
+    )
+    let frame = (
+        x: localFrameX,
+        y: localFrameY,
+        width: rootFrame.width,
+        height: rootFrame.height
+    )
     let hostWidth = max(gtk_widget_get_width(overlayWidget), gtk_widget_get_width(root))
     let hostHeight = max(gtk_widget_get_height(overlayWidget), gtk_widget_get_height(root))
     let panelX = gtkClampMenuOverlayCoordinate(
@@ -16020,8 +16647,21 @@ private func gtkOpenMenuOverlay(
         width: Double(gtkMenuOverlayPreferredWidth),
         height: panelHeight
     )
+    var rootPanelX = panelX
+    var rootPanelY = panelY
+    _ = gtk_swift_widget_compute_point(
+        overlayWidget,
+        root,
+        panelX,
+        panelY,
+        &rootPanelX,
+        &rootPanelY
+    )
     gtkDebugLog(
-        "menu overlay opened \(source) host=\(hostWidth)x\(hostHeight) frame=\(Int(frame.x)),\(Int(frame.y)) \(Int(frame.width))x\(Int(frame.height)) panel=\(Int(panelX)),\(Int(panelY)) \(Int(panelHeight))h"
+        "menu overlay opened \(source) host=\(hostWidth)x\(hostHeight) "
+        + "frame=\(Int(rootFrame.x)),\(Int(rootFrame.y)) \(Int(rootFrame.width))x\(Int(rootFrame.height)) "
+        + "panel=\(Int(panelX)),\(Int(panelY)) rootPanel=\(Int(rootPanelX)),\(Int(rootPanelY)) "
+        + "\(gtkMenuOverlayPreferredWidth)x\(Int(panelHeight))"
     )
     return true
 }
@@ -16065,15 +16705,35 @@ private func gtkOpenMenuButton(
 }
 
 private func gtkOpenVisualMenuButtonAtRootPoint(
+    searching searchRoot: UnsafeMutablePointer<GtkWidget>,
     root: UnsafeMutablePointer<GtkWidget>,
     x: Double,
     y: Double,
     source: String
 ) -> Bool {
-    let menuButton = gtkWidgetTreeFindVisualMenuButtonAtRootPoint(root, root: root, x: x, y: y)
-        ?? gtk_swift_root_point_pick_menu_button(root, x, y)
+    let menuButton = gtkPreferredVisualMenuButtonAtRootPoint(
+        searching: searchRoot,
+        root: root,
+        x: x,
+        y: y
+    )
     guard let menuButton else { return false }
     return gtkOpenMenuButton(menuButton, source: source)
+}
+
+private func gtkOpenVisualMenuButtonAtRootPoint(
+    root: UnsafeMutablePointer<GtkWidget>,
+    x: Double,
+    y: Double,
+    source: String
+) -> Bool {
+    gtkOpenVisualMenuButtonAtRootPoint(
+        searching: root,
+        root: root,
+        x: x,
+        y: y,
+        source: source
+    )
 }
 
 private func gtkInstallMenuPopupGesture(
@@ -16181,7 +16841,15 @@ private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWi
     g_object_unref(gpointer(provider))
 }
 
-extension Menu: GTKRenderable {
+extension Menu: GTKRenderable, GTKDescribable {
+    public func gtkDescribeNode() -> GTK4DescriptorNode {
+        let boundElements = gtkBindMenuElementsToCurrentEnvironment(elements)
+        gtkCollectMenuPayload(GTK4MenuPayload { slotID in
+            gtkSetMenuElements(slotID: slotID, elements: boundElements)
+        })
+        return GTK4DescriptorNode(kind: .menu, typeName: "Menu")
+    }
+
     public func gtkCreateWidget() -> OpaquePointer {
         let button = gtk_menu_button_new()!
         gtkDebugLog("menu render title='\(title)' elements=\(elements.count) labels=[\(gtkDebugMenuLabels(elements).joined(separator: ", "))]")
@@ -16232,19 +16900,8 @@ extension Menu: GTKRenderable {
             }
         }
 
-        let actionBox = MenuActionBox()
-        let overlayModel = GTKMenuOverlayModel(
-            elements: gtkBindMenuElementsToCurrentEnvironment(elements)
-        )
-
-        let popover = gtk_popover_new()!
-        let popoverContent = gtkBuildMenuPopoverContent(
-            elements: elements,
-            popover: popover,
-            actionBox: actionBox
-        )
-        gtk_swift_popover_set_child(popover, popoverContent)
-        gtk_swift_menu_button_set_popover(button, popover)
+        let boundElements = gtkBindMenuElementsToCurrentEnvironment(elements)
+        _ = gtkSetMenuElements(on: button, elements: boundElements)
 
         gtkMarkMenuOwner(under: button, menuButton: button)
         gtkInstallMenuPopupGestures(under: button, menuButton: button)
@@ -16266,21 +16923,51 @@ extension Menu: GTKRenderable {
             GConnectFlags(rawValue: 0)
         )
 
-        // Attach actionBox to button for lifetime management
-        let retained = Unmanaged.passRetained(actionBox).toOpaque()
-        let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
-        g_object_set_data_full(gobject, "gtk-swift-menu-actions", retained,
-            { userData in Unmanaged<MenuActionBox>.fromOpaque(userData!).release() })
-        let retainedOverlayModel = Unmanaged.passRetained(overlayModel).toOpaque()
-        g_object_set_data_full(gobject, gtkSwiftMenuOverlayModelKey, retainedOverlayModel,
-            { userData in Unmanaged<GTKMenuOverlayModel>.fromOpaque(userData!).release() })
-
         return opaqueFromWidget(button)
     }
 }
 
+private func gtkSetMenuElements(
+    slotID: Int,
+    elements: [GTKBoundMenuElement]
+) -> Bool {
+    guard let button = gtkWidgetFromSlotID(slotID) else { return false }
+    return gtkSetMenuElements(on: button, elements: elements)
+}
+
+private func gtkSetMenuElements(
+    on button: UnsafeMutablePointer<GtkWidget>,
+    elements: [GTKBoundMenuElement]
+) -> Bool {
+    guard gtk_swift_is_widget(button) != 0,
+          gtk_swift_widget_is_menu_button(button) != 0 else {
+        return false
+    }
+
+    let actionBox = MenuActionBox()
+    let popover = gtk_popover_new()!
+    let popoverContent = gtkBuildMenuPopoverContent(
+        elements: elements,
+        popover: popover,
+        actionBox: actionBox
+    )
+    gtk_swift_popover_set_child(popover, popoverContent)
+    gtk_swift_menu_button_set_popover(button, popover)
+
+    let gobject = UnsafeMutableRawPointer(button).assumingMemoryBound(to: GObject.self)
+    let retainedActions = Unmanaged.passRetained(actionBox).toOpaque()
+    g_object_set_data_full(gobject, "gtk-swift-menu-actions", retainedActions,
+        { userData in Unmanaged<MenuActionBox>.fromOpaque(userData!).release() })
+    let overlayModel = GTKMenuOverlayModel(elements: elements)
+    let retainedOverlayModel = Unmanaged.passRetained(overlayModel).toOpaque()
+    g_object_set_data_full(gobject, gtkSwiftMenuOverlayModelKey, retainedOverlayModel,
+        { userData in Unmanaged<GTKMenuOverlayModel>.fromOpaque(userData!).release() })
+    gtkMarkMenuOwner(under: button, menuButton: button)
+    return true
+}
+
 private func gtkBuildMenuPopoverContent(
-    elements: [MenuElement],
+    elements: [GTKBoundMenuElement],
     popover: UnsafeMutablePointer<GtkWidget>,
     actionBox: MenuActionBox
 ) -> UnsafeMutablePointer<GtkWidget> {
@@ -16422,7 +17109,7 @@ private func gtkAppendMenuOverlayElement(
 }
 
 private func gtkAppendMenuPopoverElement(
-    _ element: MenuElement,
+    _ element: GTKBoundMenuElement,
     to box: UnsafeMutablePointer<GtkWidget>,
     popover: UnsafeMutablePointer<GtkWidget>,
     actionBox: MenuActionBox
@@ -16447,7 +17134,7 @@ private func gtkAppendMenuPopoverElement(
             min-height: 0;
             """)
 
-        let actionClosure = ClosureBox(bindActionToCurrentEnvironment(action))
+        let actionClosure = ClosureBox(action)
         actionBox.actions.append(actionClosure)
         let clickBox = Unmanaged.passRetained(ClosureBox { [actionClosure, popover] in
             actionClosure.closure()
@@ -17202,6 +17889,11 @@ private func gtkRenderStatefulView<V: View>(_ view: V) -> OpaquePointer {
             descriptorRoot: identified,
             executorRoot: executor
         )
+        executor = gtkCaptureMenuNativeSlots(
+            from: child,
+            descriptorRoot: identified,
+            executorRoot: executor
+        )
         host.retainedExecutor = executor
     }
 
@@ -17216,12 +17908,17 @@ private func gtkInstallStateProviders(from source: Any, host: GTKViewHost) -> In
     return providers.count
 }
 
-func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> OpaquePointer {
+func gtkRenderWindowRootView<V: View>(
+    _ view: V,
+    appStateSource: Any? = nil,
+    contentProvider: (() -> V)? = nil
+) -> OpaquePointer {
+    let buildContent = contentProvider ?? { view }
     let host = GTKViewHost(buildBody: {
-        MainActor.assumeIsolated { gtkRenderView(view) }
+        gtkAssumeMainActorIsolated { gtkRenderView(buildContent()) }
     })
     host.describeBody = {
-        MainActor.assumeIsolated { gtkDescribeView(view) }
+        gtkAssumeMainActorIsolated { gtkDescribeView(buildContent()) }
     }
 
     if let appStateSource {
@@ -17287,6 +17984,11 @@ func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> 
             executorRoot: executor
         )
         executor = gtkCaptureButtonNativeSlots(
+            from: child,
+            descriptorRoot: identified,
+            executorRoot: executor
+        )
+        executor = gtkCaptureMenuNativeSlots(
             from: child,
             descriptorRoot: identified,
             executorRoot: executor

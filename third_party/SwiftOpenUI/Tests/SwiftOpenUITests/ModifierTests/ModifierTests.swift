@@ -355,6 +355,26 @@ final class ModifierTests: XCTestCase {
         XCTAssertEqual(value, .dark)
     }
 
+    func testTaskEnvironmentOverridesThreadLocalRenderEnvironment() async {
+        var renderEnvironment = EnvironmentValues()
+        renderEnvironment.colorScheme = .light
+        setCurrentEnvironment(renderEnvironment)
+        defer { setCurrentEnvironment(nil) }
+
+        var taskEnvironment = EnvironmentValues()
+        taskEnvironment.colorScheme = .dark
+
+        let values = await withTaskEnvironment(taskEnvironment) {
+            let beforeSuspension = Environment(\.colorScheme).wrappedValue
+            await Task.yield()
+            let afterSuspension = Environment(\.colorScheme).wrappedValue
+            return (beforeSuspension, afterSuspension)
+        }
+
+        XCTAssertEqual(values.0, .dark)
+        XCTAssertEqual(values.1, .dark)
+    }
+
     // MARK: - Environment-read tracker (rebuild-survival)
     //
     // The tracker captures `@Environment(Type.self)` reads so a
@@ -461,6 +481,91 @@ final class ModifierTests: XCTestCase {
         )
 
         setCurrentEnvironment(nil)
+    }
+
+    func testScopedEnvironmentObjectsDoNotCrossContaminateSiblingInjections() {
+        let firstModel = TestObservableLike()
+        firstModel.value = 1003
+        let secondModel = TestObservableLike()
+        secondModel.value = 1001
+
+        var firstEnvironment = EnvironmentValues()
+        firstEnvironment.setObject(firstModel, scope: "status-1003")
+
+        var secondEnvironment = EnvironmentValues()
+        secondEnvironment.setObject(secondModel, scope: "status-1001")
+
+        firstEnvironment.refreshInjectedObjectsFromRegistry()
+
+        XCTAssertTrue(
+            firstEnvironment.getObject(TestObservableLike.self) === firstModel,
+            "Refreshing one structural scope must not select a same-typed object from a sibling scope"
+        )
+    }
+
+    func testScopedEnvironmentObjectRefreshUsesLatestObjectInSameInjectionScope() {
+        let initialModel = TestObservableLike()
+        initialModel.value = 1
+        let replacementModel = TestObservableLike()
+        replacementModel.value = 2
+
+        var capturedEnvironment = EnvironmentValues()
+        capturedEnvironment.setObject(initialModel, scope: "current-account")
+
+        var replacementEnvironment = EnvironmentValues()
+        replacementEnvironment.setObject(replacementModel, scope: "current-account")
+
+        capturedEnvironment.refreshInjectedObjectsFromRegistry()
+
+        XCTAssertTrue(
+            capturedEnvironment.getObject(TestObservableLike.self) === replacementModel,
+            "A stable injection scope must still observe an ancestor replacing its object"
+        )
+    }
+
+    func testScopedEnvironmentReadTrackerPreservesInjectionScope() {
+        let model = TestObservableLike()
+        var environment = EnvironmentValues()
+        environment.setObject(model, scope: "timeline-row")
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(nil) }
+
+        beginEnvironmentReadTracking()
+        XCTAssertTrue(Environment(TestObservableLike.self).wrappedValue === model)
+        let captured = endScopedEnvironmentReadTracking()
+
+        let read = captured?[ObjectIdentifier(TestObservableLike.self)]
+        XCTAssertTrue(read?.object === model)
+        XCTAssertEqual(read?.scope, "timeline-row")
+    }
+
+    func testInjectedEnvironmentObjectRemainsAvailableToDeferredClosure() async {
+        let model = TestObservableLike()
+        var environment = EnvironmentValues()
+        environment.setObject(model, scope: "deferred-action")
+        setCurrentEnvironment(environment)
+
+        let property = Environment(TestObservableLike.self)
+        XCTAssertTrue(property.wrappedValue === model)
+        setCurrentEnvironment(nil)
+
+        let resolved = await Task {
+            await Task.yield()
+            return property.wrappedValue
+        }.value
+        XCTAssertTrue(resolved === model)
+    }
+
+    func testScopedEnvironmentRegistryDoesNotRetainDiscardedObject() {
+        weak var discardedModel: TestObservableLike?
+        do {
+            let model = TestObservableLike()
+            discardedModel = model
+            var environment = EnvironmentValues()
+            environment.setObject(model, scope: "discarded-row")
+        }
+
+        XCTAssertNil(discardedModel)
     }
 
     func testEnvironmentValuesIsEnabledDefaultsTrue() {

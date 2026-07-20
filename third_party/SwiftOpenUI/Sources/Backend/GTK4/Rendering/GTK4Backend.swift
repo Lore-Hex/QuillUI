@@ -194,6 +194,9 @@ extension WindowGroup: GTKWindowRenderable {
                 self.gtkCreateWindow(
                     app: app,
                     content: self.quillContent(forPresentedValue: value),
+                    contentFactory: {
+                        self.quillContent(forPresentedValue: value)
+                    },
                     dismissesWindow: true,
                     appStateSource: appStateSource
                 )
@@ -206,12 +209,18 @@ extension WindowGroup: GTKWindowRenderable {
         }
 
         gtkBackendDebugLog("WindowGroup render start title=\(title) content=\(Content.self)")
-        gtkCreateWindow(app: app, content: content, appStateSource: appStateSource)
+        gtkCreateWindow(
+            app: app,
+            content: content,
+            contentFactory: quillContentFactory,
+            appStateSource: appStateSource
+        )
     }
 
     func gtkCreateWindow(
         app: OpaquePointer?,
         content renderedContent: Content,
+        contentFactory: @escaping () -> Content,
         dismissesWindow: Bool = false,
         appStateSource: Any? = nil
     ) {
@@ -248,11 +257,19 @@ extension WindowGroup: GTKWindowRenderable {
                 gtkBackendDebugLog("dismiss value WindowGroup presentation title=\(title)")
                 gtk_window_destroy(winPtr)
             }) {
-                gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)
+                gtkRenderWindowRootView(
+                    renderedContent,
+                    appStateSource: appStateSource,
+                    contentProvider: contentFactory
+                )
             })
         } else {
             contentWidget = widgetFromOpaque(
-                gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)
+                gtkRenderWindowRootView(
+                    renderedContent,
+                    appStateSource: appStateSource,
+                    contentProvider: contentFactory
+                )
             )
         }
         let contentTypeName = String(cString: g_type_name(gtk_swift_get_widget_type(contentWidget)))
@@ -940,6 +957,7 @@ public struct GTK4Backend: RenderBackend {
             MainActor.assumeIsolated {
                 gtkBackendDebugLog("app init start type=\(A.self)")
                 let instance = A()
+                SwiftOpenUIAppLifecycle.appDidInitialize()
                 gtkBackendDebugLog("app body render start type=\(A.self) body=\(A.Body.self)")
                 gtkWithAppStateSource(instance) {
                     gtkRenderScene(instance.body, app: appPtr)

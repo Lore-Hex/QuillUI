@@ -103,6 +103,33 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
     }
 
+    @Test("@Observable lowering imports its SwiftUI compatibility helpers")
+    func observableClassAddsSwiftUIImport() {
+        let source = """
+        // Model-only files commonly have no UI import before lowering.
+        import Foundation
+
+        @Observable
+        final class AppModel {
+            private var title = "Quill"
+        }
+        """
+
+        let first = SwiftUILowering().lower(source)
+        let second = SwiftUILowering().lower(first)
+        let importRange = first.range(of: "import SwiftUI")
+        let classRange = first.range(of: "final class AppModel")
+
+        #expect(first == second)
+        #expect(first.components(separatedBy: "import SwiftUI").count == 2)
+        #expect(importRange != nil)
+        #expect(classRange != nil)
+        if let importRange, let classRange {
+            #expect(importRange.lowerBound < classRange.lowerBound)
+        }
+        #expect(first.contains("@QuillPublished private var title = \"Quill\""))
+    }
+
     @Test("@Observable inheritance prepends QuillObservableObject")
     func observableInheritancePrepended() {
         let source = """
@@ -146,7 +173,17 @@ struct SwiftUILoweringTests {
             class var subclassValue: Int { 6 }
             private var cached = 7
             private(set) var readOnly = 8
+            var selected = false {
+                didSet { selectionChanges += 1 }
+            }
+            private var selectionChanges = 0 {
+                willSet { _ = newValue }
+            }
             var computed: Int { 9 }
+            var explicitComputed: Int {
+                get { 10 }
+                set { _ = newValue }
+            }
             @Published var alreadyPublished = 10
             @QuillPublished var alreadyQuillPublished = 11
         }
@@ -158,16 +195,18 @@ struct SwiftUILoweringTests {
         #expect(lowered.contains("@QuillPublished fileprivate var fileValue = 4"))
         #expect(lowered.contains("static var shared = 5"))
         #expect(lowered.contains("class var subclassValue: Int { 6 }"))
-        #expect(lowered.contains("private var cached = 7"))
-        #expect(lowered.contains("private(set) var readOnly = 8"))
+        #expect(lowered.contains("@QuillPublished private var cached = 7"))
+        #expect(lowered.contains("@QuillPublished private(set) var readOnly = 8"))
+        #expect(lowered.contains("@QuillPublished var selected = false"))
+        #expect(lowered.contains("@QuillPublished private var selectionChanges = 0"))
         #expect(lowered.contains("var computed: Int { 9 }"))
+        #expect(lowered.contains("var explicitComputed: Int"))
         #expect(lowered.contains("@Published var alreadyPublished = 10"))
         #expect(lowered.contains("@QuillPublished var alreadyQuillPublished = 11"))
         #expect(!lowered.contains("@QuillPublished static var"))
         #expect(!lowered.contains("@QuillPublished class var"))
-        #expect(!lowered.contains("@QuillPublished private var"))
-        #expect(!lowered.contains("@QuillPublished private(set)"))
         #expect(!lowered.contains("@QuillPublished var computed"))
+        #expect(!lowered.contains("@QuillPublished var explicitComputed"))
         #expect(!lowered.contains("@QuillPublished @Published"))
         #expect(!lowered.contains("@QuillPublished @QuillPublished"))
     }

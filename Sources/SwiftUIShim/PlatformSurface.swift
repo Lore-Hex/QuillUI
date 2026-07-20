@@ -62,22 +62,42 @@ private struct WebAuthenticationSessionKey: EnvironmentKey {
     static let defaultValue = WebAuthenticationSessionAction()
 }
 
+@MainActor
 @propertyWrapper
 public struct UIApplicationDelegateAdaptor<Delegate> {
-    private var value: Delegate?
+    private let value: Delegate?
 
     public init() {
-        value = nil
+        guard
+            let factory = Delegate.self as? any QuillUIApplicationDelegateFactory.Type,
+            let delegate = factory.quillMakeUIApplicationDelegate() as? Delegate
+        else {
+            value = nil
+            return
+        }
+
+        value = delegate
+        if let applicationDelegate = delegate as? any UIApplicationDelegate {
+            SwiftOpenUIAppLifecycle.registerPostInitialization {
+                _ = applicationDelegate.application(
+                    UIApplication.shared,
+                    didFinishLaunchingWithOptions: nil
+                )
+            }
+        }
     }
 
     public var wrappedValue: Delegate {
         get {
             guard let value else {
-                fatalError("UIApplicationDelegateAdaptor has no Linux runtime delegate instance.")
+                fatalError(
+                    "UIApplicationDelegateAdaptor could not construct its Linux runtime delegate. "
+                    + "Run the generic QuillUI source lowerer or conform the delegate to "
+                    + "QuillUIApplicationDelegateFactory."
+                )
             }
             return value
         }
-        set { value = newValue }
     }
 }
 

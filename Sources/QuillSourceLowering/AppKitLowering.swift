@@ -267,11 +267,11 @@ public struct AppKitLowering {
                 byType: collector.byType,
                 hierarchy: resolvedHierarchy
               ).rewrite(relocated)
-        // Pass 3b: `@NSApplicationDelegateAdaptor(Foo.self)` needs to construct
-        // `Foo` through a generic `init()` requirement on Linux. swift-corelibs
-        // `NSObject.init()` is not `required`, so app delegates opt into the
-        // existing QuillReusableView marker mechanically here.
-        let withAppDelegateConstruction = NSApplicationDelegateReusableConformanceRewriter()
+        // Pass 3b: SwiftUI application delegate adaptors need a generic Linux
+        // construction path. macOS delegates opt into QuillReusableView;
+        // UIKit delegates receive a concrete factory method so their inherited
+        // NSObject initializer does not need to become `required`.
+        let withAppDelegateConstruction = ApplicationDelegateConstructionRewriter()
             .rewrite(withDispatch)
         // Pass 4: actor-isolation policy (see the type-level doc block). Always
         // `nonisolated`-annotates overrides of the genuinely-nonisolated NSObject
@@ -2012,18 +2012,63 @@ private final class DispatchOverrideInjector: SyntaxRewriter {
     }
 }
 
-// MARK: - NSApplicationDelegateAdaptor construction support (Pass 3b)
+// MARK: - Application delegate adaptor construction support (Pass 3b)
 
-/// Makes `@NSApplicationDelegateAdaptor(AppDelegate.self)` usable for unmodified
-/// macOS app source. On Apple, the SwiftUI wrapper can instantiate an
-/// `NSObject & NSApplicationDelegate` via ObjC runtime conventions. On Linux,
-/// generic construction needs an explicit `init()` protocol requirement, so the
-/// SwiftUI shim constructs delegates that conform to `QuillReusableView`.
+/// Adds only the construction bridge required by SwiftUI application-delegate
+/// adaptors. This focused pass is useful for vendored UIKit app sources that do
+/// not otherwise need the broader AppKit/Objective-C lowering pipeline.
+public struct ApplicationDelegateAdaptorLowering {
+    public init() {}
+
+    public func lower(_ source: String) -> String {
+        let tree = Parser.parse(source: source)
+        return ApplicationDelegateConstructionRewriter().rewrite(tree).description
+    }
+
+    /// Lowers every Swift file under `sourceDir` in place. Unchanged files are
+    /// left untouched so repeated preparation does not churn their mtimes.
+    @discardableResult
+    public func lowerInPlace(
+        sourceDir: URL,
+        fileManager: FileManager = .default
+    ) throws -> Int {
+        let normalizedSource = sourceDir.resolvingSymlinksInPath()
+        guard let enumerator = fileManager.enumerator(
+            at: normalizedSource,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            return 0
+        }
+
+        var count = 0
+        for case let fileURL as URL in enumerator {
+            let resolved = fileURL.resolvingSymlinksInPath()
+            let resourceValues = try resolved.resourceValues(forKeys: [.isRegularFileKey])
+            guard resourceValues.isRegularFile == true, resolved.pathExtension == "swift" else {
+                continue
+            }
+
+            let original = try String(contentsOf: resolved, encoding: .utf8)
+            let lowered = lower(original)
+            if lowered != original {
+                try lowered.write(to: resolved, atomically: true, encoding: .utf8)
+            }
+            count += 1
+        }
+        return count
+    }
+}
+
+/// Makes SwiftUI application delegate adaptors usable for unmodified Apple app
+/// source. AppKit delegates use `QuillReusableView` because generic NSObject
+/// construction requires a `required init()` on Linux. UIKit delegates instead
+/// receive a concrete factory method, preserving their inherited initializer.
 ///
-/// This pass is deliberately narrow: only classes that directly declare
-/// `NSApplicationDelegate` gain `QuillReusableView`, and only when the no-arg
-/// initializer either already exists or can be safely synthesized.
-private final class NSApplicationDelegateReusableConformanceRewriter: SyntaxRewriter {
+/// This pass is deliberately narrow: only classes that directly declare an
+/// application delegate protocol are changed, and only when a no-argument
+/// initializer already exists or can be safely inherited/synthesized.
+private final class ApplicationDelegateConstructionRewriter: SyntaxRewriter {
     private var classStack: [String] = []
 
     override func visit(_ node: ClassDeclSyntax) -> DeclSyntax {
@@ -2031,7 +2076,9 @@ private final class NSApplicationDelegateReusableConformanceRewriter: SyntaxRewr
         let recursed = super.visit(node).cast(ClassDeclSyntax.self)
         classStack.removeLast()
 
-        guard Self.inherits(recursed, "NSApplicationDelegate") else {
+        let isAppKitDelegate = Self.inherits(recursed, "NSApplicationDelegate")
+        let isUIKitDelegate = Self.inherits(recursed, "UIApplicationDelegate")
+        guard isAppKitDelegate || isUIKitDelegate else {
             return DeclSyntax(recursed)
         }
 
@@ -2041,9 +2088,42 @@ private final class NSApplicationDelegateReusableConformanceRewriter: SyntaxRewr
         }
 
         let memberIndent = String(repeating: "    ", count: classStack.count + 1)
-        var copy = Self.addingConformanceIfMissing(to: recursed, named: "QuillReusableView")
-        copy = Self.ensuringRequiredNoArgInitializer(on: copy, memberIndent: memberIndent)
+        var copy = recursed
+        if isAppKitDelegate {
+            copy = Self.addingConformanceIfMissing(to: copy, named: "QuillReusableView")
+            copy = Self.ensuringRequiredNoArgInitializer(on: copy, memberIndent: memberIndent)
+        }
+        if isUIKitDelegate {
+            copy = Self.addingConformanceIfMissing(
+                to: copy,
+                named: "QuillUIApplicationDelegateFactory"
+            )
+            copy = Self.ensuringUIKitDelegateFactory(on: copy, memberIndent: memberIndent)
+        }
         return DeclSyntax(copy)
+    }
+
+    private static func ensuringUIKitDelegateFactory(
+        on node: ClassDeclSyntax,
+        memberIndent: String
+    ) -> ClassDeclSyntax {
+        let factoryName = "quillMakeUIApplicationDelegate"
+        let alreadyHasFactory = node.memberBlock.members.contains { item in
+            item.decl.as(FunctionDeclSyntax.self)?.name.text == factoryName
+        }
+        guard !alreadyHasFactory else { return node }
+
+        let typeName = node.name.text
+        let source = "\(memberIndent)// Auto-generated by AppKitLowering: constructible app delegate for @UIApplicationDelegateAdaptor"
+            + "\n\(memberIndent)static func \(factoryName)() -> any UIApplicationDelegate {"
+            + "\n\(memberIndent)    \(typeName)()"
+            + "\n\(memberIndent)}"
+        let member = MemberBlockItemSyntax(decl: DeclSyntax("\n\n\(raw: source)\n"))
+        var copy = node
+        var members = copy.memberBlock.members
+        members.append(member)
+        copy.memberBlock.members = members
+        return copy
     }
 
     private static func inherits(_ node: ClassDeclSyntax, _ name: String) -> Bool {

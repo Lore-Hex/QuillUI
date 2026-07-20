@@ -139,6 +139,57 @@ struct QuillKitTests {
             #expect(String(decoding: fallbackData, as: UTF8.self).contains("fallback"))
         }
     }
+
+    @Test("fixture-backed requests can require a subset of exact request headers")
+    func fixtureBackedRequestMatchesHeaders() async throws {
+        let fixtureURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("quillkit-headers-\(UUID().uuidString).json")
+        let fixture = """
+        {
+          "fixtures": [
+            {
+              "method": "GET",
+              "host": "example.invalid",
+              "path": "/api/account",
+              "requestHeaders": {
+                "Authorization": "Bearer second-account",
+                "X-Client": "QuillUI"
+              },
+              "status": 200,
+              "body": { "account": "second" }
+            }
+          ]
+        }
+        """
+        try Data(fixture.utf8).write(to: fixtureURL)
+        QuillURLSessionFixtures.install(fixtureFileURL: fixtureURL)
+        defer {
+            QuillURLSessionFixtures.resetForTesting()
+            try? FileManager.default.removeItem(at: fixtureURL)
+        }
+
+        var request = URLRequest(url: URL(string: "https://example.invalid/api/account")!)
+        request.setValue("Bearer second-account", forHTTPHeaderField: "authorization")
+        request.setValue("QuillUI", forHTTPHeaderField: "X-Client")
+        request.setValue("ignored", forHTTPHeaderField: "X-Unmatched")
+        let (data, response) = try await QuillURLSessionFixtures.data(for: request)
+
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+        #expect(String(decoding: data, as: UTF8.self).contains("second"))
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [QuillKitFallbackURLProtocol.self]
+        let fallbackSession = URLSession(configuration: configuration)
+        defer { fallbackSession.invalidateAndCancel() }
+
+        request.setValue("Bearer wrong-account", forHTTPHeaderField: "Authorization")
+        let (fallbackData, fallbackResponse) = try await QuillURLSessionFixtures.data(
+            for: request,
+            fallbackSession: fallbackSession
+        )
+        #expect((fallbackResponse as? HTTPURLResponse)?.statusCode == 418)
+        #expect(String(decoding: fallbackData, as: UTF8.self).contains("fallback"))
+    }
     #endif
 
     @Test("clipboard stores strings and data by type")
