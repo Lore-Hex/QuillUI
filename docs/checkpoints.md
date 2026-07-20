@@ -3484,3 +3484,25 @@ drafts, autocomplete, post-result routing, and exact macOS visual parity remain
 open. Qt and Win32 compile with a fill-frame fallback for
 `containerRelativeFrame`; native count/span allocation remains future backend
 work.
+
+## Checkpoint 209: IceCubes Composer Text Rebuild Integrity
+
+Status: implemented locally; guarded by source hygiene, hermetic patch replay,
+focused Linux GTK lifecycle tests, and the real upstream authenticated composer
+smoke.
+
+GTK text controls now debounce through per-control update sources associated
+with the owning `GTKViewHost`. Before a host rebuild mutates or remounts its
+native tree, it commits only its own pending edit. This preserves typed text
+across unrelated SwiftUI state changes and keeps simultaneous fields
+independent even when their values share a prefix. `TextField`, multiline
+fields, `SecureField`, `TextEditor`, and searchable controls all use the same
+generic scheduler, and the build patcher reconstructs that implementation from
+the pre-fix SwiftOpenUI source.
+
+The unchanged upstream IceCubes
+`seeded-authenticated-composer-type` route rendered all of
+`quilluiinputprobe` and the correct `483` remaining-character counter under
+Docker/GTK. The new Linux tests also force a full `TextEditor` remount after
+every character and exercise two prefix-related fields. No IceCubes source
+change is part of this checkpoint.

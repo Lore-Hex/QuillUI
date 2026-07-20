@@ -593,18 +593,28 @@ public var quill_gtk_text_editor_paint_hook: ((OpaquePointer, OpaquePointer) -> 
 public var quill_gtk_toggle_paint_hook: ((OpaquePointer, Bool, Bool, String) -> OpaquePointer?)? = nil
 public var quill_gtk_list_row_paint_hook: ((OpaquePointer, OpaquePointer, Bool, Bool) -> Bool)? = nil
 
-private final class GTKTextBindingIdleUpdate {
+private final class GTKTextBindingUpdateSource {
     let binding: Binding<String>
+    weak var ownerHost: GTKViewHost?
+
+    init(binding: Binding<String>, ownerHost: GTKViewHost? = GTKViewHost.getCurrentRebuilding()) {
+        self.binding = binding
+        self.ownerHost = ownerHost
+    }
+}
+
+private final class GTKTextBindingIdleUpdate {
+    let source: GTKTextBindingUpdateSource
     let value: String
 
-    init(binding: Binding<String>, value: String) {
-        self.binding = binding
+    init(source: GTKTextBindingUpdateSource, value: String) {
+        self.source = source
         self.value = value
     }
 
     func apply() {
-        if binding.wrappedValue != value {
-            binding.wrappedValue = value
+        if source.binding.wrappedValue != value {
+            source.binding.wrappedValue = value
         }
     }
 }
@@ -612,36 +622,37 @@ private final class GTKTextBindingIdleUpdate {
 private var gtkPendingTextBindingUpdate: GTKTextBindingIdleUpdate?
 private var gtkPendingTextBindingSourceID: guint = 0
 
-func gtkFlushPendingTextBindingUpdate() {
+func gtkFlushPendingTextBindingUpdate(for ownerHost: GTKViewHost? = nil) {
+    guard let pending = gtkPendingTextBindingUpdate else { return }
+    if let ownerHost, pending.source.ownerHost !== ownerHost {
+        return
+    }
     if gtkPendingTextBindingSourceID != 0 {
         g_source_remove(gtkPendingTextBindingSourceID)
         gtkPendingTextBindingSourceID = 0
     }
-    let pending = gtkPendingTextBindingUpdate
     gtkPendingTextBindingUpdate = nil
-    pending?.apply()
+    pending.apply()
 }
 
 /// Debounced entry->binding writes. Writing the binding on every keystroke
 /// schedules a rebuild per keystroke, and any host whose plan is not
 /// narrow-eligible then tears down the focused entry mid-typing — the rest
 /// of the typed keys land on whatever GTK focuses next (Space activates it).
-/// One pending write replaces the previous and flushes after a typing pause,
+/// One pending write per native input replaces its previous value and flushes
+/// after a typing pause,
 /// or eagerly before any app action, keyboard shortcut, or submit runs
-/// (actions read the model, never the entry). Same-field edits always keep a
-/// prefix relation between successive values; unrelated values mean a
-/// different field, so the previous field's pending write flushes first and
-/// is never lost.
-private func gtkScheduleTextBindingUpdate(_ binding: Binding<String>, value: String) {
-    if let pending = gtkPendingTextBindingUpdate,
-       !value.hasPrefix(pending.value), !pending.value.hasPrefix(value) {
+/// (actions read the model, never the entry). A different input source flushes
+/// the previous field first, even when their values happen to share a prefix.
+private func gtkScheduleTextBindingUpdate(_ source: GTKTextBindingUpdateSource, value: String) {
+    if let pending = gtkPendingTextBindingUpdate, pending.source !== source {
         gtkFlushPendingTextBindingUpdate()
     }
     if gtkPendingTextBindingSourceID != 0 {
         g_source_remove(gtkPendingTextBindingSourceID)
         gtkPendingTextBindingSourceID = 0
     }
-    gtkPendingTextBindingUpdate = GTKTextBindingIdleUpdate(binding: binding, value: value)
+    gtkPendingTextBindingUpdate = GTKTextBindingIdleUpdate(source: source, value: value)
     gtkPendingTextBindingSourceID = g_timeout_add(250, { _ -> gboolean in
         gtkPendingTextBindingSourceID = 0
         let pending = gtkPendingTextBindingUpdate
@@ -1518,19 +1529,19 @@ extension Divider: GTKRenderable, GTKDescribable {
 }
 
 private final class GTKMultilineTextFieldBindingBox {
-    let binding: Binding<String>
+    let updateSource: GTKTextBindingUpdateSource
     let placeholderLabel: UnsafeMutablePointer<GtkWidget>?
 
     init(
         binding: Binding<String>,
         placeholderLabel: UnsafeMutablePointer<GtkWidget>?
     ) {
-        self.binding = binding
+        self.updateSource = GTKTextBindingUpdateSource(binding: binding)
         self.placeholderLabel = placeholderLabel
     }
 
     func apply(_ newText: String) {
-        gtkScheduleTextBindingUpdate(binding, value: newText)
+        gtkScheduleTextBindingUpdate(updateSource, value: newText)
         updatePlaceholderVisibility(text: newText)
     }
 
@@ -1783,8 +1794,9 @@ extension TextField: GTKRenderable, GTKDescribable {
         // Listen on the GtkEntryBuffer's "notify::text" signal so we catch
         // all changes (typing, paste, programmatic).
         let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: binding)
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
 
         g_signal_connect_data(
@@ -1807,7 +1819,7 @@ extension TextField: GTKRenderable, GTKDescribable {
         // GtkEntry also emits "changed" as a GtkEditable; keep this in sync with
         // SecureField so user edits always reach SwiftUI bindings before dismissal.
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -9209,11 +9221,9 @@ extension SecureField: GTKRenderable, GTKDescribable {
             }
         }
 
-        let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: text)
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            if newText != binding.wrappedValue {
-                binding.wrappedValue = newText
-            }
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -9284,9 +9294,10 @@ extension TextEditor: GTKRenderable, GTKDescribable {
         }
 
         let binding = text
+        let updateSource = GTKTextBindingUpdateSource(binding: binding)
         let buffer = gtk_text_view_get_buffer(textViewPtr)!
         let box = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(buffer),
@@ -15659,11 +15670,13 @@ private class SearchScopeActionBox {
 private class SearchBox {
     let entry: UnsafeMutablePointer<GtkWidget>
     let binding: Binding<String>
+    let updateSource: GTKTextBindingUpdateSource
     let isPresented: Binding<Bool>?
 
     init(entry: UnsafeMutablePointer<GtkWidget>, binding: Binding<String>, isPresented: Binding<Bool>? = nil) {
         self.entry = entry
         self.binding = binding
+        self.updateSource = GTKTextBindingUpdateSource(binding: binding)
         self.isPresented = isPresented
     }
 }
@@ -16102,9 +16115,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
             gtk_widget_set_visible(entryContainer, 0)
         }
 
-        let callbackBox = Unmanaged.passRetained(
-            SearchBox(entry: entry, binding: binding, isPresented: presentedBinding)
-        ).toOpaque()
+        let callbackBox = Unmanaged.passRetained(searchFocusBox).toOpaque()
 
         g_signal_connect_data(
             gpointer(entry),
@@ -16115,7 +16126,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
                 let newValue = cStr.map { String(cString: $0) } ?? ""
                 if newValue != box.binding.wrappedValue {
                     gtkDebugLog("searchable search-changed text='\(newValue)'")
-                    gtkScheduleTextBindingUpdate(box.binding, value: newValue)
+                    gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)
                 }
             } as @convention(c) (gpointer?, gpointer?) -> Void, to: GCallback.self),
             callbackBox,
@@ -16126,7 +16137,7 @@ extension SearchableView: GTKRenderable, GTKDescribable {
         )
 
         let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),

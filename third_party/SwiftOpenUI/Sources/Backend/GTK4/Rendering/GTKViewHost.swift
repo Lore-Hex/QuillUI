@@ -910,6 +910,12 @@ public class GTKViewHost: AnyViewHost, DependencyTrackingHost {
         observationDidFire = false
         lock.unlock()
 
+        // A rebuild caused by unrelated state must not replace a focused text
+        // input with the binding's older value while its native edit is still
+        // inside the debounce window. Commit this host's pending edit first so
+        // both narrow mutation and full remount paths see the latest text.
+        gtkFlushPendingTextBindingUpdate(for: self)
+
         // --- Narrow mutation path: try text/color in-place update ---
         // Observation-driven rebuilds stay eligible: withObservationTracking's
         // onChange is one-shot, so re-subscribe by running the DESCRIBE pass

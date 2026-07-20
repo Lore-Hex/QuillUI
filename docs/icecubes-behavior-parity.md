@@ -741,6 +741,19 @@ estimates, not release claims.
   the upstream quote composer opens through the same status-detail action path.
   Autocomplete, attachment import, drafts, post-result toast/detail routing,
   menu pixel parity, and exact compose visual parity remain open.
+- 2026-07-19: Hardened the generic GTK text-binding scheduler against host
+  rebuilds during native editing. Each `TextField`, `SecureField`,
+  `TextEditor`, multiline field, and searchable control now owns a distinct
+  update source; a host commits only its own pending native edit before either
+  a narrow update or full remount. This removes the value-prefix heuristic that
+  could discard one of two fields and prevents an unrelated state change from
+  replacing an editor with stale model text. The build patcher reproduces the
+  same source-aware implementation without an IceCubes source patch.
+  Verification: hermetic patch replay and source guards passed on macOS; two
+  Linux/GTK regressions passed for prefix-related fields and a forced remount
+  after every character; the unchanged upstream
+  `seeded-authenticated-composer-type` route rendered the complete
+  `quilluiinputprobe` string with the correct `483` counter.
 - 2026-06-19: Added `seeded-authenticated-settings` to the upstream IceCubes GTK
   visual harness and Linux CI row. The smoke clicks the real Settings sidebar
   row from a seeded authenticated session and verifies the selected row, title

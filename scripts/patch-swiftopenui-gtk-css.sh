@@ -2783,12 +2783,12 @@ old_search_binding_write = """                if newValue != box.binding.wrapped
 """
 new_search_binding_write = """                if newValue != box.binding.wrappedValue {
                     gtkDebugLog("searchable search-changed text='\\(newValue)'")
-                    gtkScheduleTextBindingUpdate(box.binding, value: newValue)
+                    gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)
                 }
 """
 if old_search_binding_write in text:
     text = text.replace(old_search_binding_write, new_search_binding_write, 1)
-elif "gtkScheduleTextBindingUpdate(box.binding, value: newValue)" not in text:
+elif "gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)" not in text:
     raise SystemExit("SwiftOpenUI SearchableView search-changed binding update was not recognized")
 
 focus_handler = """        let focusGesture = gtk_gesture_click_new()!
@@ -2832,7 +2832,7 @@ if "let focusGesture = gtk_gesture_click_new()!" not in text:
     text = text.replace(marker, focus_handler + marker, 1)
 
 changed_handler = """        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -2852,7 +2852,7 @@ changed_handler = """        let changedBox = Unmanaged.passRetained(StringClosu
         )
 
 """
-if "let changedBox = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(binding, value: newText)" not in text:
+if "let changedBox = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)" not in text:
     marker = "        // Render token labels between search entry and content\n"
     if marker not in text:
         raise SystemExit("SwiftOpenUI SearchableView token marker was not recognized")
@@ -11236,6 +11236,24 @@ if "capturedInjectedObjects: [ObjectIdentifier: EnvironmentObjectCapture]" not i
         "        if let reads = endScopedEnvironmentReadTracking() {\n",
         1,
     )
+if "gtkFlushPendingTextBindingUpdate(for: self)" not in text:
+    old_rebuild_dispatch = '''        lock.unlock()
+
+        // --- Narrow mutation path: try text/color in-place update ---
+'''
+    new_rebuild_dispatch = '''        lock.unlock()
+
+        // A rebuild caused by unrelated state must not replace a focused text
+        // input with the binding's older value while its native edit is still
+        // inside the debounce window. Commit this host's pending edit first so
+        // both narrow mutation and full remount paths see the latest text.
+        gtkFlushPendingTextBindingUpdate(for: self)
+
+        // --- Narrow mutation path: try text/color in-place update ---
+'''
+    if old_rebuild_dispatch not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost pending text flush shape was not recognized")
+    text = text.replace(old_rebuild_dispatch, new_rebuild_dispatch, 1)
 if text != original:
     path.write_text(text)
 PY
@@ -13546,11 +13564,12 @@ if text != original:
 PY
 
 # Apply QuillPaint integration to GTKRenderer.
-python3 - "$RENDERER" <<'PY'
+python3 - "$RENDERER" "$CANONICAL_RENDERER" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
+canonical = Path(sys.argv[2]).read_text()
 original = path.read_text()
 text = original
 
@@ -15521,6 +15540,79 @@ if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled
     if old_vertical_scroll_horizontal_guard not in text:
         raise SystemExit("SwiftOpenUI ScrollViewReader vertical horizontal guard shape was not recognized")
     text = text.replace(old_vertical_scroll_horizontal_guard, new_vertical_scroll_horizontal_guard, 1)
+
+def replace_with_canonical_section(
+    source: str,
+    source_start_markers: tuple[str, ...],
+    canonical_start_marker: str,
+    end_marker: str,
+) -> str:
+    source_start = next(
+        (source.find(marker) for marker in source_start_markers if marker in source),
+        -1,
+    )
+    if source_start == -1:
+        raise SystemExit(
+            f"SwiftOpenUI GTK canonical section start was not recognized: {canonical_start_marker.strip()}"
+        )
+    source_end = source.find(end_marker, source_start)
+    canonical_start = canonical.find(canonical_start_marker)
+    canonical_end = canonical.find(end_marker, canonical_start)
+    if source_end == -1 or canonical_start == -1 or canonical_end == -1:
+        raise SystemExit(
+            f"SwiftOpenUI GTK canonical section end was not recognized: {end_marker.strip()}"
+        )
+    return source[:source_start] + canonical[canonical_start:canonical_end] + source[source_end:]
+
+
+# Text bindings are one lifecycle subsystem. Keep every native input wired to
+# the same source-aware scheduler so an unrelated host rebuild cannot remount a
+# field from stale model text and two fields cannot replace each other's edit.
+text = replace_with_canonical_section(
+    text,
+    (
+        "private final class GTKTextBindingUpdateSource {\n",
+        "private final class GTKTextBindingIdleUpdate {\n",
+    ),
+    "private final class GTKTextBindingUpdateSource {\n",
+    "private func gtkPerformSubmitAction",
+)
+text = replace_with_canonical_section(
+    text,
+    ("private final class GTKMultilineTextFieldBindingBox {\n",),
+    "private final class GTKMultilineTextFieldBindingBox {\n",
+    "private final class GTKTextInputFocusTarget",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension TextField: GTKRenderable, GTKDescribable {\n",),
+    "extension TextField: GTKRenderable, GTKDescribable {\n",
+    "extension FocusedView: GTKRenderable, GTKDescribable",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension SecureField: GTKRenderable, GTKDescribable {\n",),
+    "extension SecureField: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - TextEditor GTK extension",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension TextEditor: GTKRenderable, GTKDescribable {\n",),
+    "extension TextEditor: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - ProgressView GTK extension",
+)
+text = replace_with_canonical_section(
+    text,
+    ("private class SearchBox {\n",),
+    "private class SearchBox {\n",
+    "private let gtkSearchableFocusDataKey",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension SearchableView: GTKRenderable, GTKDescribable {\n",),
+    "extension SearchableView: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - Menu GTK extension",
+)
 
 if text != original:
     path.write_text(text)

@@ -3119,6 +3119,9 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patchScript.contains("private final class GTKTextBindingUpdateSource"))
+        #expect(patchScript.contains("gtkFlushPendingTextBindingUpdate(for: self)"))
+        #expect(patchScript.contains("replace_with_canonical_section"))
         #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patchScript.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
@@ -3331,7 +3334,10 @@ struct QuillDataSourceLoweringTests {
         // Debounced entry->binding writes: typing must not schedule a rebuild
         // per keystroke, and UI actions flush eagerly so callbacks read the
         // typed text from the model.
-        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
+        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate(for ownerHost: GTKViewHost? = nil)"))
+        #expect(patchedRenderer.contains("private final class GTKTextBindingUpdateSource"))
+        #expect(patchedRenderer.contains("weak var ownerHost: GTKViewHost?"))
+        #expect(patchedRenderer.contains("pending.source !== source"))
         #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))
         #expect(patchedRenderer.contains("gtkFlushPendingTextBindingUpdate()\n    let now = Date().timeIntervalSinceReferenceDate"))
         // Sheet auto-focus retries until the panel is allocated; a one-shot
