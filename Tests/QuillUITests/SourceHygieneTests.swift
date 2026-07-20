@@ -9534,7 +9534,16 @@ struct SourceHygieneTests {
         #expect(navigation.contains("GTKNavigationContextEnvironmentKey"))
         #expect(navigation.contains("gtkEnvironmentWithNavigationContext"))
         #expect(navigation.contains("gtkEnvironmentWithNavigationDestinationDismiss"))
-        #expect(navigation.contains("DismissAction(handler: { [weak context] in"))
+        #expect(navigation.contains("fileprivate final class GTKNavigationActionTarget"))
+        #expect(navigation.contains("private final class GTKNavigationActionTargetRegistryEntry"))
+        #expect(navigation.contains("weak var owner: GTKViewHost?"))
+        #expect(navigation.contains("entries.first(where: { $0.belongs(to: owner) })?.target"))
+        #expect(navigation.contains("func gtkTestNavigationDestinationDismissAction("))
+        #expect(navigation.contains("actionTarget = gtkNavigationActionTarget(for: stateNamespace)"))
+        #expect(navigation.contains("actionTarget.uninstall(self)"))
+        #expect(navigation.contains("let actionTarget = context.actionTarget"))
+        #expect(navigation.contains("DismissAction(handler: {\n        actionTarget.pop()"))
+        #expect(!navigation.contains("DismissAction(handler: { [weak context] in"))
         #expect(navigation.contains("debugName: \"gtk navigation destination\""))
         #expect(navigation.contains("getCurrentEnvironment()[GTKNavigationContextEnvironmentKey.self]"))
         #expect(navigation.contains("context.flushPendingPresentedDestinations()"))
@@ -9564,6 +9573,8 @@ struct SourceHygieneTests {
         #expect(renderTests.contains("testNavigationDestinationIsPresentedPushesAfterStateMutationInChildHost"))
         #expect(renderTests.contains("testNavigationDestinationIsPresentedPushesAfterPickerSelectionMutation"))
         #expect(renderTests.contains("testNavigationDestinationIsPresentedDismissActionPopsRouteAndClearsBinding"))
+        #expect(renderTests.contains("testNavigationDestinationDismissActionTargetsReplacementStack"))
+        #expect(renderTests.contains("testNavigationActionTargetDoesNotCrossViewHosts"))
         #expect(renderTests.contains("GTKBoundNavigationDestinationProbeView"))
         #expect(renderTests.contains("GTKBoundNavigationOnAppearProbeView"))
         #expect(renderTests.contains("GTKPresentedNavigationStateProbeView"))
@@ -9589,6 +9600,11 @@ struct SourceHygieneTests {
         #expect(patcher.contains("GTKNavigationContextEnvironmentKey"))
         #expect(patcher.contains("gtkEnvironmentWithNavigationContext"))
         #expect(patcher.contains("gtkEnvironmentWithNavigationDestinationDismiss"))
+        #expect(patcher.contains("GTKNavigationActionTarget"))
+        #expect(patcher.contains("GTKNavigationActionTargetRegistryEntry"))
+        #expect(patcher.contains("weak var owner: GTKViewHost?"))
+        #expect(patcher.contains("actionTarget = gtkNavigationActionTarget(for: stateNamespace)"))
+        #expect(patcher.contains("actionTarget.uninstall(self)"))
         #expect(patcher.contains("debugName: \"gtk navigation destination\""))
         #expect(patcher.contains("context.flushPendingPresentedDestinations()"))
         #expect(patcher.contains("NavigationPresentedDestinationModifier: GTKDescribable"))
@@ -11789,6 +11805,17 @@ struct SourceHygieneTests {
         #expect(script.contains("if ! authenticated_route_visual_is_ready \"icecubes-linux-authenticated-settings-display\"; then"))
         #expect(script.contains("click_app_window_point_with_fresh_focus()"))
         #expect(script.contains("fresh-focus-prime window@${CLICK_FOCUS_PRIME_X},${CLICK_FOCUS_PRIME_Y}"))
+        #expect(script.contains("if [[ \"$CLICK_TRACE\" == \"1\" ]]; then"))
+        #expect(script.contains(
+            #"""
+              DISPLAY="$DISPLAY_ID" xdotool \
+                mousemove --sync "$x" "$y" \
+                sleep "$settle_seconds" \
+                mousedown 1 \
+                sleep "$CLICK_HOLD_SECONDS" \
+                mouseup 1
+            """#
+        ))
         #expect(script.contains("\"$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X\""))
         #expect(script.contains("\"$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS\""))
         #expect(script.contains("\"$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS\""))

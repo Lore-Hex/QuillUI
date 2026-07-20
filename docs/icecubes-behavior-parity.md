@@ -488,6 +488,20 @@ estimates, not release claims.
   route with `End Return`; the vendor patcher reconstructed byte-identical GTK
   shim/renderer files from the previous commit and remained idempotent on a
   second pass; repeated warm builds retained SwiftPM output-file metadata.
+- 2026-07-19: Made synthetic pointer delivery deterministic for the real
+  IceCubes font picker and every other route driven by the visual harness.
+  Pointer motion, settling, press, hold, and release now remain on one XTest
+  connection instead of being split across short-lived `xdotool` processes;
+  enabling click tracing also enables the reusable GTK action trace, so CI
+  artifacts identify both the X11 target and the renderer action path. That
+  trace exposed the underlying loaded-runner failure: a queued theme rebuild
+  could replace `NavigationStack` after a native button callback was captured
+  but before its MainActor action called `dismiss()`. GTK navigation actions
+  now use a stable logical target that follows the live replacement stack.
+  Focused GTK regressions capture the destination `DismissAction`, invalidate
+  the original native context, prove it dismisses the replacement, and keep
+  identical paths in separate view hosts isolated. The unchanged IceCubes
+  Inter selection passes on ARM64 and x86_64.
 - 2026-06-17: Tightened authenticated status-detail chrome: SwiftUI
   `Text(date, style: .time)` now formats as a time instead of duplicating the
   date, GTK `NavigationStack` preserves empty destination titles instead of

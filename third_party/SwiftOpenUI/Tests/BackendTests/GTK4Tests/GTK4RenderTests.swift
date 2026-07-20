@@ -2406,6 +2406,65 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testNavigationDestinationDismissActionTargetsReplacementStack() throws {
+        try requireGTK()
+
+        let owner = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        func makeContext() -> GTKNavigationContext {
+            makeNavigationContext(
+                owner: owner,
+                stateNamespace: "navigation-action-target-rebuild"
+            )
+        }
+
+        let original = makeContext()
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeContext()
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(original.entries.count, 0)
+        XCTAssertEqual(
+            replacement.entries.count,
+            1,
+            "A dismiss action captured before a host rebuild must pop the live replacement stack."
+        )
+    }
+
+    func testNavigationActionTargetDoesNotCrossViewHosts() throws {
+        try requireGTK()
+
+        let firstHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let secondHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let original = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Original"
+        )
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Replacement"
+        )
+        let otherWindow = makeNavigationContext(
+            owner: secondHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Other Window"
+        )
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(replacement.entries.count, 1)
+        XCTAssertEqual(
+            otherWindow.entries.count,
+            2,
+            "An identical navigation namespace in another view host must remain isolated."
+        )
+    }
+
     func testNavigationDestinationIsPresentedPushesAfterPickerSelectionMutation() throws {
         try requireGTK()
 
@@ -5757,6 +5816,33 @@ private struct GTKPresentedNavigationDismissDestination: View {
             dismiss()
         }
     }
+}
+
+private func makeNavigationContext(
+    owner: GTKViewHost,
+    stateNamespace: String,
+    destinationTitle: String = "Destination"
+) -> GTKNavigationContext {
+    let previousHost = GTKViewHost.getCurrentRebuilding()
+    GTKViewHost.setCurrentRebuilding(owner)
+    defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+
+    let stack = gtk_stack_new()!
+    let headerBar = gtk_header_bar_new()!
+    let backButton = gtk_button_new()!
+    let context = GTKNavigationContext(
+        stack: OpaquePointer(stack),
+        headerBar: OpaquePointer(headerBar),
+        backButton: backButton,
+        stateNamespace: stateNamespace
+    )
+    context.push(title: "Root") {
+        OpaquePointer(gtk_label_new("Root")!)
+    }
+    context.push(title: destinationTitle) {
+        OpaquePointer(gtk_label_new(destinationTitle)!)
+    }
+    return context
 }
 
 private func drainGTKMainContext(maxIterations: Int = 20) {

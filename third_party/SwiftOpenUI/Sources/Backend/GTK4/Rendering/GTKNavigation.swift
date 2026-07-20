@@ -74,12 +74,110 @@ private struct GTKDeferredNavigationDestination {
     let render: () -> OpaquePointer
 }
 
-private enum GTKNavigationPersistedRoute {
+fileprivate enum GTKNavigationPersistedRoute {
     case value(AnyHashable)
     case destination(
         stateNamespace: String?,
         makeDestination: (GTKNavigationContext) -> GTKDeferredNavigationDestination?
     )
+}
+
+/// Stable indirection for callbacks captured by a navigation destination.
+///
+/// A GTK host can replace its native NavigationStack while a Swift action is
+/// waiting to enter the MainActor. The old environment must still address the
+/// newly mounted logical stack, just as SwiftUI actions survive view updates.
+fileprivate final class GTKNavigationActionTarget {
+    private let lock = NSLock()
+    private weak var context: GTKNavigationContext?
+
+    func install(_ context: GTKNavigationContext) {
+        lock.lock()
+        self.context = context
+        lock.unlock()
+    }
+
+    func uninstall(_ context: GTKNavigationContext) {
+        lock.lock()
+        if self.context === context {
+            self.context = nil
+        }
+        lock.unlock()
+    }
+
+    private func liveContext() -> GTKNavigationContext? {
+        lock.lock()
+        let context = context
+        lock.unlock()
+        return context?.nativeWidgetTreeIsAlive == true ? context : nil
+    }
+
+    @discardableResult
+    func pushValue(_ value: AnyHashable) -> Bool {
+        liveContext()?.pushValue(value) ?? false
+    }
+
+    @discardableResult
+    func pushDestinationRoute(_ route: GTKNavigationPersistedRoute) -> Bool {
+        liveContext()?.pushDestinationRoute(route) ?? false
+    }
+
+    func pop() {
+        liveContext()?.pop()
+    }
+
+    func popToRoot() {
+        liveContext()?.popToRoot()
+    }
+}
+
+private final class GTKNavigationActionTargetRegistryEntry {
+    weak var owner: GTKViewHost?
+    let hasOwner: Bool
+    weak var target: GTKNavigationActionTarget?
+
+    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+        self.owner = owner
+        hasOwner = owner != nil
+        self.target = target
+    }
+
+    func belongs(to candidate: GTKViewHost?) -> Bool {
+        if hasOwner {
+            guard let owner, let candidate else { return false }
+            return owner === candidate
+        }
+        return candidate == nil
+    }
+}
+
+private let gtkNavigationActionTargetsLock = NSLock()
+private var gtkNavigationActionTargetsByNamespace: [String: [GTKNavigationActionTargetRegistryEntry]] = [:]
+
+private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {
+    let owner = GTKViewHost.getCurrentRebuilding()
+    gtkNavigationActionTargetsLock.lock()
+    defer { gtkNavigationActionTargetsLock.unlock() }
+
+    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]
+    entries.removeAll { $0.target == nil }
+    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {
+        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+        return target
+    }
+    let target = GTKNavigationActionTarget()
+    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))
+    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+    return target
+}
+
+func gtkTestNavigationDestinationDismissAction(
+    for context: GTKNavigationContext
+) -> DismissAction {
+    let actionTarget = context.actionTarget
+    return DismissAction(handler: {
+        actionTarget.pop()
+    }, debugName: "gtk navigation destination test")
 }
 
 private struct GTKPendingPresentedNavigationDestination {
@@ -186,6 +284,7 @@ class GTKNavigationContext {
     let headerBar: OpaquePointer      // GtkHeaderBar
     let backButton: UnsafeMutablePointer<GtkWidget>
     let stateNamespace: String
+    fileprivate let actionTarget: GTKNavigationActionTarget
     var restoreSignature: String?
     var entries: [GTKNavigationEntry] = []
     var nameCounter = 0
@@ -219,6 +318,8 @@ class GTKNavigationContext {
         self.headerBar = headerBar
         self.backButton = backButton
         self.stateNamespace = stateNamespace
+        actionTarget = gtkNavigationActionTarget(for: stateNamespace)
+        actionTarget.install(self)
     }
 
     deinit {
@@ -228,6 +329,7 @@ class GTKNavigationContext {
     func invalidateNativeWidgetTree() {
         guard nativeWidgetTreeIsAlive else { return }
         nativeWidgetTreeIsAlive = false
+        actionTarget.uninstall(self)
         for entry in entries {
             releaseToolbarWidgetReferences(in: entry)
         }
@@ -703,11 +805,12 @@ private func gtkEnvironmentWithNavigationContext(
     context: GTKNavigationContext
 ) -> EnvironmentValues {
     var env = base
+    let actionTarget = context.actionTarget
     env[GTKNavigationContextEnvironmentKey.self] = context
     env[NavigateKey.self] = NavigateAction(
-        push: { [weak context] value in context?.pushValue(value) },
-        pop: { [weak context] in context?.pop() },
-        popToRoot: { [weak context] in context?.popToRoot() }
+        push: { value in actionTarget.pushValue(value) },
+        pop: { actionTarget.pop() },
+        popToRoot: { actionTarget.popToRoot() }
     )
     return env
 }
@@ -717,8 +820,9 @@ private func gtkEnvironmentWithNavigationDestinationDismiss(
     context: GTKNavigationContext
 ) -> EnvironmentValues {
     var env = base
-    env.dismiss = DismissAction(handler: { [weak context] in
-        context?.pop()
+    let actionTarget = context.actionTarget
+    env.dismiss = DismissAction(handler: {
+        actionTarget.pop()
     }, debugName: "gtk navigation destination")
     return env
 }
@@ -1340,8 +1444,9 @@ extension NavigationLink: GTKNavigationPrimaryActionProvider {
         }
 
         if let value = pushValue {
-            return { [weak context] in
-                context?.pushValue(value)
+            let actionTarget = context.actionTarget
+            return {
+                actionTarget.pushValue(value)
             }
         }
 
@@ -1354,8 +1459,9 @@ extension NavigationLink: GTKNavigationPrimaryActionProvider {
             destination: dest,
             capturedEnvironment: capturedEnv
         )
+        let actionTarget = context.actionTarget
         return {
-            context.pushDestinationRoute(route)
+            actionTarget.pushDestinationRoute(route)
         }
     }
 }
@@ -1392,8 +1498,9 @@ extension NavigationLink: GTKRenderable {
 
         // Value-based NavigationLink — push value via registry
         if let value = pushValue {
-            let box = Unmanaged.passRetained(ClosureBox { [weak context] in
-                context?.pushValue(value)
+            let actionTarget = context.actionTarget
+            let box = Unmanaged.passRetained(ClosureBox {
+                actionTarget.pushValue(value)
             }).toOpaque()
 
             g_signal_connect_data(
@@ -1426,9 +1533,10 @@ extension NavigationLink: GTKRenderable {
             destination: dest,
             capturedEnvironment: capturedEnv
         )
+        let actionTarget = context.actionTarget
 
         let box = Unmanaged.passRetained(ClosureBox {
-            context.pushDestinationRoute(route)
+            actionTarget.pushDestinationRoute(route)
         }).toOpaque()
 
         g_signal_connect_data(

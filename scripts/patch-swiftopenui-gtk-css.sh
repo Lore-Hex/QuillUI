@@ -12977,6 +12977,223 @@ replace_navigation_once(
     "        })",
     "SwiftOpenUI GTK navigation native-destruction callback shape was not recognized",
 )
+if "GTKNavigationActionTarget" not in text:
+    text = text.replace(
+        "private enum GTKNavigationPersistedRoute {",
+        "fileprivate enum GTKNavigationPersistedRoute {",
+        1,
+    )
+    action_target_marker = "\nprivate struct GTKPendingPresentedNavigationDestination"
+    action_target_helper = '''
+/// Stable indirection for callbacks captured by a navigation destination.
+///
+/// A GTK host can replace its native NavigationStack while a Swift action is
+/// waiting to enter the MainActor. The old environment must still address the
+/// newly mounted logical stack, just as SwiftUI actions survive view updates.
+fileprivate final class GTKNavigationActionTarget {
+    private let lock = NSLock()
+    private weak var context: GTKNavigationContext?
+
+    func install(_ context: GTKNavigationContext) {
+        lock.lock()
+        self.context = context
+        lock.unlock()
+    }
+
+    func uninstall(_ context: GTKNavigationContext) {
+        lock.lock()
+        if self.context === context {
+            self.context = nil
+        }
+        lock.unlock()
+    }
+
+    private func liveContext() -> GTKNavigationContext? {
+        lock.lock()
+        let context = context
+        lock.unlock()
+        return context?.nativeWidgetTreeIsAlive == true ? context : nil
+    }
+
+    @discardableResult
+    func pushValue(_ value: AnyHashable) -> Bool {
+        liveContext()?.pushValue(value) ?? false
+    }
+
+    @discardableResult
+    func pushDestinationRoute(_ route: GTKNavigationPersistedRoute) -> Bool {
+        liveContext()?.pushDestinationRoute(route) ?? false
+    }
+
+    func pop() {
+        liveContext()?.pop()
+    }
+
+    func popToRoot() {
+        liveContext()?.popToRoot()
+    }
+}
+
+private final class GTKNavigationActionTargetRegistryEntry {
+    weak var owner: GTKViewHost?
+    let hasOwner: Bool
+    weak var target: GTKNavigationActionTarget?
+
+    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+        self.owner = owner
+        hasOwner = owner != nil
+        self.target = target
+    }
+
+    func belongs(to candidate: GTKViewHost?) -> Bool {
+        if hasOwner {
+            guard let owner, let candidate else { return false }
+            return owner === candidate
+        }
+        return candidate == nil
+    }
+}
+
+private let gtkNavigationActionTargetsLock = NSLock()
+private var gtkNavigationActionTargetsByNamespace: [String: [GTKNavigationActionTargetRegistryEntry]] = [:]
+
+private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {
+    let owner = GTKViewHost.getCurrentRebuilding()
+    gtkNavigationActionTargetsLock.lock()
+    defer { gtkNavigationActionTargetsLock.unlock() }
+
+    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]
+    entries.removeAll { $0.target == nil }
+    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {
+        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+        return target
+    }
+    let target = GTKNavigationActionTarget()
+    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))
+    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+    return target
+}
+
+func gtkTestNavigationDestinationDismissAction(
+    for context: GTKNavigationContext
+) -> DismissAction {
+    let actionTarget = context.actionTarget
+    return DismissAction(handler: {
+        actionTarget.pop()
+    }, debugName: "gtk navigation destination test")
+}
+'''
+    if action_target_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK navigation action-target insertion point was not recognized")
+    text = text.replace(action_target_marker, action_target_helper + action_target_marker, 1)
+
+    replacements = [
+        (
+            "    let backButton: UnsafeMutablePointer<GtkWidget>\n"
+            "    let stateNamespace: String\n",
+            "    let backButton: UnsafeMutablePointer<GtkWidget>\n"
+            "    let stateNamespace: String\n"
+            "    fileprivate let actionTarget: GTKNavigationActionTarget\n",
+            "SwiftOpenUI GTK navigation action-target property shape was not recognized",
+        ),
+        (
+            "        self.stateNamespace = stateNamespace\n"
+            "    }\n\n"
+            "    deinit {",
+            "        self.stateNamespace = stateNamespace\n"
+            "        actionTarget = gtkNavigationActionTarget(for: stateNamespace)\n"
+            "        actionTarget.install(self)\n"
+            "    }\n\n"
+            "    deinit {",
+            "SwiftOpenUI GTK navigation action-target initializer shape was not recognized",
+        ),
+        (
+            "        nativeWidgetTreeIsAlive = false\n"
+            "        for entry in entries {",
+            "        nativeWidgetTreeIsAlive = false\n"
+            "        actionTarget.uninstall(self)\n"
+            "        for entry in entries {",
+            "SwiftOpenUI GTK navigation action-target invalidation shape was not recognized",
+        ),
+        (
+            "    var env = base\n"
+            "    env[GTKNavigationContextEnvironmentKey.self] = context\n"
+            "    env[NavigateKey.self] = NavigateAction(\n"
+            "        push: { [weak context] value in context?.pushValue(value) },\n"
+            "        pop: { [weak context] in context?.pop() },\n"
+            "        popToRoot: { [weak context] in context?.popToRoot() }\n",
+            "    var env = base\n"
+            "    let actionTarget = context.actionTarget\n"
+            "    env[GTKNavigationContextEnvironmentKey.self] = context\n"
+            "    env[NavigateKey.self] = NavigateAction(\n"
+            "        push: { value in actionTarget.pushValue(value) },\n"
+            "        pop: { actionTarget.pop() },\n"
+            "        popToRoot: { actionTarget.popToRoot() }\n",
+            "SwiftOpenUI GTK stable NavigateAction shape was not recognized",
+        ),
+        (
+            "    var env = base\n"
+            "    env.dismiss = DismissAction(handler: { [weak context] in\n"
+            "        context?.pop()\n",
+            "    var env = base\n"
+            "    let actionTarget = context.actionTarget\n"
+            "    env.dismiss = DismissAction(handler: {\n"
+            "        actionTarget.pop()\n",
+            "SwiftOpenUI GTK stable destination dismiss shape was not recognized",
+        ),
+        (
+            "        if let value = pushValue {\n"
+            "            return { [weak context] in\n"
+            "                context?.pushValue(value)\n"
+            "            }\n"
+            "        }\n",
+            "        if let value = pushValue {\n"
+            "            let actionTarget = context.actionTarget\n"
+            "            return {\n"
+            "                actionTarget.pushValue(value)\n"
+            "            }\n"
+            "        }\n",
+            "SwiftOpenUI GTK stable primary value-link shape was not recognized",
+        ),
+        (
+            "        )\n"
+            "        return {\n"
+            "            context.pushDestinationRoute(route)\n"
+            "        }\n",
+            "        )\n"
+            "        let actionTarget = context.actionTarget\n"
+            "        return {\n"
+            "            actionTarget.pushDestinationRoute(route)\n"
+            "        }\n",
+            "SwiftOpenUI GTK stable primary destination-link shape was not recognized",
+        ),
+        (
+            "        if let value = pushValue {\n"
+            "            let box = Unmanaged.passRetained(ClosureBox { [weak context] in\n"
+            "                context?.pushValue(value)\n",
+            "        if let value = pushValue {\n"
+            "            let actionTarget = context.actionTarget\n"
+            "            let box = Unmanaged.passRetained(ClosureBox {\n"
+            "                actionTarget.pushValue(value)\n",
+            "SwiftOpenUI GTK stable rendered value-link shape was not recognized",
+        ),
+        (
+            "            capturedEnvironment: capturedEnv\n"
+            "        )\n\n"
+            "        let box = Unmanaged.passRetained(ClosureBox {\n"
+            "            context.pushDestinationRoute(route)\n",
+            "            capturedEnvironment: capturedEnv\n"
+            "        )\n"
+            "        let actionTarget = context.actionTarget\n\n"
+            "        let box = Unmanaged.passRetained(ClosureBox {\n"
+            "            actionTarget.pushDestinationRoute(route)\n",
+            "SwiftOpenUI GTK stable rendered destination-link shape was not recognized",
+        ),
+    ]
+    for old, new, error in replacements:
+        if old not in text:
+            raise SystemExit(error)
+        text = text.replace(old, new, 1)
 text = text.replace("        gtkInstallToolbar(from: detail, on: paned)\n\n", "")
 if text != original:
     path.write_text(text)

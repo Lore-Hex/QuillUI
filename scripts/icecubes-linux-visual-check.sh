@@ -496,6 +496,11 @@ if [[ "$INTERACTION" == "seeded-authenticated-media-viewer" ]]; then
     "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
   )
 fi
+if [[ "$CLICK_TRACE" == "1" ]]; then
+  app_env+=(
+    "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
+  )
+fi
 if [[ "$INTERACTION" == "seeded-authenticated-status-detail-boost" \
   || "$INTERACTION" == "seeded-authenticated-status-detail-quote" ]]; then
   app_env+=(
@@ -625,11 +630,16 @@ click_screen_point() {
   if [[ "$CLICK_TRACE" == "1" ]]; then
     echo "IceCubes visual click: $label screen=${x},${y}" >&2
   fi
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
-  sleep "$settle_seconds"
-  DISPLAY="$DISPLAY_ID" xdotool mousedown 1
-  sleep "$CLICK_HOLD_SECONDS"
-  DISPLAY="$DISPLAY_ID" xdotool mouseup 1
+  # Keep motion, press, hold, and release on one XTest connection. Splitting
+  # the sequence across short-lived xdotool processes can drop the matching
+  # release on loaded Xvfb runners even though the pointer and focus are both
+  # correct, leaving a native GtkButton visibly untouched.
+  DISPLAY="$DISPLAY_ID" xdotool \
+    mousemove --sync "$x" "$y" \
+    sleep "$settle_seconds" \
+    mousedown 1 \
+    sleep "$CLICK_HOLD_SECONDS" \
+    mouseup 1
 }
 
 click_app_window_point() {
