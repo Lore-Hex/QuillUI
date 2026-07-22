@@ -61,7 +61,7 @@ final class SceneKitRenderView: NSView {
     var scene: SCNScene? {
         didSet {
             guard scene !== oldValue else { return }
-            controlledCameraNode = nil
+            cameraControlState.resetControlledCamera()
             pointOfView = nil
             syncDefaultCameraController()
             setNeedsDisplay(bounds)
@@ -75,9 +75,7 @@ final class SceneKitRenderView: NSView {
     }
     var pointOfView: SCNNode? {
         didSet {
-            if pointOfView !== controlledCameraNode {
-                controlledCameraNode = nil
-            }
+            cameraControlState.pointOfViewDidChange(to: pointOfView)
             syncDefaultCameraController()
             setNeedsDisplay(bounds)
         }
@@ -87,9 +85,7 @@ final class SceneKitRenderView: NSView {
             syncDefaultCameraController()
         }
     }
-    private weak var controlledCameraNode: SCNNode?
-    private var orbitDragLocation: CGPoint?
-    private var panDragLocation: CGPoint?
+    private let cameraControlState = QuillSceneKitCameraControlState()
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
@@ -110,7 +106,7 @@ final class SceneKitRenderView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
-        orbitDragLocation = event.locationInWindow
+        cameraControlState.beginOrbitDrag(at: event.locationInWindow)
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -119,11 +115,11 @@ final class SceneKitRenderView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         _ = event
-        orbitDragLocation = nil
+        cameraControlState.clearOrbitDrag()
     }
 
     override func rightMouseDown(with event: NSEvent) {
-        panDragLocation = event.locationInWindow
+        cameraControlState.beginPanDrag(at: event.locationInWindow)
     }
 
     override func rightMouseDragged(with event: NSEvent) {
@@ -132,7 +128,7 @@ final class SceneKitRenderView: NSView {
 
     override func rightMouseUp(with event: NSEvent) {
         _ = event
-        panDragLocation = nil
+        cameraControlState.clearPanDrag()
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -171,58 +167,35 @@ final class SceneKitRenderView: NSView {
     }
 
     private func syncDefaultCameraController() {
-        defaultCameraController.attach(pointOfView: activeCameraNode)
+        cameraControlState.sync(controller: defaultCameraController, scene: scene, pointOfView: pointOfView)
     }
 
     @discardableResult
     private func ensureControlledCamera() -> SCNNode? {
-        if let controlledCameraNode {
-            pointOfView = controlledCameraNode
-            return controlledCameraNode
-        }
-
-        let source = pointOfView ?? quillFirstSceneKitCameraNode(in: scene?.rootNode)
-        let cameraNode = quillCloneSceneKitCameraNode(from: source)
-        scene?.rootNode.addChildNode(cameraNode)
-        controlledCameraNode = cameraNode
-        pointOfView = cameraNode
-        return cameraNode
+        cameraControlState.ensureControlledCamera(scene: scene, pointOfView: &pointOfView)
     }
 
     private var activeCameraNode: SCNNode? {
-        pointOfView ?? quillFirstSceneKitCameraNode(in: scene?.rootNode)
+        cameraControlState.activeCameraNode(scene: scene, pointOfView: pointOfView)
     }
 
     private var panUnitsPerPoint: CGFloat {
-        quillSceneKitPanUnitsPerPoint(
+        cameraControlState.panUnitsPerPoint(
             boundsSize: bounds.size,
-            pointOfView: activeCameraNode,
+            scene: scene,
+            pointOfView: pointOfView,
             target: defaultCameraController.target
         )
     }
 
     private func handleOrbitDrag(to location: CGPoint) {
-        guard let previous = orbitDragLocation else {
-            orbitDragLocation = location
-            return
-        }
-        orbitDragLocation = location
-        quillOrbitCamera(
-            deltaX: (location.x - previous.x) * quillSceneKitOrbitRadiansPerPoint,
-            deltaY: (location.y - previous.y) * quillSceneKitOrbitRadiansPerPoint
-        )
+        guard let delta = cameraControlState.orbitDelta(to: location) else { return }
+        quillOrbitCamera(deltaX: delta.deltaX, deltaY: delta.deltaY)
     }
 
     private func handlePanDrag(to location: CGPoint) {
-        guard let previous = panDragLocation else {
-            panDragLocation = location
-            return
-        }
-        panDragLocation = location
-        quillPanCamera(
-            deltaX: (location.x - previous.x) * panUnitsPerPoint,
-            deltaY: -(location.y - previous.y) * panUnitsPerPoint
-        )
+        guard let delta = cameraControlState.panDelta(to: location, unitsPerPoint: panUnitsPerPoint) else { return }
+        quillPanCamera(deltaX: delta.deltaX, deltaY: delta.deltaY)
     }
 }
 #endif
