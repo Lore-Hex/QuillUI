@@ -38,9 +38,12 @@ jobs:
       # over-conservative pre-step margin now. The job runs inside the
       # swift:6.2-noble container, so the usual "remove host SDKs" disk cleanup
       # isn't reachable; tune the guard's purpose-built env knob instead. 6 GiB
-      # clears the observed ~9.6 GiB worst case with margin while still catching
-      # genuine disk exhaustion. (Memory guard MIN_AVAILABLE_MEMORY_MIB unchanged.)
-      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "6"
+      # cleared the observed ~9.6 GiB worst case, but the generated visual smoke
+      # checkpoint later hit 5.8 GiB on a merge-queue runner after successful
+      # compiles. Keep a practical 5 GiB floor so the guard still catches genuine
+      # disk exhaustion without rejecting otherwise healthy runners. (Memory guard
+      # MIN_AVAILABLE_MEMORY_MIB unchanged.)
+      QUILLUI_RESOURCE_GUARD_MIN_FREE_GIB: "5"
       # Swift 6.2 made the actor-isolation runtime check fatal: when a
       # synchronous swift-testing case constructs/reads a @MainActor SwiftUI
       # `View` (the suite runs sync cases on a background cooperative-pool
