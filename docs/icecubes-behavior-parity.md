@@ -8,7 +8,7 @@ estimates, not release claims.
 
 - Compile coverage: 100% for `IceCubesLinuxApp`.
 - Runnable app graph source coverage: about 97%.
-- Useful runtime behavior estimate: 83-87%.
+- Useful runtime behavior estimate: 85-89%.
 - Exact macOS-quality visual/interaction parity estimate: 25-30%.
 
 ## P0 Runtime Blockers
@@ -30,9 +30,11 @@ estimates, not release claims.
 - [ ] Login/auth flow: unchanged upstream IceCubes now covers fixture-backed
       app registration, browser authorization, callback URL delivery, token
       exchange, credential verification, account/token persistence,
-      authenticated repaint, and authenticated process relaunch. Account
-      switching/removal, failure recovery, native desktop URL registration,
-      and native Secret Service storage remain open.
+      authenticated repaint, authenticated process relaunch, two-account
+      switching and persistence, current-account removal with deterministic
+      fallback, and failed-token recovery followed by a successful retry.
+      Native desktop URL registration and native Secret Service storage remain
+      open.
 - [ ] Timeline flow: load public/home timelines, render rows, scroll, first
       home pagination, Home refresh, Notifications refresh, Status detail
       refresh, and detail navigation are covered; broader refresh/pagination
@@ -43,7 +45,8 @@ estimates, not release claims.
       autocomplete, video, drafts, and post-result routing remain open.
 - [ ] Settings flow: root Settings tab and Display Settings child navigation
       render under the authenticated upstream app, including the Display preview
-      and upper/lower form controls; Display font-size slider mutation is
+      and upper/lower form controls; Display font-size slider mutation,
+      system-color mutation, and font-picker route/select/dismiss behavior are
       covered. Tab/sidebar settings, content settings, API settings, remote
       timelines, tag groups, icon/support panes, and broader setting mutations
       remain open.
@@ -58,7 +61,12 @@ estimates, not release claims.
 
 ## P1 QuillUI/SwiftUI Surface Gaps
 
-- [ ] Exact app lifecycle for canonical `import SwiftUI` apps.
+- [x] `UIApplicationDelegateAdaptor` constructs the unchanged upstream app
+      delegate and delivers `didFinishLaunchingWithOptions` after the complete
+      app value initializes but before the first scene is evaluated on GTK and
+      Qt.
+- [ ] Remaining canonical app lifecycle parity: scene phase transitions,
+      background/foreground events, termination hooks, and restoration.
 - [x] Initial content paint for upstream `TabView`/sidebar app shells. IceCubes
       now paints the logged-out timeline/add-account path instead of a blank
       first window.
@@ -70,6 +78,9 @@ estimates, not release claims.
       viewport sizing for IceCubes attachment previews.
 - [ ] Real menu and command behavior: disabled state, keyboard shortcuts,
       click-outside dismissal, native menu placement.
+- [x] GTK `Picker` opens through both native allocation hits and visually
+      transformed/custom-layout hits, then preserves native keyboard selection
+      and SwiftUI binding callbacks.
 - [x] `ToolbarTitleMenu` renders as compact toolbar menu chrome for IceCubes'
       authenticated timeline shell instead of dumping menu contents into the
       main content area.
@@ -159,7 +170,9 @@ estimates, not release claims.
       QuillUI, QuillKit, QuillData, or Apple framework shim targets.
 - [x] Add CI launch smoke and screenshot artifacts for `IceCubesLinuxApp`.
 - [x] Add CI smokes for upstream Add Account interaction, OAuth callback/token/
-      credential/persistence/relaunch, seeded authenticated shell chrome, seeded
+      credential/persistence/relaunch, failed-token recovery and successful
+      retry, seeded two-account switch/removal/relaunch lifecycle, seeded
+      authenticated shell chrome, seeded
       authenticated Trending sidebar navigation, seeded authenticated Local
       timeline navigation, seeded
       authenticated Federated timeline navigation, seeded authenticated
@@ -174,6 +187,74 @@ estimates, not release claims.
 - [ ] Add side-by-side macOS/Linux interaction test plan for the top workflows.
 
 ## Checkpoints
+
+- 2026-07-20: Routed duplicate GTK keyboard shortcuts to the visible SwiftUI
+  destination. Shortcut registrations now expose a live availability predicate,
+  and dispatch falls back through older matching registrations when a newer one
+  belongs to an unmapped `GtkStack` page. This fixes unchanged-upstream status
+  detail refresh after the hidden Home timeline had intercepted Ctrl-R. A
+  focused GTK stack regression and the exact authenticated status-detail refresh
+  journey pass locally; the latter verifies the refreshed detail body and both
+  `/api/v1/statuses/1003` requests. No IceCubes source is patched.
+
+- 2026-07-20: Fixed unchanged-upstream Display font selection after a theme
+  mutation replaces IceCubes' nested GTK view host. Navigation dismiss actions
+  are now scoped by the backend's stable window identity, so rebuilt
+  `NavigationStack` instances inherit the current action target without leaking
+  actions into another window; headless contexts retain view-host isolation.
+  The exact authenticated Settings > Display > Font > Inter selection and
+  dismissal journey passes on ARM64 and x86_64 Linux, alongside focused native
+  GTK regressions for host replacement, cross-window isolation, and the
+  no-window fallback. No IceCubes source is patched.
+
+- 2026-07-19: Hardened the unchanged-upstream font-picker open and selection
+  smokes after GitHub Actions consumed synthetic pointer presses as focus
+  transitions. The route retries the Display row only while screenshot
+  verification proves the unchanged form remains visible, repeating the
+  complete pointer-and-keyboard activation sequence that opens the picker. It
+  now establishes direct X focus, delivers a harmless fresh pointer press in
+  empty titlebar content, allows the pointer to settle over Inter, and then
+  retries only while the picker remains visible. This covers runners that show
+  the fully rendered picker but consume a child-control press while activating
+  the toplevel. A second screenshot state check immediately before each retry
+  prevents a late route dismissal from receiving another click in the
+  underlying Display form. Click and window traces remain enabled for this CI
+  checkpoint. No IceCubes source is patched.
+
+- 2026-07-19: Generalized focus-safe child transitions across IceCubes'
+  unchanged composer media workflow after the GitHub runner consumed the media
+  panel toggle press. The harness now retries only while screenshot
+  verification proves the prior composer surface is unchanged, covering panel
+  open/close, ALT editor open/reopen, and media deletion without blind clicks
+  into a successful or in-flight transition. A second state check immediately
+  before retry closes late-mount timing windows, while a pre-transition upload
+  counter asserts that opening the panel cannot activate its Library action.
+  The upload, download, and app behavior remain unchanged.
+
+- 2026-07-18: Preserved typed `@Environment` objects for callbacks that outlive
+  GTK descriptor and mounted-host render scopes. SwiftOpenUI now primes only
+  available injected-object wrappers before evaluating `body`; missing unused
+  dependencies remain lazy and still trap if actually read. This fixes the
+  unchanged IceCubes Notifications tab's nested `onAppear` refresh callback
+  without eagerly subscribing every observable or changing the property-wrapper
+  layout. Verification: repeated x86_64 Notifications refresh and font-picker
+  select/dismiss smokes passed, the same two workflows passed on ARM64, both
+  architectures compiled `GTK4RenderTests`, and the hermetic vendor patcher and
+  focused source guard passed. No IceCubes source is patched.
+
+- 2026-07-18: Completed the unchanged-upstream account lifecycle and OAuth
+  failure-recovery paths. The visual harness seeds two real `AppAccount`
+  records, opens IceCubes' account selector, switches accounts, relaunches to
+  prove the selection persisted, removes the selected account through its real
+  settings action, and relaunches again to prove deterministic fallback. A
+  separate path rejects the first token exchange, proves no account was saved,
+  retries from the same Add Account UI, and reaches the authenticated timeline.
+  The reusable fixes make `@Observable` stored properties with observers
+  publish, persist `AppStorage` writes before cross-process relaunch, preserve
+  keyed `ForEach` structure, give nested GTK state hosts ownership of their
+  lifecycle payloads, construct `UIApplicationDelegateAdaptor` through generic
+  source lowering, and rebuild `WindowGroup` content from its original builder
+  when app-level state changes. No IceCubes UI source is patched.
 
 - 2026-07-17: Completed a deterministic unchanged-upstream IceCubes login and
   persisted-relaunch journey. The GTK harness types `mastodon.social`, invokes
@@ -414,6 +495,32 @@ estimates, not release claims.
   `.qa/icecubes-auth-settings-display-font-picker-route-v4.png`, and the
   select/dismiss smoke passed at
   `.qa/icecubes-auth-settings-display-font-picker-select-v2.png`.
+- 2026-07-18: Fixed GTK `Picker` pointer delivery when SwiftUI layout paints a
+  dropdown away from its native GTK allocation. A root capture dispatcher now
+  resolves native or visual `GtkDropDown` hits, activates on primary-button
+  release so that release cannot immediately dismiss the popup, and rejects
+  inactive navigation pages or sheet-occluded controls. The IceCubes visual
+  harness derives the picker row from the rendered font-scale track instead of
+  a fixed Y coordinate, so restored scroll offsets cannot redirect the click.
+  Verification: the upstream `seeded-authenticated-settings-display-font-picker`
+  flow opened the real GTK dropdown and reached the unchanged `Choose Font`
+  route with `End Return`; the vendor patcher reconstructed byte-identical GTK
+  shim/renderer files from the previous commit and remained idempotent on a
+  second pass; repeated warm builds retained SwiftPM output-file metadata.
+- 2026-07-19: Made synthetic pointer delivery deterministic for the real
+  IceCubes font picker and every other route driven by the visual harness.
+  Pointer motion, settling, press, hold, and release now remain on one XTest
+  connection instead of being split across short-lived `xdotool` processes;
+  enabling click tracing also enables the reusable GTK action trace, so CI
+  artifacts identify both the X11 target and the renderer action path. That
+  trace exposed the underlying loaded-runner failure: a queued theme rebuild
+  could replace `NavigationStack` after a native button callback was captured
+  but before its MainActor action called `dismiss()`. GTK navigation actions
+  now use a stable logical target that follows the live replacement stack.
+  Focused GTK regressions capture the destination `DismissAction`, invalidate
+  the original native context, prove it dismisses the replacement, and keep
+  identical paths in separate view hosts isolated. The unchanged IceCubes
+  Inter selection passes on ARM64 and x86_64.
 - 2026-06-17: Tightened authenticated status-detail chrome: SwiftUI
   `Text(date, style: .time)` now formats as a time instead of duplicating the
   date, GTK `NavigationStack` preserves empty destination titles instead of
@@ -643,6 +750,19 @@ estimates, not release claims.
   the upstream quote composer opens through the same status-detail action path.
   Autocomplete, attachment import, drafts, post-result toast/detail routing,
   menu pixel parity, and exact compose visual parity remain open.
+- 2026-07-19: Hardened the generic GTK text-binding scheduler against host
+  rebuilds during native editing. Each `TextField`, `SecureField`,
+  `TextEditor`, multiline field, and searchable control now owns a distinct
+  update source; a host commits only its own pending native edit before either
+  a narrow update or full remount. This removes the value-prefix heuristic that
+  could discard one of two fields and prevents an unrelated state change from
+  replacing an editor with stale model text. The build patcher reproduces the
+  same source-aware implementation without an IceCubes source patch.
+  Verification: hermetic patch replay and source guards passed on macOS; two
+  Linux/GTK regressions passed for prefix-related fields and a forced remount
+  after every character; the unchanged upstream
+  `seeded-authenticated-composer-type` route rendered the complete
+  `quilluiinputprobe` string with the correct `483` counter.
 - 2026-06-19: Added `seeded-authenticated-settings` to the upstream IceCubes GTK
   visual harness and Linux CI row. The smoke clicks the real Settings sidebar
   row from a seeded authenticated session and verifies the selected row, title

@@ -67,6 +67,7 @@ public struct QtBackend: RenderBackend {
         qtBackendTrace("run: before App init + scene render")
         let instance = A()
         MainActor.assumeIsolated {
+            SwiftOpenUIAppLifecycle.appDidInitialize()
             qtRenderScene(instance.body, app: app)
         }
         qtBackendTrace("run: after scene render")

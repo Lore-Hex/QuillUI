@@ -25,6 +25,10 @@ public protocol AnyViewHost: AnyObject {
     /// Leave interactive mode. When the last nested level exits and a
     /// rebuild was deferred, one rebuild is scheduled.
     func endInteractiveUpdate()
+
+    /// Whether a host that now reads forwarded state still owns visible
+    /// native content and must be refreshed alongside the newest host.
+    var isActiveForForwardedStateUpdates: Bool { get }
 }
 
 extension AnyViewHost {
@@ -34,6 +38,20 @@ extension AnyViewHost {
 
     public func beginInteractiveUpdate() {}
     public func endInteractiveUpdate() {}
+    public var isActiveForForwardedStateUpdates: Bool { true }
+}
+
+/// Resolve injected `@Environment(Type.self)` wrappers while the view's
+/// render-time environment is active. The wrapper retains the resolved object,
+/// allowing callbacks created from this view value to outlive that environment
+/// scope in the same way SwiftUI's dynamic-property update phase does.
+public func primeInjectedEnvironmentObjects<V>(_ view: V) {
+    let mirror = Mirror(reflecting: view)
+    for child in mirror.children {
+        if let environment = child.value as? AnyObjectInjectionEnvironment {
+            environment.wireInjectedObject(to: nil)
+        }
+    }
 }
 
 /// Connect all @State / @ObservedObject / @StateObject / @EnvironmentObject

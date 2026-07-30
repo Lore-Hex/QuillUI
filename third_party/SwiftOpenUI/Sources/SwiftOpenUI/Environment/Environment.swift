@@ -14,10 +14,23 @@ public extension DynamicProperty {
     mutating func update() {}
 }
 
+/// A reference-typed environment object together with the structural scope
+/// that injected it. Backends retain these captures across body rebuilds so
+/// same-typed objects installed by sibling views cannot replace one another.
+public struct EnvironmentObjectCapture: @unchecked Sendable {
+    public let object: AnyObject
+    public let scope: String?
+
+    public init(object: AnyObject, scope: String? = nil) {
+        self.object = object
+        self.scope = scope
+    }
+}
+
 /// A collection of environment values propagated down the view tree.
 public struct EnvironmentValues: @unchecked Sendable {
     private var storage: [ObjectIdentifier: Any] = [:]
-    private var objects: [ObjectIdentifier: AnyObject] = [:]
+    private var objects: [ObjectIdentifier: EnvironmentObjectCapture] = [:]
 
     public init() {}
 
@@ -38,16 +51,17 @@ public struct EnvironmentValues: @unchecked Sendable {
     /// `@EnvironmentObject` path (Combine-style `ObservableObject`) and
     /// the newer `@Environment(SomeClass.self)` path (any reference type,
     /// typically an `@Observable` class).
-    public mutating func setObject<T: AnyObject>(_ object: T) {
+    public mutating func setObject<T: AnyObject>(_ object: T, scope: String? = nil) {
         let id = ObjectIdentifier(T.self)
-        objects[id] = object
-        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
     }
 
     /// Retrieve an object previously stored by `setObject`.
     public func getObject<T: AnyObject>(_ type: T.Type) -> T? {
         let id = ObjectIdentifier(type)
-        return objects[id] as? T ?? EnvironmentObjectRegistry.shared.object(id: id) as? T
+        return objects[id]?.object as? T
+            ?? EnvironmentObjectRegistry.shared.object(id: id, scope: nil) as? T
     }
 
     /// Type-erased object insertion for the environment-read tracker
@@ -57,9 +71,13 @@ public struct EnvironmentValues: @unchecked Sendable {
     /// `ObjectIdentifier` is the key returned by
     /// `endEnvironmentReadTracking()`; the `AnyObject` is the same
     /// reference body originally read.
-    public mutating func setObjectByID(_ id: ObjectIdentifier, _ object: AnyObject) {
-        objects[id] = object
-        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    public mutating func setObjectByID(
+        _ id: ObjectIdentifier,
+        _ object: AnyObject,
+        scope: String? = nil
+    ) {
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
     }
 
     /// Store the latest globally injected object for `id` when one exists,
@@ -67,8 +85,16 @@ public struct EnvironmentValues: @unchecked Sendable {
     /// ViewHost rebuilds so a child host does not pin an object that an
     /// ancestor later replaced, such as an unauthenticated client swapped for
     /// an authenticated one after app startup.
-    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
-        setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
+    public mutating func setLatestObjectByID(
+        _ id: ObjectIdentifier,
+        fallback object: AnyObject,
+        scope: String? = nil
+    ) {
+        setObjectByID(
+            id,
+            EnvironmentObjectRegistry.shared.object(id: id, scope: scope) ?? object,
+            scope: scope
+        )
     }
 
     /// Refresh every captured injected object from the global environment
@@ -77,9 +103,13 @@ public struct EnvironmentValues: @unchecked Sendable {
     /// snapshot at render time; this keeps those callbacks from pinning stale
     /// app-wide objects like the current account client.
     public mutating func refreshInjectedObjectsFromRegistry() {
-        for (id, object) in objects {
-            setLatestObjectByID(id, fallback: object)
+        for (id, capture) in objects {
+            setLatestObjectByID(id, fallback: capture.object, scope: capture.scope)
         }
+    }
+
+    internal func objectScope(for id: ObjectIdentifier) -> String? {
+        objects[id]?.scope
     }
 }
 
@@ -97,19 +127,48 @@ public extension EnvironmentValues {
 private final class EnvironmentObjectRegistry: @unchecked Sendable {
     static let shared = EnvironmentObjectRegistry()
 
-    private let lock = NSLock()
-    private var objects: [ObjectIdentifier: AnyObject] = [:]
+    private final class WeakObjectBox {
+        weak var object: AnyObject?
 
-    func setObject(_ object: AnyObject, id: ObjectIdentifier) {
+        init(_ object: AnyObject) {
+            self.object = object
+        }
+    }
+
+    private struct ScopedKey: Hashable {
+        let typeID: ObjectIdentifier
+        let scope: String
+    }
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: WeakObjectBox] = [:]
+    private var scopedObjects: [ScopedKey: WeakObjectBox] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier, scope: String?) {
         lock.lock()
-        objects[id] = object
+        if let scope {
+            scopedObjects[ScopedKey(typeID: id, scope: scope)] = WeakObjectBox(object)
+        } else {
+            objects[id] = WeakObjectBox(object)
+        }
         lock.unlock()
     }
 
-    func object(id: ObjectIdentifier) -> AnyObject? {
+    func object(id: ObjectIdentifier, scope: String?) -> AnyObject? {
         lock.lock()
-        let object = objects[id]
-        lock.unlock()
+        defer { lock.unlock() }
+        if let scope {
+            let key = ScopedKey(typeID: id, scope: scope)
+            guard let object = scopedObjects[key]?.object else {
+                scopedObjects.removeValue(forKey: key)
+                return nil
+            }
+            return object
+        }
+        guard let object = objects[id]?.object else {
+            objects.removeValue(forKey: id)
+            return nil
+        }
         return object
     }
 }
@@ -138,7 +197,7 @@ private final class EnvironmentObjectRegistry: @unchecked Sendable {
 //
 // Stack-based so nested reactive hosts can track independently while still
 // propagating descendant reads back to their parent render session.
-private var _envReadTrackerStack: [[ObjectIdentifier: AnyObject]] = []
+private var _envReadTrackerStack: [[ObjectIdentifier: EnvironmentObjectCapture]] = []
 
 /// Begin a fresh round of environment-read tracking. Pairs with
 /// `endEnvironmentReadTracking()` after body evaluation. Backends call
@@ -150,16 +209,27 @@ public func beginEnvironmentReadTracking() {
 
 /// Finish the current round and return the recorded reads, or nil if
 /// no round was active.
-public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+private func endEnvironmentObjectCaptureTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
     guard !_envReadTrackerStack.isEmpty else { return nil }
     let result = _envReadTrackerStack.removeLast()
     if !_envReadTrackerStack.isEmpty {
         let parentIndex = _envReadTrackerStack.count - 1
-        for (typeID, object) in result {
-            _envReadTrackerStack[parentIndex][typeID] = object
+        for (typeID, capture) in result {
+            _envReadTrackerStack[parentIndex][typeID] = capture
         }
     }
     return result
+}
+
+/// Finish tracking while preserving each object's structural injection scope.
+/// Reactive backends use this form when rebuilding hosts independently.
+public func endScopedEnvironmentReadTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
+    endEnvironmentObjectCaptureTracking()
+}
+
+/// Finish tracking using the original object-only result shape.
+public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+    endEnvironmentObjectCaptureTracking()?.mapValues(\.object)
 }
 
 /// Record a successful `@Environment(Type.self)` lookup against the
@@ -167,7 +237,10 @@ public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
 internal func recordEnvironmentRead(typeID: ObjectIdentifier, object: AnyObject) {
     guard !_envReadTrackerStack.isEmpty else { return }
     let index = _envReadTrackerStack.count - 1
-    _envReadTrackerStack[index][typeID] = object
+    _envReadTrackerStack[index][typeID] = EnvironmentObjectCapture(
+        object: object,
+        scope: getCurrentEnvironment().objectScope(for: typeID)
+    )
     recordEnvironmentObservableObjectRead(object)
 }
 
@@ -175,6 +248,28 @@ internal func recordEnvironmentRead(typeID: ObjectIdentifier, object: AnyObject)
 
 private enum EnvironmentTaskLocal {
     @TaskLocal static var values: EnvironmentValues?
+}
+
+public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    // Swift 6.2's task-local runtime can corrupt its lookup marker when a
+    // scope is opened from a native callback that has no current Swift task
+    // and the operation releases an actor-isolated object. Keep direct uses
+    // safe with the thread-local environment; backends that need child Task
+    // inheritance must first enter a real Swift task.
+    let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+    guard hasCurrentTask else {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        return try operation()
+    }
+
+    return try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
 }
 
 public func withTaskEnvironment<T>(
@@ -211,9 +306,10 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 
 /// Get the current environment values (render-time only).
 public func getCurrentEnvironment() -> EnvironmentValues {
-    guard let ptr = pthread_getspecific(_envKey) else {
-        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
     }
+    guard let ptr = pthread_getspecific(_envKey) else { return EnvironmentValues() }
     return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
 }
 #elseif canImport(WinSDK)
@@ -237,9 +333,10 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 }
 
 public func getCurrentEnvironment() -> EnvironmentValues {
-    guard let ptr = TlsGetValue(_tlsIndex) else {
-        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
     }
+    guard let ptr = TlsGetValue(_tlsIndex) else { return EnvironmentValues() }
     return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
 }
 #else
@@ -251,7 +348,7 @@ public func setCurrentEnvironment(_ env: EnvironmentValues?) {
 }
 
 public func getCurrentEnvironment() -> EnvironmentValues {
-    _currentEnvironment ?? EnvironmentTaskLocal.values ?? EnvironmentValues()
+    EnvironmentTaskLocal.values ?? _currentEnvironment ?? EnvironmentValues()
 }
 #endif
 
@@ -298,7 +395,7 @@ public func swiftOpenUIWithPresentationDismissAction<T>(
 }
 
 public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
-    _presentationDismissActionStack.last ?? PresentationDismissTaskLocal.context?.action
+    PresentationDismissTaskLocal.context?.action ?? _presentationDismissActionStack.last
 }
 
 /// Resolve the dismiss handler captured in an environment snapshot, falling
@@ -345,6 +442,23 @@ public protocol AnyObjectInjectionEnvironment {
     func wireInjectedObject(to host: AnyViewHost?)
 }
 
+private final class EnvironmentInjectedObjectStorage {
+    private let lock = NSLock()
+    private var object: AnyObject?
+
+    func store(_ object: AnyObject) {
+        lock.lock()
+        self.object = object
+        lock.unlock()
+    }
+
+    func load() -> AnyObject? {
+        lock.lock()
+        defer { lock.unlock() }
+        return object
+    }
+}
+
 @propertyWrapper
 public struct Environment<Value> {
     /// How the wrapper reads its value at render time. A keyPath reads
@@ -353,7 +467,7 @@ public struct Environment<Value> {
     /// from the constrained init.
     private enum Reader {
         case keyPath(KeyPath<EnvironmentValues, Value>)
-        case injectedObject(() -> Value)
+        case injectedObject(() -> Value?)
     }
 
     private let reader: Reader
@@ -382,21 +496,20 @@ public struct Environment<Value> {
         // Capturing `type` in the closure lets us reference the
         // `AnyObject` constraint at read time without propagating it
         // to the outer Environment<Value> struct.
+        let storage = EnvironmentInjectedObjectStorage()
         self.reader = .injectedObject {
-            guard let object = getCurrentEnvironment().getObject(type) else {
-                fatalError(
-                    "@Environment(\(type).self) lookup failed — no object of this type was injected. " +
-                    "Call `.environment(object)` on an ancestor view."
-                )
+            if let object = getCurrentEnvironment().getObject(type) {
+                storage.store(object)
+                // Record the read so the enclosing ViewHost can re-push
+                // this object into env on rebuild, even if the
+                // `.environment(object)` modifier that originally pushed
+                // it lives inside a parent's body (between two ViewHosts
+                // in the render tree) and wouldn't otherwise be
+                // guaranteed to re-run before this read fires again.
+                recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
+                return object
             }
-            // Record the read so the enclosing ViewHost can re-push
-            // this object into env on rebuild, even if the
-            // `.environment(object)` modifier that originally pushed
-            // it lives inside a parent's body (between two ViewHosts
-            // in the render tree) and wouldn't otherwise be
-            // guaranteed to re-run before this read fires again.
-            recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
-            return object
+            return storage.load() as? Value
         }
     }
 
@@ -405,7 +518,13 @@ public struct Environment<Value> {
         case .keyPath(let keyPath):
             return getCurrentEnvironment()[keyPath: keyPath]
         case .injectedObject(let read):
-            return read()
+            guard let object = read() else {
+                fatalError(
+                    "@Environment(\(Value.self).self) lookup failed — no object of this type was injected. " +
+                    "Call `.environment(object)` on an ancestor view."
+                )
+            }
+            return object
         }
     }
 }
@@ -418,9 +537,10 @@ extension Environment: DynamicProperty {}
 /// distinguishes the two constructors.
 extension Environment: AnyObjectInjectionEnvironment {
     public func wireInjectedObject(to host: AnyViewHost?) {
-        guard isInjectedObject else { return }
-        guard let object = wrappedValue as? AnyObject else { return }
-        wireEnvironmentObservableObjectRead(object, host: host)
+        guard case .injectedObject(let resolve) = reader,
+              let object = resolve() else { return }
+        guard let host else { return }
+        wireEnvironmentObservableObjectRead(object as AnyObject, host: host)
     }
 }
 

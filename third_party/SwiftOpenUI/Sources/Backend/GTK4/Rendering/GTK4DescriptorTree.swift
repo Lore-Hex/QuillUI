@@ -31,6 +31,8 @@ public enum GTK4DescriptorKind: Equatable {
     case foregroundColor
     case hStack
     case listRowLifecycleScope
+    case menu
+    case statefulLifecycleScope
     case padding
     case slider
     case spacer
@@ -227,6 +229,14 @@ public final class GTK4ButtonPayload {
 
     public init(action: @escaping () -> Void) {
         self.action = action
+    }
+}
+
+public final class GTK4MenuPayload {
+    public let apply: (Int) -> Bool
+
+    public init(apply: @escaping (Int) -> Bool) {
+        self.apply = apply
     }
 }
 
@@ -538,6 +548,7 @@ private final class GTK4DescriptorPayloadCollector {
     var onAppearPayloads: [GTK4OnAppearPayload] = []
     var taskPayloads: [GTK4TaskPayload] = []
     var buttonPayloads: [GTK4ButtonPayload] = []
+    var menuPayloads: [GTK4MenuPayload] = []
 }
 
 private var gtkDescriptorPayloadCollectorKey: pthread_key_t = {
@@ -616,10 +627,25 @@ func gtkWithSuppressedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
     return body()
 }
 
+/// A stateful host owns lifecycle actions declared in its body even when an
+/// ancestor is suppressing payload collection for its descriptor-only walk.
+func gtkWithOwnedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
+    let previousDepth = gtkDescriptorLifecyclePayloadSuppressionDepth
+    gtkDescriptorLifecyclePayloadSuppressionDepth = 0
+    defer { gtkDescriptorLifecyclePayloadSuppressionDepth = previousDepth }
+    return body()
+}
+
 public func gtkCollectButtonPayload(_ payload: GTK4ButtonPayload) {
     guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
     let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
     collector.buttonPayloads.append(payload)
+}
+
+public func gtkCollectMenuPayload(_ payload: GTK4MenuPayload) {
+    guard let raw = pthread_getspecific(gtkDescriptorPayloadCollectorKey) else { return }
+    let collector = Unmanaged<GTK4DescriptorPayloadCollector>.fromOpaque(raw).takeUnretainedValue()
+    collector.menuPayloads.append(payload)
 }
 
 public func gtkDescribeCapturingCanvasPayloads(
@@ -629,7 +655,8 @@ public func gtkDescribeCapturingCanvasPayloads(
     canvasPayloads: [GTK4CanvasPayload],
     onAppearPayloads: [GTK4OnAppearPayload],
     taskPayloads: [GTK4TaskPayload],
-    buttonPayloads: [GTK4ButtonPayload]
+    buttonPayloads: [GTK4ButtonPayload],
+    menuPayloads: [GTK4MenuPayload]
 ) {
     let collector = GTK4DescriptorPayloadCollector()
     let retained = Unmanaged.passRetained(collector)
@@ -643,7 +670,8 @@ public func gtkDescribeCapturingCanvasPayloads(
         collector.canvasPayloads,
         collector.onAppearPayloads,
         collector.taskPayloads,
-        collector.buttonPayloads
+        collector.buttonPayloads,
+        collector.menuPayloads
     )
 }
 
@@ -670,6 +698,13 @@ public func gtkCaptureRenderLifecyclePayloads<T>(
 
 private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
+
+    // Structural views such as ForEach carry semantic identity in their GTK
+    // descriptor. Flattening them here makes repeated button payloads
+    // positional again, so a reused row can execute a sibling model's action.
+    if view is any GTKDescribable {
+        return [view]
+    }
 
     let mirror = Mirror(reflecting: view)
     if mirror.displayStyle == .optional {
@@ -707,6 +742,12 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
         }
     }
 
+    // Descriptor passes evaluate fresh view values independently of the
+    // mounted render pass. Prime injected environment wrappers before body
+    // creates deferred callbacks so those callbacks retain the scoped object
+    // after the descriptor environment has been restored.
+    primeInjectedEnvironmentObjects(view)
+
     if let describable = view as? GTKDescribable {
         return MainActor.assumeIsolated { describable.gtkDescribeNode() }
     }
@@ -718,10 +759,27 @@ public func gtkDescribeView<V: View>(_ view: V) -> GTK4DescriptorNode {
     }
     if hasReactiveProperties(view) {
         if V.Body.self != Never.self {
+            let child: GTK4DescriptorNode
+            let kind: GTK4DescriptorKind
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                kind = .composite
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                // The renderer creates a nested GTKViewHost for this view. Its
+                // lifecycle nodes stay available for retained-tree planning,
+                // but the parent host must not map or execute them.
+                kind = .statefulLifecycleScope
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
             return GTK4DescriptorNode(
-                kind: .composite,
+                kind: kind,
                 typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
-                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+                children: [child]
             )
         }
         return GTK4DescriptorNode(
@@ -927,7 +985,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
     case .frame:         return .frameLayout
     case .foregroundColor: return .foregroundColor
     case .hStack:        return .hStackLayout
-    case .listRowLifecycleScope: return .none
+    case .listRowLifecycleScope, .statefulLifecycleScope: return .none
     case .padding:       return .paddingLayout
     case .slider:
         guard case let .slider(oldSlider) = old.props,
@@ -943,6 +1001,7 @@ private func gtkUpdateIntent(old: GTK4DescriptorNode,
     case .zStack:        return .zStackLayout
     case .animated:      return .animatedTiming
     case .button:        return .none
+    case .menu:          return .none
     case .divider:       return .none
     case .font:          return .fontStyle
     case .offset:        return .offsetTransform
@@ -1425,6 +1484,26 @@ public func gtkCaptureButtonNativeSlots(
     return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
 }
 
+public func gtkCaptureMenuNativeSlots(
+    from widgetRoot: UnsafeMutablePointer<GtkWidget>,
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    executorRoot: GTK4RetainedExecutorNode
+) -> GTK4RetainedExecutorNode {
+    let menuDescriptors = gtkCollectMenuDescriptorIdentities(from: descriptorRoot)
+    var menuWidgets: [UnsafeMutablePointer<GtkWidget>] = []
+    gtkCollectSwiftUIMenuWidgets(from: widgetRoot, into: &menuWidgets)
+
+    guard menuDescriptors.count == menuWidgets.count else {
+        return executorRoot
+    }
+
+    var slotsByIdentity: [GTK4DescriptorIdentity: Int] = [:]
+    for (identity, widget) in zip(menuDescriptors, menuWidgets) {
+        slotsByIdentity[identity] = gtkNativeSlotID(for: widget)
+    }
+    return gtkAssignNativeSlots(executorRoot, slotsByIdentity: slotsByIdentity)
+}
+
 private func gtkCollectSupportedLeafDescriptors(
     from node: GTK4IdentifiedDescriptorNode
 ) -> [(identity: GTK4DescriptorIdentity, kind: GTK4DescriptorKind)] {
@@ -1469,6 +1548,25 @@ private func gtkCollectSwiftUIButtonWidgets(
     while let c = child {
         gtkCollectSwiftUIButtonWidgets(from: c, into: &result)
         child = gtk_widget_get_next_sibling(c)
+    }
+}
+
+private func gtkCollectSwiftUIMenuWidgets(
+    from widget: UnsafeMutablePointer<GtkWidget>,
+    into result: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    guard gtk_swift_is_widget(widget) != 0 else { return }
+    let gobject = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GObject.self)
+    if gtk_swift_widget_is_menu_button(widget) != 0,
+       g_object_get_data(gobject, gtkSwiftMenuOverlayModelKey) != nil {
+        result.append(widget)
+        return
+    }
+
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollectSwiftUIMenuWidgets(from: current, into: &result)
+        child = gtk_widget_get_next_sibling(current)
     }
 }
 
@@ -1637,7 +1735,12 @@ public func gtkOnAppearPayloadsByIdentity(
         from: descriptorRoot,
         includingListRowScopes: includingListRowScopes
     )
-    guard identities.count == payloads.count else { return [:] }
+    guard identities.count == payloads.count else {
+        gtkDescriptorLifecycleDebugLog(
+            "onAppear payload identity mismatch identities=\(identities.count) payloads=\(payloads.count)"
+        )
+        return [:]
+    }
 
     var result: [GTK4DescriptorIdentity: GTK4OnAppearPayload] = [:]
     for (identity, payload) in zip(identities, payloads) {
@@ -1654,6 +1757,20 @@ public func gtkButtonPayloadsByIdentity(
     guard identities.count == payloads.count else { return [:] }
 
     var result: [GTK4DescriptorIdentity: GTK4ButtonPayload] = [:]
+    for (identity, payload) in zip(identities, payloads) {
+        result[identity] = payload
+    }
+    return result
+}
+
+public func gtkMenuPayloadsByIdentity(
+    descriptorRoot: GTK4IdentifiedDescriptorNode,
+    payloads: [GTK4MenuPayload]
+) -> [GTK4DescriptorIdentity: GTK4MenuPayload] {
+    let identities = gtkCollectMenuDescriptorIdentities(from: descriptorRoot)
+    guard identities.count == payloads.count else { return [:] }
+
+    var result: [GTK4DescriptorIdentity: GTK4MenuPayload] = [:]
     for (identity, payload) in zip(identities, payloads) {
         result[identity] = payload
     }
@@ -1677,6 +1794,9 @@ private func gtkCollectTaskDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode,
     includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
     if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
         return []
     }
@@ -1709,6 +1829,9 @@ private func gtkCollectOnAppearDescriptorIdentities(
     from node: GTK4IdentifiedDescriptorNode,
     includingListRowScopes: Bool = true
 ) -> [GTK4DescriptorIdentity] {
+    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
     if node.descriptor.kind == .listRowLifecycleScope, !includingListRowScopes {
         return []
     }
@@ -1737,6 +1860,19 @@ private func gtkCollectButtonDescriptorIdentities(
     }
     for child in node.children {
         result.append(contentsOf: gtkCollectButtonDescriptorIdentities(from: child))
+    }
+    return result
+}
+
+private func gtkCollectMenuDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode
+) -> [GTK4DescriptorIdentity] {
+    var result: [GTK4DescriptorIdentity] = []
+    if node.descriptor.kind == .menu {
+        result.append(node.identity)
+    }
+    for child in node.children {
+        result.append(contentsOf: gtkCollectMenuDescriptorIdentities(from: child))
     }
     return result
 }

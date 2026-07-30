@@ -244,13 +244,23 @@ public struct QuillObservableMacro: MemberMacro, MemberAttributeMacro, Extension
 
         if variable.modifiers.contains(where: { modifier in
             let name = modifier.name.text
-            return name == "static" || name == "class" || name == "lazy" || name == "private"
+            return name == "static" || name == "class" || name == "lazy"
         }) {
             return false
         }
 
         guard let binding = variable.bindings.first else { return false }
-        return binding.accessorBlock == nil
+        switch binding.accessorBlock?.accessors {
+        case nil:
+            return true
+        case .accessors(let accessors):
+            return accessors.allSatisfy { accessor in
+                let specifier = accessor.accessorSpecifier.text
+                return specifier == "willSet" || specifier == "didSet"
+            }
+        case .getter:
+            return false
+        }
     }
 
     private static func isAttribute(_ element: AttributeListSyntax.Element, named name: String) -> Bool {

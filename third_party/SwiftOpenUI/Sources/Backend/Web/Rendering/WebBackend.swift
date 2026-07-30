@@ -77,6 +77,7 @@ public struct WebBackend: RenderBackend {
 
     public func run<A: App>(_ appType: A.Type) {
         let instance = A()
+        SwiftOpenUIAppLifecycle.appDidInitialize()
         webRenderScene(instance.body)
     }
 }

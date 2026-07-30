@@ -296,7 +296,7 @@ jobs:
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-picker scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-picker.png
 
       - name: Upstream IceCubes GTK authenticated Settings Display font-picker select smoke
-        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-picker-select scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-picker-selected.png
+        run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-font-picker-select QUILLUI_ICECUBES_VISUAL_TRACE_CLICKS=1 QUILLUI_ICECUBES_VISUAL_TRACE_WINDOWS=1 scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-font-picker-selected.png
 
       - name: Upstream IceCubes GTK authenticated Settings Display system-color smoke
         run: QUILLUI_ICECUBES_VISUAL_INTERACTION=seeded-authenticated-settings-display-system-color scripts/icecubes-linux-visual-check.sh .qa/icecubes-linux-authenticated-settings-display-system-color.png

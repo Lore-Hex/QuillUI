@@ -76,11 +76,26 @@ case "$REQUESTED_BACKEND" in
 # shared build dir, so on warm builds the probe flips TRUE and the
 # conformances vanish — unmodified `receive(on: DispatchQueue.main)` then
 # fails ("requires DispatchQueue conform to Scheduler") depending on build
-# history. Force clean-order semantics: drop the stale products so these
-# targets recompile before the Combine shim exists, keeping the probe FALSE
-# deterministically (matches what a clean CI build does).
+# history. Force clean-order semantics by invalidating compiled outputs while
+# retaining SwiftPM's output-file-map.json and sources metadata. Removing the
+# whole target directory leaves llbuild believing the target is current while
+# its output map is gone, which makes the next warm build fail before compile.
+# The missing object/module outputs still force both targets to recompile before
+# the Combine shim exists, keeping the probe FALSE deterministically.
 for ocd in OpenCombineDispatch OpenCombineFoundation; do
-    rm -rf "$SCRATCH_PATH"/*/debug/"$ocd".build            "$SCRATCH_PATH"/*/debug/Modules/"$ocd".swiftmodule            "$SCRATCH_PATH"/*/release/"$ocd".build            "$SCRATCH_PATH"/*/release/Modules/"$ocd".swiftmodule 2>/dev/null || true
+    for configuration in debug release; do
+        for build_dir in "$SCRATCH_PATH"/*/"$configuration"/"$ocd".build; do
+            [[ -d "$build_dir" ]] || continue
+            rm -f \
+                "$build_dir"/*.o \
+                "$build_dir"/*.swiftdeps \
+                "$build_dir"/*.swiftconstvalues \
+                "$build_dir"/*.d \
+                "$build_dir"/*.dia \
+                "$build_dir"/master.priors
+        done
+        rm -f "$SCRATCH_PATH"/*/"$configuration"/Modules/"$ocd".*
+    done
 done
 rm -f "$SCRATCH_PATH"/*/debug/Modules/Combine.swiftmodule       "$SCRATCH_PATH"/*/release/Modules/Combine.swiftmodule 2>/dev/null || true
     ;;

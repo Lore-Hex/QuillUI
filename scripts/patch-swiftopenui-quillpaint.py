@@ -354,6 +354,7 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
     if (
         "gtkFlushPendingTextBindingUpdate" in text
         and "func bindActionToCurrentEnvironment(_ action:" in text
+        and "private final class GTKDeferredAction<Value>" not in text
         and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
     ):
         if old_bound_action_flush not in text:
@@ -380,6 +381,7 @@ private func gtkFontDesignMarker(_ design: FontDesign) -> String? {
     if (
         "gtkFlushPendingTextBindingUpdate" in text
         and "func bindActionToCurrentEnvironment<T>" in text
+        and "private final class GTKDeferredAction<Value>" not in text
         and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
     ):
         if old_bound_value_action_flush not in text:

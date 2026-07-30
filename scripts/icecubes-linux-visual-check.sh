@@ -23,6 +23,8 @@ TYPE_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_TYPE_KEY_DELAY_MS:-25}"
 TYPE_INSTANCE_READY_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_TYPE_INSTANCE_READY_TIMEOUT_SECONDS:-20}"
 SIGN_IN_X="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_X:-410}"
 SIGN_IN_Y="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_Y:-256}"
+AUTH_TIMELINE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_X:-82}"
+AUTH_TIMELINE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_TIMELINE_Y:-78}"
 AUTH_TRENDING_X="${QUILLUI_ICECUBES_VISUAL_AUTH_TRENDING_X:-82}"
 AUTH_TRENDING_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_TRENDING_Y:-117}"
 AUTH_LOCAL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_LOCAL_X:-82}"
@@ -58,6 +60,8 @@ AUTH_MESSAGES_DETAIL_X="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_DETAIL_X:-360}"
 AUTH_MESSAGES_DETAIL_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_DETAIL_Y:-92}"
 AUTH_MESSAGES_DETAIL_READ_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v1/conversations/conversation-1001/read"
 AUTH_MESSAGES_DETAIL_CONTEXT_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/statuses/conversation-status-1001/context"
+AUTH_PUSH_SUBSCRIPTION_DELETE_LOG="[QuillURLSessionFixtures] direct DELETE https://mastodon.social/api/v1/push/subscription"
+AUTH_PUSH_SUBSCRIPTION_GET_LOG="[QuillURLSessionFixtures] direct GET https://mastodon.social/api/v1/push/subscription"
 AUTH_MESSAGES_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRIES:-5}"
 AUTH_MESSAGES_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_MESSAGES_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_PROFILE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_PROFILE_X:-82}"
@@ -76,21 +80,50 @@ AUTH_SETTINGS_DISPLAY_ROUTE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTI
 AUTH_SETTINGS_DISPLAY_CONTROLS_SCROLL_KEYS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_CONTROLS_SCROLL_KEYS:-Page_Down}"
 AUTH_SETTINGS_DISPLAY_CONTROLS_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_CONTROLS_KEY_DELAY_MS:-80}"
 AUTH_SETTINGS_CHILD_CLICK_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CHILD_CLICK_SETTLE_SECONDS:-0.25}"
-AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X:-526}"
-AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X:-720}"
-AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y:-582}"
+AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X:-}"
+AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X:-}"
+AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y:-}"
 AUTH_SETTINGS_DISPLAY_FONT_SCALE_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_SCALE_SETTLE_SECONDS:-0.8}"
-AUTH_SETTINGS_DISPLAY_FONT_PICKER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-420}"
-AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-532}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS:-0.3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES:-3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS:-0.25}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS:-End Return}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS:-80}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS:-0.8}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X:-282}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y:-216}"
 AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS:-0.8}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES:-3}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS:-0.5}"
+AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS:-0.5}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_X:-289}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_Y:-278}"
 AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_SYSTEM_COLOR_SETTLE_SECONDS:-0.8}"
+AUTH_ACCOUNT_SELECTOR_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_X:-5}"
+AUTH_ACCOUNT_SELECTOR_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_Y:-28}"
+AUTH_ACCOUNT_SELECTOR_ROW_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_ROW_X:-400}"
+AUTH_ACCOUNT_SELECTOR_ROW_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_ROW_Y:-149}"
+AUTH_ACCOUNT_SELECTOR_DONE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_DONE_X:-625}"
+AUTH_ACCOUNT_SELECTOR_DONE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_DONE_Y:-93}"
+AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS:-0.75}"
+AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES:-5}"
+AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CLICK_RETRIES:-5}"
+AUTH_SETTINGS_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CLICK_RETRY_SECONDS:-0.75}"
+AUTH_SETTINGS_CURRENT_ACCOUNT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CURRENT_ACCOUNT_X:-500}"
+AUTH_SETTINGS_CURRENT_ACCOUNT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_CURRENT_ACCOUNT_Y:-487}"
+AUTH_ACCOUNT_LOGOUT_X="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_X:-520}"
+AUTH_ACCOUNT_LOGOUT_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_Y:-487}"
+AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS:-0}"
+AUTH_ACCOUNT_PRIMARY_NAME="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_NAME:-zulu@mastodon.social}"
+AUTH_ACCOUNT_PRIMARY_TOKEN="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_TOKEN:-quillui-primary-token}"
+AUTH_ACCOUNT_PRIMARY_CREATED_AT="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_PRIMARY_CREATED_AT:-1700000002}"
+AUTH_ACCOUNT_SECONDARY_NAME="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_NAME:-alpha@mastodon.social}"
+AUTH_ACCOUNT_SECONDARY_TOKEN="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_TOKEN:-quillui-secondary-token}"
+AUTH_ACCOUNT_SECONDARY_CREATED_AT="${QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_SECONDARY_CREATED_AT:-1700000001}"
 AUTH_LIST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_X:-32}"
 AUTH_LIST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_Y:-586}"
 AUTH_LIST_REPAINT_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_LIST_REPAINT_SETTLE_SECONDS:-8}"
@@ -132,6 +165,9 @@ AUTH_COMPOSER_MEDIA_TOGGLE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_TOGG
 AUTH_COMPOSER_MEDIA_TOGGLE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_TOGGLE_Y:-598}"
 AUTH_COMPOSER_MEDIA_CLOSE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_X:-336}"
 AUTH_COMPOSER_MEDIA_CLOSE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_CLOSE_Y:-367}"
+AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS:-0.25}"
+AUTH_COMPOSER_CHILD_CLICK_RETRIES="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES:-3}"
+AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS:-0.75}"
 AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS:-1.0}"
 AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS:-0.75}"
 AUTH_COMPOSER_LIBRARY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_LIBRARY_X:-290}"
@@ -168,13 +204,18 @@ AUTH_STATUS_DETAIL_BOOKMARK_POST_LOG="POST https://mastodon.social/api/v1/status
 AUTH_STATUS_DETAIL_REPLY_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_X:-319}"
 AUTH_STATUS_DETAIL_REPLY_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_REPLY_Y:-436}"
 AUTH_STATUS_DETAIL_BOOST_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_X:-372}"
-AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-436}"
-AUTH_STATUS_DETAIL_BOOST_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y 360,$AUTH_STATUS_DETAIL_BOOST_Y 384,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,444 $AUTH_STATUS_DETAIL_BOOST_X,428 335,170 350,170}"
+AUTH_STATUS_DETAIL_BOOST_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_Y:-418}"
+AUTH_STATUS_DETAIL_BOOST_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,428 360,$AUTH_STATUS_DETAIL_BOOST_Y 384,$AUTH_STATUS_DETAIL_BOOST_Y}"
 AUTH_STATUS_DETAIL_BOOST_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_X:-425}"
 AUTH_STATUS_DETAIL_BOOST_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_Y:-530}"
-AUTH_STATUS_DETAIL_BOOST_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS:-$AUTH_STATUS_DETAIL_BOOST_MENU_X,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 400,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 450,$AUTH_STATUS_DETAIL_BOOST_MENU_Y $AUTH_STATUS_DETAIL_BOOST_MENU_X,520 $AUTH_STATUS_DETAIL_BOOST_MENU_X,540}"
+AUTH_STATUS_DETAIL_BOOST_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_BOOST_MENU_POINTS:-$AUTH_STATUS_DETAIL_BOOST_MENU_X,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 400,$AUTH_STATUS_DETAIL_BOOST_MENU_Y 450,$AUTH_STATUS_DETAIL_BOOST_MENU_Y}"
+AUTH_STATUS_DETAIL_QUOTE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_POINTS:-$AUTH_STATUS_DETAIL_BOOST_X,$AUTH_STATUS_DETAIL_BOOST_Y $AUTH_STATUS_DETAIL_BOOST_X,428 360,$AUTH_STATUS_DETAIL_BOOST_Y 384,$AUTH_STATUS_DETAIL_BOOST_Y}"
 AUTH_STATUS_DETAIL_QUOTE_MENU_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_X:-425}"
 AUTH_STATUS_DETAIL_QUOTE_MENU_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_Y:-568}"
+AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS:-$AUTH_STATUS_DETAIL_QUOTE_MENU_X,$AUTH_STATUS_DETAIL_QUOTE_MENU_Y 400,$AUTH_STATUS_DETAIL_QUOTE_MENU_Y 450,$AUTH_STATUS_DETAIL_QUOTE_MENU_Y}"
+AUTH_STATUS_DETAIL_MENU_OPEN_LOG="[QuillUI GTK] menu overlay opened"
+AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS:-2}"
+AUTH_STATUS_DETAIL_QUOTE_COMPOSE_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_COMPOSE_TIMEOUT_SECONDS:-4}"
 AUTH_STATUS_DETAIL_FAVORITE_X="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_X:-425}"
 AUTH_STATUS_DETAIL_FAVORITE_Y="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_Y:-436}"
 AUTH_STATUS_DETAIL_FAVORITE_POINTS="${QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_FAVORITE_POINTS:-$AUTH_STATUS_DETAIL_FAVORITE_X,$AUTH_STATUS_DETAIL_FAVORITE_Y 413,$AUTH_STATUS_DETAIL_FAVORITE_Y 437,$AUTH_STATUS_DETAIL_FAVORITE_Y $AUTH_STATUS_DETAIL_FAVORITE_X,444 398,444 398,170 412,170}"
@@ -196,6 +237,7 @@ SIGN_IN_OPEN_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SEC
 OPEN_URL_LOG_PATH="${QUILLUI_ICECUBES_VISUAL_OPEN_URL_LOG:-$(dirname "$SCREENSHOT_PATH")/icecubes-open-url.log}"
 OAUTH_CALLBACK_FILE_PATH="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_FILE:-$(dirname "$SCREENSHOT_PATH")/icecubes-web-auth-callback.txt}"
 OAUTH_CALLBACK_URL="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_URL:-icecubesapp://oauth?code=quill-oauth-code}"
+OAUTH_FAILURE_CALLBACK_URL="${QUILLUI_ICECUBES_VISUAL_OAUTH_FAILURE_CALLBACK_URL:-icecubesapp://oauth?code=quill-oauth-failure}"
 OAUTH_CALLBACK_TIMEOUT_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS:-25}"
 OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS="${QUILLUI_ICECUBES_VISUAL_OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS:-0.5}"
 OAUTH_APP_REGISTER_LOG="[QuillURLSessionFixtures] direct POST https://mastodon.social/api/v1/apps"
@@ -306,13 +348,7 @@ APP_CONFIG_HOME="$APP_HOME/.config"
 rm -rf "$QUILLDATA_HOME"
 mkdir -p "$QUILLDATA_HOME" "$APP_CONFIG_HOME"
 
-if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
-  seed_env=()
-  if [[ "$INTERACTION" == "seeded-authenticated-status-detail-bookmark" ]]; then
-    seed_env+=("QUILLUI_ICECUBES_SEED_STATUS_ACTION_SECONDARY=bookmark")
-  fi
-  mkdir -p "$(dirname "$KEYCHAIN_STORE_PATH")"
-  rm -f "$KEYCHAIN_STORE_PATH"
+run_icecubes_account_helper() {
   env \
     QUILLDATA_HOME="$QUILLDATA_HOME" \
     HOME="$APP_HOME" \
@@ -320,8 +356,102 @@ if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
     QUILLUI_KEYCHAINSWIFT_STORE_PATH="$KEYCHAIN_STORE_PATH" \
     QUILLUI_LINUX_BACKEND=gtk \
     QUILLUI_ICECUBES=1 \
-    "${seed_env[@]}" \
+    "$@"
+}
+
+seed_icecubes_account() {
+  local account_name="$1"
+  local access_token="$2"
+  local created_at="$3"
+
+  run_icecubes_account_helper \
+    QUILLUI_ICECUBES_SEED_ACCOUNT_NAME="$account_name" \
+    QUILLUI_ICECUBES_SEED_ACCESS_TOKEN="$access_token" \
+    QUILLUI_ICECUBES_SEED_CREATED_AT="$created_at" \
     "$SEED_EXECUTABLE"
+}
+
+verify_icecubes_account_snapshot() {
+  local expected_current_token="$1"
+  local expected_count="$2"
+  shift 2
+  local snapshot_path="$QUILLDATA_HOME/account-snapshot.json"
+
+  run_icecubes_account_helper \
+    QUILLUI_ICECUBES_SEED_OPERATION=inspect \
+    "$SEED_EXECUTABLE" >"$snapshot_path"
+
+  python3 - "$snapshot_path" "$expected_current_token" "$expected_count" "$@" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+expected_current_token = sys.argv[2]
+expected_count = int(sys.argv[3])
+expected_tokens = set(sys.argv[4:])
+lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+if not lines:
+    raise SystemExit(f"IceCubes account snapshot is empty: {path}")
+snapshot = json.loads(lines[-1])
+accounts = snapshot.get("accounts") or []
+if len(accounts) != expected_count:
+    raise SystemExit(f"Expected {expected_count} IceCubes accounts, found {len(accounts)}: {accounts!r}")
+
+tokens = {account.get("accessToken") for account in accounts}
+if tokens != expected_tokens:
+    raise SystemExit(f"IceCubes account token set mismatch: expected={expected_tokens!r} actual={tokens!r}")
+if snapshot.get("currentAccessToken") != expected_current_token:
+    raise SystemExit(
+        "IceCubes current account token mismatch: "
+        f"expected={expected_current_token!r} actual={snapshot.get('currentAccessToken')!r}"
+    )
+
+current_id = snapshot.get("currentAccountID")
+current_matches = [
+    account for account in accounts
+    if account.get("id") == current_id and account.get("accessToken") == expected_current_token
+]
+if len(current_matches) != 1:
+    raise SystemExit(f"IceCubes current account identity is inconsistent: {snapshot!r}")
+if len({account.get("id") for account in accounts}) != expected_count:
+    raise SystemExit(f"IceCubes account IDs are not unique: {accounts!r}")
+if any(account.get("server") != "mastodon.social" for account in accounts):
+    raise SystemExit(f"IceCubes account server mismatch: {accounts!r}")
+
+print(
+    "IceCubes account snapshot: "
+    f"current={expected_current_token}, accounts={sorted(expected_tokens)}"
+)
+PY
+}
+
+if [[ "$INTERACTION" == seeded-authenticated-* ]]; then
+  seed_env=()
+  if [[ "$INTERACTION" == "seeded-authenticated-status-detail-bookmark" ]]; then
+    seed_env+=("QUILLUI_ICECUBES_SEED_STATUS_ACTION_SECONDARY=bookmark")
+  fi
+  mkdir -p "$(dirname "$KEYCHAIN_STORE_PATH")"
+  rm -f "$KEYCHAIN_STORE_PATH"
+  if [[ "$INTERACTION" == "seeded-authenticated-account-lifecycle" ]]; then
+    # Seed the secondary account first so the unchanged manager's fallback
+    # order is deterministic after the selected account is removed.
+    seed_icecubes_account \
+      "$AUTH_ACCOUNT_SECONDARY_NAME" \
+      "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+      "$AUTH_ACCOUNT_SECONDARY_CREATED_AT"
+    seed_icecubes_account \
+      "$AUTH_ACCOUNT_PRIMARY_NAME" \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      "$AUTH_ACCOUNT_PRIMARY_CREATED_AT"
+    verify_icecubes_account_snapshot \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      2 \
+      "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+      "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+  else
+    run_icecubes_account_helper "${seed_env[@]}" "$SEED_EXECUTABLE"
+  fi
 fi
 
 app_env=()
@@ -335,7 +465,9 @@ if [[ -z "${QUILLUI_URLSESSION_FIXTURES_DEBUG:-}" ]]; then
     "QUILLUI_URLSESSION_FIXTURES_DEBUG=1"
   )
 fi
-if [[ "$INTERACTION" == "sign-in-open" || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == "sign-in-open" \
+  || "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   mkdir -p "$(dirname "$OPEN_URL_LOG_PATH")"
   rm -f "$OPEN_URL_LOG_PATH"
   app_env+=(
@@ -343,7 +475,8 @@ if [[ "$INTERACTION" == "sign-in-open" || "$INTERACTION" == "sign-in-callback-pe
     "QUILLUI_OPEN_URL_LOG_ASSUME_HANDLED=1"
   )
 fi
-if [[ "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   mkdir -p "$(dirname "$OAUTH_CALLBACK_FILE_PATH")"
   rm -f "$OAUTH_CALLBACK_FILE_PATH"
   : >"$OAUTH_CALLBACK_FILE_PATH"
@@ -351,12 +484,25 @@ if [[ "$INTERACTION" == "sign-in-callback-persistence" ]]; then
     "QUILLUI_WEB_AUTH_CALLBACK_FILE=$OAUTH_CALLBACK_FILE_PATH"
   )
 fi
-if [[ "$INTERACTION" == seeded-authenticated-* || "$INTERACTION" == "sign-in-callback-persistence" ]]; then
+if [[ "$INTERACTION" == seeded-authenticated-* \
+  || "$INTERACTION" == "sign-in-callback-persistence" \
+  || "$INTERACTION" == "sign-in-failure-recovery" ]]; then
   app_env+=(
     "QUILLUI_KEYCHAINSWIFT_STORE_PATH=$KEYCHAIN_STORE_PATH"
   )
 fi
 if [[ "$INTERACTION" == "seeded-authenticated-media-viewer" ]]; then
+  app_env+=(
+    "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
+  )
+fi
+if [[ "$CLICK_TRACE" == "1" ]]; then
+  app_env+=(
+    "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
+  )
+fi
+if [[ "$INTERACTION" == "seeded-authenticated-status-detail-boost" \
+  || "$INTERACTION" == "seeded-authenticated-status-detail-quote" ]]; then
   app_env+=(
     "QUILLUI_GTK_DEBUG_ACTIONS=${QUILLUI_GTK_DEBUG_ACTIONS:-1}"
   )
@@ -428,6 +574,21 @@ start_icecubes_app() {
   trace_visual_windows_for_pid "$trace_label-visible"
 }
 
+stop_icecubes_app() {
+  local pid="${app_pid:-}"
+  [[ -n "$pid" ]] || return 0
+
+  quillui_stop_process_if_running "$pid"
+  for _ in $(seq 1 50); do
+    if ! kill -0 "$pid" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 0.1
+  done
+  wait "$pid" 2>/dev/null || true
+  app_pid=""
+}
+
 start_icecubes_app truncate initial
 if [[ -z "$INITIAL_SETTLE_SECONDS" ]]; then
   if [[ -n "$SETTLE_SECONDS" ]]; then
@@ -464,15 +625,21 @@ click_screen_point() {
   local x="$1"
   local y="$2"
   local label="${3:-screen}"
+  local settle_seconds="${4:-$CLICK_SETTLE_SECONDS}"
 
   if [[ "$CLICK_TRACE" == "1" ]]; then
     echo "IceCubes visual click: $label screen=${x},${y}" >&2
   fi
-  DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$x" "$y"
-  sleep "$CLICK_SETTLE_SECONDS"
-  DISPLAY="$DISPLAY_ID" xdotool mousedown 1
-  sleep "$CLICK_HOLD_SECONDS"
-  DISPLAY="$DISPLAY_ID" xdotool mouseup 1
+  # Keep motion, press, hold, and release on one XTest connection. Splitting
+  # the sequence across short-lived xdotool processes can drop the matching
+  # release on loaded Xvfb runners even though the pointer and focus are both
+  # correct, leaving a native GtkButton visibly untouched.
+  DISPLAY="$DISPLAY_ID" xdotool \
+    mousemove --sync "$x" "$y" \
+    sleep "$settle_seconds" \
+    mousedown 1 \
+    sleep "$CLICK_HOLD_SECONDS" \
+    mouseup 1
 }
 
 click_app_window_point() {
@@ -523,6 +690,49 @@ click_app_window_relative_screen_point() {
   # Menu popovers are focus-sensitive: raising/focusing the main window for
   # the second click can dismiss the popover before the item receives it.
   click_screen_point "$((window_x + x))" "$((window_y + y))" "relative-screen@${x},${y}"
+}
+
+click_app_window_point_with_fresh_focus() {
+  local x="$1"
+  local y="$2"
+  local focus_settle_seconds="$3"
+  local pointer_settle_seconds="$4"
+  local key value window_x=0 window_y=0 focused_window_id=""
+
+  DISPLAY="$DISPLAY_ID" xdotool windowraise "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowactivate --sync "$window_id" 2>/dev/null || true
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      X) window_x="$value" ;;
+      Y) window_y="$value" ;;
+    esac
+  done < <(DISPLAY="$DISPLAY_ID" xdotool getwindowgeometry --shell "$window_id")
+
+  # CI may consume a synthetic child-control press while transitioning the
+  # toplevel into an active pointer state. A harmless press in empty titlebar
+  # content clears that transition before the actual control receives input.
+  if [[ "$CLICK_FOCUS_PRIME" == "1" ]]; then
+    click_screen_point \
+      "$((window_x + CLICK_FOCUS_PRIME_X))" \
+      "$((window_y + CLICK_FOCUS_PRIME_Y))" \
+      "fresh-focus-prime window@${CLICK_FOCUS_PRIME_X},${CLICK_FOCUS_PRIME_Y}"
+    click_focus_primed=1
+  fi
+  DISPLAY="$DISPLAY_ID" xdotool windowfocus --sync "$window_id" 2>/dev/null || true
+  sleep "$focus_settle_seconds"
+
+  if [[ "$CLICK_TRACE" == "1" ]]; then
+    focused_window_id="$(DISPLAY="$DISPLAY_ID" xdotool getwindowfocus 2>/dev/null || true)"
+    echo "IceCubes visual focus: expected=$window_id actual=${focused_window_id:-unknown}" >&2
+  fi
+
+  click_screen_point \
+    "$((window_x + x))" \
+    "$((window_y + y))" \
+    "fresh-focus-window@${x},${y}" \
+    "$pointer_settle_seconds"
 }
 
 click_capture_window_point() {
@@ -903,18 +1113,22 @@ submit_authenticated_composer_text() {
 }
 
 verify_oauth_open_url_log() {
-  python3 - "$OPEN_URL_LOG_PATH" <<'PY'
+  local minimum_count="${1:-1}"
+  python3 - "$OPEN_URL_LOG_PATH" "$minimum_count" <<'PY'
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 path = Path(sys.argv[1])
+minimum_count = int(sys.argv[2])
 if not path.exists() or path.stat().st_size == 0:
     raise SystemExit(f"IceCubes OAuth open URL log was not written: {path}")
 
 urls = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-if not urls:
-    raise SystemExit(f"IceCubes OAuth open URL log is empty: {path}")
+if len(urls) < minimum_count:
+    raise SystemExit(
+        f"IceCubes OAuth open URL log has {len(urls)} entries; expected at least {minimum_count}: {path}"
+    )
 
 url = urls[-1]
 parsed = urlparse(url)
@@ -938,6 +1152,7 @@ PY
 
 wait_for_oauth_open_url_log() {
   local retry_click="${1:-0}"
+  local minimum_count="${2:-1}"
   case "$SIGN_IN_OPEN_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_SIGN_IN_OPEN_TIMEOUT_SECONDS must be a non-negative integer, got: $SIGN_IN_OPEN_TIMEOUT_SECONDS" >&2
@@ -950,7 +1165,7 @@ wait_for_oauth_open_url_log() {
   next_retry_click=$((SECONDS + 2))
   output=""
   while true; do
-    if output="$(verify_oauth_open_url_log 2>&1)"; then
+    if output="$(verify_oauth_open_url_log "$minimum_count" 2>&1)"; then
       printf '%s\n' "$output"
       return 0
     fi
@@ -965,6 +1180,14 @@ wait_for_oauth_open_url_log() {
     fi
     sleep 0.5
   done
+}
+
+count_oauth_open_url_entries() {
+  if [[ -f "$OPEN_URL_LOG_PATH" ]]; then
+    grep -cve '^[[:space:]]*$' "$OPEN_URL_LOG_PATH" || true
+  else
+    echo 0
+  fi
 }
 
 wait_for_authenticated_timeline_activity() {
@@ -1068,6 +1291,7 @@ wait_for_authenticated_api_activity() {
 }
 
 deliver_oauth_callback() {
+  local callback_url="${1:-$OAUTH_CALLBACK_URL}"
   case "$OAUTH_CALLBACK_TIMEOUT_SECONDS" in
     ''|*[!0-9]*)
       echo "QUILLUI_ICECUBES_VISUAL_OAUTH_CALLBACK_TIMEOUT_SECONDS must be a non-negative integer, got: $OAUTH_CALLBACK_TIMEOUT_SECONDS" >&2
@@ -1075,14 +1299,16 @@ deliver_oauth_callback() {
       ;;
   esac
 
-  printf '%s\n' "$OAUTH_CALLBACK_URL" >>"$OAUTH_CALLBACK_FILE_PATH"
+  printf '%s\n' "$callback_url" >>"$OAUTH_CALLBACK_FILE_PATH"
 }
 
 wait_for_oauth_callback_completion() {
+  local minimum_token_count="${1:-1}"
+  local minimum_verify_count="${2:-1}"
   local deadline=$((SECONDS + OAUTH_CALLBACK_TIMEOUT_SECONDS))
   while true; do
-    if (( $(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG") >= 1 )) \
-      && (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= 1 )); then
+    if (( $(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG") >= minimum_token_count )) \
+      && (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= minimum_verify_count )); then
       return 0
     fi
     if ! kill -0 "$app_pid" >/dev/null 2>&1; then
@@ -1097,6 +1323,37 @@ wait_for_oauth_callback_completion() {
     fi
     sleep 0.25
   done
+}
+
+verify_no_persisted_oauth_accounts() {
+  python3 - "$KEYCHAIN_STORE_PATH" <<'PY'
+import base64
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.exists() or path.stat().st_size == 0:
+    print(f"IceCubes OAuth failure left no account store at {path}")
+    raise SystemExit(0)
+
+records = json.loads(path.read_text(encoding="utf-8"))
+accounts = []
+for record in records:
+    encoded = record.get("value", {}).get("data")
+    if not encoded:
+        continue
+    try:
+        payload = json.loads(base64.b64decode(encoded).decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, json.JSONDecodeError):
+        continue
+    if isinstance(payload, dict) and payload.get("oauthToken"):
+        accounts.append(payload)
+
+if accounts:
+    raise SystemExit(f"IceCubes OAuth failure unexpectedly persisted accounts: {accounts!r}")
+print(f"IceCubes OAuth failure persisted zero accounts in {path}")
+PY
 }
 
 verify_persisted_oauth_account() {
@@ -1147,7 +1404,7 @@ relaunch_icecubes_with_persisted_oauth_account() {
   local previous_home_count
   previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
 
-  quillui_stop_process_if_running "$app_pid"
+  stop_icecubes_app
   printf '\n[QuillUIIceCubesHarness] persisted OAuth relaunch\n' >>"$APP_LOG_PATH"
   start_icecubes_app append oauth-relaunch
   sleep "$OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS"
@@ -1162,16 +1419,17 @@ relaunch_icecubes_with_persisted_oauth_account() {
 
 wait_for_authenticated_compose_surface() {
   local verify_product="${1:-icecubes-linux-authenticated-composer}"
+  local timeout_seconds="${2:-$AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS}"
 
-  case "$AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS" in
+  case "$timeout_seconds" in
     ''|*[!0-9]*)
-      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS must be a non-negative integer, got: $AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS" >&2
+      echo "Composer readiness timeout must be a non-negative integer, got: $timeout_seconds" >&2
       exit 2
       ;;
   esac
 
   local deadline candidate output probe_path
-  deadline="$(($(date +%s) + AUTH_COMPOSE_WINDOW_TIMEOUT_SECONDS))"
+  deadline="$(($(date +%s) + timeout_seconds))"
   output=""
   probe_path="${SCREENSHOT_PATH%.*}.composer-ready.png"
   while true; do
@@ -1245,6 +1503,9 @@ open_authenticated_composer_surface() {
   while true; do
     click_app_window_point "$AUTH_COMPOSE_X" "$AUTH_COMPOSE_Y"
     if wait_for_authenticated_compose_surface; then
+      # The root overlay can become visually ready one GTK frame before its
+      # descendant controls finish remounting after background timeline work.
+      sleep "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS"
       return 0
     fi
 
@@ -1259,19 +1520,87 @@ open_authenticated_composer_surface() {
   done
 }
 
+click_until_authenticated_compose_surface() {
+  local expected_product="$1"
+  local current_product="$2"
+  local target_x="$3"
+  local target_y="$4"
+  local settle_seconds="$5"
+  local label="$6"
+  local attempt=1
+
+  case "$AUTH_COMPOSER_CHILD_CLICK_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSER_CHILD_CLICK_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_COMPOSER_CHILD_CLICK_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_COMPOSER_CHILD_CLICK_RETRIES must be a positive integer, got: $AUTH_COMPOSER_CHILD_CLICK_RETRIES" >&2
+    exit 2
+  fi
+
+  while true; do
+    click_capture_window_point "$target_x" "$target_y"
+    sleep "$settle_seconds"
+
+    if wait_for_authenticated_compose_surface "$expected_product" 0 2>/dev/null; then
+      return 0
+    fi
+
+    # GTK can consume a synthetic press while focusing a newly mounted child.
+    # Retry only while screenshot verification proves the previous composer
+    # surface is unchanged, so an in-flight transition cannot be clicked twice.
+    if ! wait_for_authenticated_compose_surface "$current_product" 0 >/dev/null 2>&1; then
+      break
+    fi
+    if ((attempt >= AUTH_COMPOSER_CHILD_CLICK_RETRIES)); then
+      break
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_COMPOSER_CHILD_CLICK_RETRY_SECONDS"
+
+    # Recheck after the grace period immediately before another press. This
+    # closes the interval where an expected surface can finish mounting after
+    # the first screenshots but before a retry reaches the window.
+    if wait_for_authenticated_compose_surface "$expected_product" 0 2>/dev/null; then
+      return 0
+    fi
+    if ! wait_for_authenticated_compose_surface "$current_product" 0 >/dev/null 2>&1; then
+      break
+    fi
+  done
+
+  if ! wait_for_authenticated_compose_surface "$expected_product"; then
+    echo "IceCubes $label did not reach its expected composer surface after $attempt click attempt(s)." >&2
+    return 1
+  fi
+}
+
 open_authenticated_composer_media_panel() {
   open_authenticated_composer_surface
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_TOGGLE_X" "$AUTH_COMPOSER_MEDIA_TOGGLE_Y"
-  sleep "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-panel"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-panel" \
+    "icecubes-linux-authenticated-composer-media-panel-closed" \
+    "$AUTH_COMPOSER_MEDIA_TOGGLE_X" \
+    "$AUTH_COMPOSER_MEDIA_TOGGLE_Y" \
+    "$AUTH_COMPOSER_MEDIA_PANEL_SETTLE_SECONDS" \
+    "authenticated composer media panel"
 }
 
 attach_authenticated_composer_image() {
-  local previous_download_count previous_upload_count
+  local current_upload_count previous_download_count previous_upload_count
 
-  open_authenticated_composer_media_panel
   previous_upload_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG")"
   previous_download_count="$(count_app_log_occurrences "$AUTH_COMPOSER_MEDIA_DOWNLOAD_LOG")"
+  open_authenticated_composer_media_panel
+  current_upload_count="$(count_app_log_exact_occurrences "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG")"
+  if ((current_upload_count != previous_upload_count)); then
+    echo "IceCubes composer media-panel transition unexpectedly activated the Library action." >&2
+    quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+    exit 1
+  fi
   click_capture_window_point "$AUTH_COMPOSER_LIBRARY_X" "$AUTH_COMPOSER_LIBRARY_Y"
   wait_for_app_log_exact_activity \
     "$AUTH_COMPOSER_MEDIA_UPLOAD_LOG" \
@@ -1282,14 +1611,24 @@ attach_authenticated_composer_image() {
     "authenticated composer media download" \
     "$((previous_download_count + 1))"
   sleep "$AUTH_COMPOSER_MEDIA_UPLOAD_SETTLE_SECONDS"
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_CLOSE_X" "$AUTH_COMPOSER_MEDIA_CLOSE_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "icecubes-linux-authenticated-composer-media-panel" \
+    "$AUTH_COMPOSER_MEDIA_CLOSE_X" \
+    "$AUTH_COMPOSER_MEDIA_CLOSE_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media panel dismissal"
 }
 
 open_authenticated_composer_media_alt_editor() {
   attach_authenticated_composer_image
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-editor"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-alt-editor" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_ALT_X" \
+    "$AUTH_COMPOSER_MEDIA_ALT_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media ALT editor"
 }
 
 edit_authenticated_composer_media_alt_text() {
@@ -1320,14 +1659,24 @@ edit_authenticated_composer_media_alt_text() {
     "$((previous_update_count + 1))"
   wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-attachment"
 
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_ALT_X" "$AUTH_COMPOSER_MEDIA_ALT_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-alt-saved"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-alt-saved" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_ALT_X" \
+    "$AUTH_COMPOSER_MEDIA_ALT_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer saved media ALT editor"
 }
 
 delete_authenticated_composer_image() {
   attach_authenticated_composer_image
-  click_capture_window_point "$AUTH_COMPOSER_MEDIA_DELETE_X" "$AUTH_COMPOSER_MEDIA_DELETE_Y"
-  wait_for_authenticated_compose_surface "icecubes-linux-authenticated-composer-media-deleted"
+  click_until_authenticated_compose_surface \
+    "icecubes-linux-authenticated-composer-media-deleted" \
+    "icecubes-linux-authenticated-composer-media-attachment" \
+    "$AUTH_COMPOSER_MEDIA_DELETE_X" \
+    "$AUTH_COMPOSER_MEDIA_DELETE_Y" \
+    "$AUTH_COMPOSER_CHILD_CLICK_SETTLE_SECONDS" \
+    "authenticated composer media deletion"
 }
 
 click_authenticated_list_sidebar_row() {
@@ -1413,6 +1762,15 @@ wait_for_authenticated_route_visual() {
     fi
     sleep 0.5
   done
+}
+
+authenticated_route_visual_is_ready() {
+  local product="$1"
+  local probe_path="${SCREENSHOT_PATH%.*}.${product}-ready.png"
+
+  kill -0 "$app_pid" >/dev/null 2>&1 || return 1
+  DISPLAY="$DISPLAY_ID" timeout 10 import -window "$window_id" "$probe_path" >/dev/null 2>&1 || return 1
+  "$ROOT_DIR/scripts/verify-backend-screenshot.py" "$probe_path" "$product" >/dev/null 2>&1
 }
 
 should_retry_final_visual_capture() {
@@ -1664,9 +2022,62 @@ click_authenticated_status_detail_row() {
   return 1
 }
 
+wait_for_authenticated_status_detail_menu_open() {
+  local expected_count="$1"
+  local deadline
+
+  case "$AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS must be a non-negative integer, got: $AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS" >&2
+      exit 2
+      ;;
+  esac
+
+  deadline=$((SECONDS + AUTH_STATUS_DETAIL_MENU_OPEN_TIMEOUT_SECONDS))
+  while true; do
+    if (( $(count_app_log_occurrences "$AUTH_STATUS_DETAIL_MENU_OPEN_LOG") >= expected_count )); then
+      return 0
+    fi
+    if ! kill -0 "$app_pid" >/dev/null 2>&1; then
+      return 1
+    fi
+    if (( SECONDS >= deadline )); then
+      return 1
+    fi
+    sleep 0.1
+  done
+}
+
+authenticated_status_detail_menu_item_point() {
+  local item_index="$1"
+  local line root_panel coordinates size panel_x panel_y panel_width
+
+  line="$(rg -F "$AUTH_STATUS_DETAIL_MENU_OPEN_LOG" "$APP_LOG_PATH" 2>/dev/null | tail -n 1 || true)"
+  if [[ "$line" != *" rootPanel="* ]]; then
+    return 1
+  fi
+  root_panel="${line##* rootPanel=}"
+  coordinates="${root_panel%% *}"
+  size="${root_panel#* }"
+  size="${size%% *}"
+  if [[ "$coordinates" != *,* || "$size" != *x* ]]; then
+    return 1
+  fi
+  panel_x="${coordinates%,*}"
+  panel_y="${coordinates#*,}"
+  panel_width="${size%%x*}"
+  case "$item_index:$panel_x:$panel_y:$panel_width" in
+    *[!0-9:]*) return 1 ;;
+  esac
+
+  printf '%s,%s\n' \
+    "$((panel_x + panel_width / 2))" \
+    "$((panel_y + 24 + item_index * 48))"
+}
+
 click_authenticated_status_detail_boost_action() {
   local expected_boost_count="$1"
-  local action_point menu_point point_x point_y menu_x menu_y
+  local action_point menu_point point_x point_y menu_x menu_y menu_open_count dynamic_menu_point
 
   for action_point in $AUTH_STATUS_DETAIL_BOOST_POINTS; do
     if [[ "$action_point" != *,* ]]; then
@@ -1708,13 +2119,22 @@ click_authenticated_status_detail_boost_action() {
           ;;
       esac
 
+      menu_open_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_MENU_OPEN_LOG")"
       click_app_window_point "$point_x" "$point_y"
       sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
       if [[ -n "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT:-}" ]]; then
         DISPLAY="$DISPLAY_ID" import -window root "$QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SCREENSHOT"
       fi
+      if ! wait_for_authenticated_status_detail_menu_open "$((menu_open_count + 1))"; then
+        continue
+      fi
       if [[ "${QUILLUI_ICECUBES_VISUAL_EXIT_AFTER_BOOST_MENU_OPEN:-0}" == "1" ]]; then
         exit 0
+      fi
+      dynamic_menu_point="$(authenticated_status_detail_menu_item_point 0 || true)"
+      if [[ -n "$dynamic_menu_point" ]]; then
+        menu_x="${dynamic_menu_point%,*}"
+        menu_y="${dynamic_menu_point#*,}"
       fi
       if (( $(count_app_log_occurrences "POST https://mastodon.social/api/v1/statuses/1003/reblog") >= expected_boost_count )); then
         return 0
@@ -1731,23 +2151,69 @@ click_authenticated_status_detail_boost_action() {
 }
 
 click_authenticated_status_detail_quote_action() {
-  local y menu_y
+  local action_point menu_point point_x point_y menu_x menu_y menu_open_count dynamic_menu_point
 
-  for layout in media legacy; do
-    if [[ "$layout" == "media" ]]; then
-      y="$AUTH_STATUS_DETAIL_BOOST_Y"
-      menu_y="$AUTH_STATUS_DETAIL_QUOTE_MENU_Y"
-    else
-      y="170"
-      menu_y="258"
+  for action_point in $AUTH_STATUS_DETAIL_QUOTE_POINTS; do
+    if [[ "$action_point" != *,* ]]; then
+      echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_POINTS entry: $action_point" >&2
+      exit 2
     fi
+    point_x="${action_point%,*}"
+    point_y="${action_point#*,}"
+    case "$point_x" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_POINTS entry: $action_point" >&2
+        exit 2
+        ;;
+    esac
+    case "$point_y" in
+      ''|*[!0-9]*)
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_POINTS entry: $action_point" >&2
+        exit 2
+        ;;
+    esac
 
-    click_app_window_point "$AUTH_STATUS_DETAIL_BOOST_X" "$y"
-    sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
-    click_app_window_relative_screen_point "$AUTH_STATUS_DETAIL_QUOTE_MENU_X" "$menu_y"
-    if wait_for_authenticated_compose_surface; then
-      return 0
-    fi
+    for menu_point in $AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS; do
+      if [[ "$menu_point" != *,* ]]; then
+        echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS entry: $menu_point" >&2
+        exit 2
+      fi
+      menu_x="${menu_point%,*}"
+      menu_y="${menu_point#*,}"
+      case "$menu_x" in
+        ''|*[!0-9]*)
+          echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS entry: $menu_point" >&2
+          exit 2
+          ;;
+      esac
+      case "$menu_y" in
+        ''|*[!0-9]*)
+          echo "Invalid QUILLUI_ICECUBES_VISUAL_AUTH_STATUS_DETAIL_QUOTE_MENU_POINTS entry: $menu_point" >&2
+          exit 2
+          ;;
+      esac
+
+      menu_open_count="$(count_app_log_occurrences "$AUTH_STATUS_DETAIL_MENU_OPEN_LOG")"
+      click_app_window_point "$point_x" "$point_y"
+      sleep "${QUILLUI_ICECUBES_VISUAL_BOOST_MENU_OPEN_SETTLE_SECONDS:-0.2}"
+      if ! wait_for_authenticated_status_detail_menu_open "$((menu_open_count + 1))"; then
+        continue
+      fi
+      dynamic_menu_point="$(authenticated_status_detail_menu_item_point 1 || true)"
+      if [[ -n "$dynamic_menu_point" ]]; then
+        menu_x="${dynamic_menu_point%,*}"
+        menu_y="${dynamic_menu_point#*,}"
+      fi
+
+      click_app_window_relative_screen_point "$menu_x" "$menu_y"
+      if wait_for_authenticated_compose_surface \
+        "icecubes-linux-authenticated-composer" \
+        "$AUTH_STATUS_DETAIL_QUOTE_COMPOSE_TIMEOUT_SECONDS"; then
+        return 0
+      fi
+      DISPLAY="$DISPLAY_ID" xdotool key --clearmodifiers Escape 2>/dev/null || true
+      sleep "${QUILLUI_ICECUBES_VISUAL_STATUS_ACTION_SETTLE_SECONDS:-0.75}"
+    done
   done
 
   return 1
@@ -1906,12 +2372,10 @@ open_authenticated_explore_route() {
 open_authenticated_notifications_route() {
   wait_for_authenticated_timeline_activity
   wait_for_authenticated_home_row_visual
-  local previous_notifications_count previous_notifications_refresh_count
+  local previous_notifications_count
   previous_notifications_count="$(count_app_log_occurrences "$AUTH_NOTIFICATIONS_INITIAL_ENDPOINT")"
-  previous_notifications_refresh_count="$(count_app_log_occurrences "$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT")"
   click_app_window_point "$AUTH_NOTIFICATIONS_X" "$AUTH_NOTIFICATIONS_Y"
   wait_for_authenticated_api_activity "$AUTH_NOTIFICATIONS_INITIAL_ENDPOINT" "authenticated Notifications sidebar navigation" "$((previous_notifications_count + 1))"
-  wait_for_authenticated_api_activity "$AUTH_NOTIFICATIONS_REFRESH_ENDPOINT" "authenticated Notifications display refresh" "$((previous_notifications_refresh_count + 1))"
 }
 
 open_authenticated_messages_route() {
@@ -1952,8 +2416,155 @@ open_authenticated_list_route() {
 open_authenticated_settings_route() {
   wait_for_authenticated_timeline_activity
   wait_for_authenticated_home_row_visual
-  click_app_window_point "$AUTH_SETTINGS_X" "$AUTH_SETTINGS_Y"
+  local attempt
+  for attempt in $(seq 1 "$AUTH_SETTINGS_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_SETTINGS_X" "$AUTH_SETTINGS_Y"
+    sleep "$AUTH_SETTINGS_CLICK_RETRY_SECONDS"
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings"; then
+      break
+    fi
+  done
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-settings" "authenticated Settings route"
+}
+
+open_authenticated_account_selector() {
+  wait_for_authenticated_timeline_activity
+  wait_for_authenticated_home_row_visual
+  local previous_verify_count
+  previous_verify_count="$(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG")"
+  local expected_verify_count attempt
+  expected_verify_count="$((previous_verify_count + 2))"
+  for attempt in $(seq 1 "$AUTH_ACCOUNT_SELECTOR_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_ACCOUNT_SELECTOR_X" "$AUTH_ACCOUNT_SELECTOR_Y"
+    sleep "$AUTH_ACCOUNT_SELECTOR_CLICK_RETRY_SECONDS"
+    if (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") >= expected_verify_count )); then
+      break
+    fi
+  done
+  wait_for_app_log_exact_activity \
+    "$OAUTH_VERIFY_CREDENTIALS_LOG" \
+    "account-selector credential refresh" \
+    "$expected_verify_count"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-selector" \
+    "authenticated account selector"
+}
+
+dismiss_authenticated_account_selector() {
+  click_app_window_point "$AUTH_ACCOUNT_SELECTOR_DONE_X" "$AUTH_ACCOUNT_SELECTOR_DONE_Y"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-shell" \
+    "authenticated shell after account-selector dismissal"
+}
+
+switch_authenticated_account() {
+  local previous_home_count
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+  click_app_window_point "$AUTH_ACCOUNT_SELECTOR_ROW_X" "$AUTH_ACCOUNT_SELECTOR_ROW_Y"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "account-switch Home timeline rebuild" \
+    "$((previous_home_count + 1))"
+  sleep "$AUTH_ACCOUNT_SELECTOR_SETTLE_SECONDS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-shell" \
+    "authenticated shell after account switch"
+  verify_icecubes_account_snapshot \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+    2 \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+}
+
+relaunch_icecubes_for_account() {
+  local expected_current_token="$1"
+  local expected_count="$2"
+  local trace_label="$3"
+  shift 3
+  local previous_home_count
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+
+  stop_icecubes_app
+  verify_icecubes_account_snapshot "$expected_current_token" "$expected_count" "$@"
+  printf '\n[QuillUIIceCubesHarness] %s relaunch\n' "$trace_label" >>"$APP_LOG_PATH"
+  start_icecubes_app append "$trace_label"
+  sleep "$OAUTH_RELAUNCH_INITIAL_SETTLE_SECONDS"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "$trace_label authenticated relaunch" \
+    "$((previous_home_count + 1))"
+  wait_for_authenticated_home_row_visual
+}
+
+open_authenticated_current_account_settings() {
+  open_authenticated_settings_route
+  sleep "$AUTH_SETTINGS_CHILD_CLICK_SETTLE_SECONDS"
+  local attempt
+  for attempt in $(seq 1 "$AUTH_SETTINGS_CLICK_RETRIES"); do
+    click_app_window_point "$AUTH_SETTINGS_CURRENT_ACCOUNT_X" "$AUTH_SETTINGS_CURRENT_ACCOUNT_Y"
+    sleep "$AUTH_SETTINGS_CLICK_RETRY_SECONDS"
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-account-settings"; then
+      break
+    fi
+  done
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-settings" \
+    "authenticated current-account settings"
+}
+
+remove_authenticated_current_account() {
+  local previous_delete_count previous_get_count previous_home_count
+  previous_delete_count="$(count_app_log_exact_occurrences "$AUTH_PUSH_SUBSCRIPTION_DELETE_LOG")"
+  previous_get_count="$(count_app_log_exact_occurrences "$AUTH_PUSH_SUBSCRIPTION_GET_LOG")"
+  scroll_authenticated_settings_content \
+    "$AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS" \
+    "QUILLUI_ICECUBES_VISUAL_AUTH_ACCOUNT_LOGOUT_SCROLL_CLICKS"
+  wait_for_authenticated_route_visual \
+    "icecubes-linux-authenticated-account-settings" \
+    "authenticated current-account logout action"
+  click_app_window_point "$AUTH_ACCOUNT_LOGOUT_X" "$AUTH_ACCOUNT_LOGOUT_Y"
+  wait_for_app_log_exact_activity \
+    "$AUTH_PUSH_SUBSCRIPTION_DELETE_LOG" \
+    "current-account push-subscription deletion" \
+    "$((previous_delete_count + 1))"
+  wait_for_app_log_exact_activity \
+    "$AUTH_PUSH_SUBSCRIPTION_GET_LOG" \
+    "current-account push-subscription deletion confirmation" \
+    "$((previous_get_count + 1))"
+
+  previous_home_count="$(count_app_log_occurrences "/api/v1/timelines/home")"
+  click_app_window_point "$AUTH_TIMELINE_X" "$AUTH_TIMELINE_Y"
+  wait_for_authenticated_api_activity \
+    "/api/v1/timelines/home" \
+    "fallback-account Home timeline" \
+    "$((previous_home_count + 1))"
+  wait_for_authenticated_home_row_visual
+}
+
+run_authenticated_account_lifecycle() {
+  wait_for_authenticated_timeline_activity
+  wait_for_authenticated_home_row_visual
+  open_authenticated_account_selector
+  switch_authenticated_account
+  relaunch_icecubes_for_account \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN" \
+    2 \
+    account-switch \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    "$AUTH_ACCOUNT_SECONDARY_TOKEN"
+  open_authenticated_current_account_settings
+  remove_authenticated_current_account
+  relaunch_icecubes_for_account \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    1 \
+    account-removal-fallback \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN"
+  verify_icecubes_account_snapshot \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN" \
+    1 \
+    "$AUTH_ACCOUNT_PRIMARY_TOKEN"
 }
 
 scroll_authenticated_settings_content() {
@@ -1992,9 +2603,22 @@ open_authenticated_settings_display_route() {
     --delay "$AUTH_SETTINGS_DISPLAY_CONTROLS_KEY_DELAY_MS" \
     --clearmodifiers "${settings_display_scroll_keys[@]}"
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-settings-display" "authenticated Settings Display route"
+  sleep "$AUTH_SETTINGS_CHILD_CLICK_SETTLE_SECONDS"
 }
 
 drag_authenticated_settings_display_font_scale() {
+  local detected_start_x detected_end_x detected_y probe_path
+  probe_path="${SCREENSHOT_PATH%.*}.icecubes-linux-authenticated-settings-display-ready.png"
+  read -r detected_start_x detected_end_x detected_y < <(
+    "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$probe_path" \
+      "icecubes-linux-authenticated-settings-display-font-scale-control"
+  )
+
+  AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X="${AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X:-$detected_start_x}"
+  AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X="${AUTH_SETTINGS_DISPLAY_FONT_SCALE_END_X:-$detected_end_x}"
+  AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y="${AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y:-$detected_y}"
+
   DISPLAY="$DISPLAY_ID" xdotool mousemove --sync "$AUTH_SETTINGS_DISPLAY_FONT_SCALE_START_X" "$AUTH_SETTINGS_DISPLAY_FONT_SCALE_Y"
   sleep "$CLICK_HOLD_SECONDS"
   DISPLAY="$DISPLAY_ID" xdotool mousedown 1
@@ -2011,21 +2635,117 @@ toggle_authenticated_settings_display_system_color() {
 }
 
 select_authenticated_settings_display_font_picker() {
-  click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y"
+  local attempt=1 detected_slider_y probe_path
+  probe_path="${SCREENSHOT_PATH%.*}.icecubes-linux-authenticated-settings-display-ready.png"
+  read -r _ _ detected_slider_y < <(
+    "$ROOT_DIR/scripts/verify-backend-screenshot.py" \
+      "$probe_path" \
+      "icecubes-linux-authenticated-settings-display-font-scale-control"
+  )
+
+  # The picker is the control row immediately above the font-scale slider.
+  # Deriving its vertical position from the rendered track keeps the click
+  # stable when GTK restores a different scroll offset between launches.
+  AUTH_SETTINGS_DISPLAY_FONT_PICKER_X="${AUTH_SETTINGS_DISPLAY_FONT_PICKER_X:-420}"
+  AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y="${AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y:-$((detected_slider_y - 50))}"
+
+  case "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES" >&2
+    exit 2
+  fi
+
   read -r -a font_picker_keys <<<"$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS"
   if ((${#font_picker_keys[@]} == 0)); then
     echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEYS must contain at least one xdotool key name." >&2
     exit 1
   fi
-  DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS" --clearmodifiers "${font_picker_keys[@]}"
-  sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS"
+
+  while true; do
+    click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_Y"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_SETTLE_SECONDS"
+    DISPLAY="$DISPLAY_ID" xdotool key --delay "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_KEY_DELAY_MS" --clearmodifiers "${font_picker_keys[@]}"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SETTLE_SECONDS"
+
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
+
+    # A focused GTK window can consume the first synthetic pointer press.
+    # Retry the complete focus-and-keyboard activation only while the unchanged
+    # Display form is still visible; an in-flight route transition must not
+    # receive another click.
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display"; then
+      return 0
+    fi
+    if ((attempt >= AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRIES)); then
+      return 0
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_OPEN_RETRY_SECONDS"
+  done
 }
 
 select_authenticated_settings_display_font_picker_inter() {
+  local attempt=1
+
   select_authenticated_settings_display_font_picker
   wait_for_authenticated_route_visual "icecubes-linux-authenticated-settings-display-font-picker" "authenticated Settings Display font-picker route"
-  click_app_window_point "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y"
-  sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
+
+  case "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" in
+    ''|*[!0-9]*)
+      echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" >&2
+      exit 2
+      ;;
+  esac
+  if ((AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES <= 0)); then
+    echo "QUILLUI_ICECUBES_VISUAL_AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES must be a positive integer, got: $AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES" >&2
+    exit 2
+  fi
+
+  while true; do
+    # Re-establish both X input focus and GTK's active pointer state after each
+    # screenshot check. GitHub runners can otherwise consume the Inter press as
+    # the toplevel's focus transition even though the picker remains visible.
+    click_app_window_point_with_fresh_focus \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_X" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_INTER_Y" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_FOCUS_SETTLE_SECONDS" \
+      "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_POINTER_SETTLE_SECONDS"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_SETTLE_SECONDS"
+
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
+      return 0
+    fi
+
+    # A focused GTK window can consume the first synthetic pointer press.
+    # Retry only while the picker is still visible so a successful dismissal
+    # cannot click an unrelated control in the underlying Display form.
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
+    if ((attempt >= AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRIES)); then
+      return 0
+    fi
+
+    attempt="$((attempt + 1))"
+    sleep "$AUTH_SETTINGS_DISPLAY_FONT_PICKER_SELECT_RETRY_SECONDS"
+
+    # Recheck after the grace period immediately before another press so a
+    # late dismissal cannot receive a second click in the Display form.
+    if authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker-selected"; then
+      return 0
+    fi
+    if ! authenticated_route_visual_is_ready "icecubes-linux-authenticated-settings-display-font-picker"; then
+      return 0
+    fi
+  done
 }
 
 scroll_authenticated_timeline_for_pagination() {
@@ -2176,10 +2896,54 @@ case "$INTERACTION" in
     verify_persisted_oauth_account
     relaunch_icecubes_with_persisted_oauth_account
     ;;
+  sign-in-failure-recovery)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
+    type_instance_name
+    wait_for_add_account_selected_instance_visual
+    previous_token_exchange_count="$(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG")"
+    previous_verify_credentials_count="$(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG")"
+    click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+    wait_for_oauth_open_url_log retry-click
+    wait_for_app_log_exact_activity "$OAUTH_APP_REGISTER_LOG" "failed OAuth app registration"
+    deliver_oauth_callback "$OAUTH_FAILURE_CALLBACK_URL"
+    wait_for_app_log_exact_activity \
+      "$OAUTH_TOKEN_EXCHANGE_LOG" \
+      "failed OAuth token exchange" \
+      "$((previous_token_exchange_count + 1))"
+    sleep 0.75
+    if (( $(count_app_log_exact_occurrences "$OAUTH_VERIFY_CREDENTIALS_LOG") != previous_verify_credentials_count )); then
+      echo "IceCubes unexpectedly verified credentials after the rejected OAuth token exchange." >&2
+      quillui_print_backend_app_log_tail "$APP_LOG_PATH" 120
+      exit 1
+    fi
+    verify_no_persisted_oauth_accounts
+    wait_for_add_account_selected_instance_visual
+
+    previous_oauth_url_count="$(count_oauth_open_url_entries)"
+    previous_app_register_count="$(count_app_log_exact_occurrences "$OAUTH_APP_REGISTER_LOG")"
+    previous_token_exchange_count="$(count_app_log_exact_occurrences "$OAUTH_TOKEN_EXCHANGE_LOG")"
+    click_app_window_point "$SIGN_IN_X" "$SIGN_IN_Y"
+    wait_for_oauth_open_url_log 0 "$((previous_oauth_url_count + 1))"
+    wait_for_app_log_exact_activity \
+      "$OAUTH_APP_REGISTER_LOG" \
+      "retried OAuth app registration" \
+      "$((previous_app_register_count + 1))"
+    deliver_oauth_callback "$OAUTH_CALLBACK_URL"
+    wait_for_oauth_callback_completion \
+      "$((previous_token_exchange_count + 1))" \
+      "$((previous_verify_credentials_count + 1))"
+    wait_for_authenticated_timeline_activity
+    wait_for_authenticated_home_row_visual
+    verify_persisted_oauth_account
+    ;;
   seeded-authenticated-shell)
     VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
     wait_for_authenticated_timeline_activity
     wait_for_authenticated_home_row_visual
+    ;;
+  seeded-authenticated-account-lifecycle)
+    VERIFY_PRODUCT="icecubes-linux-authenticated-shell"
+    run_authenticated_account_lifecycle
     ;;
   seeded-authenticated-home-pagination)
     VERIFY_PRODUCT="icecubes-linux-authenticated-home-pagination"
@@ -2428,6 +3192,10 @@ case "$INTERACTION" in
     if ! click_authenticated_status_detail_boost_action "$((previous_boost_count + 1))"; then
       wait_for_authenticated_api_activity "POST https://mastodon.social/api/v1/statuses/1003/reblog" "authenticated status boost action" "$((previous_boost_count + 1))"
     fi
+    if rg -q 'POST https://mastodon\.social/api/v1/statuses/(999|1001)/reblog' "$APP_LOG_PATH"; then
+      echo "IceCubes status detail boost targeted a non-visible status." >&2
+      exit 1
+    fi
     wait_for_authenticated_status_detail_action_accounts "$((previous_favorited_by_count + 1))" "$((previous_reblogged_by_count + 1))"
     ;;
   seeded-authenticated-status-detail-quote)
@@ -2479,10 +3247,8 @@ if [[ -z "$SETTLE_SECONDS" ]]; then
       SETTLE_SECONDS="0"
       ;;
     sign-in-callback-persistence|seeded-authenticated-home-pagination|seeded-authenticated-home-refresh|seeded-authenticated-explore|seeded-authenticated-explore-links|seeded-authenticated-explore-posts|seeded-authenticated-explore-tags|seeded-authenticated-explore-suggested-users|seeded-authenticated-explore-search|seeded-authenticated-notifications|seeded-authenticated-notifications-refresh|seeded-authenticated-profile|seeded-authenticated-messages|seeded-authenticated-messages-refresh|seeded-authenticated-messages-detail|seeded-authenticated-list|seeded-authenticated-list-refresh|seeded-authenticated-settings|seeded-authenticated-settings-display|seeded-authenticated-settings-display-font-scale|seeded-authenticated-settings-display-font-picker|seeded-authenticated-settings-display-font-picker-select|seeded-authenticated-settings-display-system-color|seeded-authenticated-composer|seeded-authenticated-composer-type|seeded-authenticated-composer-submit|seeded-authenticated-composer-media-panel|seeded-authenticated-composer-media-attachment|seeded-authenticated-composer-media-alt-editor|seeded-authenticated-composer-media-alt-edit|seeded-authenticated-composer-media-delete|seeded-authenticated-status-detail|seeded-authenticated-status-detail-refresh|seeded-authenticated-status-detail-reply|seeded-authenticated-status-detail-boost|seeded-authenticated-status-detail-quote|seeded-authenticated-status-detail-favorite|seeded-authenticated-status-detail-bookmark|seeded-authenticated-media-viewer)
-      # Notifications has a separate data-source repaint after selection. The
-      # route-specific wait above observes IceCubes' post-display refresh (or
-      # status-detail/context fetch), so
-      # only leave enough time for GTK to paint the populated row.
+      # Route-specific waits observe the final data request. Leave only enough
+      # time for GTK to paint the populated route.
       SETTLE_SECONDS="0.5"
       ;;
     seeded-authenticated-*)

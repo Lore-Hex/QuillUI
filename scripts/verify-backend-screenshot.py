@@ -4733,6 +4733,78 @@ def validate_icecubes_linux_add_account_instance(image: Screenshot) -> str:
     )
 
 
+def validate_icecubes_linux_authenticated_account_selector(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        f"IceCubes account selector window has unexpected size: {app_width}x{app_height}",
+    )
+
+    title_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.38),
+        top + 68,
+        left + int(app_width * 0.62),
+        top + 116,
+    )
+    done_pixels = dark_pixel_count(
+        image,
+        left + int(app_width * 0.70),
+        top + 68,
+        left + int(app_width * 0.84),
+        top + 116,
+    )
+    first_account_pixels = dark_pixel_count(
+        image, left + 36, top + 120, right - 24, top + 179
+    )
+    second_account_pixels = dark_pixel_count(
+        image, left + 36, top + 179, right - 24, top + 231
+    )
+    action_bands = [
+        dark_pixel_count(image, left + 36, top + 231, right - 24, top + 294),
+        dark_pixel_count(image, left + 36, top + 294, right - 24, top + 358),
+        dark_pixel_count(image, left + 36, top + 358, right - 24, top + 414),
+        dark_pixel_count(image, left + 36, top + 414, right - 24, top + 478),
+    ]
+    panel_surface_pixels = pixel_count(
+        image,
+        left + 20,
+        top + 66,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(title_pixels >= 55, f"IceCubes account selector title was not detected: pixels={title_pixels}")
+    require(done_pixels >= 80, f"IceCubes account selector Done action was not detected: pixels={done_pixels}")
+    require(
+        first_account_pixels >= 140 and second_account_pixels >= 140,
+        "IceCubes account selector did not render two account rows: "
+        f"rows={first_account_pixels}/{second_account_pixels}",
+    )
+    require(
+        min(action_bands) >= 65,
+        f"IceCubes account selector action rows are incomplete: bands={action_bands}",
+    )
+    require(
+        panel_surface_pixels >= 250_000,
+        f"IceCubes account selector panel surface was not detected: pixels={panel_surface_pixels}",
+    )
+
+    return (
+        "IceCubes account selector: "
+        f"app={app_width}x{app_height}, "
+        f"title_pixels={title_pixels}, "
+        f"done_pixels={done_pixels}, "
+        f"account_rows={first_account_pixels}/{second_account_pixels}, "
+        f"action_bands={action_bands}, "
+        f"panel_surface_pixels={panel_surface_pixels}"
+    )
+
+
 def icecubes_authenticated_media_block_metrics(image: Screenshot) -> tuple[int, int, int]:
     left, right, top, bottom = content_bounds(image)
     media_pixels = pixel_count(
@@ -6875,6 +6947,128 @@ def validate_icecubes_linux_authenticated_settings(image: Screenshot) -> str:
     )
 
 
+def validate_icecubes_linux_authenticated_account_settings(image: Screenshot) -> str:
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+
+    require(
+        760 <= app_width <= 1120 and app_height >= 620,
+        "IceCubes authenticated Account Settings window has unexpected size: "
+        f"{app_width}x{app_height}",
+    )
+
+    titlebar_pixels = pixel_count(
+        image,
+        left,
+        top,
+        right,
+        top + 52,
+        icecubes_authenticated_titlebar_pixel,
+    )
+    settings_selected_pixels = pixel_count(
+        image,
+        left + 8,
+        top + 604,
+        left + 240,
+        top + 648,
+        icecubes_sidebar_selected_pixel,
+    )
+    settings_label_pixels = dark_pixel_count(
+        image,
+        left + 28,
+        top + 610,
+        left + 150,
+        top + 642,
+    )
+    back_button_pixels = dark_pixel_count(
+        image,
+        left + 8,
+        top + 4,
+        left + 78,
+        top + 48,
+    )
+    account_identity_pixels = dark_pixel_count(
+        image,
+        left + 365,
+        top,
+        left + 455,
+        top + 48,
+    )
+    action_bands = [
+        dark_pixel_count(image, left + 250, top + 56, right - 20, top + 124),
+        dark_pixel_count(image, left + 250, top + 124, right - 20, top + 180),
+        dark_pixel_count(image, left + 250, top + 180, right - 20, top + 248),
+        dark_pixel_count(image, left + 250, top + 248, right - 20, top + 310),
+        dark_pixel_count(image, left + 250, top + 326, right - 20, top + 386),
+        dark_pixel_count(image, left + 250, top + 400, right - 20, top + 460),
+    ]
+    account_form_pixels = dark_pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+    )
+    account_surface_pixels = pixel_count(
+        image,
+        left + 250,
+        top + 56,
+        right - 20,
+        bottom - 20,
+        icecubes_authenticated_content_surface_pixel,
+    )
+
+    require(
+        titlebar_pixels >= 25_000,
+        "IceCubes authenticated Account Settings titlebar chrome was not detected: "
+        f"pixels={titlebar_pixels}",
+    )
+    require(
+        settings_selected_pixels >= 5_000 and settings_label_pixels >= 120,
+        "IceCubes authenticated Account Settings did not preserve the selected Settings route: "
+        f"selected={settings_selected_pixels}, label={settings_label_pixels}",
+    )
+    require(
+        back_button_pixels >= 55,
+        "IceCubes authenticated Account Settings Back action was not detected: "
+        f"pixels={back_button_pixels}",
+    )
+    require(
+        account_identity_pixels >= 500,
+        "IceCubes authenticated Account Settings account identity was not detected: "
+        f"pixels={account_identity_pixels}",
+    )
+    require(
+        min(action_bands) >= 120,
+        "IceCubes authenticated Account Settings action rows are incomplete: "
+        f"bands={action_bands}",
+    )
+    require(
+        account_form_pixels >= 1_300,
+        "IceCubes authenticated Account Settings form was not detected: "
+        f"pixels={account_form_pixels}",
+    )
+    require(
+        account_surface_pixels >= 250_000,
+        "IceCubes authenticated Account Settings content surface was not detected: "
+        f"pixels={account_surface_pixels}",
+    )
+
+    return (
+        "IceCubes authenticated Account Settings: "
+        f"app={app_width}x{app_height}, "
+        f"titlebar_pixels={titlebar_pixels}, "
+        f"settings_selected_pixels={settings_selected_pixels}, "
+        f"settings_label_pixels={settings_label_pixels}, "
+        f"back_button_pixels={back_button_pixels}, "
+        f"account_identity_pixels={account_identity_pixels}, "
+        f"action_bands={action_bands}, "
+        f"account_form_pixels={account_form_pixels}, "
+        f"account_surface_pixels={account_surface_pixels}"
+    )
+
+
 def validate_icecubes_linux_authenticated_settings_display(
     image: Screenshot,
     *,
@@ -7115,6 +7309,33 @@ def validate_icecubes_linux_authenticated_settings_display_font_scale(image: Scr
         + f"font_scale_slider_right_accent_pixels={slider_right_accent_pixels}, "
         + f"font_scale_slider_left_accent_pixels={slider_left_accent_pixels}"
     )
+
+
+def locate_icecubes_linux_authenticated_settings_display_font_scale_control(image: Screenshot) -> str:
+    validate_icecubes_linux_authenticated_settings_display(image)
+    left, right, top, bottom = content_bounds(image)
+    candidates: list[tuple[int, int, Segment]] = []
+
+    for y in range(top + 520, bottom - 24):
+        for segment in image.segments_at(
+            y,
+            left + 260,
+            right - 36,
+            icecubes_authenticated_accent_pixel,
+            min_width=80,
+        ):
+            candidates.append((segment.width, y, segment))
+
+    require(candidates, "IceCubes authenticated Settings Display font-scale track could not be located")
+    _, slider_y, active_track = max(candidates, key=lambda candidate: candidate[0])
+    start_x = active_track.end + 1
+    end_x = right - 88
+    require(
+        end_x >= start_x + 80,
+        "IceCubes authenticated Settings Display font-scale track has insufficient drag range: "
+        f"start_x={start_x}, end_x={end_x}, y={slider_y}",
+    )
+    return f"{start_x} {end_x} {slider_y}"
 
 
 def validate_icecubes_linux_authenticated_settings_display_font_picker(image: Screenshot) -> str:
@@ -7562,6 +7783,28 @@ def validate_icecubes_linux_authenticated_composer_media_panel(image: Screenshot
         + f"media_panel_thumbnail_pixels={thumbnail_pixels}, "
         + f"media_panel_action_pixels={panel_action_pixels}"
     )
+
+
+def validate_icecubes_linux_authenticated_composer_media_panel_closed(image: Screenshot) -> str:
+    baseline = validate_icecubes_linux_authenticated_composer(image)
+    left, right, top, bottom = content_bounds(image)
+    app_width = right - left + 1
+    app_height = bottom - top + 1
+    thumbnail_pixels = pixel_count(
+        image,
+        left + int(app_width * 0.24),
+        top + int(app_height * 0.52),
+        right - int(app_width * 0.24),
+        bottom - 64,
+        icecubes_media_pixel,
+    )
+
+    require(
+        thumbnail_pixels <= 5_000,
+        "IceCubes authenticated composer media panel has started opening: "
+        f"thumbnail_pixels={thumbnail_pixels}",
+    )
+    return baseline + ", " + f"media_panel_closed_thumbnail_pixels={thumbnail_pixels}"
 
 
 def validate_icecubes_linux_authenticated_composer_media_alt_editor(
@@ -8657,6 +8900,7 @@ def main() -> int:
     compact_icecubes_dialog_product = product in {
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel-closed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
         "icecubes-linux-authenticated-composer-media-alt-editor",
@@ -8679,6 +8923,7 @@ def main() -> int:
     icecubes_upstream_product = product in {
         "icecubes-linux-add-account",
         "icecubes-linux-add-account-instance",
+        "icecubes-linux-authenticated-account-selector",
         "icecubes-linux-authenticated-shell",
         "icecubes-linux-authenticated-home-row-ready",
         "icecubes-linux-authenticated-trending",
@@ -8698,13 +8943,16 @@ def main() -> int:
         "icecubes-linux-authenticated-messages-detail",
         "icecubes-linux-authenticated-list",
         "icecubes-linux-authenticated-settings",
+        "icecubes-linux-authenticated-account-settings",
         "icecubes-linux-authenticated-settings-display",
         "icecubes-linux-authenticated-settings-display-font-scale",
+        "icecubes-linux-authenticated-settings-display-font-scale-control",
         "icecubes-linux-authenticated-settings-display-font-picker",
         "icecubes-linux-authenticated-settings-display-font-picker-selected",
         "icecubes-linux-authenticated-settings-display-system-color",
         "icecubes-linux-authenticated-composer",
         "icecubes-linux-authenticated-composer-typed",
+        "icecubes-linux-authenticated-composer-media-panel-closed",
         "icecubes-linux-authenticated-composer-media-panel",
         "icecubes-linux-authenticated-composer-media-attachment",
         "icecubes-linux-authenticated-composer-media-alt-editor",
@@ -8760,6 +9008,10 @@ def main() -> int:
         image.stddev > minimum_stddev,
         f"Screenshot appears visually flat: standard-deviation={image.stddev:.1f}",
     )
+
+    if product == "icecubes-linux-authenticated-settings-display-font-scale-control":
+        print(locate_icecubes_linux_authenticated_settings_display_font_scale_control(image))
+        return 0
 
     print(
         f"Visual smoke screenshot: {path} "
@@ -8921,6 +9173,8 @@ def main() -> int:
         print(validate_icecubes_linux_add_account(image))
     elif product == "icecubes-linux-add-account-instance":
         print(validate_icecubes_linux_add_account_instance(image))
+    elif product == "icecubes-linux-authenticated-account-selector":
+        print(validate_icecubes_linux_authenticated_account_selector(image))
     elif product == "icecubes-linux-authenticated-shell":
         print(validate_icecubes_linux_authenticated_shell(image))
     elif product == "icecubes-linux-authenticated-home-row-ready":
@@ -8963,6 +9217,8 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_list(image))
     elif product == "icecubes-linux-authenticated-settings":
         print(validate_icecubes_linux_authenticated_settings(image))
+    elif product == "icecubes-linux-authenticated-account-settings":
+        print(validate_icecubes_linux_authenticated_account_settings(image))
     elif product == "icecubes-linux-authenticated-settings-display":
         print(validate_icecubes_linux_authenticated_settings_display(image))
     elif product == "icecubes-linux-authenticated-settings-display-font-scale":
@@ -8977,6 +9233,8 @@ def main() -> int:
         print(validate_icecubes_linux_authenticated_composer(image))
     elif product == "icecubes-linux-authenticated-composer-typed":
         print(validate_icecubes_linux_authenticated_composer(image, typed=True))
+    elif product == "icecubes-linux-authenticated-composer-media-panel-closed":
+        print(validate_icecubes_linux_authenticated_composer_media_panel_closed(image))
     elif product == "icecubes-linux-authenticated-composer-media-panel":
         print(validate_icecubes_linux_authenticated_composer_media_panel(image))
     elif product == "icecubes-linux-authenticated-composer-media-attachment":

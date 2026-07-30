@@ -708,6 +708,7 @@ public struct Win32Backend: RenderBackend {
         setCurrentEnvironment(env)
 
         let instance = A()
+        SwiftOpenUIAppLifecycle.appDidInitialize()
         let scene = instance.body
         win32RenderScene(scene, hInstance: hInstance)
 

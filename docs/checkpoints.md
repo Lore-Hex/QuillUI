@@ -3484,3 +3484,43 @@ drafts, autocomplete, post-result routing, and exact macOS visual parity remain
 open. Qt and Win32 compile with a fill-frame fallback for
 `containerRelativeFrame`; native count/span allocation remains future backend
 work.
+
+## Checkpoint 209: IceCubes Composer Text Rebuild Integrity
+
+Status: implemented locally; guarded by source hygiene, hermetic patch replay,
+focused Linux GTK lifecycle tests, and the real upstream authenticated composer
+smoke.
+
+GTK text controls now debounce through per-control update sources associated
+with the owning `GTKViewHost`. Before a host rebuild mutates or remounts its
+native tree, it commits only its own pending edit. This preserves typed text
+across unrelated SwiftUI state changes and keeps simultaneous fields
+independent even when their values share a prefix. `TextField`, multiline
+fields, `SecureField`, `TextEditor`, and searchable controls all use the same
+generic scheduler, and the build patcher reconstructs that implementation from
+the pre-fix SwiftOpenUI source.
+
+The unchanged upstream IceCubes
+`seeded-authenticated-composer-type` route rendered all of
+`quilluiinputprobe` and the correct `483` remaining-character counter under
+Docker/GTK. The new Linux tests also force a full `TextEditor` remount after
+every character and exercise two prefix-related fields. No IceCubes source
+change is part of this checkpoint.
+
+## Checkpoint 210: Visible GTK Refresh Shortcut Routing
+
+Status: implemented locally; guarded by source hygiene, hermetic SwiftOpenUI
+patch replay, a focused Linux GTK stack regression, and the real upstream
+authenticated status-detail refresh smoke.
+
+The window shortcut registry now supports live registration availability and
+selects the newest enabled match. GTK refresh actions report availability from
+their widget's mapped state, so a refreshable view retained on a hidden
+`GtkStack` page cannot intercept Ctrl-R from the visible destination. Registry
+callbacks are evaluated outside the registry lock, allowing backend visibility
+checks and stale-registration cleanup without deadlock.
+
+The unchanged upstream IceCubes status-detail route now refreshes the visible
+detail body and issues the expected status and context requests instead of
+refreshing the hidden Home timeline. No IceCubes source change is part of this
+checkpoint.

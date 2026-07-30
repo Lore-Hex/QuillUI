@@ -3654,7 +3654,29 @@ public class UIApplicationShortcutItem: NSObject {
 // SignalServiceKit's `import UserNotifications` no longer collides with a second
 // declaration here (the ambiguity that blocked the notifications presenter).
 
-@MainActor public protocol UIApplicationDelegate: AnyObject {}
+@MainActor public protocol UIApplicationDelegate: AnyObject {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool
+}
+
+public extension UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        _ = (application, launchOptions)
+        return true
+    }
+}
+
+/// Construction bridge used by SwiftUI's Linux UIApplicationDelegateAdaptor.
+/// The generic source lowerer adds this conformance and factory to unchanged
+/// UIApplicationDelegate classes that can be initialized without arguments.
+@MainActor public protocol QuillUIApplicationDelegateFactory {
+    static func quillMakeUIApplicationDelegate() -> any UIApplicationDelegate
+}
 
 public extension UIApplicationDelegate {
     static func main() {}

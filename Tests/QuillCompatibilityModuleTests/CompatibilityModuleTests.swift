@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -41,6 +42,29 @@ import Magnet
 import Sparkle
 import ServiceManagement
 @_spi(QuillTesting) import QuillUI
+
+private let observableAppStorageSuiteName = "org.quillui.tests.observable-app-storage"
+private let observableAppStorageKey = "latestCurrentAccountKey"
+
+@MainActor
+@Observable
+private final class ObservableAppStorageProbe {
+    @AppStorage(
+        observableAppStorageKey,
+        store: UserDefaults(suiteName: observableAppStorageSuiteName)
+    )
+    static var latestValue = ""
+
+    var currentValue: String {
+        didSet {
+            Self.latestValue = currentValue
+        }
+    }
+
+    init(currentValue: String) {
+        self.currentValue = currentValue
+    }
+}
 
 private struct CompatibilityFixedLayout: Layout {
     let width: CGFloat
@@ -86,6 +110,26 @@ private struct CompatibilityLayoutPaintProbe: View {
                     )
             }
         }
+    }
+}
+
+@MainActor
+private final class CompatibilityApplicationDelegate: UIResponder, UIApplicationDelegate,
+    QuillUIApplicationDelegateFactory
+{
+    static var launchCount = 0
+
+    static func quillMakeUIApplicationDelegate() -> any UIApplicationDelegate {
+        CompatibilityApplicationDelegate()
+    }
+
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
+        _ = (application, launchOptions)
+        Self.launchCount += 1
+        return true
     }
 }
 
@@ -626,6 +670,22 @@ struct CompatibilityModuleTests {
         appendUInt32(dataByteCount)
         data.append(contentsOf: repeatElement(UInt8(0), count: Int(dataByteCount)))
         return data
+    }
+
+    @Test("UIApplicationDelegateAdaptor launches after complete app initialization")
+    func uiApplicationDelegateAdaptorLaunchesDelegate() {
+        CompatibilityApplicationDelegate.launchCount = 0
+
+        let adaptor = UIApplicationDelegateAdaptor<CompatibilityApplicationDelegate>()
+
+        #expect(CompatibilityApplicationDelegate.launchCount == 0)
+        #expect(type(of: adaptor.wrappedValue) == CompatibilityApplicationDelegate.self)
+
+        SwiftOpenUIAppLifecycle.appDidInitialize()
+        #expect(CompatibilityApplicationDelegate.launchCount == 1)
+
+        SwiftOpenUIAppLifecycle.appDidInitialize()
+        #expect(CompatibilityApplicationDelegate.launchCount == 1)
     }
 
     @Test("SwiftUI and SwiftData module aliases expose Quill APIs")
@@ -4257,6 +4317,31 @@ struct CompatibilityModuleTests {
     }
 
     // MARK: - AppStorage round-trip
+
+    @Test("AppStorage persists custom-suite writes from Observable property observers")
+    @MainActor
+    func appStoragePersistsObservablePropertyObserverWrites() {
+        let defaults = UserDefaults(suiteName: observableAppStorageSuiteName)!
+        defaults.removeObject(forKey: observableAppStorageKey)
+        defer {
+            defaults.removeObject(forKey: observableAppStorageKey)
+            ObservableAppStorageProbe.latestValue = ""
+        }
+
+        ObservableAppStorageProbe.latestValue = "primary"
+        let probe = ObservableAppStorageProbe(currentValue: "primary")
+        probe.currentValue = "secondary"
+
+        #expect(ObservableAppStorageProbe.latestValue == "secondary")
+        #expect(defaults.string(forKey: observableAppStorageKey) == "secondary")
+        #expect(
+            AppStorage(
+                wrappedValue: "fallback",
+                observableAppStorageKey,
+                store: UserDefaults(suiteName: observableAppStorageSuiteName)
+            ).wrappedValue == "secondary"
+        )
+    }
 
     @Test("AppStorage persists values across reads for every supported scalar type")
     func appStorageRoundTripsScalarValues() {

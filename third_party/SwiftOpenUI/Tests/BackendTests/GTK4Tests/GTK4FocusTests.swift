@@ -233,6 +233,82 @@ final class GTK4FocusTests: XCTestCase {
         XCTAssertEqual(text, "hello from linux")
     }
 
+    func testDifferentTextInputsCannotReplaceEachOthersPendingWrites() throws {
+        try requireGTK()
+        defer { gtkFlushPendingTextBindingUpdate() }
+
+        var first = ""
+        var second = ""
+        let widget = widgetFromOpaque(gtkRenderView(
+            VStack {
+                TextField("First", text: Binding(get: { first }, set: { first = $0 }))
+                TextField("Second", text: Binding(get: { second }, set: { second = $0 }))
+            }
+        ))
+        let fields = collectEditableWidgets(in: widget).filter {
+            widgetTypeName($0) == "GtkEntry"
+        }
+        XCTAssertEqual(fields.count, 2)
+
+        // These values intentionally share a prefix. The old value-heuristic
+        // treated them as edits from one field and silently discarded `first`.
+        gtk_editable_set_text(OpaquePointer(fields[0]), "quill")
+        gtk_editable_set_text(OpaquePointer(fields[1]), "quillui")
+        gtkFlushPendingTextBindingUpdate()
+
+        XCTAssertEqual(first, "quill")
+        XCTAssertEqual(second, "quillui")
+    }
+
+    func testTextEditorCommitsPendingNativeTextBeforeOwningHostRebuild() throws {
+        try requireGTK()
+        defer { gtkFlushPendingTextBindingUpdate() }
+
+        var text = ""
+        let binding = Binding(get: { text }, set: { text = $0 })
+        let host = GTKViewHost(buildBody: {
+            gtkRenderView(TextEditor(text: binding))
+        })
+
+        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(host)
+        let initial = host.buildBodyWithTracking()
+        GTKViewHost.setCurrentRebuilding(previousHost)
+        gtk_box_append(boxPointer(host.container), widgetFromOpaque(initial))
+
+        var expected = ""
+        for character in "quilluiinputprobe" {
+            expected.append(character)
+            let oldEditor = try XCTUnwrap(
+                findWidgetByTypeName(in: host.container, typeName: "GtkTextView")
+            )
+            let oldBuffer = gtk_text_view_get_buffer(
+                UnsafeMutableRawPointer(oldEditor).assumingMemoryBound(to: GtkTextView.self)
+            )!
+            gtk_text_buffer_set_text(oldBuffer, expected, -1)
+            g_object_ref(gpointer(oldEditor))
+            defer { g_object_unref(gpointer(oldEditor)) }
+
+            XCTAssertNotEqual(
+                text,
+                expected,
+                "The native edit should still be pending before the forced rebuild."
+            )
+            host.rebuild()
+
+            XCTAssertEqual(text, expected)
+            let rebuiltEditor = try XCTUnwrap(
+                findWidgetByTypeName(in: host.container, typeName: "GtkTextView")
+            )
+            XCTAssertNotEqual(
+                UnsafeRawPointer(rebuiltEditor),
+                UnsafeRawPointer(oldEditor),
+                "This regression must exercise a full native editor remount."
+            )
+            XCTAssertEqual(textViewString(rebuiltEditor), expected)
+        }
+    }
+
     // MARK: - Cursor position on GtkEditable
 
     func testEditableCursorPositionIsReadable() throws {
@@ -441,6 +517,17 @@ private func findWidgetByTypeName(in widget: UnsafeMutablePointer<GtkWidget>, ty
 
 private func widgetTypeName(_ widget: UnsafeMutablePointer<GtkWidget>) -> String {
     String(cString: g_type_name(gtk_swift_get_widget_type(widget)))
+}
+
+private func textViewString(_ widget: UnsafeMutablePointer<GtkWidget>) -> String {
+    let textView = UnsafeMutableRawPointer(widget).assumingMemoryBound(to: GtkTextView.self)
+    let buffer = gtk_text_view_get_buffer(textView)!
+    var start = GtkTextIter()
+    var end = GtkTextIter()
+    gtk_text_buffer_get_bounds(buffer, &start, &end)
+    let cString = gtk_text_buffer_get_text(buffer, &start, &end, 0)!
+    defer { g_free(gpointer(mutating: cString)) }
+    return String(cString: cString)
 }
 
 private func drainMainLoop(limit: Int = 100) {

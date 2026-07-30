@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if (( $# != 1 )); then
+if (( $# != 1 && $# != 2 )) || [[ $# -eq 2 && "$1" != "--application-delegates-only" ]]; then
   cat >&2 <<'MSG'
-Usage: scripts/run-quill-appkit-lower.sh GENERATED_SOURCE_DIR
+Usage: scripts/run-quill-appkit-lower.sh [--application-delegates-only] GENERATED_SOURCE_DIR
 
 Runs the AppKit / Objective-C target-action source-lowering tool from an
 isolated helper package so optional upstream app fixtures in the repository do
@@ -13,10 +13,9 @@ MSG
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-SOURCE_DIR="$1"
 
 if [[ -n "${QUILLUI_APPKIT_LOWER:-}" ]]; then
-  exec "$QUILLUI_APPKIT_LOWER" "$SOURCE_DIR"
+  exec "$QUILLUI_APPKIT_LOWER" "$@"
 fi
 
 TOOL_CACHE_KEY="$(printf '%s' "$ROOT_DIR" | cksum | awk '{print $1}')"
@@ -86,4 +85,4 @@ fi
 
 exec swift "${swift_run_args[@]}" \
   quill-lower-appkit \
-  "$SOURCE_DIR"
+  "$@"

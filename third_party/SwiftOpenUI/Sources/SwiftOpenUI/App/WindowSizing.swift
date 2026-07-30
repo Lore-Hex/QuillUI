@@ -75,6 +75,7 @@ extension WindowGroup {
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: hides,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )
@@ -96,6 +97,7 @@ extension WindowGroup {
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: quillHidesTitleBar,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )
@@ -122,6 +124,7 @@ extension WindowGroup {
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: quillHidesTitleBar,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )
@@ -143,6 +146,7 @@ extension WindowGroup {
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: quillHidesTitleBar,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )
@@ -164,6 +168,7 @@ extension WindowGroup {
             windowResizability: windowResizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: quillHidesTitleBar,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )
@@ -188,6 +193,7 @@ extension WindowGroup {
             windowResizability: resizability,
             launchesAtStartup: launchesAtStartup,
             quillHidesTitleBar: quillHidesTitleBar,
+            quillContentFactory: quillContentFactory,
             quillValueTypeKey: quillValueTypeKey,
             quillValueContentFactory: quillValueContentFactory
         )

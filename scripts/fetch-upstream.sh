@@ -1140,6 +1140,8 @@ PY
     if [[ -d "$appdir" ]]; then
         echo "==> lowering IceCubes app Objective-C/CoreFoundation interop syntax for Linux"
         "$ROOT_DIR/scripts/lower-objc-interop-for-linux.sh" "$appdir"
+        echo "==> lowering IceCubes application-delegate adaptor construction for Linux"
+        "$ROOT_DIR/scripts/run-quill-appkit-lower.sh" --application-delegates-only "$appdir"
     fi
 
     local intentsdir="$UPSTREAM_DIR/icecubes/IceCubesAppIntents"

@@ -7,6 +7,23 @@ import Models
 struct IceCubesSeedAccount {
     static func main() throws {
         let env = ProcessInfo.processInfo.environment
+        let operation = nonEmpty(env["QUILLUI_ICECUBES_SEED_OPERATION"], default: "seed")
+
+        switch operation {
+        case "seed":
+            try seedAccount(using: env)
+        case "inspect":
+            try printAccountSnapshot()
+        default:
+            throw NSError(
+                domain: "IceCubesSeedAccount",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Unknown IceCubes account helper operation: \(operation)"]
+            )
+        }
+    }
+
+    private static func seedAccount(using env: [String: String]) throws {
         let server = nonEmpty(env["QUILLUI_ICECUBES_SEED_SERVER"], default: "mastodon.social")
         let accountName = nonEmpty(env["QUILLUI_ICECUBES_SEED_ACCOUNT_NAME"], default: "quill@mastodon.social")
         let accessToken = nonEmpty(env["QUILLUI_ICECUBES_SEED_ACCESS_TOKEN"], default: "quillui-fixture-token")
@@ -41,6 +58,51 @@ struct IceCubesSeedAccount {
         }
         resetDisplayDefaults(defaultsDomain: defaultsDomain)
         print("Seeded IceCubes account \(account.id)")
+    }
+
+    private static func printAccountSnapshot() throws {
+        let manager = AppAccountsManager.shared
+        let accounts = manager.availableAccounts
+            .sorted { $0.id < $1.id }
+            .map(AccountSnapshot.Account.init)
+        let snapshot = AccountSnapshot(
+            currentAccountID: manager.currentAccount.id,
+            currentAccessToken: manager.currentAccount.oauthToken?.accessToken,
+            accounts: accounts
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let data = try encoder.encode(snapshot)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw NSError(
+                domain: "IceCubesSeedAccount",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "Could not encode the IceCubes account snapshot"]
+            )
+        }
+        print(json)
+    }
+
+    private struct AccountSnapshot: Encodable {
+        struct Account: Encodable {
+            let id: String
+            let server: String
+            let accountName: String?
+            let accessToken: String?
+            let createdAt: Double?
+
+            init(_ account: AppAccount) {
+                id = account.id
+                server = account.server
+                accountName = account.accountName
+                accessToken = account.oauthToken?.accessToken
+                createdAt = account.oauthToken?.createdAt
+            }
+        }
+
+        let currentAccountID: String
+        let currentAccessToken: String?
+        let accounts: [Account]
     }
 
     private static func resetDisplayDefaults(defaultsDomain: String) {

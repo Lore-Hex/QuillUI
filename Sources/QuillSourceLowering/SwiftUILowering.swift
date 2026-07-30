@@ -34,7 +34,10 @@ public struct SwiftUILowering {
         let tree = Parser.parse(source: sourceWithoutPreviews)
         let rewriter = SwiftUIRewriter()
         let rewritten = rewriter.rewrite(tree)
-        let foundational = FoundationLowering().lower(rewritten.description)
+        let rewrittenSource = rewriter.didLowerObservableClass
+            ? Self.ensureSwiftUIImport(in: rewritten.description)
+            : rewritten.description
+        let foundational = FoundationLowering().lower(rewrittenSource)
         let normalizedImports = Self.normalizeLinuxShimSubmoduleImports(foundational)
         let withoutOrphanedAttributes = Self.removeTrailingOrphanedAvailabilityAttributes(normalizedImports)
         let qualifiedFoundationNetworkingTypes = Self.qualifyFoundationNetworkingConstructorCalls(withoutOrphanedAttributes)
@@ -49,6 +52,49 @@ public struct SwiftUILowering {
         let annotatedDecoderContinuations = Self.annotateJSONDecoderDataContinuations(loweredAttributedStringColors)
         let loweredPublisherPipelines = CombinePublisherPipelineComplexityLowering().lower(annotatedDecoderContinuations)
         return SwiftUIBodyComplexityLowering().lower(loweredPublisherPipelines)
+    }
+
+    /// Lowered observation helpers are exported by the SwiftUI compatibility
+    /// module. Model-only source files frequently import only Foundation, so
+    /// add SwiftUI at the source boundary where the helper names are emitted.
+    private static func ensureSwiftUIImport(in source: String) -> String {
+        let file = Parser.parse(source: source)
+        let imports = file.statements.compactMap { item in
+            item.item.as(ImportDeclSyntax.self)
+        }
+        if imports.contains(where: { $0.path.trimmedDescription == "SwiftUI" }) {
+            return source
+        }
+
+        let insertionOffset: Int
+        var insertAfterLine = false
+        if let lastImport = imports.last {
+            insertionOffset = lastImport.endPositionBeforeTrailingTrivia.utf8Offset
+            insertAfterLine = true
+        } else if let firstStatement = file.statements.first {
+            insertionOffset = firstStatement.positionAfterSkippingLeadingTrivia.utf8Offset
+        } else {
+            insertionOffset = source.utf8.count
+        }
+
+        let utf8 = source.utf8
+        guard let utf8Index = utf8.index(
+            utf8.startIndex,
+            offsetBy: insertionOffset,
+            limitedBy: utf8.endIndex
+        ), var index = String.Index(utf8Index, within: source) else {
+            return "import SwiftUI\n" + source
+        }
+
+        if insertAfterLine {
+            if let newline = source[index...].firstIndex(of: "\n") {
+                index = source.index(after: newline)
+            } else {
+                return source + "\nimport SwiftUI\n"
+            }
+        }
+
+        return String(source[..<index]) + "import SwiftUI\n" + String(source[index...])
     }
 
     /// Lowers every `.swift` file under `sourceDir` *in place*. Files whose
@@ -2088,6 +2134,8 @@ private struct SwiftUIBodyComplexityLowering {
 // MARK: - Rewriter
 
 private final class SwiftUIRewriter: SyntaxRewriter {
+    private(set) var didLowerObservableClass = false
+
     /// Attribute names removed wholesale whether they appear on a declaration
     /// or wrapped around an inline type expression.
     private static let strippedAttributeNames: Set<String> = [
@@ -2117,6 +2165,7 @@ private final class SwiftUIRewriter: SyntaxRewriter {
             return DeclSyntax(recursed)
         }
 
+        didLowerObservableClass = true
         var updated = recursed
         Self.prependQuillObservableObject(to: &updated)
         Self.wrapEligibleStoredVars(in: &updated)
@@ -2492,13 +2541,25 @@ private final class SwiftUIRewriter: SyntaxRewriter {
 
         if variable.modifiers.contains(where: { modifier in
             let name = modifier.name.text
-            return name == "static" || name == "class" || name == "lazy" || name == "private"
+            return name == "static" || name == "class" || name == "lazy"
         }) {
             return false
         }
 
-        if variable.bindings.contains(where: { $0.accessorBlock != nil }) {
-            return false
+        for binding in variable.bindings {
+            switch binding.accessorBlock?.accessors {
+            case nil:
+                continue
+            case .accessors(let accessors):
+                guard accessors.allSatisfy({ accessor in
+                    let specifier = accessor.accessorSpecifier.text
+                    return specifier == "willSet" || specifier == "didSet"
+                }) else {
+                    return false
+                }
+            case .getter:
+                return false
+            }
         }
 
         return true

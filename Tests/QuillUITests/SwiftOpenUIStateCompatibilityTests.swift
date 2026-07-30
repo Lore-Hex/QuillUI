@@ -36,6 +36,33 @@ struct SwiftOpenUIStateCompatibilityTests {
         #expect(host.rebuilds == 1)
     }
 
+    @Test("@State observes macro @Observable stored-property observers")
+    func stateStorageObservesMacroObservablePropertyObservers() {
+        let model = MacroObservablePropertyObserverProbe()
+        let storage = StateStorage(model)
+        let host = RebuildProbeHost()
+
+        storage.host = host
+        model.title = "selected"
+
+        #expect(model.observedTitle == "selected")
+        #expect(model.didSetCount == 1)
+        #expect(host.rebuilds >= 1)
+    }
+
+    @Test("@State observes private macro @Observable properties")
+    func stateStorageObservesPrivateMacroObservableProperties() {
+        let model = MacroPrivateObservableProbe()
+        let storage = StateStorage(model)
+        let host = RebuildProbeHost()
+
+        storage.host = host
+        model.select()
+
+        #expect(model.observedTitle == "selected")
+        #expect(host.rebuilds == 1)
+    }
+
     @Test("@Environment observes macro @Observable object mutations")
     func environmentObjectReadObservesMacroObservableObjectMutations() {
         let model = MacroObservableProbe()
@@ -114,19 +141,40 @@ struct SwiftOpenUIStateCompatibilityTests {
         #expect(host.rebuilds == 1)
     }
 
-    @Test("stale @State closures forward writes to the current render storage")
-    func staleStateStorageForwardsMutationsToCurrentStorage() {
+    @Test("stale @State closures forward reads and writes to the current render storage")
+    func staleStateStorageForwardsAccessToCurrentStorage() {
         let staleStorage = StateStorage("old")
         let currentStorage = StateStorage("current")
         let host = RebuildProbeHost()
 
         currentStorage.host = host
         staleStorage.forwardMutations(to: currentStorage)
+
+        #expect(staleStorage.value == "current")
+
         staleStorage.setValue("new")
 
-        #expect(staleStorage.value == "old")
+        #expect(staleStorage.value == "new")
         #expect(currentStorage.value == "new")
         #expect(host.rebuilds == 1)
+    }
+
+    @Test("stale @State access follows multiple render generations")
+    func staleStateStorageFollowsForwardingChain() {
+        let firstRenderStorage = StateStorage(["first"])
+        let secondRenderStorage = StateStorage(["second"])
+        let currentStorage = StateStorage(["current"])
+
+        firstRenderStorage.forwardMutations(to: secondRenderStorage)
+        secondRenderStorage.forwardMutations(to: currentStorage)
+
+        #expect(firstRenderStorage.value == ["current"])
+
+        firstRenderStorage.setValue(["updated"])
+
+        #expect(firstRenderStorage.value == ["updated"])
+        #expect(secondRenderStorage.value == ["updated"])
+        #expect(currentStorage.value == ["updated"])
     }
 
     @Test("Binding dynamic-member projections preserve parent identity")
@@ -367,6 +415,25 @@ private struct BindingIdentityModel {
 @Observable
 private final class MacroObservableProbe {
     var title = "idle"
+}
+
+@Observable
+private final class MacroObservablePropertyObserverProbe {
+    var title = "idle" {
+        didSet { didSetCount += 1 }
+    }
+    private(set) var didSetCount = 0
+    var observedTitle: String { title }
+}
+
+@Observable
+private final class MacroPrivateObservableProbe {
+    private var title = "idle"
+    var observedTitle: String { title }
+
+    func select() {
+        title = "selected"
+    }
 }
 
 private final class RebuildProbeHost: AnyViewHost {

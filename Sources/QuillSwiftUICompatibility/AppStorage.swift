@@ -124,7 +124,10 @@ public struct AppStorage<Value>: AnyStateStorageProvider {
 
     public init(wrappedValue defaultValue: Value, _ key: String) where Value: QuillAppStorageValue {
         self.key = key
-        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
+        writeValue = {
+            Value.writeAppStorageValue($0, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
         storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? defaultValue)
     }
 
@@ -141,14 +144,20 @@ public struct AppStorage<Value>: AnyStateStorageProvider {
     public init(_ key: String) where Value: ExpressibleByNilLiteral, Value: QuillAppStorageValue {
         self.key = key
         let defaultValue: Value = nil
-        writeValue = { Value.writeAppStorageValue($0, forKey: key) }
+        writeValue = {
+            Value.writeAppStorageValue($0, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
         storage = StateStorage(Value.readAppStorageValue(forKey: key) ?? defaultValue)
     }
 
     public init(wrappedValue defaultValue: Value, _ key: String)
     where Value: RawRepresentable, Value.RawValue: QuillAppStorageValue {
         self.key = key
-        writeValue = { Value.RawValue.writeAppStorageValue($0.rawValue, forKey: key) }
+        writeValue = {
+            Value.RawValue.writeAppStorageValue($0.rawValue, forKey: key)
+            UserDefaults.standard.synchronize()
+        }
         if let rawValue = Value.RawValue.readAppStorageValue(forKey: key),
            let value = Value(rawValue: rawValue) {
             storage = StateStorage(value)
@@ -214,6 +223,7 @@ private extension UserDefaults {
         default:
             Value.writeAppStorageValue(value, forKey: key)
         }
+        synchronize()
     }
 }
 #endif

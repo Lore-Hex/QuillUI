@@ -24,7 +24,7 @@ public protocol AnyStateStorage: AnyObject {
     var host: AnyViewHost? { get set }
     /// Copy the stored value from another storage of the same concrete type.
     func restoreValue(from other: AnyStateStorage)
-    /// Forward writes from stale widget closures to the current render storage.
+    /// Forward access from stale widget closures to the current render storage.
     func forwardMutations(to other: AnyStateStorage)
 }
 
@@ -74,27 +74,21 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     }
     public private(set) var generation: UInt64 = 0
 
-    private func bumpGeneration() {
-        lock.lock()
-        generation &+= 1
-        lock.unlock()
-    }
-
     private func scheduleObservableStateMutationRebuild() {
         lock.lock()
         generation &+= 1
-        let forwarded = forwardedStorage
         let currentHost = host
+        let isForwarded = forwardedStorage != nil
         lock.unlock()
 
-        forwarded?.bumpGeneration()
-        let targetHost = forwarded?.host ?? currentHost
         let hostDescription = currentHost.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
-        let forwardedHostDescription = forwarded?.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         swiftOpenUIStateDebugLog(
-            "observable state change type=\(Value.self) host=\(hostDescription) forwardedHost=\(forwardedHostDescription)"
+            "observable state change type=\(Value.self) forwarded=\(isForwarded) host=\(hostDescription)"
         )
-        targetHost?.scheduleRebuildAfterObservableObjectMutation()
+        if isForwarded && currentHost?.isActiveForForwardedStateUpdates != true {
+            return
+        }
+        currentHost?.scheduleRebuildAfterObservableObjectMutation()
     }
 
     public init(_ value: Value) {
@@ -103,8 +97,12 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
 
     public var value: Value {
         lock.lock()
+        let forwarded = forwardedStorage
         let value = _value
         lock.unlock()
+        if let forwarded {
+            return forwarded.value
+        }
         recordDependencyRead(self)
         return value
     }
@@ -112,8 +110,12 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     public func setValue(_ newValue: Value) {
         lock.lock()
         if let forwarded = forwardedStorage {
+            let currentHost = host
             lock.unlock()
             forwarded.setValue(newValue)
+            if currentHost?.isActiveForForwardedStateUpdates == true {
+                currentHost?.scheduleRebuild()
+            }
             return
         }
         _value = newValue
@@ -144,6 +146,10 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
         let currentHost = host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         let forwardedHost = typed.host.map { String(describing: ObjectIdentifier($0)) } ?? "nil"
         lock.unlock()
+        // A predecessor can still own the mapped native subtree while a newer
+        // render is detached (for example, a persisted NavigationStack page).
+        // Keep its observation subscription, but schedule it only while its
+        // host reports that it is active. Detached predecessors stay silent.
         wireObservableStateValue()
         swiftOpenUIStateDebugLog("state forward type=\(Value.self) host=\(currentHost) forwardedHost=\(forwardedHost)")
     }
@@ -158,7 +164,15 @@ public class StateStorage<Value>: AnyStateStorage, GenerationTracked {
     }
 
     private func wireObservableStateValue() {
-        guard let object = _value as? any ObservableObject else { return }
+        lock.lock()
+        let shouldObserve = host != nil
+        let object = _value as? any ObservableObject
+        lock.unlock()
+
+        guard shouldObserve, let object else {
+            observableCancellable = nil
+            return
+        }
         // objectWillChange-based wiring (Apple's granularity). Bump our own
         // generation so Phase 7 input-equality gating sees the object's
         // internal mutation even though `_value` (the reference) is unchanged.

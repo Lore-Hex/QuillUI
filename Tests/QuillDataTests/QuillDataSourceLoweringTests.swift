@@ -1740,6 +1740,9 @@ struct QuillDataSourceLoweringTests {
         final class AppModel {
             var title = "Quill"
             private var cachedTitle = ""
+            var selectedTitle = "" {
+                didSet { cachedTitle = selectedTitle }
+            }
             static var sharedTitle = "Shared"
         }
 
@@ -1825,7 +1828,8 @@ struct QuillDataSourceLoweringTests {
 """))
         #expect(lowered.contains("final class AppModel: QuillObservableObject"))
         #expect(lowered.contains("@QuillPublished var title = \"Quill\""))
-        #expect(lowered.contains("private var cachedTitle = \"\""))
+        #expect(lowered.contains("@QuillPublished private var cachedTitle = \"\""))
+        #expect(lowered.contains("@QuillPublished var selectedTitle = \"\""))
         #expect(lowered.contains("static var sharedTitle = \"Shared\""))
         #expect(lowered.contains("struct DesktopRoot: View {"))
         #expect(lowered.contains("image.withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 14, weight: .regular))"))
@@ -1859,6 +1863,12 @@ struct QuillDataSourceLoweringTests {
         let swiftOpenUIManifest = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Package.swift"
         )
+        let app = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/App/App.swift"
+        )
+        let windowSizing = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/App/WindowSizing.swift"
+        )
         let descriptorTree = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
         )
@@ -1867,6 +1877,12 @@ struct QuillDataSourceLoweringTests {
         )
         let viewHost = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
+        )
+        let keyboardShortcutRegistry = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
+        )
+        let coreViewHost = directory.appendingPathComponent(
+            "checkouts/SwiftOpenUI/Sources/SwiftOpenUI/State/ViewHost.swift"
         )
         let navigation = directory.appendingPathComponent(
             "checkouts/SwiftOpenUI/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
@@ -1937,7 +1953,7 @@ struct QuillDataSourceLoweringTests {
                 encoding: .utf8
             ).write(to: destination, atomically: true, encoding: .utf8)
         }
-        for file in [swiftOpenUIManifest, renderer, descriptorTree, backend, viewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
+        for file in [swiftOpenUIManifest, app, windowSizing, renderer, descriptorTree, backend, viewHost, keyboardShortcutRegistry, coreViewHost, navigation, navigationDestination, shim, toolbar, layout, symbols, symbolCodepoints, scrollViewReader, scrollView, localization, onChangeModifier, frameModifier, controlStyleModifiers, confirmationDialogModifier, menu, state, observableObject, bindable, environment, issueReporter, sharedBinding] {
             try FileManager.default.createDirectory(
                 at: file.deletingLastPathComponent(),
                 withIntermediateDirectories: true
@@ -3051,10 +3067,14 @@ struct QuillDataSourceLoweringTests {
         // contracts, while the patcher is exercised as an idempotent pass over
         // the current vendored upstream.
         try copyVendoredSwiftOpenUIFile("Package.swift", to: swiftOpenUIManifest)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/App/App.swift", to: app)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/App/WindowSizing.swift", to: windowSizing)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKRenderer.swift", to: renderer)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift", to: descriptorTree)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTK4Backend.swift", to: backend)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKViewHost.swift", to: viewHost)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift", to: keyboardShortcutRegistry)
+        try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/State/ViewHost.swift", to: coreViewHost)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/Rendering/GTKNavigation.swift", to: navigation)
         try copyVendoredSwiftOpenUIFile("Sources/Backend/GTK4/CGTK/shim.h", to: shim)
         try copyVendoredSwiftOpenUIFile("Sources/SwiftOpenUI/Navigation/NavigationDestination.swift", to: navigationDestination)
@@ -3103,6 +3123,11 @@ struct QuillDataSourceLoweringTests {
         #expect(patchScript.contains("SwiftOpenUI action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("SwiftOpenUI value action binding flush insertion shape was not recognized"))
         #expect(patchScript.contains("private final class GTKTextBindingIdleUpdate"))
+        #expect(patchScript.contains("private final class GTKTextBindingUpdateSource"))
+        #expect(patchScript.contains("gtkFlushPendingTextBindingUpdate(for: self)"))
+        #expect(patchScript.contains("CANONICAL_KEYBOARD_SHORTCUT_REGISTRY"))
+        #expect(patchScript.contains("Canonical SwiftOpenUI keyboard shortcut availability shape was not recognized"))
+        #expect(patchScript.contains("replace_with_canonical_section"))
         #expect(patchScript.contains("includeValueWhenUnidentified: Bool = false"))
         #expect(patchScript.contains("gtkScheduleTextBindingUpdate(binding, value: newText)"))
         #expect(patchScript.contains("direct_text_editor_update = '''        let box = Unmanaged.passRetained(StringClosureBox { newText in"))
@@ -3124,6 +3149,10 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKSwiftImporterFlags: [String] = swiftOpenUIPkgConfigSwiftImporterFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains("let swiftOpenUIGTKLinkerFlags: [String] = swiftOpenUIPkgConfigLinkerFlags(\"gtk4\")"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)"))
+
+        let patchedKeyboardShortcutRegistry = try String(contentsOf: keyboardShortcutRegistry, encoding: .utf8)
+        #expect(patchedKeyboardShortcutRegistry.contains("isEnabled: @escaping () -> Bool = { true }"))
+        #expect(patchedKeyboardShortcutRegistry.contains("let match = candidates.last(where: { $0.isEnabled() })"))
         #expect(patchedSwiftOpenUIManifest.contains(".unsafeFlags(swiftOpenUIGTKLinkerFlags)"))
         #expect(!patchedSwiftOpenUIManifest.contains("pkgConfig: \"gtk4\""))
 
@@ -3315,7 +3344,10 @@ struct QuillDataSourceLoweringTests {
         // Debounced entry->binding writes: typing must not schedule a rebuild
         // per keystroke, and UI actions flush eagerly so callbacks read the
         // typed text from the model.
-        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate()"))
+        #expect(patchedRenderer.contains("func gtkFlushPendingTextBindingUpdate(for ownerHost: GTKViewHost? = nil)"))
+        #expect(patchedRenderer.contains("private final class GTKTextBindingUpdateSource"))
+        #expect(patchedRenderer.contains("weak var ownerHost: GTKViewHost?"))
+        #expect(patchedRenderer.contains("pending.source !== source"))
         #expect(patchedRenderer.contains("gtkPendingTextBindingSourceID = g_timeout_add(250"))
         #expect(patchedRenderer.contains("gtkFlushPendingTextBindingUpdate()\n    let now = Date().timeIntervalSinceReferenceDate"))
         // Sheet auto-focus retries until the panel is allocated; a one-shot
@@ -3439,6 +3471,7 @@ struct QuillDataSourceLoweringTests {
         #expect(patchedRenderer.contains("private protocol GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("extension StrokedShape: GTKDecorativeOverlay"))
         #expect(patchedRenderer.contains("gtk_widget_set_can_target(overlayWidget, 0)"))
+        #expect(patchedRenderer.contains("primeInjectedEnvironmentObjects(view)"))
 
         let patchedDescriptorTree = try String(contentsOf: descriptorTree, encoding: .utf8)
         // The button-action-capture rationale comment was reworded into the
@@ -3450,14 +3483,21 @@ struct QuillDataSourceLoweringTests {
         // Props-bearing childless composites (TextField & co.) compare
         // meaningfully and stay narrow-eligible on reuse.
         #expect(patchedDescriptorTree.contains("if case .none = plan.newDescriptor.props {"))
+        #expect(patchedDescriptorTree.contains("primeInjectedEnvironmentObjects(view)"))
 
         let patchedViewHost = try String(contentsOf: viewHost, encoding: .utf8)
-        #expect(patchedViewHost.contains("gtkBeginStateIdentityPass()"))
+        #expect(!patchedViewHost.contains("gtkBeginStateIdentityPass()"))
+        #expect(patchedViewHost.contains("gtkWithForcedStateIdentityNamespace(stateIdentityNamespace)"))
+        #expect(patchedViewHost.contains("gtkWithOwnedDescriptorLifecyclePayloads"))
         #expect(patchedViewHost.contains("result = buildBodyCapturingRenderLifecyclePayloads()"))
         #expect(patchedViewHost.contains("private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer"))
         #expect(patchedViewHost.contains("var rebuildPresentationRoot: gpointer?"))
         #expect(patchedViewHost.contains("var stateIdentityNamespace = \"root\""))
         #expect(patchedViewHost.contains("let presentationRoot = gtk_widget_get_root(container).map { gpointer($0) }"))
+
+        let patchedCoreViewHost = try String(contentsOf: coreViewHost, encoding: .utf8)
+        #expect(patchedCoreViewHost.contains("public func primeInjectedEnvironmentObjects<V>(_ view: V)"))
+        #expect(patchedCoreViewHost.contains("environment.wireInjectedObject(to: nil)"))
 
         let patchedScrollViewReader = try String(contentsOf: scrollViewReader, encoding: .utf8)
         #expect(patchedScrollViewReader.contains("fileprivate protocol _SwiftOpenUIOptionalHashableID"))
@@ -3501,6 +3541,9 @@ struct QuillDataSourceLoweringTests {
 
         let patchedEnvironment = try String(contentsOf: environment, encoding: .utf8)
         #expect(patchedEnvironment.contains("refreshInjectedObjectsFromRegistry"))
+        #expect(patchedEnvironment.contains("case injectedObject(() -> Value?)"))
+        #expect(patchedEnvironment.contains("guard case .injectedObject(let resolve) = reader"))
+        #expect(patchedEnvironment.contains("guard let host else { return }"))
 
         let patchedIssueReporter = try String(contentsOf: issueReporter, encoding: .utf8)
         #expect(!patchedIssueReporter.contains("canImport(os)"))

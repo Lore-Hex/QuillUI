@@ -98,6 +98,20 @@ final class ViewBuilderTests: XCTestCase {
         XCTAssertEqual(forEach.children.count, 2)
     }
 
+    func testBuildBlockPreservesForEachAsKeyedStructure() {
+        let items = [Item(id: 1, name: "a"), Item(id: 2, name: "b")]
+        @ViewBuilder func build() -> some View {
+            ForEach(items) { item in Text(item.name) }
+            Text("Add item")
+        }
+
+        let view = build()
+        let children = (view as! MultiChildView).children
+        XCTAssertEqual(children.count, 2)
+        XCTAssertTrue(children[0] is ForEach<Item, Int, Text>)
+        XCTAssertTrue(children[1] is Text)
+    }
+
     // MARK: - AnyView
 
     func testAnyViewWraps() {

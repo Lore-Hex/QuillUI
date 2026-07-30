@@ -31,6 +31,26 @@
       "requestBody": {
         "client_id": "quill-oauth-client",
         "client_secret": "quill-oauth-secret",
+        "code": "quill-oauth-failure",
+        "grant_type": "authorization_code",
+        "redirect_uri": "icecubesapp://",
+        "scope": "read write follow push"
+      },
+      "status": 401,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "error": "invalid_grant"
+      }
+    },
+    {
+      "method": "POST",
+      "host": "mastodon.social",
+      "path": "/oauth/token",
+      "requestBody": {
+        "client_id": "quill-oauth-client",
+        "client_secret": "quill-oauth-secret",
         "code": "quill-oauth-code",
         "grant_type": "authorization_code",
         "redirect_uri": "icecubesapp://",
@@ -45,6 +65,86 @@
         "token_type": "Bearer",
         "scope": "read write follow push",
         "created_at": 1784321000
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/verify_credentials",
+      "requestHeaders": {
+        "Authorization": "Bearer quillui-secondary-token"
+      },
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-secondary-account",
+        "username": "alpha",
+        "display_name": "Alpha Account",
+        "avatar": "https://mastodon.social/avatars/quill-secondary-account.png",
+        "header": "https://mastodon.social/headers/quill-secondary-account.png",
+        "acct": "alpha",
+        "note": "<p>Secondary fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-01T00:00:00.000Z",
+        "followers_count": 320,
+        "following_count": 42,
+        "statuses_count": 87,
+        "last_status_at": "2026-06-15",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@alpha",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Secondary fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
+      }
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/accounts/verify_credentials",
+      "requestHeaders": {
+        "Authorization": "Bearer quillui-primary-token"
+      },
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "id": "quill-primary-account",
+        "username": "zulu",
+        "display_name": "Zulu Account",
+        "avatar": "https://mastodon.social/avatars/quill-primary-account.png",
+        "header": "https://mastodon.social/headers/quill-primary-account.png",
+        "acct": "zulu",
+        "note": "<p>Primary fixture account for QuillUI parity.</p>",
+        "created_at": "2024-01-02T00:00:00.000Z",
+        "followers_count": 640,
+        "following_count": 84,
+        "statuses_count": 174,
+        "last_status_at": "2026-06-16",
+        "fields": [],
+        "locked": false,
+        "emojis": [],
+        "url": "https://mastodon.social/@zulu",
+        "source": {
+          "privacy": "public",
+          "sensitive": false,
+          "language": "en",
+          "note": "Primary fixture account for QuillUI parity.",
+          "fields": []
+        },
+        "bot": false,
+        "discoverable": true,
+        "moved": null
       }
     },
     {
@@ -82,6 +182,28 @@
         "bot": false,
         "discoverable": true,
         "moved": null
+      }
+    },
+    {
+      "method": "DELETE",
+      "host": "mastodon.social",
+      "path": "/api/v1/push/subscription",
+      "status": 200,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {}
+    },
+    {
+      "method": "GET",
+      "host": "mastodon.social",
+      "path": "/api/v1/push/subscription",
+      "status": 404,
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "error": "Record not found"
       }
     },
     {

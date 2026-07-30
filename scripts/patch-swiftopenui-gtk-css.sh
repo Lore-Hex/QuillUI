@@ -5,13 +5,19 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRATCH_PATH="${1:-$ROOT_DIR/.build-linux}"
 PACKAGE_PATH="${QUILLUI_SWIFT_PACKAGE_PATH:-$ROOT_DIR}"
 SWIFTOPENUI_ROOT="${QUILLUI_SWIFTOPENUI_ROOT:-$PACKAGE_PATH/third_party/SwiftOpenUI}"
+CANONICAL_SWIFTOPENUI_ROOT="$ROOT_DIR/third_party/SwiftOpenUI"
 SWIFTOPENUI_MANIFEST="$SWIFTOPENUI_ROOT/Package.swift"
 RENDERER="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
+CANONICAL_RENDERER="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift"
 DESCRIPTOR_TREE="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4DescriptorTree.swift"
 GTK_BACKEND="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift"
 GTK_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKViewHost.swift"
+SWIFTOPENUI_VIEW_HOST="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ViewHost.swift"
+KEYBOARD_SHORTCUT_REGISTRY="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
+CANONICAL_KEYBOARD_SHORTCUT_REGISTRY="$CANONICAL_SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/KeyboardShortcutRegistry.swift"
 NAVIGATION="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKNavigation.swift"
 GTK_SHIM="$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
+CANONICAL_GTK_SHIM="$CANONICAL_SWIFTOPENUI_ROOT/Sources/Backend/GTK4/CGTK/shim.h"
 NAVIGATION_DESTINATION="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Navigation/NavigationDestination.swift"
 TOOLBAR_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ToolbarModifier.swift"
 LAYOUT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Layout/Layout.swift"
@@ -19,6 +25,7 @@ STATE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/State.swift"
 OBSERVABLE_OBJECT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/ObservableObject.swift"
 BINDABLE="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/State/Bindable.swift"
 ENVIRONMENT="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Environment/Environment.swift"
+CANONICAL_ENVIRONMENT="$CANONICAL_SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Environment/Environment.swift"
 CONTROL_STYLE_MODIFIERS="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ControlStyleModifiers.swift"
 CONFIRMATION_DIALOG_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/ConfirmationDialogModifier.swift"
 ON_CHANGE_MODIFIER="$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/Modifiers/OnChangeModifier.swift"
@@ -85,6 +92,11 @@ if [[ ! -f "$GTK_VIEW_HOST" ]]; then
   exit 1
 fi
 
+if [[ ! -f "$SWIFTOPENUI_VIEW_HOST" ]]; then
+  echo "SwiftOpenUI core view host was not found at $SWIFTOPENUI_VIEW_HOST" >&2
+  exit 1
+fi
+
 if [[ ! -f "$NAVIGATION" ]]; then
   echo "SwiftOpenUI GTK navigation renderer was not found at $NAVIGATION" >&2
   exit 1
@@ -131,7 +143,7 @@ if [[ ! -f "$LOCALIZATION" ]]; then
   exit 1
 fi
 
-chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$NAVIGATION_DESTINATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW" "$SCROLL_VIEW_READER" "$LOCALIZATION"
+chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$SWIFTOPENUI_VIEW_HOST" "$NAVIGATION" "$NAVIGATION_DESTINATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW" "$SCROLL_VIEW_READER" "$LOCALIZATION"
 
 chmod u+w "$SWIFTOPENUI_MANIFEST" "$RENDERER" "$DESCRIPTOR_TREE" "$GTK_BACKEND" "$GTK_VIEW_HOST" "$NAVIGATION" "$TOOLBAR_MODIFIER" "$LAYOUT" "$SYMBOLS" "$SCROLL_VIEW_READER"
 if [[ -f "$MENU_VIEW" ]]; then
@@ -169,7 +181,8 @@ from pathlib import Path
 observable_path = Path(sys.argv[1])
 bindable_path = Path(sys.argv[2])
 
-observable = observable_path.read_text()
+original_observable = observable_path.read_text()
+observable = original_observable
 if "environmentObservableObjectGeneration" not in observable:
     observable = observable.replace(
         """    private func objectDidChange() {
@@ -222,9 +235,11 @@ elif "private func objectDidChange()" in observable:
         "    func objectDidChange() {",
         1,
     )
-observable_path.write_text(observable)
+if observable != original_observable:
+    observable_path.write_text(observable)
 
-bindable = bindable_path.read_text()
+original_bindable = bindable_path.read_text()
+bindable = original_bindable
 if "notifyEnvironmentObservableObjectMutation(" not in bindable:
     bindable = bindable.replace(
         """            get: { object[keyPath: keyPath] },
@@ -244,7 +259,8 @@ if "notifyEnvironmentObservableObjectMutation(" not in bindable:
 """,
         1,
     )
-bindable_path.write_text(bindable)
+if bindable != original_bindable:
+    bindable_path.write_text(bindable)
 PY
 fi
 
@@ -255,7 +271,8 @@ from pathlib import Path
 path = Path(sys.argv[1])
 if not path.exists():
     raise SystemExit("SwiftOpenUI OnChange modifier source was not found")
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "private struct OnChangeStorageKey: Hashable" not in text:
     old_storage = """/// Global storage for previous onChange values, keyed by render-pass counter.
@@ -362,7 +379,288 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
         raise SystemExit("SwiftOpenUI OnChange two-argument shape was not recognized")
     text = text.replace(old_two_arg, new_two_arg, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - "$RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+original = path.read_text()
+text = original
+
+transparent_primary_action = '''    if let multi = view as? any TransparentMultiChildView {
+        for child in multi.children {
+            if let action = gtkPrimaryTapAction(inAny: child, depth: depth + 1) {
+                return action
+            }
+        }
+        return nil
+    }
+
+'''
+if transparent_primary_action not in text:
+    marker = '''    let mirror = Mirror(reflecting: view)
+'''
+    function_start = text.find("private func gtkPrimaryTapAction<V: View>")
+    marker_offset = text.find(marker, function_start)
+    if function_start < 0 or marker_offset < 0:
+        raise SystemExit("SwiftOpenUI transparent primary-action traversal shape was not recognized")
+    text = text[:marker_offset] + transparent_primary_action + text[marker_offset:]
+
+test_helper = '''func gtkTestActivatePrimaryTapAction<V: View>(in view: V) -> Bool {
+    guard let action = gtkPrimaryTapAction(in: view) else { return false }
+    action()
+    return true
+}
+
+'''
+if test_helper not in text:
+    marker = "private func gtkScheduleListRowTapAction("
+    function_start = text.find("private func gtkPrimaryTapAction<V: View>")
+    marker_offset = text.find(marker, function_start)
+    if function_start < 0 or marker_offset < 0:
+        raise SystemExit("SwiftOpenUI primary-action test helper insertion point was not recognized")
+    text = text[:marker_offset] + test_helper + text[marker_offset:]
+
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - \
+    "$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/App/App.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/SwiftOpenUI/App/WindowSizing.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTK4Backend.swift" \
+    "$SWIFTOPENUI_ROOT/Sources/Backend/GTK4/Rendering/GTKRenderer.swift" <<'PY'
+from pathlib import Path
+import sys
+
+
+def replace_once(text, old, new, marker, label):
+    if marker in text:
+        return text
+    if old not in text:
+        raise SystemExit(f"SwiftOpenUI {label} shape was not recognized")
+    return text.replace(old, new, 1)
+
+
+app_path, sizing_path, backend_path, renderer_path = map(Path, sys.argv[1:])
+
+original = app_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''    public let quillHidesTitleBar: Bool
+    /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
+''',
+    '''    public let quillHidesTitleBar: Bool
+    /// Rebuilds the startup window content from the original ViewBuilder.
+    /// SwiftUI reevaluates a WindowGroup builder when app-level state changes;
+    /// retaining only the first value would freeze derived environment values.
+    public let quillContentFactory: () -> Content
+    /// Type key used by SwiftUI's value-based `WindowGroup(for:)` API.
+''',
+    "public let quillContentFactory: () -> Content",
+    "deferred WindowGroup property",
+)
+text = replace_once(
+    text,
+    '''    public init(_ title: String, @ViewBuilder content: () -> Content) {
+        self.init(title: title, content: content())
+    }
+
+    public init(@ViewBuilder content: () -> Content) {
+        self.init(title: "", content: content())
+    }
+
+    public init(id: String, @ViewBuilder content: () -> Content) {
+        self.init(title: id, content: content(), launchesAtStartup: true)
+    }
+''',
+    '''    public init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: title,
+            content: content(),
+            quillContentFactory: content
+        )
+    }
+
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: "",
+            content: content(),
+            quillContentFactory: content
+        )
+    }
+
+    public init(id: String, @ViewBuilder content: @escaping () -> Content) {
+        self.init(
+            title: id,
+            content: content(),
+            launchesAtStartup: true,
+            quillContentFactory: content
+        )
+    }
+''',
+    "public init(_ title: String, @ViewBuilder content: @escaping () -> Content)",
+    "deferred WindowGroup startup initializers",
+)
+text = replace_once(
+    text,
+    '''            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
+''',
+    '''            launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
+            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType),
+''',
+    "quillContentFactory: { content(.constant(nil)) },\n            quillValueTypeKey: quillOpenWindowValueTypeKey(for: valueType)",
+    "deferred value WindowGroup factory",
+)
+text = replace_once(
+    text,
+    '''            launchesAtStartup: false,
+            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
+''',
+    '''            launchesAtStartup: false,
+            quillContentFactory: { content(.constant(nil)) },
+            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType),
+''',
+    "quillContentFactory: { content(.constant(nil)) },\n            quillValueTypeKey: quillOpenWindowValueTypeKey(id: id, for: valueType)",
+    "deferred ID value WindowGroup factory",
+)
+text = replace_once(
+    text,
+    '''        launchesAtStartup: Bool = true,
+        quillHidesTitleBar: Bool = false,
+        quillValueTypeKey: String? = nil,
+''',
+    '''        launchesAtStartup: Bool = true,
+        quillHidesTitleBar: Bool = false,
+        quillContentFactory: (() -> Content)? = nil,
+        quillValueTypeKey: String? = nil,
+''',
+    "quillContentFactory: (() -> Content)? = nil",
+    "deferred WindowGroup internal initializer",
+)
+text = replace_once(
+    text,
+    '''        self.launchesAtStartup = launchesAtStartup
+        self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillValueTypeKey = quillValueTypeKey
+''',
+    '''        self.launchesAtStartup = launchesAtStartup
+        self.quillHidesTitleBar = quillHidesTitleBar
+        self.quillContentFactory = quillContentFactory ?? { content }
+        self.quillValueTypeKey = quillValueTypeKey
+''',
+    "self.quillContentFactory = quillContentFactory ?? { content }",
+    "deferred WindowGroup factory storage",
+)
+if text != original:
+    app_path.write_text(text)
+
+original = sizing_path.read_text()
+text = original
+factory_argument = "            quillContentFactory: quillContentFactory,\n"
+if text.count(factory_argument) < 6:
+    anchor = "            quillValueTypeKey: quillValueTypeKey,\n"
+    if text.count(anchor) != 6:
+        raise SystemExit("SwiftOpenUI WindowGroup sizing-copy shape was not recognized")
+    text = text.replace(anchor, factory_argument + anchor)
+if text != original:
+    sizing_path.write_text(text)
+
+original = backend_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''                    content: self.quillContent(forPresentedValue: value),
+                    dismissesWindow: true,
+''',
+    '''                    content: self.quillContent(forPresentedValue: value),
+                    contentFactory: {
+                        self.quillContent(forPresentedValue: value)
+                    },
+                    dismissesWindow: true,
+''',
+    "contentFactory: {\n                        self.quillContent(forPresentedValue: value)",
+    "GTK value-window deferred content",
+)
+text = replace_once(
+    text,
+    "        gtkCreateWindow(app: app, content: content, appStateSource: appStateSource)\n",
+    '''        gtkCreateWindow(
+            app: app,
+            content: content,
+            contentFactory: quillContentFactory,
+            appStateSource: appStateSource
+        )
+''',
+    "contentFactory: quillContentFactory",
+    "GTK startup-window deferred content",
+)
+text = replace_once(
+    text,
+    '''        app: OpaquePointer?,
+        content renderedContent: Content,
+        dismissesWindow: Bool = false,
+''',
+    '''        app: OpaquePointer?,
+        content renderedContent: Content,
+        contentFactory: @escaping () -> Content,
+        dismissesWindow: Bool = false,
+''',
+    "contentFactory: @escaping () -> Content",
+    "GTK deferred content parameter",
+)
+root_call = "gtkRenderWindowRootView(renderedContent, appStateSource: appStateSource)"
+if "contentProvider: contentFactory" not in text:
+    if text.count(root_call) != 2:
+        raise SystemExit("SwiftOpenUI GTK WindowGroup root-render shape was not recognized")
+    text = text.replace(
+        root_call,
+        '''gtkRenderWindowRootView(
+                    renderedContent,
+                    appStateSource: appStateSource,
+                    contentProvider: contentFactory
+                )''',
+    )
+if text != original:
+    backend_path.write_text(text)
+
+original = renderer_path.read_text()
+text = original
+text = replace_once(
+    text,
+    '''func gtkRenderWindowRootView<V: View>(_ view: V, appStateSource: Any? = nil) -> OpaquePointer {
+    let host = GTKViewHost(buildBody: {
+        MainActor.assumeIsolated { gtkRenderView(view) }
+    })
+    host.describeBody = {
+        MainActor.assumeIsolated { gtkDescribeView(view) }
+    }
+''',
+    '''func gtkRenderWindowRootView<V: View>(
+    _ view: V,
+    appStateSource: Any? = nil,
+    contentProvider: (() -> V)? = nil
+) -> OpaquePointer {
+    let buildContent = contentProvider ?? { view }
+    let host = GTKViewHost(buildBody: {
+        gtkAssumeMainActorIsolated { gtkRenderView(buildContent()) }
+    })
+    host.describeBody = {
+        gtkAssumeMainActorIsolated { gtkDescribeView(buildContent()) }
+    }
+''',
+    "contentProvider: (() -> V)? = nil",
+    "GTK root deferred content provider",
+)
+if text != original:
+    renderer_path.write_text(text)
 PY
 
 python3 - "$ON_CHANGE_MODIFIER" <<'PY'
@@ -370,7 +668,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 def replace_once(old: str, new: str, label: str) -> None:
     global text
@@ -630,7 +929,8 @@ public func onChangeCheckAndFireTwoArg<V: Equatable>(
 """
     replace_once(old_two_arg_tracking, new_two_arg_tracking, "initial two-argument OnChange tracking")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$FRAME_MODIFIER" <<'PY'
@@ -638,7 +938,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "public struct ContainerRelativeFrameView" not in text:
     container_type = r'''
@@ -733,7 +1034,8 @@ if "public func containerRelativeFrame(" not in text:
         raise SystemExit("SwiftOpenUI container-relative frame method insertion shape was not recognized")
     text = text[: -len(close)] + methods + close
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -741,7 +1043,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_single = """extension OnChangeView: GTKRenderable {
     public func gtkCreateWidget() -> OpaquePointer {
@@ -820,7 +1123,8 @@ extension InitialOnChangeTwoArgView: GTKRenderable {
         raise SystemExit("SwiftOpenUI GTK initial OnChange renderer insertion shape was not recognized")
     text = text.replace(new_two_arg, new_two_arg + initial_renderers, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -828,7 +1132,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "private final class GTKContainerRelativeFrameContext" not in text:
     helpers = r'''private final class GTKContainerRelativeFrameContext {
@@ -1106,7 +1411,8 @@ if "Overlay does not participate in its parent's size" not in overlay:
     overlay = overlay.replace(marker, replacement, 1)
     text = text[:overlay_start] + overlay + text[overlay_end:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$SWIFTOPENUI_MANIFEST" <<'PY'
@@ -1114,7 +1420,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "import Foundation" not in text:
     if "import PackageDescription\n" not in text:
@@ -1248,7 +1555,8 @@ if text.count(".unsafeFlags(swiftOpenUIGTKSwiftImporterFlags)") < 4:
 if ".unsafeFlags(swiftOpenUIGTKLinkerFlags)" not in text:
     raise SystemExit("SwiftOpenUI manifest GTK linker flag patch did not apply")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if [[ -f "$MENU_VIEW" ]]; then
@@ -1257,7 +1565,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_menu = """public struct Menu: View {
     public typealias Body = Never
@@ -1302,7 +1611,8 @@ if "public let labelView: AnyView?" not in text:
 if "public let labelView: AnyView?" not in text or "labelView: AnyView? = nil" not in text:
     raise SystemExit("SwiftOpenUI Menu label storage patch did not apply")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1312,7 +1622,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = """    /// Filled/prominent background.
     case borderedProminent
 """
@@ -1337,7 +1648,8 @@ elif "case quillPaintMacListRow" not in text:
         "    case quillPaintMacListRow(isSelected: Bool, drawsIdleBackground: Bool)\n",
         1,
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1347,7 +1659,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 helpers = r"""
 private protocol SwiftOpenUIButtonRepresentable {
@@ -1498,7 +1811,8 @@ elif (
 ):
     raise SystemExit("SwiftOpenUI confirmationDialog builder overload shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1509,7 +1823,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 accessibility_helpers = """
 // --- Accessibility shims ---
 
@@ -1890,7 +2205,83 @@ gtk_swift_compressible_width_clamp_new(GtkWidget *child) {
     if width_clamp_marker not in text:
         raise SystemExit("SwiftOpenUI GTK compressible width clamp insertion point was not recognized")
     text = text.replace(width_clamp_marker, width_clamp_marker + compressible_height_clamp, 1)
-path.write_text(text)
+if "gtk_swift_attach_context_popover" not in text:
+    context_popover_helpers = """static inline void
+gtk_swift_context_popover_anchor_destroy(GtkWidget *anchor, gpointer user_data) {
+    GtkWidget *popover = GTK_WIDGET(user_data);
+    if (popover != NULL && gtk_widget_get_parent(popover) == anchor) {
+        gtk_widget_unparent(popover);
+    }
+}
+
+static inline void
+gtk_swift_context_popover_release(gpointer user_data, GClosure *closure) {
+    (void)closure;
+    g_object_unref(user_data);
+}
+
+static inline void
+gtk_swift_attach_context_popover(GtkWidget *anchor, GtkWidget *popover) {
+    gtk_widget_set_parent(popover, anchor);
+    g_signal_connect_data(
+        anchor,
+        "destroy",
+        G_CALLBACK(gtk_swift_context_popover_anchor_destroy),
+        g_object_ref(popover),
+        gtk_swift_context_popover_release,
+        0);
+}
+
+"""
+    popover_marker = "// --- GtkPopover shims ---\n\n"
+    if popover_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK popover shim insertion point was not recognized")
+    text = text.replace(popover_marker, popover_marker + context_popover_helpers, 1)
+if text != original:
+    path.write_text(text)
+PY
+fi
+
+if [[ -f "$GTK_SHIM" ]]; then
+python3 - "$GTK_SHIM" "$CANONICAL_GTK_SHIM" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+original = text
+canonical = canonical_path.read_text()
+
+
+def canonical_block(start: str, end: str) -> str:
+    start_index = canonical.index(start)
+    end_index = canonical.index(end, start_index)
+    return canonical[start_index:end_index]
+
+
+if "gtk_swift_event_is_primary_button_release" not in text:
+    marker = "static inline gboolean\ngtk_swift_event_get_position"
+    release_helper = canonical_block(
+        "static inline gboolean\ngtk_swift_event_is_primary_button_release",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK primary-button event shim shape was not recognized")
+    text = text.replace(marker, release_helper + marker, 1)
+
+if "gtk_swift_widget_is_drop_down" not in text:
+    marker = "static inline GtkWidget *\ngtk_swift_root_point_pick_toggle_control"
+    drop_down_helper = canonical_block(
+        "static inline gboolean\ngtk_swift_widget_is_drop_down",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK drop-down type shim shape was not recognized")
+    text = text.replace(marker, drop_down_helper + marker, 1)
+
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -1899,7 +2290,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "public let showsIndicators: Bool" not in text:
     axis_storage = "    public let axes: Axis\n    public let content: Content\n"
@@ -1927,7 +2319,8 @@ if legacy_indicators_init in text:
 elif "self.showsIndicators = showsIndicators" not in text:
     raise SystemExit("SwiftOpenUI ScrollView indicators initializer shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$LOCALIZATION" <<'PY'
@@ -1935,7 +2328,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_plural_struct = """    private struct PluralSubstitution {
         var one: String?
@@ -2130,7 +2524,8 @@ if "private func formatPluralReplacement(_ replacement: String, argument: String
         raise SystemExit("SwiftOpenUI plural replacement helper insertion marker was not recognized")
     text = text.replace(marker, plural_replacement_helper + marker, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$SCROLL_VIEW_READER" <<'PY'
@@ -2138,7 +2533,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 optional_id_helpers = """// MARK: - Optional ID compatibility
 
@@ -2194,7 +2590,8 @@ if "swiftOpenUIHashableScrollID(id)" not in text and old_scroll_to in text:
 elif "swiftOpenUIHashableScrollID(id)" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewProxy.scrollTo shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -2202,7 +2599,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 searchable_visibility_helper = """private func gtkSearchableKeepsChromeVisible(for placement: SearchFieldPlacement) -> Bool {
     switch placement {
@@ -2387,12 +2785,12 @@ old_search_binding_write = """                if newValue != box.binding.wrapped
 """
 new_search_binding_write = """                if newValue != box.binding.wrappedValue {
                     gtkDebugLog("searchable search-changed text='\\(newValue)'")
-                    gtkScheduleTextBindingUpdate(box.binding, value: newValue)
+                    gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)
                 }
 """
 if old_search_binding_write in text:
     text = text.replace(old_search_binding_write, new_search_binding_write, 1)
-elif "gtkScheduleTextBindingUpdate(box.binding, value: newValue)" not in text:
+elif "gtkScheduleTextBindingUpdate(box.updateSource, value: newValue)" not in text:
     raise SystemExit("SwiftOpenUI SearchableView search-changed binding update was not recognized")
 
 focus_handler = """        let focusGesture = gtk_gesture_click_new()!
@@ -2436,7 +2834,7 @@ if "let focusGesture = gtk_gesture_click_new()!" not in text:
     text = text.replace(marker, focus_handler + marker, 1)
 
 changed_handler = """        let changedBox = Unmanaged.passRetained(StringClosureBox { newText in
-            gtkScheduleTextBindingUpdate(binding, value: newText)
+            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)
         }).toOpaque()
         g_signal_connect_data(
             gpointer(entry),
@@ -2456,7 +2854,7 @@ changed_handler = """        let changedBox = Unmanaged.passRetained(StringClosu
         )
 
 """
-if "let changedBox = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(binding, value: newText)" not in text:
+if "let changedBox = Unmanaged.passRetained(StringClosureBox { newText in\n            gtkScheduleTextBindingUpdate(searchFocusBox.updateSource, value: newText)" not in text:
     marker = "        // Render token labels between search entry and content\n"
     if marker not in text:
         raise SystemExit("SwiftOpenUI SearchableView token marker was not recognized")
@@ -2989,7 +3387,8 @@ insert_search_focus_guard(
     "SwiftOpenUI list row root dispatcher searchable guard shape was not recognized",
 )
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if [[ -f "$SWIFT_DEPENDENCIES_MAIN_QUEUE" ]]; then
@@ -2999,7 +3398,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = "  import Foundation\n"
 insert = """  import Foundation
   #if canImport(OpenCombineDispatch)
@@ -3008,7 +3408,8 @@ insert = """  import Foundation
 """
 if "import OpenCombineDispatch" not in text:
     text = text.replace(needle, insert, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3019,7 +3420,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = "  import Foundation\n"
 insert = """  import Foundation
   #if canImport(OpenCombineFoundation)
@@ -3028,7 +3430,8 @@ insert = """  import Foundation
 """
 if "import OpenCombineFoundation" not in text:
     text = text.replace(needle, insert, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3086,7 +3489,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace("private let lock: os_unfair_lock_t", "private let lock: NSRecursiveLock")
 text = text.replace(
     """self.lock = os_unfair_lock_t.allocate(capacity: 1)
@@ -3135,7 +3539,8 @@ new_extension = """  extension NSRecursiveLock {
   }
 """
 text = text.replace(old_extension, new_extension)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3146,7 +3551,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace("#if DEBUG\n        if store.responds", "#if DEBUG && !os(Linux)\n        if store.responds")
 text = text.replace(
     """      let removeObserver: @Sendable () -> Void
@@ -3206,7 +3612,8 @@ if observer_start != -1 and "#if !os(Linux)\n    private final class Observer" n
             + "\n    #endif"
             + text[observer_end:]
         )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3217,7 +3624,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = """  import CombineSchedulers
   import ConcurrencyExtras
   import Dependencies
@@ -3256,7 +3664,8 @@ if start != -1 and end != -1 and "fileSystemSource: { _, _, _ in" not in text[st
 """
         + text[end:]
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
 
@@ -3421,7 +3830,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 if "swiftOpenUIStateDebugLog(_ message: String)" not in text:
     text = text.replace(
         "import Foundation\n",
@@ -3561,21 +3971,23 @@ if 'swiftOpenUIStateDebugLog("state forward type=' not in text:
 """,
         1,
     )
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 fi
-
-perl -0pi \
-  -e 's/css \+= " object-fit: contain;"/css += ""/g;' \
-  -e 's/css \+= " object-fit: cover; overflow: hidden;"/css += " overflow: hidden;"/g;' \
-  "$RENDERER"
 
 python3 - "$RENDERER" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
+text = text.replace('css += " object-fit: contain;"', 'css += ""')
+text = text.replace(
+    'css += " object-fit: cover; overflow: hidden;"',
+    'css += " overflow: hidden;"',
+)
 text = text.replace(
     'applyCSSToWidget(entry, properties: "border: none; outline: none; box-shadow: none;")',
     'applyCSSToWidget(entry, properties: "background: transparent; background-color: transparent; border: none; outline: none; box-shadow: none; padding: 0;")',
@@ -3766,6 +4178,86 @@ if "private var gtkStateTypeCounters: [String: Int]" in text:
     text = text[:start] + state_identity + text[end:]
 elif "gtkStateCacheKey" not in text:
     text = text.replace(marker, state_identity + marker, 1)
+
+if "gtkEnvironmentObjectTypeCounters" not in text:
+    old_counter = "private var gtkStateTypeCounters: [String: [String: Int]] = [:]\n"
+    new_counter = old_counter + "private var gtkEnvironmentObjectTypeCounters: [String: [String: Int]] = [:]\n"
+    if old_counter not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope counter insertion point was not recognized")
+    text = text.replace(old_counter, new_counter, 1)
+
+    reset_marker = "    gtkMountTypeCounters[namespace] = [:]\n"
+    begin_reset_marker = "    gtkMountTypeCounters[gtkStateIdentityNamespace()] = [:]\n"
+    if text.count(reset_marker) < 2 or begin_reset_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope reset shape was not recognized")
+    text = text.replace(
+        begin_reset_marker,
+        begin_reset_marker + "    gtkEnvironmentObjectTypeCounters[gtkStateIdentityNamespace()] = [:]\n",
+        1,
+    )
+    text = text.replace(
+        reset_marker,
+        reset_marker + "    gtkEnvironmentObjectTypeCounters[namespace] = [:]\n",
+    )
+
+    mount_identity = r'''public func gtkMountIdentity(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkMountTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkMountTypeCounters[namespace] = counters
+    return "\(namespace)|mount|\(typeName)#\(index)"
+}
+'''
+    environment_scope = mount_identity + r'''
+private func gtkEnvironmentObjectScope(for type: Any.Type) -> String {
+    let namespace = gtkStateIdentityNamespace()
+    let typeName = String(reflecting: type)
+    var counters = gtkEnvironmentObjectTypeCounters[namespace] ?? [:]
+    let index = counters[typeName] ?? 0
+    counters[typeName] = index + 1
+    gtkEnvironmentObjectTypeCounters[namespace] = counters
+    return "\(namespace)|environment|\(typeName)#\(index)"
+}
+'''
+    if mount_identity not in text:
+        raise SystemExit("SwiftOpenUI GTK environment scope helper insertion point was not recognized")
+    text = text.replace(mount_identity, environment_scope, 1)
+
+    object_injection = "        env.setObject(object)\n"
+    scoped_object_injection = (
+        "        env.setObject(object, scope: "
+        "gtkEnvironmentObjectScope(for: ObjectType.self))\n"
+    )
+    if text.count(object_injection) < 4:
+        raise SystemExit("SwiftOpenUI GTK scoped environment modifier shape was not recognized")
+    text = text.replace(object_injection, scoped_object_injection)
+
+if 'let capturedEnvironment = getCurrentEnvironment()\n        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")' not in text:
+    old_geometry_environment = '''        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")
+        self.renderContent = { proxy in
+            gtkWithForcedStateIdentityNamespace(stateNamespace) {
+                gtkRenderView(content(proxy))
+            }
+        }
+'''
+    new_geometry_environment = '''        let capturedEnvironment = getCurrentEnvironment()
+        let stateNamespace = gtkClaimStateIdentityNamespace("GeometryReader")
+        self.renderContent = { proxy in
+            let previousEnvironment = getCurrentEnvironment()
+            var environment = capturedEnvironment
+            environment.refreshInjectedObjectsFromRegistry()
+            setCurrentEnvironment(environment)
+            defer { setCurrentEnvironment(previousEnvironment) }
+            return gtkWithForcedStateIdentityNamespace(stateNamespace) {
+                gtkRenderView(content(proxy))
+            }
+        }
+'''
+    if old_geometry_environment not in text:
+        raise SystemExit("SwiftOpenUI GTK GeometryReader deferred environment shape was not recognized")
+    text = text.replace(old_geometry_environment, new_geometry_environment, 1)
 
 if "private func gtkDebugLog(_ message: String)" not in text:
     debug_helper = '''private func gtkDebugLog(_ message: String) {
@@ -9367,7 +9859,101 @@ if "SwiftUI lays repeated vertical rows against the parent's" not in text:
         raise SystemExit("SwiftOpenUI ForEach row sizing shape was not recognized")
     text = text.replace(old_patched_foreach, new_patched_foreach, 1)
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
+PY
+
+if [[ -f "$KEYBOARD_SHORTCUT_REGISTRY" ]]; then
+python3 - "$KEYBOARD_SHORTCUT_REGISTRY" "$CANONICAL_KEYBOARD_SHORTCUT_REGISTRY" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+canonical = canonical_path.read_text()
+
+required_markers = (
+    "public final class KeyboardShortcutRegistry",
+    "isEnabled: @escaping () -> Bool = { true }",
+    "let match = candidates.last(where: { $0.isEnabled() })",
+)
+if not all(marker in canonical for marker in required_markers):
+    raise SystemExit("Canonical SwiftOpenUI keyboard shortcut availability shape was not recognized")
+if text != canonical:
+    path.write_text(canonical)
+PY
+fi
+
+python3 - "$RENDERER" "$CANONICAL_RENDERER" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+canonical_path = Path(sys.argv[2])
+text = path.read_text()
+original = text
+canonical = canonical_path.read_text()
+
+
+def canonical_block(start: str, end: str) -> str:
+    start_index = canonical.index(start)
+    end_index = canonical.index(end, start_index)
+    return canonical[start_index:end_index]
+
+
+if "func gtkTestActivateVisualDropDownAtRootPoint(" not in text:
+    marker = "func gtkTestPreferredTapActionMatchesWidgetTapData("
+    test_helper = canonical_block(
+        "func gtkTestActivateVisualDropDownAtRootPoint(",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK test-helper insertion point was not recognized")
+    text = text.replace(marker, test_helper + marker, 1)
+
+if "private func gtkNativeDropDownAtRootPoint(" not in text:
+    marker = 'private let gtkListRowTapActionDataKey = "gtk-swift-list-row-tap-action"'
+    hit_recovery = canonical_block(
+        "private func gtkNativeDropDownAtRootPoint(",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK drop-down hit-recovery insertion point was not recognized")
+    text = text.replace(marker, hit_recovery + marker, 1)
+
+if "private let gtkDropDownGlobalDispatcherDataKey" not in text:
+    marker = "extension Picker: GTKRenderable, GTKDescribable {"
+    dispatcher = canonical_block(
+        "private let gtkDropDownGlobalDispatcherDataKey",
+        marker,
+    )
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK Picker dispatcher insertion point was not recognized")
+    text = text.replace(marker, dispatcher + marker, 1)
+
+if "gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))" not in text:
+    marker = "        let displayedLabel = effectiveLabel\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI GTK Picker drop-down render shape was not recognized")
+    text = text.replace(
+        marker,
+        "        gtkInstallDropDownRootDispatcherWhenMapped(widgetFromOpaque(dropdownOp))\n\n" + marker,
+        1,
+    )
+
+if "Views hosted solely because they use @Environment(Type.self) still need" not in text:
+    start = "private func gtkRestoreAndInstallState<V>(_ view: V, host: GTKViewHost) {"
+    end = "private func gtkRestoreAndInstallInlineState<V>("
+    if start not in text or end not in text:
+        raise SystemExit("SwiftOpenUI GTK stateful environment installation shape was not recognized")
+    replacement = canonical_block(start, end)
+    start_index = text.index(start)
+    end_index = text.index(end, start_index)
+    text = text[:start_index] + replacement + text[end_index:]
+
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -9375,7 +9961,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 menu_helper = '''private func gtkApplyPlainMenuButtonChrome(to button: UnsafeMutablePointer<GtkWidget>) {
     let className = "gtk-swift-plain-menu-button"
@@ -9549,7 +10136,42 @@ text = text.replace(
 if "host.renderCapturedTaskPayloads(fallback: described.taskPayloads)" not in text:
     raise SystemExit("SwiftOpenUI initial render task lifecycle reconciliation shape was not recognized")
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
+PY
+
+python3 - "$SWIFTOPENUI_VIEW_HOST" <<'PY'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+original = path.read_text()
+text = original
+
+if "public func primeInjectedEnvironmentObjects" not in text:
+    marker = '''/// Connect all @State / @ObservedObject / @StateObject / @EnvironmentObject
+/// storages found on a view (via Mirror) to the given ViewHost.
+'''
+    helper = '''/// Resolve injected `@Environment(Type.self)` wrappers while the view's
+/// render-time environment is active. The wrapper retains the resolved object,
+/// allowing callbacks created from this view value to outlive that environment
+/// scope in the same way SwiftUI's dynamic-property update phase does.
+public func primeInjectedEnvironmentObjects<V>(_ view: V) {
+    let mirror = Mirror(reflecting: view)
+    for child in mirror.children {
+        if let environment = child.value as? AnyObjectInjectionEnvironment {
+            environment.wireInjectedObject(to: nil)
+        }
+    }
+}
+
+'''
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI injected environment priming insertion point was not recognized")
+    text = text.replace(marker, helper + marker, 1)
+
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$DESCRIPTOR_TREE" <<'PY'
@@ -9557,7 +10179,44 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
+
+if "primeInjectedEnvironmentObjects(view)" not in text:
+    marker = '''    if let describable = view as? GTKDescribable {
+'''
+    priming = '''    // Descriptor passes evaluate fresh view values independently of the
+    // mounted render pass. Prime injected environment wrappers before body
+    // creates deferred callbacks so those callbacks retain the scoped object
+    // after the descriptor environment has been restored.
+    primeInjectedEnvironmentObjects(view)
+
+'''
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor environment priming insertion point was not recognized")
+    text = text.replace(marker, priming + marker, 1)
+
+if "case statefulLifecycleScope" not in text:
+    marker = "    case listRowLifecycleScope\n"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor lifecycle-scope enum shape was not recognized")
+    text = text.replace(marker, marker + "    case statefulLifecycleScope\n", 1)
+
+owned_lifecycle_helper = '''/// A stateful host owns lifecycle actions declared in its body even when an
+/// ancestor is suppressing payload collection for its descriptor-only walk.
+func gtkWithOwnedDescriptorLifecyclePayloads<T>(_ body: () -> T) -> T {
+    let previousDepth = gtkDescriptorLifecyclePayloadSuppressionDepth
+    gtkDescriptorLifecyclePayloadSuppressionDepth = 0
+    defer { gtkDescriptorLifecyclePayloadSuppressionDepth = previousDepth }
+    return body()
+}
+
+'''
+if "func gtkWithOwnedDescriptorLifecyclePayloads" not in text:
+    marker = "public func gtkCollectButtonPayload"
+    if marker not in text:
+        raise SystemExit("SwiftOpenUI descriptor lifecycle ownership insertion point was not recognized")
+    text = text.replace(marker, owned_lifecycle_helper + marker, 1)
 
 render_lifecycle_capture_helper = '''public func gtkCaptureRenderLifecyclePayloads<T>(
     _ render: () -> T
@@ -9588,6 +10247,132 @@ if "gtkCaptureRenderLifecyclePayloads" not in text:
     if marker not in text:
         raise SystemExit("SwiftOpenUI descriptor render lifecycle capture insertion point was not recognized")
     text = text.replace(marker, render_lifecycle_capture_helper + marker, 1)
+
+stateful_descriptor_old = '''                children: [MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }]
+'''
+stateful_descriptor_suppressed = '''                children: [gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }]
+'''
+stateful_descriptor_inline_only = r'''            let child: GTK4DescriptorNode
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
+            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [child]
+            )
+'''
+stateful_descriptor_scoped = r'''            let child: GTK4DescriptorNode
+            let kind: GTK4DescriptorKind
+            if view is any GTKRenderable || view is any TransparentMultiChildView {
+                // These views render inline before gtkRenderView considers
+                // reactive hosting. Their lifecycle modifiers still belong to
+                // the enclosing host and must remain visible to its descriptor.
+                kind = .composite
+                child = MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+            } else {
+                // The renderer creates a nested GTKViewHost for this view. Its
+                // lifecycle nodes stay available for retained-tree planning,
+                // but the parent host must not map or execute them.
+                kind = .statefulLifecycleScope
+                child = gtkWithSuppressedDescriptorLifecyclePayloads {
+                    MainActor.assumeIsolated { gtkDescribeAnyView(view.body) }
+                }
+            }
+            return GTK4DescriptorNode(
+                kind: kind,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+                children: [child]
+            )
+'''
+if stateful_descriptor_old in text:
+    text = text.replace(
+        r'''            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+''' + stateful_descriptor_old + '''            )
+''',
+        stateful_descriptor_scoped,
+        1,
+    )
+elif stateful_descriptor_suppressed in text:
+    text = text.replace(
+        r'''            return GTK4DescriptorNode(
+                kind: .composite,
+                typeName: "GTKStatefulHost<\(String(describing: type(of: view)))>",
+''' + stateful_descriptor_suppressed + '''            )
+''',
+        stateful_descriptor_scoped,
+        1,
+    )
+elif stateful_descriptor_inline_only in text:
+    text = text.replace(stateful_descriptor_inline_only, stateful_descriptor_scoped, 1)
+elif stateful_descriptor_scoped not in text:
+    raise SystemExit("SwiftOpenUI stateful descriptor lifecycle ownership shape was not recognized")
+
+text = text.replace(
+    "    case .listRowLifecycleScope: return .none\n",
+    "    case .listRowLifecycleScope, .statefulLifecycleScope: return .none\n",
+    1,
+)
+if "case .listRowLifecycleScope, .statefulLifecycleScope: return .none" not in text:
+    raise SystemExit("SwiftOpenUI stateful lifecycle update-intent shape was not recognized")
+
+task_collector = '''private func gtkCollectTaskDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
+) -> [GTK4DescriptorIdentity] {
+'''
+task_scope_guard = '''    if node.descriptor.kind == .statefulLifecycleScope {
+        return []
+    }
+'''
+task_start = text.find(task_collector)
+if task_start < 0:
+    raise SystemExit("SwiftOpenUI task descriptor collector shape was not recognized")
+task_guard_at = task_start + len(task_collector)
+if not text.startswith(task_scope_guard, task_guard_at):
+    text = text[:task_guard_at] + task_scope_guard + text[task_guard_at:]
+
+on_appear_collector = '''private func gtkCollectOnAppearDescriptorIdentities(
+    from node: GTK4IdentifiedDescriptorNode,
+    includingListRowScopes: Bool = true
+) -> [GTK4DescriptorIdentity] {
+'''
+on_appear_start = text.find(on_appear_collector)
+if on_appear_start < 0:
+    raise SystemExit("SwiftOpenUI onAppear descriptor collector shape was not recognized")
+on_appear_guard_at = on_appear_start + len(on_appear_collector)
+if not text.startswith(task_scope_guard, on_appear_guard_at):
+    text = text[:on_appear_guard_at] + task_scope_guard + text[on_appear_guard_at:]
+
+payload_function_start = text.find("public func gtkOnAppearPayloadsByIdentity(")
+payload_function_end = text.find("public func gtkButtonPayloadsByIdentity(", payload_function_start)
+if payload_function_start < 0 or payload_function_end < 0:
+    raise SystemExit("SwiftOpenUI onAppear payload mapper shape was not recognized")
+payload_function = text[payload_function_start:payload_function_end]
+plain_mismatch = "    guard identities.count == payloads.count else { return [:] }\n"
+logged_mismatch = r'''    guard identities.count == payloads.count else {
+        gtkDescriptorLifecycleDebugLog(
+            "onAppear payload identity mismatch identities=\(identities.count) payloads=\(payloads.count)"
+        )
+        return [:]
+    }
+'''
+if plain_mismatch in payload_function:
+    payload_function = payload_function.replace(plain_mismatch, logged_mismatch, 1)
+elif logged_mismatch not in payload_function:
+    raise SystemExit("SwiftOpenUI onAppear payload mismatch shape was not recognized")
+text = text[:payload_function_start] + payload_function + text[payload_function_end:]
 
 descriptor_child_helper = '''private func gtkDescriptorChildViews(from view: any View, depth: Int = 0) -> [any View] {
     guard depth < 24 else { return [view] }
@@ -9708,15 +10493,19 @@ if (
     if end is None:
         raise SystemExit("SwiftOpenUI descriptor mutation guard end was not recognized")
     text = text[:start] + new_function + text[end:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
-python3 - "$ENVIRONMENT" <<'PY'
+python3 - "$ENVIRONMENT" "$CANONICAL_ENVIRONMENT" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+canonical_path = Path(sys.argv[2])
+original = path.read_text()
+text = original
+canonical = canonical_path.read_text()
 if "refreshInjectedObjectsFromRegistry" not in text:
     old = '''    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
         setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
@@ -9737,7 +10526,447 @@ if "refreshInjectedObjectsFromRegistry" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI EnvironmentValues latest-object shape was not recognized")
     text = text.replace(old, new, 1)
-path.write_text(text)
+if "public struct EnvironmentObjectCapture" not in text:
+    def replace_once(old, new, message):
+        global text
+        if old not in text:
+            raise SystemExit(message)
+        text = text.replace(old, new, 1)
+
+    replace_once(
+        '''public extension DynamicProperty {
+    mutating func update() {}
+}
+''',
+        '''public extension DynamicProperty {
+    mutating func update() {}
+}
+
+/// A reference-typed environment object together with the structural scope
+/// that injected it. Backends retain these captures across body rebuilds so
+/// same-typed objects installed by sibling views cannot replace one another.
+public struct EnvironmentObjectCapture: @unchecked Sendable {
+    public let object: AnyObject
+    public let scope: String?
+
+    public init(object: AnyObject, scope: String? = nil) {
+        self.object = object
+        self.scope = scope
+    }
+}
+''',
+        "SwiftOpenUI EnvironmentObjectCapture insertion point was not recognized",
+    )
+    replace_once(
+        "    private var objects: [ObjectIdentifier: AnyObject] = [:]\n",
+        "    private var objects: [ObjectIdentifier: EnvironmentObjectCapture] = [:]\n",
+        "SwiftOpenUI scoped environment object storage shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setObject<T: AnyObject>(_ object: T) {
+        let id = ObjectIdentifier(T.self)
+        objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    }
+''',
+        '''    public mutating func setObject<T: AnyObject>(_ object: T, scope: String? = nil) {
+        let id = ObjectIdentifier(T.self)
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
+    }
+''',
+        "SwiftOpenUI scoped setObject shape was not recognized",
+    )
+    replace_once(
+        '''        return objects[id] as? T ?? EnvironmentObjectRegistry.shared.object(id: id) as? T
+''',
+        '''        return objects[id]?.object as? T
+            ?? EnvironmentObjectRegistry.shared.object(id: id, scope: nil) as? T
+''',
+        "SwiftOpenUI scoped getObject shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setObjectByID(_ id: ObjectIdentifier, _ object: AnyObject) {
+        objects[id] = object
+        EnvironmentObjectRegistry.shared.setObject(object, id: id)
+    }
+''',
+        '''    public mutating func setObjectByID(
+        _ id: ObjectIdentifier,
+        _ object: AnyObject,
+        scope: String? = nil
+    ) {
+        objects[id] = EnvironmentObjectCapture(object: object, scope: scope)
+        EnvironmentObjectRegistry.shared.setObject(object, id: id, scope: scope)
+    }
+''',
+        "SwiftOpenUI scoped setObjectByID shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func setLatestObjectByID(_ id: ObjectIdentifier, fallback object: AnyObject) {
+        setObjectByID(id, EnvironmentObjectRegistry.shared.object(id: id) ?? object)
+    }
+''',
+        '''    public mutating func setLatestObjectByID(
+        _ id: ObjectIdentifier,
+        fallback object: AnyObject,
+        scope: String? = nil
+    ) {
+        setObjectByID(
+            id,
+            EnvironmentObjectRegistry.shared.object(id: id, scope: scope) ?? object,
+            scope: scope
+        )
+    }
+''',
+        "SwiftOpenUI scoped latest-object shape was not recognized",
+    )
+    replace_once(
+        '''    public mutating func refreshInjectedObjectsFromRegistry() {
+        for (id, object) in objects {
+            setLatestObjectByID(id, fallback: object)
+        }
+    }
+''',
+        '''    public mutating func refreshInjectedObjectsFromRegistry() {
+        for (id, capture) in objects {
+            setLatestObjectByID(id, fallback: capture.object, scope: capture.scope)
+        }
+    }
+
+    internal func objectScope(for id: ObjectIdentifier) -> String? {
+        objects[id]?.scope
+    }
+''',
+        "SwiftOpenUI scoped environment refresh shape was not recognized",
+    )
+    replace_once(
+        '''private final class EnvironmentObjectRegistry: @unchecked Sendable {
+    static let shared = EnvironmentObjectRegistry()
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: AnyObject] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier) {
+        lock.lock()
+        objects[id] = object
+        lock.unlock()
+    }
+
+    func object(id: ObjectIdentifier) -> AnyObject? {
+        lock.lock()
+        let object = objects[id]
+        lock.unlock()
+        return object
+    }
+}
+''',
+        '''private final class EnvironmentObjectRegistry: @unchecked Sendable {
+    static let shared = EnvironmentObjectRegistry()
+
+    private final class WeakObjectBox {
+        weak var object: AnyObject?
+
+        init(_ object: AnyObject) {
+            self.object = object
+        }
+    }
+
+    private struct ScopedKey: Hashable {
+        let typeID: ObjectIdentifier
+        let scope: String
+    }
+
+    private let lock = NSLock()
+    private var objects: [ObjectIdentifier: WeakObjectBox] = [:]
+    private var scopedObjects: [ScopedKey: WeakObjectBox] = [:]
+
+    func setObject(_ object: AnyObject, id: ObjectIdentifier, scope: String?) {
+        lock.lock()
+        if let scope {
+            scopedObjects[ScopedKey(typeID: id, scope: scope)] = WeakObjectBox(object)
+        } else {
+            objects[id] = WeakObjectBox(object)
+        }
+        lock.unlock()
+    }
+
+    func object(id: ObjectIdentifier, scope: String?) -> AnyObject? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let scope {
+            let key = ScopedKey(typeID: id, scope: scope)
+            guard let object = scopedObjects[key]?.object else {
+                scopedObjects.removeValue(forKey: key)
+                return nil
+            }
+            return object
+        }
+        guard let object = objects[id]?.object else {
+            objects.removeValue(forKey: id)
+            return nil
+        }
+        return object
+    }
+}
+''',
+        "SwiftOpenUI scoped environment registry shape was not recognized",
+    )
+    replace_once(
+        "private var _envReadTrackerStack: [[ObjectIdentifier: AnyObject]] = []\n",
+        "private var _envReadTrackerStack: [[ObjectIdentifier: EnvironmentObjectCapture]] = []\n",
+        "SwiftOpenUI scoped environment read tracker storage shape was not recognized",
+    )
+    replace_once(
+        '''public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+    guard !_envReadTrackerStack.isEmpty else { return nil }
+    let result = _envReadTrackerStack.removeLast()
+    if !_envReadTrackerStack.isEmpty {
+        let parentIndex = _envReadTrackerStack.count - 1
+        for (typeID, object) in result {
+            _envReadTrackerStack[parentIndex][typeID] = object
+        }
+    }
+    return result
+}
+''',
+        '''private func endEnvironmentObjectCaptureTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
+    guard !_envReadTrackerStack.isEmpty else { return nil }
+    let result = _envReadTrackerStack.removeLast()
+    if !_envReadTrackerStack.isEmpty {
+        let parentIndex = _envReadTrackerStack.count - 1
+        for (typeID, capture) in result {
+            _envReadTrackerStack[parentIndex][typeID] = capture
+        }
+    }
+    return result
+}
+
+/// Finish tracking while preserving each object's structural injection scope.
+/// Reactive backends use this form when rebuilding hosts independently.
+public func endScopedEnvironmentReadTracking() -> [ObjectIdentifier: EnvironmentObjectCapture]? {
+    endEnvironmentObjectCaptureTracking()
+}
+
+/// Finish tracking using the original object-only result shape.
+public func endEnvironmentReadTracking() -> [ObjectIdentifier: AnyObject]? {
+    endEnvironmentObjectCaptureTracking()?.mapValues(\\.object)
+}
+''',
+        "SwiftOpenUI scoped environment read tracker result shape was not recognized",
+    )
+    replace_once(
+        '''    _envReadTrackerStack[index][typeID] = object
+    recordEnvironmentObservableObjectRead(object)
+''',
+        '''    _envReadTrackerStack[index][typeID] = EnvironmentObjectCapture(
+        object: object,
+        scope: getCurrentEnvironment().objectScope(for: typeID)
+    )
+    recordEnvironmentObservableObjectRead(object)
+''',
+        "SwiftOpenUI scoped environment read recording shape was not recognized",
+    )
+legacy_sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
+}
+
+'''
+sync_task_environment = '''public func withSynchronousTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () throws -> T
+) rethrows -> T {
+    // Swift 6.2's task-local runtime can corrupt its lookup marker when a
+    // scope is opened from a native callback that has no current Swift task
+    // and the operation releases an actor-isolated object. Keep direct uses
+    // safe with the thread-local environment; backends that need child Task
+    // inheritance must first enter a real Swift task.
+    let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+    guard hasCurrentTask else {
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(env)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        return try operation()
+    }
+
+    return try EnvironmentTaskLocal.$values.withValue(env) {
+        try operation()
+    }
+}
+
+'''
+if legacy_sync_task_environment in text:
+    text = text.replace(legacy_sync_task_environment, sync_task_environment, 1)
+if sync_task_environment not in text:
+    async_task_environment = '''public func withTaskEnvironment<T>(
+    _ env: EnvironmentValues,
+    operation: () async -> T
+) async -> T {
+'''
+    if async_task_environment not in text:
+        raise SystemExit("SwiftOpenUI synchronous task environment helper shape was not recognized")
+    text = text.replace(
+        async_task_environment,
+        sync_task_environment + async_task_environment,
+        1,
+    )
+if "if let taskEnvironment = EnvironmentTaskLocal.values" not in text:
+    old_posix_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    guard let ptr = pthread_getspecific(_envKey) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    new_posix_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
+    }
+    guard let ptr = pthread_getspecific(_envKey) else { return EnvironmentValues() }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    old_windows_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    guard let ptr = TlsGetValue(_tlsIndex) else {
+        return EnvironmentTaskLocal.values ?? EnvironmentValues()
+    }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    new_windows_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    if let taskEnvironment = EnvironmentTaskLocal.values {
+        return taskEnvironment
+    }
+    guard let ptr = TlsGetValue(_tlsIndex) else { return EnvironmentValues() }
+    return Unmanaged<EnvironmentBox>.fromOpaque(ptr).takeUnretainedValue().values
+}
+'''
+    old_fallback_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    _currentEnvironment ?? EnvironmentTaskLocal.values ?? EnvironmentValues()
+}
+'''
+    new_fallback_environment = '''public func getCurrentEnvironment() -> EnvironmentValues {
+    EnvironmentTaskLocal.values ?? _currentEnvironment ?? EnvironmentValues()
+}
+'''
+    for old, new, message in [
+        (old_posix_environment, new_posix_environment, "POSIX"),
+        (old_windows_environment, new_windows_environment, "Windows"),
+        (old_fallback_environment, new_fallback_environment, "fallback"),
+    ]:
+        if old not in text:
+            raise SystemExit(f"SwiftOpenUI {message} task environment precedence shape was not recognized")
+        text = text.replace(old, new, 1)
+old_presentation_precedence = '''public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
+    _presentationDismissActionStack.last ?? PresentationDismissTaskLocal.context?.action
+}
+'''
+new_presentation_precedence = '''public func swiftOpenUICurrentPresentationDismissAction() -> (() -> Void)? {
+    PresentationDismissTaskLocal.context?.action ?? _presentationDismissActionStack.last
+}
+'''
+if old_presentation_precedence in text:
+    text = text.replace(old_presentation_precedence, new_presentation_precedence, 1)
+elif new_presentation_precedence not in text:
+    raise SystemExit("SwiftOpenUI presentation task context precedence shape was not recognized")
+if "private final class EnvironmentInjectedObjectStorage" not in text:
+    object_environment_protocol = '''public protocol AnyObjectInjectionEnvironment {
+    func wireInjectedObject(to host: AnyViewHost?)
+}
+'''
+    object_environment_storage = object_environment_protocol + '''
+private final class EnvironmentInjectedObjectStorage {
+    private let lock = NSLock()
+    private var object: AnyObject?
+
+    func store(_ object: AnyObject) {
+        lock.lock()
+        self.object = object
+        lock.unlock()
+    }
+
+    func load() -> AnyObject? {
+        lock.lock()
+        defer { lock.unlock() }
+        return object
+    }
+}
+'''
+    if object_environment_protocol not in text:
+        raise SystemExit("SwiftOpenUI injected environment object storage insertion shape was not recognized")
+    text = text.replace(
+        object_environment_protocol,
+        object_environment_storage,
+        1,
+    )
+
+    old_injected_object_reader = '''        self.reader = .injectedObject {
+            guard let object = getCurrentEnvironment().getObject(type) else {
+                fatalError(
+                    "@Environment(\\(type).self) lookup failed — no object of this type was injected. " +
+                    "Call `.environment(object)` on an ancestor view."
+                )
+            }
+            // Record the read so the enclosing ViewHost can re-push
+            // this object into env on rebuild, even if the
+            // `.environment(object)` modifier that originally pushed
+            // it lives inside a parent's body (between two ViewHosts
+            // in the render tree) and wouldn't otherwise be
+            // guaranteed to re-run before this read fires again.
+            recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
+            return object
+        }
+'''
+    new_injected_object_reader = '''        let storage = EnvironmentInjectedObjectStorage()
+        self.reader = .injectedObject {
+            if let object = getCurrentEnvironment().getObject(type) {
+                storage.store(object)
+                // Record the read so the enclosing ViewHost can re-push
+                // this object into env on rebuild, even if the
+                // `.environment(object)` modifier that originally pushed
+                // it lives inside a parent's body (between two ViewHosts
+                // in the render tree) and wouldn't otherwise be
+                // guaranteed to re-run before this read fires again.
+                recordEnvironmentRead(typeID: ObjectIdentifier(type), object: object)
+                return object
+            }
+            if let object = storage.load() as? Value {
+                return object
+            }
+            fatalError(
+                "@Environment(\\(type).self) lookup failed — no object of this type was injected. " +
+                "Call `.environment(object)` on an ancestor view."
+            )
+        }
+'''
+    if old_injected_object_reader not in text:
+        raise SystemExit("SwiftOpenUI injected environment object reader shape was not recognized")
+    text = text.replace(
+        old_injected_object_reader,
+        new_injected_object_reader,
+        1,
+    )
+if "case injectedObject(() -> Value?)" not in text:
+    start = "@propertyWrapper\npublic struct Environment<Value> {"
+    end = "// MARK: - Environment object lookup"
+    if start not in text or end not in text or start not in canonical or end not in canonical:
+        raise SystemExit("SwiftOpenUI lazy injected environment priming shape was not recognized")
+    source_start = text.index(start)
+    source_end = text.index(end, source_start)
+    canonical_start = canonical.index(start)
+    canonical_end = canonical.index(end, canonical_start)
+    text = (
+        text[:source_start]
+        + canonical[canonical_start:canonical_end]
+        + text[source_end:]
+    )
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$GTK_VIEW_HOST" <<'PY'
@@ -9745,7 +10974,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 if "rebuildPresentationRoot" not in text:
     text = text.replace(
         """    private var observationDidFire = false
@@ -9836,13 +11066,16 @@ if "buildBodyCapturingRenderLifecyclePayloads" not in text:
     helper_marker = """    /// Re-runs the describe pass under a fresh withObservationTracking
 """
     helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
-        gtkBeginStateIdentityPass()
-        let captured = gtkCaptureRenderLifecyclePayloads {
-            buildBody()
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                let captured = gtkCaptureRenderLifecyclePayloads {
+                    buildBody()
+                }
+                lastRenderOnAppearPayloads = captured.onAppearPayloads
+                lastRenderTaskPayloads = captured.taskPayloads
+                return captured.value
+            }
         }
-        lastRenderOnAppearPayloads = captured.onAppearPayloads
-        lastRenderTaskPayloads = captured.taskPayloads
-        return captured.value
     }
 
     func renderCapturedOnAppearPayloads(fallback described: [GTK4OnAppearPayload]) -> [GTK4OnAppearPayload] {
@@ -9859,6 +11092,80 @@ if "buildBodyCapturingRenderLifecyclePayloads" not in text:
     text = text.replace(helper_marker, helper + helper_marker, 1)
 elif "renderCapturedTaskPayloads(fallback described" not in text:
     raise SystemExit("SwiftOpenUI GTKViewHost render lifecycle helper shape was not recognized")
+
+legacy_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkBeginStateIdentityPass()
+        let captured = gtkCaptureRenderLifecyclePayloads {
+            buildBody()
+        }
+        lastRenderOnAppearPayloads = captured.onAppearPayloads
+        lastRenderTaskPayloads = captured.taskPayloads
+        return captured.value
+    }
+"""
+namespace_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            let captured = gtkCaptureRenderLifecyclePayloads {
+                buildBody()
+            }
+            lastRenderOnAppearPayloads = captured.onAppearPayloads
+            lastRenderTaskPayloads = captured.taskPayloads
+            return captured.value
+        }
+    }
+"""
+stable_render_helper = """    private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer {
+        gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                let captured = gtkCaptureRenderLifecyclePayloads {
+                    buildBody()
+                }
+                lastRenderOnAppearPayloads = captured.onAppearPayloads
+                lastRenderTaskPayloads = captured.taskPayloads
+                return captured.value
+            }
+        }
+    }
+"""
+if legacy_render_helper in text:
+    text = text.replace(legacy_render_helper, stable_render_helper, 1)
+elif namespace_render_helper in text:
+    text = text.replace(namespace_render_helper, stable_render_helper, 1)
+elif (
+    "private func buildBodyCapturingRenderLifecyclePayloads() -> OpaquePointer" not in text
+    or "gtkWithForcedStateIdentityNamespace(stateIdentityNamespace)" not in text
+    or "gtkWithOwnedDescriptorLifecyclePayloads" not in text
+):
+    raise SystemExit("SwiftOpenUI GTKViewHost lifecycle-owned render shape was not recognized")
+
+legacy_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        gtkBeginStateIdentityPass()
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkDescribeCapturingCanvasPayloads(describeBody)
+"""
+stable_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkDescribeCapturingCanvasPayloads(describeBody)
+        }
+"""
+owned_describe_scope = """        let previousHost = GTKViewHost.getCurrentRebuilding()
+        GTKViewHost.setCurrentRebuilding(self)
+        defer { GTKViewHost.setCurrentRebuilding(previousHost) }
+        return gtkWithForcedStateIdentityNamespace(stateIdentityNamespace) {
+            gtkWithOwnedDescriptorLifecyclePayloads {
+                gtkDescribeCapturingCanvasPayloads(describeBody)
+            }
+        }
+"""
+if legacy_describe_scope in text:
+    text = text.replace(legacy_describe_scope, owned_describe_scope, 1)
+elif stable_describe_scope in text:
+    text = text.replace(stable_describe_scope, owned_describe_scope, 1)
+elif owned_describe_scope not in text:
+    raise SystemExit("SwiftOpenUI GTKViewHost lifecycle-owned describe shape was not recognized")
 
 text = text.replace(
     "onAppearPayloads: described.onAppearPayloads",
@@ -9916,7 +11223,63 @@ if "gtkResumeViewHostLifecycleForVisibleSubtree" not in text:
     if old not in text:
         raise SystemExit("SwiftOpenUI GTKViewHost width tick callback shape was not recognized")
     text = text.replace(old, new, 1)
-path.write_text(text)
+if "capturedInjectedObjects: [ObjectIdentifier: EnvironmentObjectCapture]" not in text:
+    old_capture_storage = "    private var capturedInjectedObjects: [ObjectIdentifier: AnyObject] = [:]\n"
+    new_capture_storage = "    private var capturedInjectedObjects: [ObjectIdentifier: EnvironmentObjectCapture] = [:]\n"
+    if old_capture_storage not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment capture storage was not recognized")
+    text = text.replace(old_capture_storage, new_capture_storage, 1)
+
+    old_rebuild_environment = '''        for (typeID, object) in capturedInjectedObjects {
+            env.setLatestObjectByID(typeID, fallback: object)
+        }
+'''
+    new_rebuild_environment = '''        for (typeID, capture) in capturedInjectedObjects {
+            env.setLatestObjectByID(
+                typeID,
+                fallback: capture.object,
+                scope: capture.scope
+            )
+        }
+'''
+    if old_rebuild_environment not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment rebuild shape was not recognized")
+    text = text.replace(old_rebuild_environment, new_rebuild_environment, 1)
+
+    read_capture = "            if let reads = endEnvironmentReadTracking() {\n"
+    fallback_read_capture = "        if let reads = endEnvironmentReadTracking() {\n"
+    if read_capture not in text or fallback_read_capture not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost scoped environment read completion shape was not recognized")
+    text = text.replace(
+        read_capture,
+        "            if let reads = endScopedEnvironmentReadTracking() {\n",
+        1,
+    )
+    text = text.replace(
+        fallback_read_capture,
+        "        if let reads = endScopedEnvironmentReadTracking() {\n",
+        1,
+    )
+if "gtkFlushPendingTextBindingUpdate(for: self)" not in text:
+    old_rebuild_dispatch = '''        lock.unlock()
+
+        // --- Narrow mutation path: try text/color in-place update ---
+'''
+    new_rebuild_dispatch = '''        lock.unlock()
+
+        // A rebuild caused by unrelated state must not replace a focused text
+        // input with the binding's older value while its native edit is still
+        // inside the debounce window. Commit this host's pending edit first so
+        // both narrow mutation and full remount paths see the latest text.
+        gtkFlushPendingTextBindingUpdate(for: self)
+
+        // --- Narrow mutation path: try text/color in-place update ---
+'''
+    if old_rebuild_dispatch not in text:
+        raise SystemExit("SwiftOpenUI GTKViewHost pending text flush shape was not recognized")
+    text = text.replace(old_rebuild_dispatch, new_rebuild_dispatch, 1)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$LAYOUT" <<'PY'
@@ -9924,7 +11287,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 old = '''    if let maxWidth, maxWidth != .infinity { containerWidth = min(containerWidth, maxWidth) }
     if let maxHeight, maxHeight != .infinity { containerHeight = min(containerHeight, maxHeight) }
 '''
@@ -9937,7 +11301,8 @@ new = '''    if let maxWidth, maxWidth != .infinity {
 '''
 if "expandsToFillWidth && width == nil ? maxWidth" not in text:
     text = text.replace(old, new, 1)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$GTK_BACKEND" <<'PY'
@@ -9945,7 +11310,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 root_overlay_helpers = '''private let gtkRootPresentationOverlayKey = "quillui-root-presentation-overlay"
 private var gtkRootPresentationOverlayFallback: OpaquePointer?
 
@@ -10247,7 +11613,8 @@ if "extension Group: GTKWindowRenderable where Content: Scene" not in text:
         text = text.replace(marker, group_scene_rendering + marker, 1)
     else:
         text = text.rstrip() + "\n\n" + group_scene_rendering
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -10255,7 +11622,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 needle = '''        gtk_widget_set_tooltip_text(widget, text)
         return opaqueFromWidget(widget)
 '''
@@ -10275,7 +11643,8 @@ if "gtk_swift_accessible_update_description(widget, textPointer)" not in helpRen
         raise SystemExit("SwiftOpenUI GTK HelpView renderer shape was not recognized")
     helpRenderer = helpRenderer.replace(needle, replacement, 1)
     text = text[:helpStart] + helpRenderer + text[helpEnd:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -10283,7 +11652,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old_init = '''    init<Data, Content: View>(items: [Data], contentBuilder: @escaping (Data) -> Content,
                               cellMinWidth: Int) {
@@ -10436,7 +11806,8 @@ while text.count("private func gtkCreateStaticLazyGridWidget(") > 1:
     if second == -1 or end == -1:
         break
     text = text[:second] + text[end + 4:]
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$TOOLBAR_MODIFIER" <<'PY'
@@ -10444,7 +11815,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 old = '''public struct AnyToolbarItem {
     public let placement: ToolbarItemPlacement
@@ -10491,7 +11863,8 @@ if "public let renderedViews: [any View]" not in text:
     if start >= 0 and end > start:
         text = text[:start] + new + text[end:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$NAVIGATION_DESTINATION" <<'PY'
@@ -10499,7 +11872,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "NavigationPresentedDestinationModifier" not in text:
     marker = "\nextension View {"
@@ -10515,7 +11889,8 @@ if "isPresented: Binding<Bool>" not in text:
         raise SystemExit("SwiftOpenUI NavigationDestination closing extension was not recognized")
     text = text[:close] + insertion + text[close:]
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$NAVIGATION" <<'PY'
@@ -10523,7 +11898,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 text = text.replace(
     "let sidebarW = gtkExtractColumnWidth(from: sidebar) ?? Double(sidebarWidth)",
     "let sidebarW = max(gtkExtractColumnWidth(from: sidebar) ?? 0, gtkResolvedDefaultSidebarWidth(fallback: Double(sidebarWidth)))",
@@ -11643,8 +13019,327 @@ replace_navigation_once(
     "        })",
     "SwiftOpenUI GTK navigation native-destruction callback shape was not recognized",
 )
+if "GTKNavigationActionTarget" in text:
+    replace_navigation_once(
+        "let windowID: Int\n    weak var owner: GTKViewHost?",
+        "private final class GTKNavigationActionTargetRegistryEntry {\n"
+        "    weak var owner: GTKViewHost?\n"
+        "    let hasOwner: Bool\n"
+        "    weak var target: GTKNavigationActionTarget?\n\n"
+        "    init(owner: GTKViewHost?, target: GTKNavigationActionTarget) {\n"
+        "        self.owner = owner\n"
+        "        hasOwner = owner != nil\n"
+        "        self.target = target\n"
+        "    }\n\n"
+        "    func belongs(to candidate: GTKViewHost?) -> Bool {\n"
+        "        if hasOwner {\n"
+        "            guard let owner, let candidate else { return false }\n"
+        "            return owner === candidate\n"
+        "        }\n"
+        "        return candidate == nil\n"
+        "    }\n"
+        "}",
+        "private final class GTKNavigationActionTargetRegistryEntry {\n"
+        "    let windowID: Int\n"
+        "    weak var owner: GTKViewHost?\n"
+        "    let hasOwner: Bool\n"
+        "    weak var target: GTKNavigationActionTarget?\n\n"
+        "    init(windowID: Int, owner: GTKViewHost?, target: GTKNavigationActionTarget) {\n"
+        "        self.windowID = windowID\n"
+        "        self.owner = owner\n"
+        "        hasOwner = owner != nil\n"
+        "        self.target = target\n"
+        "    }\n\n"
+        "    func belongs(toWindowID candidateWindowID: Int, owner candidate: GTKViewHost?) -> Bool {\n"
+        "        if windowID != 0 || candidateWindowID != 0 {\n"
+        "            return windowID != 0 && windowID == candidateWindowID\n"
+        "        }\n"
+        "        if hasOwner {\n"
+        "            guard let owner, let candidate else { return false }\n"
+        "            return owner === candidate\n"
+        "        }\n"
+        "        return candidate == nil\n"
+        "    }\n"
+        "}",
+        "SwiftOpenUI GTK window-scoped navigation registry shape was not recognized",
+    )
+    replace_navigation_once(
+        "let windowID = getCurrentEnvironment().windowID",
+        "private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {\n"
+        "    let owner = GTKViewHost.getCurrentRebuilding()\n"
+        "    gtkNavigationActionTargetsLock.lock()\n"
+        "    defer { gtkNavigationActionTargetsLock.unlock() }\n\n"
+        "    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]\n"
+        "    entries.removeAll { $0.target == nil }\n"
+        "    if let target = entries.first(where: { $0.belongs(to: owner) })?.target {\n"
+        "        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "        return target\n"
+        "    }\n"
+        "    let target = GTKNavigationActionTarget()\n"
+        "    entries.append(GTKNavigationActionTargetRegistryEntry(owner: owner, target: target))\n"
+        "    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "    return target\n"
+        "}",
+        "private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {\n"
+        "    let windowID = getCurrentEnvironment().windowID\n"
+        "    let owner = GTKViewHost.getCurrentRebuilding()\n"
+        "    gtkNavigationActionTargetsLock.lock()\n"
+        "    defer { gtkNavigationActionTargetsLock.unlock() }\n\n"
+        "    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]\n"
+        "    entries.removeAll { $0.target == nil }\n"
+        "    if let target = entries.first(where: {\n"
+        "        $0.belongs(toWindowID: windowID, owner: owner)\n"
+        "    })?.target {\n"
+        "        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "        return target\n"
+        "    }\n"
+        "    let target = GTKNavigationActionTarget()\n"
+        "    entries.append(\n"
+        "        GTKNavigationActionTargetRegistryEntry(\n"
+        "            windowID: windowID,\n"
+        "            owner: owner,\n"
+        "            target: target\n"
+        "        )\n"
+        "    )\n"
+        "    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries\n"
+        "    return target\n"
+        "}",
+        "SwiftOpenUI GTK window-scoped navigation target shape was not recognized",
+    )
+if "GTKNavigationActionTarget" not in text:
+    text = text.replace(
+        "private enum GTKNavigationPersistedRoute {",
+        "fileprivate enum GTKNavigationPersistedRoute {",
+        1,
+    )
+    action_target_marker = "\nprivate struct GTKPendingPresentedNavigationDestination"
+    action_target_helper = '''
+/// Stable indirection for callbacks captured by a navigation destination.
+///
+/// A GTK host can replace its native NavigationStack while a Swift action is
+/// waiting to enter the MainActor. The old environment must still address the
+/// newly mounted logical stack, just as SwiftUI actions survive view updates.
+fileprivate final class GTKNavigationActionTarget {
+    private let lock = NSLock()
+    private weak var context: GTKNavigationContext?
+
+    func install(_ context: GTKNavigationContext) {
+        lock.lock()
+        self.context = context
+        lock.unlock()
+    }
+
+    func uninstall(_ context: GTKNavigationContext) {
+        lock.lock()
+        if self.context === context {
+            self.context = nil
+        }
+        lock.unlock()
+    }
+
+    private func liveContext() -> GTKNavigationContext? {
+        lock.lock()
+        let context = context
+        lock.unlock()
+        return context?.nativeWidgetTreeIsAlive == true ? context : nil
+    }
+
+    @discardableResult
+    func pushValue(_ value: AnyHashable) -> Bool {
+        liveContext()?.pushValue(value) ?? false
+    }
+
+    @discardableResult
+    func pushDestinationRoute(_ route: GTKNavigationPersistedRoute) -> Bool {
+        liveContext()?.pushDestinationRoute(route) ?? false
+    }
+
+    func pop() {
+        liveContext()?.pop()
+    }
+
+    func popToRoot() {
+        liveContext()?.popToRoot()
+    }
+}
+
+private final class GTKNavigationActionTargetRegistryEntry {
+    let windowID: Int
+    weak var owner: GTKViewHost?
+    let hasOwner: Bool
+    weak var target: GTKNavigationActionTarget?
+
+    init(windowID: Int, owner: GTKViewHost?, target: GTKNavigationActionTarget) {
+        self.windowID = windowID
+        self.owner = owner
+        hasOwner = owner != nil
+        self.target = target
+    }
+
+    func belongs(toWindowID candidateWindowID: Int, owner candidate: GTKViewHost?) -> Bool {
+        if windowID != 0 || candidateWindowID != 0 {
+            return windowID != 0 && windowID == candidateWindowID
+        }
+        if hasOwner {
+            guard let owner, let candidate else { return false }
+            return owner === candidate
+        }
+        return candidate == nil
+    }
+}
+
+private let gtkNavigationActionTargetsLock = NSLock()
+private var gtkNavigationActionTargetsByNamespace: [String: [GTKNavigationActionTargetRegistryEntry]] = [:]
+
+private func gtkNavigationActionTarget(for stateNamespace: String) -> GTKNavigationActionTarget {
+    let windowID = getCurrentEnvironment().windowID
+    let owner = GTKViewHost.getCurrentRebuilding()
+    gtkNavigationActionTargetsLock.lock()
+    defer { gtkNavigationActionTargetsLock.unlock() }
+
+    var entries = gtkNavigationActionTargetsByNamespace[stateNamespace, default: []]
+    entries.removeAll { $0.target == nil }
+    if let target = entries.first(where: {
+        $0.belongs(toWindowID: windowID, owner: owner)
+    })?.target {
+        gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+        return target
+    }
+    let target = GTKNavigationActionTarget()
+    entries.append(
+        GTKNavigationActionTargetRegistryEntry(
+            windowID: windowID,
+            owner: owner,
+            target: target
+        )
+    )
+    gtkNavigationActionTargetsByNamespace[stateNamespace] = entries
+    return target
+}
+
+func gtkTestNavigationDestinationDismissAction(
+    for context: GTKNavigationContext
+) -> DismissAction {
+    let actionTarget = context.actionTarget
+    return DismissAction(handler: {
+        actionTarget.pop()
+    }, debugName: "gtk navigation destination test")
+}
+'''
+    if action_target_marker not in text:
+        raise SystemExit("SwiftOpenUI GTK navigation action-target insertion point was not recognized")
+    text = text.replace(action_target_marker, action_target_helper + action_target_marker, 1)
+
+    replacements = [
+        (
+            "    let backButton: UnsafeMutablePointer<GtkWidget>\n"
+            "    let stateNamespace: String\n",
+            "    let backButton: UnsafeMutablePointer<GtkWidget>\n"
+            "    let stateNamespace: String\n"
+            "    fileprivate let actionTarget: GTKNavigationActionTarget\n",
+            "SwiftOpenUI GTK navigation action-target property shape was not recognized",
+        ),
+        (
+            "        self.stateNamespace = stateNamespace\n"
+            "    }\n\n"
+            "    deinit {",
+            "        self.stateNamespace = stateNamespace\n"
+            "        actionTarget = gtkNavigationActionTarget(for: stateNamespace)\n"
+            "        actionTarget.install(self)\n"
+            "    }\n\n"
+            "    deinit {",
+            "SwiftOpenUI GTK navigation action-target initializer shape was not recognized",
+        ),
+        (
+            "        nativeWidgetTreeIsAlive = false\n"
+            "        for entry in entries {",
+            "        nativeWidgetTreeIsAlive = false\n"
+            "        actionTarget.uninstall(self)\n"
+            "        for entry in entries {",
+            "SwiftOpenUI GTK navigation action-target invalidation shape was not recognized",
+        ),
+        (
+            "    var env = base\n"
+            "    env[GTKNavigationContextEnvironmentKey.self] = context\n"
+            "    env[NavigateKey.self] = NavigateAction(\n"
+            "        push: { [weak context] value in context?.pushValue(value) },\n"
+            "        pop: { [weak context] in context?.pop() },\n"
+            "        popToRoot: { [weak context] in context?.popToRoot() }\n",
+            "    var env = base\n"
+            "    let actionTarget = context.actionTarget\n"
+            "    env[GTKNavigationContextEnvironmentKey.self] = context\n"
+            "    env[NavigateKey.self] = NavigateAction(\n"
+            "        push: { value in actionTarget.pushValue(value) },\n"
+            "        pop: { actionTarget.pop() },\n"
+            "        popToRoot: { actionTarget.popToRoot() }\n",
+            "SwiftOpenUI GTK stable NavigateAction shape was not recognized",
+        ),
+        (
+            "    var env = base\n"
+            "    env.dismiss = DismissAction(handler: { [weak context] in\n"
+            "        context?.pop()\n",
+            "    var env = base\n"
+            "    let actionTarget = context.actionTarget\n"
+            "    env.dismiss = DismissAction(handler: {\n"
+            "        actionTarget.pop()\n",
+            "SwiftOpenUI GTK stable destination dismiss shape was not recognized",
+        ),
+        (
+            "        if let value = pushValue {\n"
+            "            return { [weak context] in\n"
+            "                context?.pushValue(value)\n"
+            "            }\n"
+            "        }\n",
+            "        if let value = pushValue {\n"
+            "            let actionTarget = context.actionTarget\n"
+            "            return {\n"
+            "                actionTarget.pushValue(value)\n"
+            "            }\n"
+            "        }\n",
+            "SwiftOpenUI GTK stable primary value-link shape was not recognized",
+        ),
+        (
+            "        )\n"
+            "        return {\n"
+            "            context.pushDestinationRoute(route)\n"
+            "        }\n",
+            "        )\n"
+            "        let actionTarget = context.actionTarget\n"
+            "        return {\n"
+            "            actionTarget.pushDestinationRoute(route)\n"
+            "        }\n",
+            "SwiftOpenUI GTK stable primary destination-link shape was not recognized",
+        ),
+        (
+            "        if let value = pushValue {\n"
+            "            let box = Unmanaged.passRetained(ClosureBox { [weak context] in\n"
+            "                context?.pushValue(value)\n",
+            "        if let value = pushValue {\n"
+            "            let actionTarget = context.actionTarget\n"
+            "            let box = Unmanaged.passRetained(ClosureBox {\n"
+            "                actionTarget.pushValue(value)\n",
+            "SwiftOpenUI GTK stable rendered value-link shape was not recognized",
+        ),
+        (
+            "            capturedEnvironment: capturedEnv\n"
+            "        )\n\n"
+            "        let box = Unmanaged.passRetained(ClosureBox {\n"
+            "            context.pushDestinationRoute(route)\n",
+            "            capturedEnvironment: capturedEnv\n"
+            "        )\n"
+            "        let actionTarget = context.actionTarget\n\n"
+            "        let box = Unmanaged.passRetained(ClosureBox {\n"
+            "            actionTarget.pushDestinationRoute(route)\n",
+            "SwiftOpenUI GTK stable rendered destination-link shape was not recognized",
+        ),
+    ]
+    for old, new, error in replacements:
+        if old not in text:
+            raise SystemExit(error)
+        text = text.replace(old, new, 1)
 text = text.replace("        gtkInstallToolbar(from: detail, on: paned)\n\n", "")
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 python3 - "$RENDERER" <<'PY'
@@ -11652,7 +13347,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 if "gtkSwiftNavigationPageInteractivityMarker" not in text:
     text = text.replace(
@@ -11714,7 +13410,8 @@ if "button root skipped inactive navigation page" not in text:
         1,
     )
 
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 if ! grep -Fq '"textformat.abc"' "$SYMBOLS"; then
@@ -11735,7 +13432,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 required_symbols = [
     ("arrow.clockwise", "refresh", ["arrow.uturn.clockwise", "calendar"]),
@@ -11822,7 +13520,8 @@ def deduplicate_map_entries(source: str) -> str:
 
 
 text = deduplicate_map_entries(text)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 # Keep direct glyph rendering in sync with the SF -> Material map.
@@ -11832,7 +13531,8 @@ import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+original = path.read_text()
+text = original
 
 required_codepoints = [
     ("dns", "0xE875", ["description", "find_in_page", "folder"]),
@@ -11883,16 +13583,19 @@ def deduplicate_codepoint_entries(source: str) -> str:
 
 
 text = deduplicate_codepoint_entries(text)
-path.write_text(text)
+if text != original:
+    path.write_text(text)
 PY
 
 # Apply QuillPaint integration to GTKRenderer.
-python3 - "$RENDERER" <<'PY'
+python3 - "$RENDERER" "$CANONICAL_RENDERER" <<'PY'
 import sys
 from pathlib import Path
 
 path = Path(sys.argv[1])
-text = path.read_text()
+canonical = Path(sys.argv[2]).read_text()
+original = path.read_text()
+text = original
 
 hook_decl = (
     "public var quill_gtk_button_paint_hook: ((OpaquePointer, OpaquePointer, Bool) -> Bool)? = nil\n"
@@ -12472,7 +14175,8 @@ new_bound_action_flush = '''func bindActionToCurrentEnvironment(_ action: @escap
 '''
 if (
     "func bindActionToCurrentEnvironment(_ action:" in text
-    and "return {\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    and "private final class GTKDeferredAction<Value>" not in text
+    and "return {\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_action_flush not in text:
         raise SystemExit("SwiftOpenUI action binding flush insertion shape was not recognized")
@@ -12497,11 +14201,267 @@ new_bound_value_action_flush = '''func bindActionToCurrentEnvironment<T>(_ actio
 '''
 if (
     "func bindActionToCurrentEnvironment<T>" in text
-    and "return { value in\n        gtkFlushPendingTextBindingUpdate()\n        let previousEnvironment = getCurrentEnvironment()" not in text
+    and "private final class GTKDeferredAction<Value>" not in text
+    and "return { value in\n        gtkFlushPendingTextBindingUpdate()" not in text
 ):
     if old_bound_value_action_flush not in text:
         raise SystemExit("SwiftOpenUI value action binding flush insertion shape was not recognized")
     text = text.replace(old_bound_value_action_flush, new_bound_value_action_flush, 1)
+
+# Refresh scoped object captures before a deferred action runs. GTK's native
+# callbacks first enter a MainActor task so task-local storage has a real task
+# owner and child Tasks inherit the same environment across suspension.
+old_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+}
+'''
+intermediate_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action()
+            }
+        } else {
+            action()
+        }
+    }
+}
+'''
+task_local_bound_action_environment_refresh = '''func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action()
+                }
+            } else {
+                action()
+            }
+        }
+    }
+}
+'''
+new_bound_action_environment_refresh = '''private final class GTKDeferredAction<Value>: @unchecked Sendable {
+    private let capturedEnvironment: EnvironmentValues
+    private let capturedPresentationDismissAction: (() -> Void)?
+    private let action: (Value) -> Void
+
+    init(
+        environment: EnvironmentValues,
+        presentationDismissAction: (() -> Void)?,
+        action: @escaping (Value) -> Void
+    ) {
+        capturedEnvironment = environment
+        capturedPresentationDismissAction = presentationDismissAction
+        self.action = action
+    }
+
+    func invoke(_ value: Value) {
+        let hasCurrentTask = withUnsafeCurrentTask { $0 != nil }
+        guard !hasCurrentTask else {
+            run(value)
+            return
+        }
+
+        let invocation = GTKDeferredActionInvocation(action: self, value: value)
+        Task { @MainActor [invocation] in
+            invocation.run()
+        }
+    }
+
+    fileprivate func run(_ value: Value) {
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
+                action(value)
+            }
+        }
+    }
+}
+
+private final class GTKDeferredActionInvocation<Value>: @unchecked Sendable {
+    private let action: GTKDeferredAction<Value>
+    private let value: Value
+
+    init(action: GTKDeferredAction<Value>, value: Value) {
+        self.action = action
+        self.value = value
+    }
+
+    @MainActor
+    func run() {
+        action.run(value)
+    }
+}
+
+/// Capture the current environment at registration time and restore it around
+/// a deferred callback that may read `@Environment(...)`. Native GTK callbacks
+/// have no Swift task, so enter a MainActor task before opening task-local
+/// scopes. See `docs/architecture/deferred-callback-environment-binding.md`.
+func bindActionToCurrentEnvironment(_ action: @escaping () -> Void) -> () -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<Void>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: { _ in action() }
+    )
+    return { deferredAction.invoke(()) }
+}
+'''
+if new_bound_action_environment_refresh not in text:
+    if old_bound_action_environment_refresh in text:
+        old_bound_action_source = old_bound_action_environment_refresh
+    elif intermediate_bound_action_environment_refresh in text:
+        old_bound_action_source = intermediate_bound_action_environment_refresh
+    elif task_local_bound_action_environment_refresh in text:
+        old_bound_action_source = task_local_bound_action_environment_refresh
+    else:
+        raise SystemExit("SwiftOpenUI refreshed action binding shape was not recognized")
+    text = text.replace(
+        old_bound_action_source,
+        new_bound_action_environment_refresh,
+        1,
+    )
+
+old_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(capturedEnvironment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
+    }
+}
+'''
+intermediate_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        if let capturedPresentationDismissAction {
+            swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                action(value)
+            }
+        } else {
+            action(value)
+        }
+    }
+}
+'''
+task_local_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let capturedPresentationDismissAction = swiftOpenUIResolvePresentationDismissAction(
+        in: capturedEnvironment
+    )
+    return { value in
+        gtkFlushPendingTextBindingUpdate()
+        var environment = capturedEnvironment
+        environment.refreshInjectedObjectsFromRegistry()
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        defer { setCurrentEnvironment(previousEnvironment) }
+        withSynchronousTaskEnvironment(environment) {
+            if let capturedPresentationDismissAction {
+                swiftOpenUIWithPresentationDismissAction(capturedPresentationDismissAction) {
+                    action(value)
+                }
+            } else {
+                action(value)
+            }
+        }
+    }
+}
+'''
+new_bound_value_action_environment_refresh = '''func bindActionToCurrentEnvironment<T>(_ action: @escaping (T) -> Void) -> (T) -> Void {
+    let capturedEnvironment = getCurrentEnvironment()
+    let deferredAction = GTKDeferredAction<T>(
+        environment: capturedEnvironment,
+        presentationDismissAction: swiftOpenUIResolvePresentationDismissAction(
+            in: capturedEnvironment
+        ),
+        action: action
+    )
+    return { value in deferredAction.invoke(value) }
+}
+'''
+if new_bound_value_action_environment_refresh not in text:
+    if old_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = old_bound_value_action_environment_refresh
+    elif intermediate_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = intermediate_bound_value_action_environment_refresh
+    elif task_local_bound_value_action_environment_refresh in text:
+        old_bound_value_action_source = task_local_bound_value_action_environment_refresh
+    else:
+        raise SystemExit("SwiftOpenUI refreshed value action binding shape was not recognized")
+    text = text.replace(
+        old_bound_value_action_source,
+        new_bound_value_action_environment_refresh,
+        1,
+    )
 
 text = text.replace(
     "includeValueWhenUnidentified: Bool = true",
@@ -13573,6 +15533,27 @@ if "var fallbackVerticalApplied = false" not in text:
 elif "isSwiftUIVerticalScrollView" not in text or "return fallbackVerticalApplied" not in text:
     raise SystemExit("SwiftOpenUI ScrollViewReader fallback scroll shape was not recognized")
 
+if "gtk_swift_attach_context_popover(widget, popover)" not in text:
+    old_context_popover = '''        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        gtk_widget_set_parent(popover, widget)
+
+        // Attach action group to the content widget so menu items can resolve actions
+        gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+'''
+    new_context_popover = '''        let popover = gtk_swift_popover_menu_new_from_model(menuModel)!
+        gtk_swift_attach_context_popover(widget, popover)
+
+        // Attach action group to the content widget so menu items can resolve actions
+        gtk_swift_widget_insert_action_group(widget, "menu", gpointer(actionGroup))
+        g_object_unref(gpointer(actionGroup))
+        g_object_unref(menuModel)
+'''
+    if old_context_popover not in text:
+        raise SystemExit("SwiftOpenUI GTK context-menu popover ownership shape was not recognized")
+    text = text.replace(old_context_popover, new_context_popover, 1)
+elif "g_object_unref(gpointer(actionGroup))" not in text or "g_object_unref(menuModel)" not in text:
+    raise SystemExit("SwiftOpenUI GTK context-menu GObject ownership shape was not recognized")
+
 if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled_window_get_hadjustment" not in text:
     old_vertical_scroll_horizontal_guard = '''            if hasTargetCoordinates, let hadjustment = gtk_scrolled_window_get_hadjustment(OpaquePointer(scrolled)) {
 '''
@@ -13584,5 +15565,79 @@ if "!isSwiftUIVerticalScrollView,\n               let hadjustment = gtk_scrolled
         raise SystemExit("SwiftOpenUI ScrollViewReader vertical horizontal guard shape was not recognized")
     text = text.replace(old_vertical_scroll_horizontal_guard, new_vertical_scroll_horizontal_guard, 1)
 
-path.write_text(text)
+def replace_with_canonical_section(
+    source: str,
+    source_start_markers: tuple[str, ...],
+    canonical_start_marker: str,
+    end_marker: str,
+) -> str:
+    source_start = next(
+        (source.find(marker) for marker in source_start_markers if marker in source),
+        -1,
+    )
+    if source_start == -1:
+        raise SystemExit(
+            f"SwiftOpenUI GTK canonical section start was not recognized: {canonical_start_marker.strip()}"
+        )
+    source_end = source.find(end_marker, source_start)
+    canonical_start = canonical.find(canonical_start_marker)
+    canonical_end = canonical.find(end_marker, canonical_start)
+    if source_end == -1 or canonical_start == -1 or canonical_end == -1:
+        raise SystemExit(
+            f"SwiftOpenUI GTK canonical section end was not recognized: {end_marker.strip()}"
+        )
+    return source[:source_start] + canonical[canonical_start:canonical_end] + source[source_end:]
+
+
+# Text bindings are one lifecycle subsystem. Keep every native input wired to
+# the same source-aware scheduler so an unrelated host rebuild cannot remount a
+# field from stale model text and two fields cannot replace each other's edit.
+text = replace_with_canonical_section(
+    text,
+    (
+        "private final class GTKTextBindingUpdateSource {\n",
+        "private final class GTKTextBindingIdleUpdate {\n",
+    ),
+    "private final class GTKTextBindingUpdateSource {\n",
+    "private func gtkPerformSubmitAction",
+)
+text = replace_with_canonical_section(
+    text,
+    ("private final class GTKMultilineTextFieldBindingBox {\n",),
+    "private final class GTKMultilineTextFieldBindingBox {\n",
+    "private final class GTKTextInputFocusTarget",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension TextField: GTKRenderable, GTKDescribable {\n",),
+    "extension TextField: GTKRenderable, GTKDescribable {\n",
+    "extension FocusedView: GTKRenderable, GTKDescribable",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension SecureField: GTKRenderable, GTKDescribable {\n",),
+    "extension SecureField: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - TextEditor GTK extension",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension TextEditor: GTKRenderable, GTKDescribable {\n",),
+    "extension TextEditor: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - ProgressView GTK extension",
+)
+text = replace_with_canonical_section(
+    text,
+    ("private class SearchBox {\n",),
+    "private class SearchBox {\n",
+    "private let gtkSearchableFocusDataKey",
+)
+text = replace_with_canonical_section(
+    text,
+    ("extension SearchableView: GTKRenderable, GTKDescribable {\n",),
+    "extension SearchableView: GTKRenderable, GTKDescribable {\n",
+    "// MARK: - Menu GTK extension",
+)
+
+if text != original:
+    path.write_text(text)
 PY

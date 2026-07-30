@@ -13,6 +13,29 @@ final class GTK4RenderTests: XCTestCase {
         }
     }
 
+    func testViewHostAllocationConstraintDoesNotChaseGrowth() {
+        XCTAssertTrue(gtkShouldTightenViewHostConstraint(
+            allocated: 640,
+            previouslyConstrained: -1
+        ))
+        XCTAssertTrue(gtkShouldTightenViewHostConstraint(
+            allocated: 560,
+            previouslyConstrained: 640
+        ))
+        XCTAssertFalse(gtkShouldTightenViewHostConstraint(
+            allocated: 700,
+            previouslyConstrained: 640
+        ))
+        XCTAssertFalse(gtkShouldTightenViewHostConstraint(
+            allocated: 640,
+            previouslyConstrained: 640
+        ))
+        XCTAssertFalse(gtkShouldTightenViewHostConstraint(
+            allocated: 1,
+            previouslyConstrained: -1
+        ))
+    }
+
     func testFrameViewCentersTextUsingFixedChildPosition() throws {
         try requireGTK()
 
@@ -2383,6 +2406,126 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testNavigationDestinationDismissActionTargetsReplacementStack() throws {
+        try requireGTK()
+
+        let owner = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        func makeContext() -> GTKNavigationContext {
+            makeNavigationContext(
+                owner: owner,
+                stateNamespace: "navigation-action-target-rebuild"
+            )
+        }
+
+        let original = makeContext()
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeContext()
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(original.entries.count, 0)
+        XCTAssertEqual(
+            replacement.entries.count,
+            1,
+            "A dismiss action captured before a host rebuild must pop the live replacement stack."
+        )
+    }
+
+    func testNavigationActionTargetSurvivesViewHostReplacementWithinWindow() throws {
+        try requireGTK()
+
+        let originalHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let replacementHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let original = makeNavigationContext(
+            owner: originalHost,
+            stateNamespace: "navigation-action-target-window-rebuild",
+            destinationTitle: "Original",
+            windowID: 41_001
+        )
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeNavigationContext(
+            owner: replacementHost,
+            stateNamespace: "navigation-action-target-window-rebuild",
+            destinationTitle: "Replacement",
+            windowID: 41_001
+        )
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(
+            replacement.entries.count,
+            1,
+            "A stable window identity must carry navigation actions across replacement child hosts."
+        )
+    }
+
+    func testNavigationActionTargetDoesNotCrossWindows() throws {
+        try requireGTK()
+
+        let firstHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let secondHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let original = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Original",
+            windowID: 41_002
+        )
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Replacement",
+            windowID: 41_002
+        )
+        let otherWindow = makeNavigationContext(
+            owner: secondHost,
+            stateNamespace: "navigation-action-target-window-scope",
+            destinationTitle: "Other Window",
+            windowID: 41_003
+        )
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(replacement.entries.count, 1)
+        XCTAssertEqual(
+            otherWindow.entries.count,
+            2,
+            "An identical navigation namespace in another window must remain isolated."
+        )
+    }
+
+    func testNavigationActionTargetFallsBackToViewHostWithoutWindowIdentity() throws {
+        try requireGTK()
+
+        let firstHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let secondHost = GTKViewHost(buildBody: { gtkRenderView(EmptyView()) })
+        let original = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-host-fallback",
+            destinationTitle: "Original"
+        )
+        let staleDismiss = gtkTestNavigationDestinationDismissAction(for: original)
+        let replacement = makeNavigationContext(
+            owner: firstHost,
+            stateNamespace: "navigation-action-target-host-fallback",
+            destinationTitle: "Replacement"
+        )
+        let otherHost = makeNavigationContext(
+            owner: secondHost,
+            stateNamespace: "navigation-action-target-host-fallback",
+            destinationTitle: "Other Host"
+        )
+        original.invalidateNativeWidgetTree()
+
+        staleDismiss()
+
+        XCTAssertEqual(replacement.entries.count, 1)
+        XCTAssertEqual(otherHost.entries.count, 2)
+    }
+
     func testNavigationDestinationIsPresentedPushesAfterPickerSelectionMutation() throws {
         try requireGTK()
 
@@ -2417,6 +2560,60 @@ final class GTK4RenderTests: XCTestCase {
             2,
             "navigationDestination(isPresented:) should push after a Picker selection mutates its source binding."
         )
+    }
+
+    func testOffsetPickerOpensThroughVisualRootHitFallback() throws {
+        try requireGTK()
+
+        var selection = 0
+        let offset = 140.0
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            Picker(
+                "Timeline Font",
+                selection: Binding(
+                    get: { selection },
+                    set: { selection = $0 }
+                ),
+                options: ["System", "Rounded", "Custom"]
+            )
+            .offset(x: offset)
+            .frame(width: 360, height: 80, alignment: .leading)
+        ))
+
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 360, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        let dropDown = try XCTUnwrap(gtkFirstDescendant(ofType: "GtkDropDown", in: wrapper))
+        let logicalOrigin = translatedChildOrigin(child: dropDown, in: wrapper)
+        let size = allocatedSize(of: dropDown)
+        let visualX = logicalOrigin.x + offset + max(1, size.width / 2)
+        let visualY = logicalOrigin.y + max(1, size.height / 2)
+
+        XCTAssertFalse(
+            visualX >= logicalOrigin.x && visualX < logicalOrigin.x + size.width,
+            "The probe point must sit outside the drop-down's untransformed GTK allocation."
+        )
+        XCTAssertTrue(
+            gtkTestActivateVisualDropDownAtRootPoint(root: wrapper, x: visualX, y: visualY),
+            "A visibly offset Picker must open even when GTK's native allocation does not own the painted pixel."
+        )
+        drainGTKMainContext(maxIterations: 100)
+
+        let popover = try XCTUnwrap(gtkFirstDescendant(ofType: "GtkPopover", in: dropDown))
+        XCTAssertNotEqual(
+            gtk_widget_get_mapped(popover),
+            0,
+            "The visual root fallback should activate GtkDropDown and map its choices popover."
+        )
+
+        gtk_drop_down_set_selected(OpaquePointer(dropDown), guint(2))
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(selection, 2)
     }
 
     func testNavigationStackSyncsTypedBoundPathDestinationContentFromSwitchBuilder() throws {
@@ -2880,29 +3077,35 @@ final class GTK4RenderTests: XCTestCase {
 
     // MARK: - Deferred callback environment binding
 
-    func testBindActionToCurrentEnvironmentCapturesAndRestores() throws {
+    func testBindActionToCurrentEnvironmentCapturesAndRestores() async throws {
         try requireGTK()
 
         let model = GTKDelayedEnvModel()
+        let completed = expectation(description: "Bound action completed")
         var env = getCurrentEnvironment()
         env.setObject(model)
 
         let previousEnv = getCurrentEnvironment()
         setCurrentEnvironment(env)
-        let bound = bindActionToCurrentEnvironment { model.count += 1 }
+        let bound = bindActionToCurrentEnvironment {
+            model.count += 1
+            completed.fulfill()
+        }
         setCurrentEnvironment(previousEnv)
 
         // The closure should still access the captured environment even though
         // the current environment no longer contains the model.
         bound()
+        await fulfillment(of: [completed], timeout: 1)
         XCTAssertEqual(model.count, 1,
                        "Bound callback should execute with the captured render-time environment")
     }
 
-    func testBindActionToCurrentEnvironmentGenericCapturesAndRestores() throws {
+    func testBindActionToCurrentEnvironmentGenericCapturesAndRestores() async throws {
         try requireGTK()
 
         let model = GTKDelayedEnvModel()
+        let completed = expectation(description: "Generic bound action completed")
         var env = getCurrentEnvironment()
         env.setObject(model)
 
@@ -2910,12 +3113,120 @@ final class GTK4RenderTests: XCTestCase {
         setCurrentEnvironment(env)
         let bound: (Int) -> Void = bindActionToCurrentEnvironment { value in
             model.count += value
+            completed.fulfill()
         }
         setCurrentEnvironment(previousEnv)
 
         bound(5)
+        await fulfillment(of: [completed], timeout: 1)
         XCTAssertEqual(model.count, 5,
                        "Generic bound callback should execute with the captured environment")
+    }
+
+    @MainActor
+    func testBoundActionReleasesMainActorStateInsideSwiftTask() async throws {
+        try requireGTK()
+
+        let nativeCallbackReturned = expectation(description: "Native callback returned")
+        let completed = expectation(description: "Main-actor state released")
+        let bound = bindActionToCurrentEnvironment {
+            XCTAssertNotNil(
+                withUnsafeCurrentTask { $0 },
+                "Native callbacks must enter a Swift task before opening task-local scopes."
+            )
+            var models = [GTKMainActorDeinitProbe()]
+            models.removeAll()
+            completed.fulfill()
+        }
+        let nativeCallback = GTKNativeCallbackProbe(
+            action: bound,
+            onReturn: { nativeCallbackReturned.fulfill() }
+        )
+
+        Thread.detachNewThread {
+            nativeCallback.invoke()
+        }
+        await fulfillment(of: [nativeCallbackReturned, completed], timeout: 1)
+    }
+
+    func testBoundActionPropagatesEnvironmentIntoChildTask() async throws {
+        try requireGTK()
+
+        let model = GTKDelayedEnvModel()
+        var environment = getCurrentEnvironment()
+        environment.setObject(model)
+
+        let completed = expectation(description: "Child task inherited callback environment")
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        let property = Environment(GTKDelayedEnvModel.self)
+        let bound = bindActionToCurrentEnvironment {
+            Task {
+                await Task.yield()
+                XCTAssertTrue(property.wrappedValue === model)
+                property.wrappedValue.count += 1
+                completed.fulfill()
+            }
+        }
+        setCurrentEnvironment(previousEnvironment)
+
+        bound()
+        await fulfillment(of: [completed], timeout: 1)
+        XCTAssertEqual(model.count, 1)
+    }
+
+    func testContextMenuUnparentsPopoverBeforeAnchorFinalization() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Account") {}
+                .contextMenu {
+                    Button("Switch") {}
+                }
+        ))
+        let popover = try unwrapFirstDescendant(
+            ofType: "GtkPopoverMenu",
+            in: widget
+        )
+        XCTAssertEqual(gtk_widget_get_parent(popover), widget)
+
+        g_object_ref(gpointer(popover))
+        let window = presentGTKWidget(widget)
+        gtk_window_destroy(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertNil(
+            gtk_widget_get_parent(popover),
+            "Context-menu popovers must be detached before a plain GTK anchor is finalized."
+        )
+        g_object_unref(gpointer(popover))
+    }
+
+    func testDetachedContextMenuPopoverLivesUntilAnchorFinalization() throws {
+        try requireGTK()
+
+        let widget = widgetFromOpaque(gtkRenderView(
+            Button("Account") {}
+                .contextMenu {
+                    Button("Switch") {}
+                }
+        ))
+        let popover = try unwrapFirstDescendant(
+            ofType: "GtkPopoverMenu",
+            in: widget
+        )
+        let window = presentGTKWidget(widget)
+
+        gtk_widget_unparent(popover)
+        XCTAssertNil(gtk_widget_get_parent(popover))
+        XCTAssertNotEqual(
+            gtk_swift_is_widget(popover),
+            0,
+            "The anchor's signal closure must keep a detached popover alive until teardown."
+        )
+
+        gtk_window_destroy(windowPointer(window))
+        drainGTKMainContext(maxIterations: 100)
     }
 
     func testButtonRendersWithEnvironmentBinding() throws {
@@ -2945,6 +3256,53 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testDescriptorPassPrimesEnvironmentForNestedDeferredCallback() throws {
+        try requireGTK()
+
+        let model = GTKDescriptorDeferredEnvironmentModel()
+        let callbacks = GTKDeferredEnvironmentCallbackBox()
+        var environment = getCurrentEnvironment()
+        environment.setObject(model, scope: "descriptor-deferred-callback")
+
+        let previousEnvironment = getCurrentEnvironment()
+        setCurrentEnvironment(environment)
+        let described = gtkDescribeCapturingCanvasPayloads {
+            gtkDescribeView(
+                GTKDescriptorDeferredEnvironmentProbe(callbacks: callbacks)
+            )
+        }
+        setCurrentEnvironment(previousEnvironment)
+
+        guard let onAppear = described.onAppearPayloads.first else {
+            XCTFail("Descriptor pass did not capture the probe's onAppear action")
+            return
+        }
+        onAppear.action()
+        guard let deferred = callbacks.action else {
+            XCTFail("onAppear did not install its nested deferred callback")
+            return
+        }
+
+        // The outer action has restored its bound environment by this point.
+        // The nested callback must use the object primed on the wrapper during
+        // descriptor evaluation rather than an ambient registry fallback.
+        deferred()
+        XCTAssertEqual(model.count, 1)
+    }
+
+    func testDescriptorPrimingSkipsUnavailableUnusedEnvironmentObject() throws {
+        try requireGTK()
+
+        let descriptor = gtkDescribeView(
+            GTKUnusedEnvironmentDependencyProbe()
+        )
+
+        XCTAssertTrue(
+            gtkDescriptorContainsText(descriptor, "unused dependency"),
+            "Declaring an environment dependency must not trap until its value is read"
+        )
+    }
+
     func testOnAppearRendersWithEnvironmentBinding() throws {
         try requireGTK()
 
@@ -2954,6 +3312,28 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertNotNil(widget,
                         "onAppear view with .environment(model) should render a widget")
+    }
+
+    @MainActor
+    func testStatefulHostPrimesEnvironmentForNestedOnAppearCallback() async throws {
+        try requireGTK()
+
+        let model = GTKHostedDeferredEnvironmentModel()
+        let completed = expectation(description: "Nested onAppear callback completed")
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKHostedDeferredEnvironmentProbe(onCompletion: {
+                completed.fulfill()
+            })
+            .environment(model)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        await fulfillment(of: [completed], timeout: 1)
+        XCTAssertEqual(model.count, 1)
     }
 
     func testOnDisappearRendersWithEnvironmentBinding() throws {
@@ -3027,6 +3407,40 @@ final class GTK4RenderTests: XCTestCase {
                        ".task should not re-run when a stable task view's child subtree is torn down and rebuilt")
     }
 
+    func testDetachedPresentedHostDefersStateRebuildUntilRemount() throws {
+        try requireGTK()
+
+        let value = State(wrappedValue: 0)
+        let widget = widgetFromOpaque(gtkRenderView(
+            GTKDetachedRebuildProbeView(value: value)
+        ))
+        let window = presentGTKWidget(widget)
+        g_object_ref(gpointer(widget))
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            g_object_unref(gpointer(widget))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(gtkLabelTexts(in: widget).contains("value 0"))
+
+        gtk_window_set_child(windowPointer(window), nil)
+        drainGTKMainContext(maxIterations: 100)
+        value.storage.setValue(1)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(
+            gtkLabelTexts(in: widget).contains("value 0"),
+            "A previously presented host must not rebuild an obsolete subtree while detached"
+        )
+
+        gtk_window_set_child(windowPointer(window), widget)
+        XCTAssertTrue(
+            waitForGTKLabelText(in: widget, timeout: 1.0) { $0.contains("value 1") },
+            "The deferred state rebuild must run after the host is rooted again"
+        )
+    }
+
     func testTaskInsideTabViewRunsFromHostDescriptorLifecycle() throws {
         try requireGTK()
 
@@ -3095,6 +3509,27 @@ final class GTK4RenderTests: XCTestCase {
                        "onAppear should not re-run for unrelated rebuilds of the same descriptor identity")
     }
 
+    func testReactiveGTKRenderableLeavesNestedOnAppearWithEnclosingHost() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKReactiveRenderableOnAppearProbe(counter: counter)
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "A reactive GTKRenderable is rendered inline, so its nested onAppear must be owned by the enclosing host"
+        )
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1)
+    }
+
     func testOnAppearSurvivesParentHostFullRemountWhenStateIdentityMatches() throws {
         try requireGTK()
 
@@ -3119,6 +3554,93 @@ final class GTK4RenderTests: XCTestCase {
 
         XCTAssertEqual(counter.value, 1,
                        "Child onAppear should not re-run when a parent full rebuild remounts the same state identity")
+    }
+
+    func testWindowRootStatefulDescendantKeepsIdentityInsideStatelessWrapper() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKStatelessRootProbeView {
+                GTKParentRemountOnAppearProbeView(tick: tick, counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial descendant onAppear should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertEqual(
+            counter.value,
+            1,
+            "A stateful descendant created inside a stateless window-root wrapper must keep the same identity on rebuild"
+        )
+    }
+
+    func testWindowRootNestedTaskRunsOnceInsideStatelessWrapper() throws {
+        try requireGTK()
+
+        let tick = State(wrappedValue: 0)
+        let counter = GTKTaskRunCounter()
+
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            GTKStatelessRootProbeView {
+                GTKParentRemountTaskProbeView(tick: tick, counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        XCTAssertTrue(counter.waitForCount(1, timeout: 1.0),
+                      "Initial descendant task should run")
+
+        for value in 1...5 {
+            tick.storage.setValue(value)
+            drainGTKMainContext(maxIterations: 100)
+        }
+        Thread.sleep(forTimeInterval: 0.1)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertEqual(
+            counter.value,
+            1,
+            "A nested task must be owned by its stateful host and survive parent remounts"
+        )
+    }
+
+    func testStatefulListRowOwnsNestedOnAppearLifecycle() throws {
+        try requireGTK()
+
+        let counter = GTKTaskRunCounter()
+        let widget = widgetFromOpaque(gtkRenderView(
+            List {
+                GTKListRowOnAppearProbeView(counter: counter)
+            }
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(
+            counter.waitForCount(1, timeout: 1.0),
+            "A stateful list-row host must collect the onAppear declared in its own body"
+        )
+        drainGTKMainContext(maxIterations: 100)
+        XCTAssertEqual(counter.value, 1)
     }
 
     func testOnAppearRunsAgainAfterConditionalReinsert() throws {
@@ -3276,6 +3798,35 @@ final class GTK4RenderTests: XCTestCase {
         ))
         XCTAssertNotNil(widget,
                         "Menu with .environment(model) should render a widget")
+    }
+
+    func testGeometryReaderDeferredRenderPreservesEnvironmentBinding() throws {
+        try requireGTK()
+
+        let model = GTKDelayedEnvModel()
+        model.count = 7
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GeometryReader { _ in
+                GTKDelayedEnvDescriptorTextView()
+            }
+            .environment(model)
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        var labels: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectLabels(in: wrapper, into: &labels)
+        XCTAssertTrue(
+            labels.contains { label in
+                String(cString: gtk_label_get_text(OpaquePointer(label))) == "count 7"
+            },
+            "Deferred GeometryReader content must render with its captured environment objects."
+        )
     }
 
     // MARK: - Layout parity regressions
@@ -3778,6 +4329,97 @@ final class GTK4RenderTests: XCTestCase {
         )
     }
 
+    func testVisualMenuHitTestingSkipsInactiveNavigationPages() throws {
+        try requireGTK()
+
+        let root = gtk_overlay_new()!
+        let inactivePage = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let activePage = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let inactiveMenu = widgetFromOpaque(gtkRenderView(
+            Menu("Old actions") {
+                MenuItem("Boost old status") {}
+            }
+        ))
+        let activeMenu = widgetFromOpaque(gtkRenderView(
+            Menu("Current actions") {
+                MenuItem("Boost current status") {}
+            }
+        ))
+
+        gtk_box_append(boxPointer(inactivePage), inactiveMenu)
+        gtk_box_append(boxPointer(activePage), activeMenu)
+        gtk_widget_set_hexpand(inactivePage, 1)
+        gtk_widget_set_vexpand(inactivePage, 1)
+        gtk_widget_set_hexpand(activePage, 1)
+        gtk_widget_set_vexpand(activePage, 1)
+        gtk_overlay_set_child(OpaquePointer(root), inactivePage)
+        gtk_overlay_add_overlay(OpaquePointer(root), activePage)
+        gtkTestSetNavigationPageInactive(inactivePage, true)
+        allocate(widget: root, size: ViewSize(width: 160, height: 48))
+
+        let hit = gtkTestPreferredVisualMenuButtonAtRootPoint(
+            root: root,
+            x: 48,
+            y: 20
+        )
+        XCTAssertEqual(
+            hit.map(UnsafeRawPointer.init),
+            UnsafeRawPointer(activeMenu),
+            "A hidden NavigationStack page must not steal a menu click from the visible destination."
+        )
+
+        gtk_widget_set_visible(activePage, 0)
+        XCTAssertNil(
+            gtkTestPreferredVisualMenuButtonAtRootPoint(root: root, x: 48, y: 20),
+            "Inactive pages must not expose stale menus when no active menu occupies the point."
+        )
+        XCTAssertFalse(
+            gtkTestWidgetTreeContainsVisualButtonAtRootPoint(root, root: root, x: 48, y: 20),
+            "Inactive-page controls must not suppress row activation in the visible page."
+        )
+    }
+
+    func testVisualMenuHitTestingPrefersPickedWidgetBranch() throws {
+        try requireGTK()
+
+        let root = gtk_overlay_new()!
+        let staleBranch = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let pickedBranch = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)!
+        let staleMenu = widgetFromOpaque(gtkRenderView(
+            Menu("Stale actions") {
+                MenuItem("Boost stale status") {}
+            }
+        ))
+        let pickedMenu = widgetFromOpaque(gtkRenderView(
+            Menu("Visible actions") {
+                MenuItem("Boost visible status") {}
+            }
+        ))
+
+        gtk_box_append(boxPointer(staleBranch), staleMenu)
+        gtk_box_append(boxPointer(pickedBranch), pickedMenu)
+        gtk_widget_set_hexpand(staleBranch, 1)
+        gtk_widget_set_vexpand(staleBranch, 1)
+        gtk_widget_set_hexpand(pickedBranch, 1)
+        gtk_widget_set_vexpand(pickedBranch, 1)
+        gtk_overlay_set_child(OpaquePointer(root), staleBranch)
+        gtk_overlay_add_overlay(OpaquePointer(root), pickedBranch)
+        allocate(widget: root, size: ViewSize(width: 160, height: 48))
+
+        let hit = gtkTestRankedVisualMenuButtonAtRootPoint(
+            searching: root,
+            root: root,
+            picked: pickedBranch,
+            x: 48,
+            y: 20
+        )
+        XCTAssertEqual(
+            hit.map(UnsafeRawPointer.init),
+            UnsafeRawPointer(pickedMenu),
+            "Overlapping transformed controls must resolve to the menu nearest GTK's picked branch."
+        )
+    }
+
     func testCollapsedSplitListMenuControlUsesDetailFrameOrigin() throws {
         try requireGTK()
 
@@ -3974,6 +4616,22 @@ final class GTK4RenderTests: XCTestCase {
         XCTAssertTrue(gtkTestOpenMenuButton(menu))
         drainGTKMainContext(maxIterations: 100)
         let frame = try XCTUnwrap(gtkTestActiveMenuOverlayPanelFrameInRoot())
+        let root = try XCTUnwrap(gtk_swift_widget_root_widget(menu))
+        var menuX = 0.0
+        var menuY = 0.0
+        XCTAssertNotEqual(
+            gtk_swift_widget_compute_point(menu, root, 0, 0, &menuX, &menuY),
+            0
+        )
+        let menuSize = allocatedSize(of: menu)
+
+        XCTAssertEqual(frame.x, menuX, accuracy: 2)
+        XCTAssertEqual(
+            frame.y,
+            menuY + menuSize.height + 4,
+            accuracy: 2,
+            "A root-overlay menu anchor must be converted from window coordinates into the content overlay exactly once."
+        )
 
         XCTAssertTrue(
             gtkTestActivateActiveMenuOverlayAtRootPoint(
@@ -4172,6 +4830,98 @@ final class GTK4RenderTests: XCTestCase {
             [1003],
             "A reused GtkButton must fire the current model-bound Swift action, not the closure captured at first render."
         )
+    }
+
+    func testNarrowMutationRefreshesReusedMenuAction() throws {
+        try requireGTK()
+
+        let selectedID = State(wrappedValue: 1001)
+        let recorder = GTKButtonActionRecorder()
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            GTKMutableMenuActionProbeView(selectedID: selectedID, recorder: recorder)
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 80))
+        drainGTKMainContext(maxIterations: 100)
+
+        var menuButtons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectMenuButtons(in: wrapper, into: &menuButtons)
+        let menuButton = try XCTUnwrap(
+            menuButtons.first,
+            "Expected the probe view to render a GtkMenuButton."
+        )
+        selectedID.storage.setValue(1003)
+        drainGTKMainContext(maxIterations: 100)
+
+        XCTAssertTrue(gtkTestActivateMenuItem(menuButton, index: 0))
+
+        XCTAssertEqual(
+            recorder.values,
+            [1003],
+            "A reused GtkMenuButton must fire the current model-bound Swift action, not the closure captured at first render."
+        )
+    }
+
+    func testRebuiltMenuActionRetainsSiblingScopedEnvironmentObject() throws {
+        try requireGTK()
+
+        let firstRevision = State(wrappedValue: 0)
+        let secondRevision = State(wrappedValue: 0)
+        let recorder = GTKButtonActionRecorder()
+        let firstModel = GTKScopedEnvironmentMenuModel(id: 1003, recorder: recorder)
+        let secondModel = GTKScopedEnvironmentMenuModel(id: 1001, recorder: recorder)
+        let wrapper = widgetFromOpaque(gtkRenderView(
+            VStack {
+                GTKScopedEnvironmentMenuProbeView(revision: firstRevision)
+                    .environment(firstModel)
+                GTKScopedEnvironmentMenuProbeView(revision: secondRevision)
+                    .environment(secondModel)
+            }
+        ))
+        let window = presentGTKWidget(wrapper)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+        allocate(widget: wrapper, size: ViewSize(width: 240, height: 160))
+        drainGTKMainContext(maxIterations: 100)
+
+        firstRevision.storage.setValue(1)
+        drainGTKMainContext(maxIterations: 100)
+
+        var menuButtons: [UnsafeMutablePointer<GtkWidget>] = []
+        gtkCollectMenuButtons(in: wrapper, into: &menuButtons)
+        let firstMenuButton = try XCTUnwrap(
+            menuButtons.first,
+            "Expected the first scoped row to render a GtkMenuButton."
+        )
+        XCTAssertTrue(gtkTestActivateMenuItem(firstMenuButton, index: 0))
+
+        XCTAssertEqual(
+            recorder.values,
+            [1003],
+            "Rebuilding one row must not replace its environment object with a same-typed sibling controller."
+        )
+    }
+
+    func testFormRowPrimaryActionTraversesViewBuilderChildren() throws {
+        try requireGTK()
+
+        let recorder = GTKButtonActionRecorder()
+        let row = HStack {
+            Text("Account")
+            GTKStatefulFormRowButtonProbeView(recorder: recorder)
+        }
+
+        XCTAssertTrue(
+            gtkTestActivatePrimaryTapAction(in: row),
+            "A Form row must discover a Button nested behind ViewBuilder's transparent ViewList"
+        )
+        XCTAssertEqual(recorder.values, [42])
     }
 
     func testExplicitIdResetsStatefulSubviewIdentity() throws {
@@ -4449,6 +5199,39 @@ final class GTK4RenderTests: XCTestCase {
             generation,
             "Mutating an app-level @Observable stored in @State should publish through the root window host storage."
         )
+    }
+
+    func testWindowRootReevaluatesContentProviderAfterAppObservableMutation() throws {
+        try requireGTK()
+
+        let appState = GTKWindowRootEnvironmentAppStateProbe()
+        let manager = appState.manager
+        let makeContent = {
+            GTKWindowRootEnvironmentReaderProbe()
+                .environment(manager.client)
+        }
+        let widget = widgetFromOpaque(gtkRenderWindowRootView(
+            makeContent(),
+            appStateSource: appState,
+            contentProvider: makeContent
+        ))
+        let window = presentGTKWidget(widget)
+        defer {
+            gtk_window_destroy(windowPointer(window))
+            drainGTKMainContext(maxIterations: 100)
+        }
+
+        XCTAssertTrue(gtkLabelTexts(in: widget).contains("client signed-out"))
+
+        manager.client = GTKWindowRootClientProbe(name: "signed-in")
+        drainGTKMainContext(maxIterations: 300)
+
+        let labels = gtkLabelTexts(in: widget)
+        XCTAssertTrue(
+            labels.contains("client signed-in"),
+            "A WindowGroup root rebuild must reevaluate its builder and inject the replacement object; labels: \(labels)"
+        )
+        XCTAssertFalse(labels.contains("client signed-out"))
     }
 
     func testItemSheetRootOverlayProgrammaticDismissBypassesDismissalInterception() throws {
@@ -4965,6 +5748,41 @@ private final class GTKDelayedEnvModel {
     var count: Int = 0
 }
 
+private final class GTKDescriptorDeferredEnvironmentModel {
+    var count: Int = 0
+}
+
+private final class GTKHostedDeferredEnvironmentModel {
+    var count: Int = 0
+}
+
+private final class GTKUnavailableEnvironmentModel {}
+
+private final class GTKDeferredEnvironmentCallbackBox {
+    var action: (() -> Void)?
+}
+
+@MainActor
+private final class GTKMainActorDeinitProbe {
+    let payload = NSObject()
+}
+
+private final class GTKNativeCallbackProbe: @unchecked Sendable {
+    private let action: () -> Void
+    private let onReturn: () -> Void
+
+    init(action: @escaping () -> Void, onReturn: @escaping () -> Void) {
+        self.action = action
+        self.onReturn = onReturn
+    }
+
+    func invoke() {
+        XCTAssertNil(withUnsafeCurrentTask { $0 })
+        action()
+        onReturn()
+    }
+}
+
 private final class GTKThemeBootstrapModel: SwiftOpenUI.ObservableObject {
     static let iceCubePurple = Color(red: 187 / 255, green: 59 / 255, blue: 226 / 255)
 
@@ -5059,6 +5877,41 @@ private struct GTKPresentedNavigationDismissDestination: View {
             dismiss()
         }
     }
+}
+
+private func makeNavigationContext(
+    owner: GTKViewHost,
+    stateNamespace: String,
+    destinationTitle: String = "Destination",
+    windowID: Int = 0
+) -> GTKNavigationContext {
+    let previousHost = GTKViewHost.getCurrentRebuilding()
+    let previousEnvironment = getCurrentEnvironment()
+    var environment = previousEnvironment
+    environment.windowID = windowID
+    setCurrentEnvironment(environment)
+    GTKViewHost.setCurrentRebuilding(owner)
+    defer {
+        GTKViewHost.setCurrentRebuilding(previousHost)
+        setCurrentEnvironment(previousEnvironment)
+    }
+
+    let stack = gtk_stack_new()!
+    let headerBar = gtk_header_bar_new()!
+    let backButton = gtk_button_new()!
+    let context = GTKNavigationContext(
+        stack: OpaquePointer(stack),
+        headerBar: OpaquePointer(headerBar),
+        backButton: backButton,
+        stateNamespace: stateNamespace
+    )
+    context.push(title: "Root") {
+        OpaquePointer(gtk_label_new("Root")!)
+    }
+    context.push(title: destinationTitle) {
+        OpaquePointer(gtk_label_new(destinationTitle)!)
+    }
+    return context
 }
 
 private func drainGTKMainContext(maxIterations: Int = 20) {
@@ -5274,6 +6127,18 @@ private struct GTKTaskFullRebuildProbeView: View {
     }
 }
 
+private struct GTKDetachedRebuildProbeView: View {
+    @State private var value: Int
+
+    init(value: State<Int>) {
+        _value = value
+    }
+
+    var body: some View {
+        Text("value \(value)")
+    }
+}
+
 private struct GTKTabTaskProbeView: View {
     let counter: GTKTaskRunCounter
 
@@ -5391,6 +6256,38 @@ private struct GTKOnAppearOnceProbeView: View {
     }
 }
 
+private struct GTKReactiveRenderableOnAppearProbe: View, GTKRenderable {
+    @State private var marker = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(marker ? "ready" : "waiting")
+            .onAppear {
+                marker = true
+                counter.increment()
+            }
+    }
+
+    @MainActor
+    func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(body)
+    }
+}
+
+private struct GTKListRowOnAppearProbeView: View {
+    @State private var didAppear = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(didAppear ? "appeared" : "waiting")
+            .onAppear {
+                guard !didAppear else { return }
+                didAppear = true
+                counter.increment()
+            }
+    }
+}
+
 private struct GTKConditionalOnAppearProbeView: View {
     @State private var show: Bool
     let counter: GTKTaskRunCounter
@@ -5434,6 +6331,55 @@ private struct GTKParentRemountOnAppearProbeView: View {
                 }
             }
         }
+    }
+}
+
+private struct GTKStatelessRootProbeView<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+    }
+}
+
+private struct GTKParentRemountTaskProbeView: View {
+    @State private var tick: Int
+    let counter: GTKTaskRunCounter
+
+    init(tick: State<Int>, counter: GTKTaskRunCounter) {
+        self._tick = tick
+        self.counter = counter
+    }
+
+    var body: some View {
+        VStack {
+            GTKChildRemountedTaskProbeView(counter: counter)
+            if tick.isMultiple(of: 2) {
+                Text("even task \(tick)")
+            } else {
+                HStack {
+                    Text("odd task \(tick)")
+                    Text("detail")
+                }
+            }
+        }
+    }
+}
+
+private struct GTKChildRemountedTaskProbeView: View {
+    @State private var loaded = false
+    let counter: GTKTaskRunCounter
+
+    var body: some View {
+        Text(loaded ? "task loaded" : "task loading")
+            .task {
+                counter.increment()
+                loaded = true
+            }
     }
 }
 
@@ -5508,6 +6454,46 @@ private struct GTKDelayedEnvDescriptorTextView: View {
 
     var body: some View {
         Text("count \(model.count)")
+    }
+}
+
+private struct GTKDescriptorDeferredEnvironmentProbe: View, GTKRenderable {
+    @Environment(GTKDescriptorDeferredEnvironmentModel.self) var model
+    let callbacks: GTKDeferredEnvironmentCallbackBox
+
+    var body: some View {
+        Text("deferred environment")
+            .onAppear {
+                callbacks.action = { model.count += 1 }
+            }
+    }
+
+    @MainActor
+    func gtkCreateWidget() -> OpaquePointer {
+        gtkRenderView(body)
+    }
+}
+
+private struct GTKHostedDeferredEnvironmentProbe: View {
+    @Environment(GTKHostedDeferredEnvironmentModel.self) var model
+    let onCompletion: () -> Void
+
+    var body: some View {
+        Text("hosted deferred environment")
+            .onAppear {
+                DispatchQueue.main.async {
+                    model.count += 1
+                    onCompletion()
+                }
+            }
+    }
+}
+
+private struct GTKUnusedEnvironmentDependencyProbe: View {
+    @Environment(GTKUnavailableEnvironmentModel.self) var unusedModel
+
+    var body: some View {
+        Text("unused dependency")
     }
 }
 
@@ -5731,6 +6717,72 @@ private struct GTKMutableButtonActionProbeView: View {
     }
 }
 
+private struct GTKMutableMenuActionProbeView: View {
+    @State private var selectedID: Int
+    let recorder: GTKButtonActionRecorder
+
+    init(selectedID: State<Int>, recorder: GTKButtonActionRecorder) {
+        self._selectedID = selectedID
+        self.recorder = recorder
+    }
+
+    var body: some View {
+        VStack {
+            Text("selected \(selectedID)")
+            Menu("Actions") {
+                MenuItem("Boost") {
+                    recorder.record(selectedID)
+                }
+            }
+        }
+    }
+}
+
+private final class GTKScopedEnvironmentMenuModel {
+    let id: Int
+    let recorder: GTKButtonActionRecorder
+
+    init(id: Int, recorder: GTKButtonActionRecorder) {
+        self.id = id
+        self.recorder = recorder
+    }
+
+    func record() {
+        recorder.record(id)
+    }
+}
+
+private struct GTKScopedEnvironmentMenuProbeView: View {
+    @Environment(GTKScopedEnvironmentMenuModel.self) private var model
+    @State private var revision: Int
+
+    init(revision: State<Int>) {
+        self._revision = revision
+    }
+
+    var body: some View {
+        VStack {
+            Text("revision \(revision)")
+            Menu("Actions") {
+                MenuItem("Boost") {
+                    model.record()
+                }
+            }
+        }
+    }
+}
+
+private struct GTKStatefulFormRowButtonProbeView: View {
+    @State private var isReady = true
+    let recorder: GTKButtonActionRecorder
+
+    var body: some View {
+        Button(isReady ? "Open account" : "Waiting") {
+            recorder.record(42)
+        }
+    }
+}
+
 private struct GTKMutableIdentifiedStateProbeView: View {
     @State private var selectedID: Int
     let recorder: GTKButtonActionRecorder
@@ -5807,6 +6859,30 @@ private final class GTKWindowRootObservableProbe: ObservableObject {
 
 private struct GTKWindowRootAppStateProbe {
     @State var model = GTKWindowRootObservableProbe()
+}
+
+private final class GTKWindowRootClientProbe: ObservableObject {
+    let name: String
+
+    init(name: String) {
+        self.name = name
+    }
+}
+
+private final class GTKWindowRootClientManagerProbe: ObservableObject {
+    @Published var client = GTKWindowRootClientProbe(name: "signed-out")
+}
+
+private struct GTKWindowRootEnvironmentAppStateProbe {
+    @State var manager = GTKWindowRootClientManagerProbe()
+}
+
+private struct GTKWindowRootEnvironmentReaderProbe: View {
+    @Environment(GTKWindowRootClientProbe.self) private var client
+
+    var body: some View {
+        Text("client \(client.name)")
+    }
 }
 
 private func requireGTK(
@@ -5950,6 +7026,20 @@ private func gtkCollectButtons(
     var child = gtk_widget_get_first_child(widget)
     while let current = child {
         gtkCollectButtons(in: current, into: &buttons)
+        child = gtk_widget_get_next_sibling(current)
+    }
+}
+
+private func gtkCollectMenuButtons(
+    in widget: UnsafeMutablePointer<GtkWidget>,
+    into menuButtons: inout [UnsafeMutablePointer<GtkWidget>]
+) {
+    if gtk_swift_widget_is_menu_button(widget) != 0 {
+        menuButtons.append(widget)
+    }
+    var child = gtk_widget_get_first_child(widget)
+    while let current = child {
+        gtkCollectMenuButtons(in: current, into: &menuButtons)
         child = gtk_widget_get_next_sibling(current)
     }
 }
