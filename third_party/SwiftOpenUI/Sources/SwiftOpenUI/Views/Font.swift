@@ -43,16 +43,6 @@ public enum Font: Equatable {
     ) -> Font {
         .custom(size: size, weight: weight, design: design)
     }
-
-    /// SwiftUI accepts platform fonts with `Font(NSFont)` / `Font(UIFont)`.
-    /// Keep SwiftOpenUI platform-neutral by reading the common `pointSize`
-    /// storage shape instead of importing AppKit/UIKit into the core target.
-    public init(_ platformFont: Any) {
-        let reflectedPointSize = Mirror(reflecting: platformFont).children
-            .first { $0.label == "pointSize" }
-            .flatMap { Double(String(describing: $0.value)) }
-        self = .system(size: reflectedPointSize ?? 13)
-    }
 }
 
 // SwiftUI nests these on `Font` (`Font.Weight` / `Font.Design` / `Font.TextStyle`);
@@ -61,4 +51,40 @@ extension Font {
     public typealias Weight = FontWeight
     public typealias Design = FontDesign
     public typealias TextStyle = Font
+}
+
+extension Font {
+    /// Nominal point size for each preset text style; matches the sizes the
+    /// backends render (see the GTK CSS table for FontModifiedView).
+    var presetPointSize: Double {
+        switch self {
+        case .largeTitle: return 28
+        case .title: return 24
+        case .title2: return 20
+        case .title3: return 18
+        case .headline: return 14
+        case .subheadline: return 12
+        case .body: return 14
+        case .callout: return 12
+        case .footnote: return 10
+        case .caption: return 12
+        case .caption2: return 10
+        case .custom(let size, _, _): return size
+        }
+    }
+
+    private func withDesign(_ design: FontDesign) -> Font {
+        switch self {
+        case .custom(let size, let weight, _):
+            return .custom(size: size, weight: weight, design: design)
+        default:
+            return .custom(size: presetPointSize, weight: .regular, design: design)
+        }
+    }
+
+    /// Returns this font with the monospaced design (SwiftUI parity:
+    /// `Font.body.monospaced()`).
+    public func monospaced() -> Font {
+        withDesign(.monospaced)
+    }
 }
